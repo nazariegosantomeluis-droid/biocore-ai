@@ -1,0 +1,252 @@
+[
+  {
+    "rec": "100",
+    "before_vpp_amplitud_puntual": "ACEPTA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.81",
+    "changed": false,
+    "expected": "ACEPTA",
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "103",
+    "before_vpp_amplitud_puntual": "ACEPTA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.85",
+    "changed": false,
+    "expected": "ACEPTA",
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "117",
+    "before_vpp_amplitud_puntual": "ACEPTA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.83",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "108",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "228",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "207",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "233",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "118",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.65",
+    "changed": true,
+    "expected": "ACEPTA",
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "210",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": "DECLINA",
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "217",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "calidad",
+    "changed": false,
+    "expected": "DECLINA",
+    "matches_expected": true,
+    "paced_frac": 0.899
+  },
+  {
+    "rec": "101",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "calidad",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "105",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "calidad",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "109",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "calidad",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "111",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "112",
+    "before_vpp_amplitud_puntual": "ACEPTA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.71",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "115",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "122",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "ACEPTA",
+    "reason": "conf=0.85",
+    "changed": true,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "123",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "102",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "calidad",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.471
+  },
+  {
+    "rec": "104",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": "DECLINA",
+    "matches_expected": true,
+    "paced_frac": 0.627
+  },
+  {
+    "rec": "200",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "201",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "203",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "208",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  },
+  {
+    "rec": "221",
+    "before_vpp_amplitud_puntual": "DECLINA",
+    "after_vpp": "DECLINA",
+    "reason": "pRRx",
+    "changed": false,
+    "expected": null,
+    "matches_expected": true,
+    "paced_frac": 0.0
+  }
+]

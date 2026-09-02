@@ -1,0 +1,280 @@
+{
+  "rows": [
+    {
+      "rec": "100",
+      "n_beats_gt": 223,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.89",
+      "is_new": false
+    },
+    {
+      "rec": "103",
+      "n_beats_gt": 212,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.92",
+      "is_new": false
+    },
+    {
+      "rec": "117",
+      "n_beats_gt": 150,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "108",
+      "n_beats_gt": 177,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.011,
+      "sens_tkeo": 0.944,
+      "ppv_tkeo": 0.977,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "228",
+      "n_beats_gt": 229,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.192,
+      "sens_tkeo": 0.847,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "207",
+      "n_beats_gt": 222,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.293,
+      "sens_tkeo": 0.775,
+      "ppv_tkeo": 0.935,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "233",
+      "n_beats_gt": 313,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.288,
+      "sens_tkeo": 0.997,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "118",
+      "n_beats_gt": 220,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.009,
+      "sens_tkeo": 0.995,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.63",
+      "is_new": false
+    },
+    {
+      "rec": "210",
+      "n_beats_gt": 268,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.075,
+      "sens_tkeo": 0.966,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "217",
+      "n_beats_gt": 217,
+      "paced_frac": 0.899,
+      "pvc_frac": 0.041,
+      "sens_tkeo": 0.986,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": false
+    },
+    {
+      "rec": "101",
+      "n_beats_gt": 217,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 0.982,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "calidad",
+      "is_new": true
+    },
+    {
+      "rec": "105",
+      "n_beats_gt": 252,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.032,
+      "sens_tkeo": 0.992,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.82",
+      "is_new": true
+    },
+    {
+      "rec": "109",
+      "n_beats_gt": 262,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.015,
+      "sens_tkeo": 0.992,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.78",
+      "is_new": true
+    },
+    {
+      "rec": "111",
+      "n_beats_gt": 209,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 0.981,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "calidad",
+      "is_new": true
+    },
+    {
+      "rec": "112",
+      "n_beats_gt": 257,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "calidad",
+      "is_new": true
+    },
+    {
+      "rec": "115",
+      "n_beats_gt": 189,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "122",
+      "n_beats_gt": 258,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "ACEPTA",
+      "gate_reason": "conf=0.72",
+      "is_new": true
+    },
+    {
+      "rec": "123",
+      "n_beats_gt": 149,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "102",
+      "n_beats_gt": 221,
+      "paced_frac": 0.471,
+      "pvc_frac": 0.005,
+      "sens_tkeo": 0.919,
+      "ppv_tkeo": 0.919,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "calidad",
+      "is_new": true
+    },
+    {
+      "rec": "104",
+      "n_beats_gt": 236,
+      "paced_frac": 0.627,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 0.665,
+      "ppv_tkeo": 0.737,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "200",
+      "n_beats_gt": 253,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.308,
+      "sens_tkeo": 1.0,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "201",
+      "n_beats_gt": 269,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.0,
+      "sens_tkeo": 0.996,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "203",
+      "n_beats_gt": 315,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.137,
+      "sens_tkeo": 0.844,
+      "ppv_tkeo": 0.996,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "208",
+      "n_beats_gt": 311,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.338,
+      "sens_tkeo": 0.749,
+      "ppv_tkeo": 0.835,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    },
+    {
+      "rec": "221",
+      "n_beats_gt": 241,
+      "paced_frac": 0.0,
+      "pvc_frac": 0.183,
+      "sens_tkeo": 0.996,
+      "ppv_tkeo": 1.0,
+      "gate_verdict": "DECLINA",
+      "gate_reason": "pRRx",
+      "is_new": true
+    }
+  ],
+  "failed": []
+}

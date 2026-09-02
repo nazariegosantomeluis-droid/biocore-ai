@@ -1,0 +1,22 @@
+LICENSE — PENDING OWNER DECISION
+================================
+
+No license has been chosen for this project yet. This is a deliberate
+placeholder, not an oversight.
+
+Until this file is replaced with an actual license text, **all rights are
+reserved** by the copyright holder (Luis Nazariego Santomé). No permission is
+granted to use, copy, modify, or distribute this software.
+
+The choice is a product decision the owner must make — e.g.:
+
+  - MIT / Apache-2.0 / BSD-3-Clause  — permissive, maximal adoption.
+  - GPL-3.0 / AGPL-3.0               — copyleft; derivatives stay open.
+  - PolyForm Noncommercial / BSL     — free for non-commercial/academic use,
+                                       commercial use reserved.
+  - A dual-license scheme            — open-source core + commercial terms
+                                       for institutions.
+
+Once decided, replace this file's entire contents with the canonical license
+text and add the matching SPDX identifier / `license` field to project
+metadata.

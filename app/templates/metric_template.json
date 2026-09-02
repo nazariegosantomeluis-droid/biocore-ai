@@ -1,0 +1,14 @@
+{
+  "id": "metric_id",
+  "name": "Nombre de la métrica",
+  "value": null,
+  "unit": "unidad",
+  "normal_range": "rango esperado",
+  "meaning": "¿Qué significa? Definición clínica/ fisiológica.",
+  "why_it_matters": "¿Por qué importa? Impacto en diagnóstico/ tratamiento/ resultados.",
+  "what_affects_it": "¿Qué la afecta? Factores biológicos, técnicos y ambientales.",
+  "relation_to_other_systems": "¿Cómo se relaciona con otros sistemas? Dependencias multi-modal.",
+  "what_if_changes": "¿Qué pasaría si cambia? Escenarios y consecuencias.",
+  "confidence": "Confianza del cálculo (0-1)",
+  "evidence_link": "https://doi.org/... or URL"
+}

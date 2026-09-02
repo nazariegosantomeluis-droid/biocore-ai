@@ -1,0 +1,41 @@
+[client]
+# BIOCORE AI uses a single, curated hub-based navigation (Digital Twin OS +
+# Learning/Clinical/Research/Simulation/AI/Hardware hubs) rendered inside
+# app/main.py. Streamlit's automatic multipage sidebar — which lists every
+# file in app/pages/ individually with no organization — is disabled so the
+# 17 loose entries don't appear as a second, uncurated navigation surface.
+showSidebarNavigation = false
+
+[theme]
+# Tema base BIOCORE AI (2026-08-24, Capa 2 Fase 2.3 Tanda 1). Los 4 valores
+# de abajo son los únicos tokens que el theming nativo de Streamlit expone
+# (controles: botones, sliders, checkboxes, radios) -- todo lo demás
+# (jerarquía de encabezados, badges, estados vacío/error) vive en
+# app/utils/design_system.py, que reutiliza estos mismos tokens por nombre
+# en vez de inventar sus propios valores.
+#
+# Elegidos por auditoría, no por gusto: el recon de la Fase 2.3 encontró 52
+# hex distintos sin fuente única en toda la app -- estos 4 son, de ese
+# desorden, los valores YA más repetidos con intención de marca/fondo (no
+# colores nuevos que añadan un 53º):
+#   primaryColor = #1d4ed8 -- el azul de acento ya usado en Twin OS/Respiratory.
+#   backgroundColor = #0f172a -- el fondo oscuro más repetido del repo (6 variantes casi iguales antes).
+#   secondaryBackgroundColor = #1a2a4a -- el tono de panel/tarjeta ya usado 5 veces (Respiratory Lab).
+#   textColor = #e0e7ff -- ya usado como texto claro en varias pantallas.
+#
+# Contraste WCAG (fórmula estándar de luminancia relativa, verificado por
+# cálculo, no a ojo -- ver CHANGELOG.md para la tabla completa):
+#   textColor sobre backgroundColor:            14.49:1 (AAA, texto normal)
+#   primaryColor + texto blanco (botones):        6.70:1 (AA)
+#   textColor sobre secondaryBackgroundColor:    11.56:1 (AAA)
+# primaryColor NO se usa como color de TEXTO directo sobre el fondo oscuro
+# (2.66:1 -- reprueba incluso AA) -- por eso design_system.py declara un
+# ACCENT_ON_DARK aparte (#8ecae6, 9.98:1, AAA) para encabezados/íconos; el
+# primaryColor de este bloque es solo para los controles nativos de
+# Streamlit (fondos de botón/slider), donde el contraste correcto ya es
+# con el texto que Streamlit pone encima, no con el fondo de la página.
+base = "dark"
+primaryColor = "#1d4ed8"
+backgroundColor = "#0f172a"
+secondaryBackgroundColor = "#1a2a4a"
+textColor = "#e0e7ff"

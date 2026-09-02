@@ -1,0 +1,31 @@
+# Requirements for ECG Arrhythmia Classifier
+
+# Core dependencies
+numpy>=1.23.0
+pandas>=1.5.0
+scipy>=1.10.0
+
+# Machine Learning
+scikit-learn>=1.2.0
+xgboost>=1.7.0
+lightgbm>=3.3.0
+
+# Web Interface
+streamlit>=1.25.0
+plotly>=5.10.0
+
+# Visualization
+matplotlib>=3.6.0
+seaborn>=0.12.0
+
+# Testing
+pytest>=7.2.0
+pytest-cov>=4.0.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Optional for advanced features
+scikit-plot>=0.3.7
+optuna>=3.0.0  # For hyperparameter optimization

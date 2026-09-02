@@ -1,0 +1,227 @@
+[
+  {
+    "rec": "100",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.89",
+    "verdict_tkeo": "ACEPTA",
+    "reason_tkeo": "ok",
+    "flip": false,
+    "expected": "ACEPTA"
+  },
+  {
+    "rec": "103",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.92",
+    "verdict_tkeo": "ACEPTA",
+    "reason_tkeo": "ok",
+    "flip": false,
+    "expected": "ACEPTA"
+  },
+  {
+    "rec": "117",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "ACEPTA",
+    "reason_tkeo": "ok",
+    "flip": true,
+    "expected": null
+  },
+  {
+    "rec": "108",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "228",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "207",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "233",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "118",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.63",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": true,
+    "expected": "ACEPTA"
+  },
+  {
+    "rec": "210",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": "DECLINA"
+  },
+  {
+    "rec": "217",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": false,
+    "expected": "DECLINA"
+  },
+  {
+    "rec": "101",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "calidad",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "105",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.82",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": true,
+    "expected": null
+  },
+  {
+    "rec": "109",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.78",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": true,
+    "expected": null
+  },
+  {
+    "rec": "111",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "calidad",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "112",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "calidad",
+    "verdict_tkeo": "ACEPTA",
+    "reason_tkeo": "ok",
+    "flip": true,
+    "expected": null
+  },
+  {
+    "rec": "115",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "122",
+    "verdict_bidir": "ACEPTA",
+    "reason_bidir": "conf=0.72",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": true,
+    "expected": null
+  },
+  {
+    "rec": "123",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "102",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "calidad",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "calidad",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "104",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "200",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "201",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "203",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "208",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  },
+  {
+    "rec": "221",
+    "verdict_bidir": "DECLINA",
+    "reason_bidir": "pRRx",
+    "verdict_tkeo": "DECLINA",
+    "reason_tkeo": "pRRx",
+    "flip": false,
+    "expected": null
+  }
+]
