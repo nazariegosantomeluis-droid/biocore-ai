@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-05 — BIOCORE, depuración de código muerto: 32 módulos + 1 imagen retirados de `main`
+
+**Contexto**: tras la limpieza de artefactos (envs, `.md` obsoletos, `_archive/` a branch) quedaba código muerto/roto reportado a lo largo de varias sesiones. Se hizo un censo completo con un grafo de imports (`ast`) desde `app/main.py` + `main.py` + los 199 archivos de `tests/`, con tres bugs del propio grafo corregidos y verificados por ejecución (resolución de imports relativos en `__init__.py`, edges implícitos "importar un submódulo ejecuta el `__init__.py` de sus paquetes ancestros", y un bug de separador `/`↔`\` que aislaba los entry points de su propio grafo) + mapeo manual de los puentes dinámicos (`runpy.run_path`, `importlib.util.spec_from_file_location`) que el código usa a propósito. Resultado: 33 elementos sin ningún llamador vivo, **cero migración necesaria** (ninguna función viva atrapada en un archivo muerto).
+
+### Retirado por grupos, con la suite verde entre cada uno
+
+- **Grupo A — clúster arrhythmia roto (4)**: `app_arrhythmia_classifier.py` (no compilaba, `IndentationError`), `infer_arrhythmia.py` y `evaluate_arrhythmia_classifier.py` (ambos crashean al importar — nombres inexistentes en `biomedical/arrhythmia_classifier.py` y un `train_arrhythmia_classifier.py` ausente del repo; verificado por ejecución directa), `biomedical/arrhythmia_compat.py` (shim cuyo único consumidor era la UI que no compila). `biomedical/arrhythmia_classifier.py` (el vivo, cubierto por `tests/test_arrhythmia_classifier_new.py`) **se conserva** — no importa de ninguno de los 4.
+- **Grupo B — 26 huérfanos limpios**: `src/reasoning_engine.py` + `app/bio_reasoning_streamlit.py` + `app/reasoning_engine_streamlit.py` (`app/main.py` no menciona "reasoning"; el ganador `biomedical/reasoning_engine.py` sigue vivo vía su test); `app/{academy,clinical_db}.py`, `app/components/__init__.py` (tombstone ya vaciado), `app/engines/{hrv_engine,signal_intelligence}.py`, `app/utils/ui_helpers.py`; `domain/patients/__init__.py` (scaffold de 1 línea); `deep_learning/` (5, `__init__` vacío, cero referencias); `educational/` menos `ecg_tutor.py` (7 módulos que el `__init__` del paquete nunca importó); `src/ai/multisensor_analytics.py`; `src/signals/ecg/{ecg_education_integration,integrated_ecg_system,wave_annotation}.py` (no exportados por el `__init__`, perdedores del dedup de `src/signals/ecg/`). Los `__init__.py` de `educational/`, `src/signals/ecg/` y `src/ai/` re-verificados tras el retiro: ninguno importaba lo retirado.
+- **Grupo C — artefactos (3)**: `debug_import.py`, `demo_run.py`, `pacing_spike_zoom.png`.
+
+### Conservado a propósito
+
+`example_reasoning_engine.py` (391 líneas, galería de ejemplos documentada del `biomedical/reasoning_engine.py` ganador) e `install_dependencies.py` (utilidad de instalación/verificación funcional). **`app/utils.py`** (588 líneas, 33 símbolos top-level, vivo como unidad vía el puente de compatibilidad de `app/utils/__init__.py`) queda marcado para una **auditoría de símbolos futura** — decidir cuál de sus 33 funciones tiene llamador real es una tanda propia.
+
+### Verificación
+
+- `pytest tests/ -q` → **432 passed** (0 fallos). Durante la campaña algunas corridas mostraron 430–431 con 1–2 skips: son los tests dependientes de PhysioNet (`test_qrs_delineation.py`, `test_bbb_detector_validation.py`, `test_ptbxl_bbb_validation_set.py`) que hacen `pytest.skip` ante un 502 de physionet.org — flake de red externo pre-existente, sin relación con nada retirado; la suite sin esos 9 tests da 423/423 estable.
+- `python -m py_compile` sobre todo el árbol no-test → **limpio** (el `app_arrhythmia_classifier.py` que fallaba ya no está).
+- Grep de cierre: **cero** imports a los 33 elementos desde código vivo.
+- Los 3 entry points arrancan: `app/main.py` → HTTP 200; `main.py --help` (CLI, `--mode {pipeline,dashboard,trainer}`) OK; `app/ecg_trainer.py` importa limpio (usa `educational.ecg_tutor`, el módulo conservado).
+- Huella de `main`: **278 archivos / 5.0 MB** (desde 311 / 5.3 MB), 175 `.py` no-test (desde 207).
+
 ## 2026-08-31 — BIOCORE, Capa 5A Sub-fase 2 (visual): el cerebro se suma al Cuerpo Digital SVG
 
 **Contexto**: la Sub-fase 1 añadió el dominio neurológico al UPS (band power/estado reales del EEG, con gate anti-órgano-fantasma). Pero `app/supermodules/twin_shell/ups_body_visual.py` — el Cuerpo Digital sincronizado con el UPS — sólo dibujaba corazón y pulmones; su docstring afirmaba "los únicos dos dominios que el UPS modela", ya falso (son tres). Esta sub-fase es **presentacional, cero lógica de datos tocada**: hace visible en la representación principal lo que ya persiste y ya es honesto.
