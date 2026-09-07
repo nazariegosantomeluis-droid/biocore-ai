@@ -7,15 +7,25 @@ código. Diseñada para que un humano la transcriba directamente de un texto
 (Guyton et al.), con la fuente como campo estructural obligatorio.
 
 Alcance deliberadamente estricto -- igual criterio que
-`domain/physiology/state/schema.py`: solo los dos dominios que el UPS
-modela hoy (cardiovascular, respiratorio) y, dentro de esos, solo las
-señales primarias medidas/simuladas (`COUPLABLE_DESCRIPTORS`). Los índices
-que el propio BIOCORE deriva (`health_score`, `risk_score`,
-`rhythm_stability`, `myocardial_stress`, `cardiac_output`, `hypoxia_risk`,
-`apnea_risk`, `tissue_oxygenation` -- ver `domain/physiology/state/builder.py`)
-quedan fuera a propósito: son invenciones de esta app, no conceptos de un
-libro de fisiología, así que una regla de acoplamiento citable no puede
-apuntar a ellos.
+`domain/physiology/state/schema.py`: los tres dominios que el UPS modela
+hoy (cardiovascular, respiratorio, neurológico -- este último desde Capa
+5A Sub-fase 1) y, dentro de esos, solo las señales primarias
+medidas/simuladas (`COUPLABLE_DESCRIPTORS`). Los índices que el propio
+BIOCORE deriva (`health_score`, `risk_score`, `rhythm_stability`,
+`myocardial_stress`, `cardiac_output`, `hypoxia_risk`, `apnea_risk`,
+`tissue_oxygenation`, y en neuro `mental_workload`, `cognitive_fatigue`,
+`attention`, `stress_perception`, `sleepiness` -- ver
+`domain/physiology/state/builder.py`) quedan fuera a propósito: son
+invenciones de esta app, no conceptos de un libro de fisiología, así que
+una regla de acoplamiento citable no puede apuntar a ellos.
+
+Ancla neuro (2026-09-06, Acoplamientos Sub-fase A): `beta_power` -- band
+power vía PSD de Welch (`EegAnalyzer`, señal primaria, NO un índice
+derivado por BIOCORE, así que la doctrina de arriba se mantiene intacta).
+Es PROVISIONAL: la firma del experto (Sub-fase B) podría cambiarlo a un
+ratio nombrado por la literatura (theta/beta, beta/alpha). Esta sub-fase
+solo deja el dominio disponible para anclar -- NINGUNA regla real existe
+todavía.
 """
 
 from __future__ import annotations
@@ -63,10 +73,13 @@ class ValidationStatus(str, Enum):
 
 
 # Señales primarias acoplables por dominio -- ver docstring del módulo para
-# por qué los índices derivados de BIOCORE quedan fuera.
+# por qué los índices derivados de BIOCORE quedan fuera, y por qué el ancla
+# neuro es `beta_power` (band power, señal primaria) y no `stress_perception`
+# (índice derivado, sigue prohibido).
 COUPLABLE_DESCRIPTORS: Dict[str, FrozenSet[str]] = {
     "cardiovascular": frozenset({"heart_rate", "hrv"}),
     "respiratory": frozenset({"respiratory_rate", "spo2"}),
+    "neurological": frozenset({"beta_power"}),
 }
 
 
@@ -116,10 +129,31 @@ class CouplingEffect:
     domain: str
     descriptor: str
     direction: EffectDirection
-    magnitude_hint: Optional[str] = None  # solo si la fuente da un número/rango citable
+    magnitude_hint: Optional[str] = None  # texto de la fuente ("respuesta compensatoria...", un rango)
+    # `magnitude_delta` (2026-09-06, Acoplamientos Sub-fase A): el cambio
+    # numérico con signo que la fuente cita, CUANDO lo cita -- lo que
+    # `apply_couplings()` necesita para escribir un valor acoplado honesto
+    # (`base + delta`). `None` en TODA regla de esta sub-fase (no hay
+    # ninguna): lo rellena la regla validada de la Sub-fase B con el número
+    # que confirme el experto. Un modelo de magnitud más rico (p.ej.
+    # proporcional al exceso sobre el umbral) es una decisión de la Sub-fase
+    # B; este campo cubre el caso simple "delta fijo citado".
+    magnitude_delta: Optional[float] = None
 
     def __post_init__(self) -> None:
         _validate_domain_and_descriptor(self.domain, self.descriptor)
+        if self.magnitude_delta is not None:
+            positivo = self.magnitude_delta > 0
+            if self.direction == EffectDirection.AUMENTA and not positivo:
+                raise ValueError(
+                    f"magnitude_delta={self.magnitude_delta} contradice direction=AUMENTA "
+                    "-- un efecto que 'aumenta' no puede tener un delta <= 0"
+                )
+            if self.direction == EffectDirection.DISMINUYE and positivo:
+                raise ValueError(
+                    f"magnitude_delta={self.magnitude_delta} contradice direction=DISMINUYE "
+                    "-- un efecto que 'disminuye' no puede tener un delta > 0"
+                )
 
 
 @dataclass(frozen=True)

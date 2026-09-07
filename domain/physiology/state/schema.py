@@ -68,13 +68,35 @@ class Provenance(str, Enum):
     refleje si su caso concreto está validado o no (ver
     `closed_loop_ups_bridge.py` y el `ups_bridge.py` original, que
     preserva su 0.425 histórico explícitamente en vez de heredar el nuevo
-    punto medio de la banda ensanchada)."""
+    punto medio de la banda ensanchada).
+
+    `DERIVADO_ACOPLAMIENTO` (2026-09-06; Acoplamientos, Sub-fase A) -- un
+    valor calculado por una REGLA DE ACOPLAMIENTO fisiológico
+    (`domain/physiology/coupling/`): cuando el estado de un sistema modula
+    una señal primaria de otro (p.ej. activación neurológica -> ↑FC), el
+    valor modulado NO es medido ni simulado -- lo produce la regla, a
+    partir del valor base real y de un descriptor real del sistema origen.
+    Mismo criterio que `MODELO_HEMODINAMICO` (y NO `DERIVADO` a secas): es
+    una afirmación fisiológica NUEVA (una FC acoplada) pendiente o dotada
+    de validación experta, no un cálculo interno ya confiable sobre datos
+    ya confiables. Banda 0.30-0.80 con la misma forma de dos regímenes:
+    extremo bajo para reglas `TRANSCRITO_SIN_VALIDAR`, extremo alto para
+    `VALIDADO_POR_FUENTE` -- y el techo (0.80) deliberadamente por debajo
+    del de `SIMULACION` (0.90): ni la regla mejor validada compite con un
+    dato leído/simulado directo del organismo. Sin punto medio automático
+    razonable -- `apply_couplings()` (`coupling/bridge.py`) pasa la
+    confianza EXPLÍCITA según el `validation_status` de cada regla. El
+    descriptor acoplado se persiste SIEMPRE bajo un nombre distinto del
+    medido (sufijo `_acoplado`, p.ej. `heart_rate_acoplado`) para que
+    coexista con el medido sin sobrescribirlo -- mismo patrón que
+    `systolic_bp_modelo` en `hemodynamics/ups_bridge.py`."""
 
     SENSOR_REAL = "sensor_real"
     SIMULACION = "simulacion"
     DERIVADO = "derivado"
     REFERENCIA_CLINICA = "referencia_clinica"
     MODELO_HEMODINAMICO = "modelo_hemodinamico"
+    DERIVADO_ACOPLAMIENTO = "derivado_acoplamiento"
 
 
 class ConfidenceBand(NamedTuple):
@@ -109,6 +131,16 @@ CONFIDENCE_REFERENCE: Dict["Provenance", ConfidenceBand] = {
         "techo (0.80) siempre por debajo de SIMULACION (0.90), ni el caso más validado de este "
         "modelo compite con un dato leído/derivado directamente del organismo. Sin punto medio "
         "automático razonable dado el ancho del rango -- cada llamador pasa confianza explícita.",
+    ),
+    Provenance.DERIVADO_ACOPLAMIENTO: ConfidenceBand(
+        0.30, 0.80,
+        "Calculado por una regla de acoplamiento fisiológico (coupling/): una señal primaria de "
+        "un sistema modulada por el estado de otro. Afirmación fisiológica nueva (no un cálculo "
+        "interno ya confiable), pendiente o dotada de validación experta. Banda ancha, dos "
+        "regímenes: extremo bajo (~0.30-0.45) para reglas TRANSCRITO_SIN_VALIDAR; extremo alto "
+        "(~0.65-0.75) para VALIDADO_POR_FUENTE. Techo (0.80) siempre por debajo de SIMULACION "
+        "(0.90). Sin punto medio automático -- apply_couplings() pasa la confianza explícita "
+        "según el validation_status de cada regla (misma disciplina que MODELO_HEMODINAMICO).",
     ),
     # Provenance.REFERENCIA_CLINICA deliberadamente NO tiene banda aquí. No es
     # un descuido: esta procedencia nunca se usa con PhysiologicalDescriptor/

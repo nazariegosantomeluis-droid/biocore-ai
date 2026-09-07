@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-06 — BIOCORE, Acoplamientos Sub-fase A: infraestructura honesta e inerte (cero reglas)
+
+**Contexto**: tres sistemas (cardiovascular, respiratorio, neurológico) alimentan el gemelo pero no conversan. El motor de acoplamientos (`domain/physiology/coupling/`) existe pero está dormido: `evaluate()` solo PROPONE, ningún módulo lo importa, `COUPLABLE_DESCRIPTORS` no incluía neuro. El diagnóstico previo mapeó tres trampas de honestidad —un valor modulado por una regla NO es medido; el HRV ya mide el acoplamiento autonómico (doble cuenta); los escenarios de estrés ya co-authorean FC↑ con estrés↑— cada una con precedente en el repo. Esta sub-fase construye toda la maquinaria **honesta e inerte**, verificada por ejecución con **cero reglas activas**. NINGUNA regla real se transcribe aquí (eso es Sub-fase B, con el experto).
+
+### Paso 1 — `Provenance.DERIVADO_ACOPLAMIENTO` (`state/schema.py`)
+
+Miembro nuevo + `ConfidenceBand` en `CONFIDENCE_REFERENCE`, copiando el razonamiento de `MODELO_HEMODINAMICO` (NO diluir en `DERIVADO` genérico: es una afirmación fisiológica nueva, pendiente/dotada de validación experta). Banda `0.30-0.80`, dos regímenes (extremo bajo para `TRANSCRITO_SIN_VALIDAR`, alto para `VALIDADO_POR_FUENTE`), techo por debajo de `SIMULACION` (0.90). Sin punto medio automático — `apply_couplings()` pasa la confianza explícita según el `validation_status` de cada regla. Aditivo: ningún test enumera los miembros de `Provenance` ni `CONFIDENCE_REFERENCE` de forma cerrada; `REFERENCIA_CLINICA` sigue sin banda.
+
+### Paso 2 — Ancla neuro en `COUPLABLE_DESCRIPTORS` (`coupling/rules.py`)
+
+`"neurological": frozenset({"beta_power"})` — band power (señal primaria vía PSD de Welch), **NO** un índice derivado por BIOCORE, así que la doctrina "solo señales primarias, nada de `health_score`/`stress_perception`/…" **se mantiene intacta** (test nuevo confirma que `neurological/stress_perception` sigue lanzando `ValueError`). `beta_power` es **PROVISIONAL** — la firma del experto (Sub-fase B) podría cambiarlo a un ratio nombrado por la literatura (theta/beta, beta/alpha). Una `CouplingCondition(domain="neurological", descriptor="beta_power", …)` ahora se instancia; ninguna `CouplingRule` real la usa. `test_couplable_descriptors_are_exactly_the_four_primary_signals` → `…five_primary_signals`.
+
+Añadido `CouplingEffect.magnitude_delta: Optional[float] = None` — el número con signo que `apply_couplings()` necesita para escribir `base + delta`. `None` en toda regla de esta sub-fase; lo rellena la regla validada de la Sub-fase B. `__post_init__` rechaza un `magnitude_delta` cuyo signo contradiga `direction`. *(Única adición al modelo de regla más allá del plan literal — reportada: sin ella, "para cada `ProposedCoupling` → `append_descriptors()`" no era implementable, porque el modelo de regla no cargaba ningún número.)*
+
+### Paso 3 — Puente post-persistencia `apply_couplings()` (`coupling/bridge.py`, nuevo)
+
+Réplica de `hemodynamics/ups_bridge.py`: lee un snapshot YA PERSISTIDO (`get_state_by_snapshot_id`), corre `evaluate()` con el catálogo, y por cada acoplamiento que dispare **y traiga `magnitude_delta`**, adjunta un descriptor `{descriptor}_acoplado` bajo el MISMO `snapshot_id` vía `append_descriptors()`:
+- `Provenance.DERIVADO_ACOPLAMIENTO`, confianza `confidence_for_validation_status(regla.validation_status)` (0.35 transcrito / 0.70 validado).
+- `source_detail` completo: `acoplamiento:{rule_id} | {source} | disparo: {descriptor}={valor} | {efecto} base={valor}`.
+- **Nombre con sufijo `_acoplado`** (lección de `systolic_bp_modelo`): `heart_rate` (medido) y `heart_rate_acoplado` (calculado) coexisten como filas `ValueRecord` distintas — `_domain_state_from_values` indexa por nombre, sin sobrescritura silenciosa.
+- **No muta el organismo, no toca `builder.py`/`run_rich_scenario()`/narrador, no sobrescribe el medido.**
+
+`COUPLING_DISABLED_SCENARIOS = {"stress", "anxiety", "seizure"}` — escenarios cuyo CV ya incluye la descarga simpática; `apply_couplings(scenario=…)` lanza `CouplingScenarioBlockedError` (estructural, no un `if` evitable — mismo patrón que `HemodynamicModelNotEnabledError`). NO es lista blanca: por doctrina el acoplamiento aplica a cualquier escritor neuro-sin-CV-correlacionada (`scenario=None` — EEG Lab, escritor solo-EEG).
+
+Política de combinación multi-regla: **documentada como pendiente** (`_combine_proposals_for_same_effect()`, gancho identidad) — con ≤1 regla habilitada (el caso de la Sub-fase B) no se plantea; habilitar >1 regla sobre el mismo efecto exige elegir política primero.
+
+### Paso 4 — Verificado por ejecución (honesto e inerte, cero reglas)
+
+- **Inerte**: `apply_couplings(snapshot, [])` sobre un snapshot real → `[]`, snapshot idéntico, cero filas `_acoplado`. Igual con reglas `enabled=False`, e igual con una regla `enabled=True` disparada pero **sin `magnitude_delta`** (sin número citado no se escribe nada).
+- **Procedencia de punta a punta**: un `PhysiologicalDescriptor(..., DERIVADO_ACOPLAMIENTO, 0.35, ...)` persiste y se recupera con procedencia/confianza/`source_detail` correctos. La banda existe y `0.80 < 0.90` (techo de `SIMULACION`).
+- **Nombrado coexiste**: `heart_rate` (medido, `simulacion`, 70) y `heart_rate_acoplado` (calculado, `derivado_acoplamiento`, 92) en el mismo snapshot, filas distintas, el medido intacto.
+- **El narrador lo citaría sin tocarlo**: `build_context()` itera `all_domains()` genéricamente → un `DescriptorContext` con `name="heart_rate_acoplado"`, `provenance="derivado_acoplamiento"` aparece junto al `heart_rate` medido.
+- **Ruta completa una vez** (regla SOLO-TEST con `magnitude_delta=+18`, `beta_power=30 > 25`): una fila `heart_rate_acoplado = 88`, `DERIVADO_ACOPLAMIENTO`, confianza 0.35, medido intacto.
+- **No-regresión**: solo cambian `coupling/` + el miembro de `schema.py` + el test de `COUPLABLE_DESCRIPTORS`; cero cambios en `builder.py`/`repository.py`/`narrator/`/labs/hemodinámica/organismo/twin visual. `pytest tests/ -q` → **447 passed** (432 + 15 nuevos, 0 fallos). App `HTTP 200` (`/_stcore/health` → `ok`).
+
+**Sub-fase B** añade la primera regla (neuro→`heart_rate`, ancla y magnitud confirmadas por el experto, `VALIDADO_POR_FUENTE`, `enabled=True`) — la maquinaria ya está lista y probada honesta.
+
 ## 2026-09-05 — BIOCORE, depuración de código muerto: 32 módulos + 1 imagen retirados de `main`
 
 **Contexto**: tras la limpieza de artefactos (envs, `.md` obsoletos, `_archive/` a branch) quedaba código muerto/roto reportado a lo largo de varias sesiones. Se hizo un censo completo con un grafo de imports (`ast`) desde `app/main.py` + `main.py` + los 199 archivos de `tests/`, con tres bugs del propio grafo corregidos y verificados por ejecución (resolución de imports relativos en `__init__.py`, edges implícitos "importar un submódulo ejecuta el `__init__.py` de sus paquetes ancestros", y un bug de separador `/`↔`\` que aislaba los entry points de su propio grafo) + mapeo manual de los puentes dinámicos (`runpy.run_path`, `importlib.util.spec_from_file_location`) que el código usa a propósito. Resultado: 33 elementos sin ningún llamador vivo, **cero migración necesaria** (ninguna función viva atrapada en un archivo muerto).

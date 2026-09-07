@@ -101,11 +101,36 @@ def test_effect_rejects_non_couplable_descriptor():
         CouplingEffect(domain="respiratory", descriptor="hypoxia_risk", direction=EffectDirection.AUMENTA)
 
 
-def test_couplable_descriptors_are_exactly_the_four_primary_signals():
+def test_couplable_descriptors_are_exactly_the_five_primary_signals():
+    """Acoplamientos Sub-fase A (2026-09-06): + neurológico con ancla
+    `beta_power` (band power = señal primaria). Los índices derivados de
+    BIOCORE -- incluidos los neuro (`stress_perception`, etc.) -- siguen
+    fuera; la doctrina no se relajó."""
     assert COUPLABLE_DESCRIPTORS == {
         "cardiovascular": frozenset({"heart_rate", "hrv"}),
         "respiratory": frozenset({"respiratory_rate", "spo2"}),
+        "neurological": frozenset({"beta_power"}),
     }
+
+
+def test_neuro_beta_power_is_now_a_valid_coupling_anchor_but_no_rule_uses_it_yet():
+    """La condición se puede instanciar contra `neurological/beta_power`
+    (ya no lanza ValueError) -- pero NINGUNA CouplingRule real existe."""
+    condition = CouplingCondition(
+        domain="neurological", descriptor="beta_power",
+        operator=ComparisonOperator.GREATER_THAN, threshold=25.0, unit="power (u.a.)",
+    )
+    assert condition.descriptor == "beta_power"
+
+
+def test_neuro_derived_index_is_still_rejected_as_anchor():
+    """`stress_perception` es un índice derivado por BIOCORE -- añadir
+    `beta_power` NO abrió la puerta a los derivados neuro."""
+    with pytest.raises(ValueError, match="derivados"):
+        CouplingCondition(
+            domain="neurological", descriptor="stress_perception",
+            operator=ComparisonOperator.GREATER_THAN, threshold=60.0, unit="0-100",
+        )
 
 
 # --- ComparisonOperator ------------------------------------------------------
