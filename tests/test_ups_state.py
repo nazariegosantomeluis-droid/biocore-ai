@@ -240,15 +240,22 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.cardiovascular.descriptors == {}  # corazón NO fabricado
         assert eeg_state.respiratory.descriptors == {}  # pulmón NO fabricado
 
-        # Los 5 band power + los 5 detail + health_score/risk_score = 12.
+        # Los 5 band power + `bar` (Ratio Beta/Alfa, Acoplamientos Sub-fase B)
+        # + los 5 detail + health_score/risk_score = 13.
         assert set(eeg_state.neurological.descriptors.keys()) == {
-            "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power",
+            "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar",
             "health_score", "risk_score",
             "mental_workload", "cognitive_fatigue", "attention", "stress_perception", "sleepiness",
         }
         assert eeg_state.neurological.get("alpha_power").value == pytest.approx(12.5)
         assert eeg_state.neurological.get("alpha_power").provenance == Provenance.SIMULACION
         assert eeg_state.neurological.get("health_score").provenance == Provenance.DERIVADO
+        # `bar` = beta/alpha = 7.2/12.5, con la MISMA procedencia que las band
+        # power de origen (cociente de dos señales primarias, no un índice
+        # derivado por el organismo).
+        assert eeg_state.neurological.get("bar").value == pytest.approx(7.2 / 12.5)
+        assert eeg_state.neurological.get("bar").provenance == Provenance.SIMULACION
+        assert eeg_state.neurological.get("bar").unit == "ratio (adimensional)"
 
         # `frontal_activity`/`temporal_activity` (NeurologicalDetail) nunca
         # se asignan en `_update_brain()` -- no deben aparecer como

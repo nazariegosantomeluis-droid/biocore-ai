@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-09-06 — BIOCORE, Acoplamientos Sub-fase B: la primera regla validada (arousal→↑FC)
+
+**Contexto**: la Sub-fase A dejó la infraestructura honesta e inerte (`DERIVADO_ACOPLAMIENTO`, `apply_couplings`, `magnitude_delta`, escenarios bloqueados). El experto validó la primera regla y **rechazó `beta_power` crudo** como ancla —la potencia absoluta varía por anatomía (cráneo, distancia fuente-sensor, ganancia), indefendible entre sujetos— a favor del **Ratio Beta/Alfa (BAR = P_β/P_α)**: un cociente adimensional del mismo electrodo que cancela esas variables y es un biomarcador **citado** (Schutter 2006 / Handbook of Psychophysiology cap.10), no una invención de la app. Esta sub-fase construye el BAR, lo usa de ancla, y activa la regla.
+
+### Paso 1 — BAR en el `EegAnalyzer` (`src/signals/eeg/eeg_analyzer.py`)
+
+`beta_alpha_ratio(beta_power, alpha_power) -> Optional[float]` (función de módulo, fuente única de la fórmula + el borde): `None` si `alpha_power` es ~0 (`< 1e-9`) — **un cociente indefinido se declara indefinido, no se fuerza a infinito ni a un tope**. `analyze()` añade `bar` a `EegAnalysis` (campo con default `None`, aditivo) y una fila `Beta/Alpha Ratio (BAR)` a `findings`. Constantes citadas: `BAR_BASELINE_RANGE (0.8, 1.2)`, `BAR_AROUSAL_THRESHOLD 1.8`, `BAR_CITATION`.
+
+### Paso 2 — BAR persistido + ancla cambiada (`builder.py`, `coupling/rules.py`)
+
+`_neurological_state()` persiste `bar` (calculado vía `beta_alpha_ratio` desde `signals["beta_power"]/["alpha_power"]`) **con la procedencia de las band power de origen** — NO `DERIVADO`: es una identidad aritmética sobre dos señales primarias del mismo dominio, no un índice que el organismo calcule con pesos propios. Respeta el gate: sin `alpha_power`+`beta_power` reales, no hay `bar`; con `alpha≈0` el cociente es `None` → no se persiste. **Reporte sobre la doctrina de procedencia**: no hubo que tocarla — el BAR encaja como "cociente de señales primarias con cita" (misma procedencia que sus entradas), exactamente el matiz que el experto resolvió; `stress_perception` (índice derivado) sigue prohibido como ancla.
+
+`COUPLABLE_DESCRIPTORS["neurological"]`: `{"beta_power"}` (provisional Sub-fase A) → `{"bar"}` (firmado). `beta_power` ya no es acoplable (nada más lo usaba); sigue persistiéndose como band power. Tests de ancla actualizados.
+
+### Paso 3 — la regla transcrita (`coupling/catalog.py`, nuevo)
+
+`VALIDATED_RULES = (AROUSAL_TAQUICARDIA_BAR,)` — única fuente de verdad de acoplamientos activos. La regla, transcrita **literalmente** de la firma:
+- `condition`: `neurological/bar > 1.8`. `effect`: `cardiovascular/heart_rate` AUMENTA, `magnitude_delta=+15.0` (arousal cognitivo puro acotado a +10–25 bpm; +15 punto medio conservador).
+- `source`: "Guyton & Hall 14ª ed. cap.61 (SNA y respuesta de estrés) | Schutter DJLG 2006 / Handbook of Psychophysiology 3ª ed. cap.10 (BAR; basal 0.8-1.2, arousal >1.8)".
+- `validation_status=VALIDADO_POR_FUENTE` → confianza **0.70** (extremo alto de la banda de `DERIVADO_ACOPLAMIENTO`, aún por debajo de `SIMULACION`). `enabled=True` — la primera regla activa.
+- `notes`: la dirección espejo (relajación→↓FC) es una regla futura con su propia firma — no se añade "por simetría".
+
+### Paso 4 — puente cableado a un flujo vivo
+
+El botón **"Guardar estado al gemelo"** de EEG Lab (`eeg_neuro_lab/page_content.py`), tras `save_state()`, llama `apply_couplings(session, snapshot_id, VALIDATED_RULES, scenario=None)` en la misma sesión. `scenario=None` porque EEG Lab es un escritor **neuro-sin-CV-correlacionada**, no un escenario de estrés. **Hallazgo reportado**: EEG Lab escribe un snapshot neuro-only (sin FC medida, como todos los labs del repo), así que ahí `apply_couplings` es hoy un **no-op honesto** (`base heart_rate is None` → no escribe nada) — la llamada está cableada y dispara en cuanto un snapshot lleve FC medida + BAR>1.8. La caption del botón lo dice explícitamente. El mecanismo se prueba por ejecución con un snapshot combinado ecg+eeg (abajo).
+
+### Paso 5 — dos sistemas conversan honestamente (verificado por ejecución)
+
+`tests/test_coupling_subfase_b.py` (13 tests):
+- **BAR alto → acoplamiento**: snapshot con `heart_rate` medido 72 + EEG beta-dominante (BAR = 40/10 = 4.0 > 1.8) → `apply_couplings(VALIDATED_RULES)` → `heart_rate` (72, `simulacion`, **intacto**) Y `heart_rate_acoplado` (**87** = 72+15, `derivado_acoplamiento`, confianza **0.70**, `source_detail` = regla + citas Guyton/Schutter + `disparo: bar=4` + `heart_rate base=72`). Coexisten.
+- **BAR bajo → sin acoplamiento**: BAR = 5/25 = 0.2 < 1.8 → `apply_couplings` devuelve `[]`, sin fila `heart_rate_acoplado`.
+- **BAR indefinido → sin acoplamiento**: `alpha_power=0` → no hay descriptor `bar` → la regla no compara `None > 1.8`, no dispara.
+- **Escenario de estrés → bloqueado**: `apply_couplings(..., scenario="stress")` → `CouplingScenarioBlockedError`, nada escrito (la FC del escenario ya incluye la descarga simpática — cero doble cuenta).
+- **El narrador lo cita**: `build_context()` incluye `heart_rate_acoplado` (`provenance="derivado_acoplamiento"`, 87) junto al `heart_rate` medido, sin tocar el narrador.
+- BAR en el analizador: adimensional/scale-free (mismo cociente x1000), `None` en los bordes (alpha=0, inf, nan); beta-dominante → BAR>1.8, alpha-dominante → BAR<1.8.
+
+**No-regresión**: solo cambian `coupling/` + `eeg_analyzer.py` (+ su `__init__`) + `builder.py` + el botón de EEG Lab + los tests de ancla/set-neuro. Único consumidor de `EegAnalysis` es EEG Lab (campo `bar` con default, aditivo). Sin cambios en `repository.py`/`schema.py`/`narrator/`/hemodinámica/organismo/twin visual/los otros labs. Las 3 raíces (gates), el puente hemodinámico y la Sub-fase A — intactos. `pytest tests/ -q` → **461 passed** (447 + 14 nuevos, 0 fallos). App **HTTP 200** (`/_stcore/health` → `ok`).
+
 ## 2026-09-06 — BIOCORE, Acoplamientos Sub-fase A: infraestructura honesta e inerte (cero reglas)
 
 **Contexto**: tres sistemas (cardiovascular, respiratorio, neurológico) alimentan el gemelo pero no conversan. El motor de acoplamientos (`domain/physiology/coupling/`) existe pero está dormido: `evaluate()` solo PROPONE, ningún módulo lo importa, `COUPLABLE_DESCRIPTORS` no incluía neuro. El diagnóstico previo mapeó tres trampas de honestidad —un valor modulado por una regla NO es medido; el HRV ya mide el acoplamiento autonómico (doble cuenta); los escenarios de estrés ya co-authorean FC↑ con estrés↑— cada una con precedente en el repo. Esta sub-fase construye toda la maquinaria **honesta e inerte**, verificada por ejecución con **cero reglas activas**. NINGUNA regla real se transcribe aquí (eso es Sub-fase B, con el experto).

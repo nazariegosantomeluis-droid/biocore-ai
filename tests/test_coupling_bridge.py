@@ -75,10 +75,10 @@ def _test_only_rule(*, enabled: bool, magnitude_delta=None,
     brief como andamio mecánico. NO es una regla real (esa es la Sub-fase B,
     con el experto)."""
     return CouplingRule(
-        rule_id="EJEMPLO_TEST_NO_USAR__arousal_beta_taquicardia",
+        rule_id="EJEMPLO_TEST_NO_USAR__arousal_bar_taquicardia",
         condition=CouplingCondition(
-            domain="neurological", descriptor="beta_power",
-            operator=ComparisonOperator.GREATER_THAN, threshold=25.0, unit="power (u.a.)",
+            domain="neurological", descriptor="bar",
+            operator=ComparisonOperator.GREATER_THAN, threshold=1.8, unit="ratio (adimensional)",
         ),
         effect=CouplingEffect(
             domain="cardiovascular", descriptor="heart_rate",
@@ -236,8 +236,8 @@ def test_apply_couplings_runs_for_a_non_scenario_writer(session_factory):
 # --- La ruta completa una sola vez (regla SOLO-TEST con magnitud) --------
 
 def test_full_path_once_with_test_only_rule_and_explicit_magnitude(session_factory):
-    """Ejercita el cuerpo del bucle: regla SOLO-TEST habilitada, beta_power
-    (30) sobre umbral (25), magnitude_delta=+18 -> una fila
+    """Ejercita el cuerpo del bucle: regla SOLO-TEST habilitada, bar
+    (30/8 = 3.75) sobre umbral (1.8), magnitude_delta=+18 -> una fila
     heart_rate_acoplado = 70 + 18 = 88, DERIVADO_ACOPLAMIENTO, confianza
     del extremo bajo (TRANSCRITO_SIN_VALIDAR). El medido no se toca."""
     with session_factory() as session:
@@ -252,7 +252,7 @@ def test_full_path_once_with_test_only_rule_and_explicit_magnitude(session_facto
         assert ac.coupled_descriptor == "heart_rate_acoplado"
         assert ac.base_value == pytest.approx(70.0)
         assert ac.coupled_value == pytest.approx(88.0)
-        assert ac.observed_value == pytest.approx(30.0)
+        assert ac.observed_value == pytest.approx(30.0 / 8.0)  # bar = beta/alpha
         assert ac.provenance == Provenance.DERIVADO_ACOPLAMIENTO
         assert ac.confidence == pytest.approx(COUPLING_CONFIDENCE_TRANSCRITO)
 
@@ -261,7 +261,7 @@ def test_full_path_once_with_test_only_rule_and_explicit_magnitude(session_facto
         d = cv.get("heart_rate_acoplado")
         assert d.value == pytest.approx(88.0)
         assert d.unit == "bpm"
-        assert "EJEMPLO_TEST_NO_USAR__arousal_beta_taquicardia" in d.source_detail
+        assert "EJEMPLO_TEST_NO_USAR__arousal_bar_taquicardia" in d.source_detail
         assert "heart_rate base=70" in d.source_detail
 
 

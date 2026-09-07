@@ -4,8 +4,39 @@ EEG Analyzer - Frequency band analysis and clinical pattern classification.
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 from scipy.signal import welch
+
+# Ratio Beta/Alfa (BAR) -- biomarcador de arousal cortical citado, NO una
+# invención de esta app: BAR = P_beta / P_alpha del MISMO electrodo, así que
+# el cociente cancela las variables anatómicas (grosor de cráneo, distancia
+# fuente-sensor, ganancia) que hacen indefendible la potencia beta ABSOLUTA
+# entre sujetos. Rangos de referencia: basal 0.8-1.2; arousal (Stroop /
+# Trier Social Stress Test) BAR > 1.8. Fuente: Schutter DJLG 2006 /
+# Handbook of Psychophysiology, 3a ed., cap. 10.
+BAR_BASELINE_RANGE: Tuple[float, float] = (0.8, 1.2)
+BAR_AROUSAL_THRESHOLD: float = 1.8
+BAR_CITATION: str = "Schutter DJLG 2006 / Handbook of Psychophysiology 3a ed. cap.10 (Beta/Alpha Ratio, arousal cortical)"
+
+# alpha_power por debajo de esto se trata como "sin ritmo alfa medible" -->
+# el cociente es indefinido, NO infinito. Un ratio indefinido se declara
+# indefinido (None), nunca se fuerza a un número.
+_BAR_ALPHA_FLOOR: float = 1e-9
+
+
+def beta_alpha_ratio(beta_power: float, alpha_power: float) -> Optional[float]:
+    """BAR = beta_power / alpha_power. Adimensional -- su valor NO depende
+    de la escala absoluta de la señal (por eso el experto lo eligió sobre
+    `beta_power` crudo). Devuelve `None` si `alpha_power` es ~0 (cociente
+    indefinido) -- honestidad de borde: no se inventa un infinito ni un
+    tope arbitrario. Fuente: ver `BAR_CITATION`."""
+    if alpha_power is None or beta_power is None:
+        return None
+    if not np.isfinite(alpha_power) or not np.isfinite(beta_power):
+        return None
+    if abs(alpha_power) < _BAR_ALPHA_FLOOR:
+        return None
+    return float(beta_power) / float(alpha_power)
 
 
 def _trapz(y: np.ndarray, x: np.ndarray) -> float:
@@ -23,6 +54,10 @@ class EegAnalysis:
     classification: str
     summary: str
     findings: Dict[str, Any]
+    # BAR (Ratio Beta/Alfa) -- biomarcador de arousal cortical (ver
+    # `beta_alpha_ratio` y `BAR_CITATION`). `None` si no hay ritmo alfa
+    # medible (alpha_power ~0) -- indefinido, no forzado a un número.
+    bar: Optional[float] = None
 
 
 class EegAnalyzer:
@@ -45,17 +80,20 @@ class EegAnalyzer:
             'gamma': self._band_power(freqs, psd, 30.0, 45.0),
         }
         dominant_band = max(band_power, key=band_power.get)
+        bar = beta_alpha_ratio(band_power['beta'], band_power['alpha'])
         classification = self._classify_pattern(dominant_band, band_power)
         clinical_note = self._interpretation_text(dominant_band)
         summary = self._build_summary(dominant_band, band_power, classification, clinical_note)
         findings = self._build_findings(dominant_band, classification, clinical_note, band_power)
+        findings['Beta/Alpha Ratio (BAR)'] = f"{bar:.2f}" if bar is not None else "indefinido (sin ritmo alfa)"
 
         return EegAnalysis(
             dominant_band=dominant_band,
             band_power=band_power,
             classification=classification,
             summary=summary,
-            findings=findings
+            findings=findings,
+            bar=bar,
         )
 
     def _band_power(self, freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> float:

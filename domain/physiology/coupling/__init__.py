@@ -1,19 +1,23 @@
 """
-Motor de acoplamiento fisiológico entre sistemas del UPS (2026-07-15;
-Sub-fase A 2026-09-06: infraestructura honesta e inerte).
+Motor de acoplamiento fisiológico entre sistemas del UPS
+(2026-07-15 nace dormido; Sub-fase A 2026-09-06 infraestructura honesta;
+Sub-fase B 2026-09-06 primera regla validada, activa).
 
-Nace dormido y SIGUE dormido: sin reglas reales cargadas (ver `rules.py`,
-que no precarga ninguna; una regla nace `enabled=False`), no propaga nada.
-Las reglas se transcriben desde libros de fisiología citados -- no las
-genera este código; la primera, validada con el experto, es la Sub-fase B.
+`catalog.py::VALIDATED_RULES` es el único catálogo activo -- hoy UNA regla,
+`AROUSAL_TAQUICARDIA_BAR` (arousal cortical BAR>1.8 -> ↑FC +15 bpm),
+transcrita LITERALMENTE de la firma del experto (Guyton 14a ed. cap.61 +
+Schutter 2006), `VALIDADO_POR_FUENTE`, `enabled=True`. Las reglas no las
+genera este código; añadir una exige la firma completa documentada en
+`catalog.py`.
 
-`evaluate()` (`engine.py`) solo PROPONE acoplamientos; nunca modifica un
-`UnifiedPhysiologicalState`. `apply_couplings()` (`bridge.py`, Sub-fase A)
-sí puede persistir un valor acoplado -- pero SIEMPRE como un descriptor
-NUEVO con sufijo `_acoplado` y `Provenance.DERIVADO_ACOPLAMIENTO`,
-adjuntado a un snapshot ya existente vía `append_descriptors()`, sin tocar
-el organismo, `builder.py`, `run_rich_scenario()` ni el descriptor medido.
-Con el catálogo real (vacío) es inerte por construcción.
+`evaluate()` (`engine.py`) solo PROPONE; nunca modifica un
+`UnifiedPhysiologicalState`. `apply_couplings()` (`bridge.py`) persiste el
+valor acoplado -- SIEMPRE como un descriptor NUEVO con sufijo `_acoplado` y
+`Provenance.DERIVADO_ACOPLAMIENTO`, adjunto a un snapshot ya existente vía
+`append_descriptors()`, sin tocar el organismo, `builder.py`,
+`run_rich_scenario()` ni el descriptor medido. Cableado al flujo vivo en
+el botón "Guardar estado al gemelo" de EEG Lab (`scenario=None`);
+`COUPLING_DISABLED_SCENARIOS` bloquea `stress`/`anxiety`/`seizure`.
 """
 
 from .bridge import (
@@ -25,6 +29,7 @@ from .bridge import (
     apply_couplings,
     confidence_for_validation_status,
 )
+from .catalog import AROUSAL_TAQUICARDIA_BAR, VALIDATED_RULES
 from .engine import ProposedCoupling, evaluate
 from .rules import (
     COUPLABLE_DESCRIPTORS,
@@ -53,4 +58,6 @@ __all__ = [
     "COUPLING_CONFIDENCE_VALIDADO",
     "CouplingScenarioBlockedError",
     "confidence_for_validation_status",
+    "VALIDATED_RULES",
+    "AROUSAL_TAQUICARDIA_BAR",
 ]

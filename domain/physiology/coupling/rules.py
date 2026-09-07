@@ -19,13 +19,13 @@ BIOCORE deriva (`health_score`, `risk_score`, `rhythm_stability`,
 invenciones de esta app, no conceptos de un libro de fisiología, así que
 una regla de acoplamiento citable no puede apuntar a ellos.
 
-Ancla neuro (2026-09-06, Acoplamientos Sub-fase A): `beta_power` -- band
-power vía PSD de Welch (`EegAnalyzer`, señal primaria, NO un índice
-derivado por BIOCORE, así que la doctrina de arriba se mantiene intacta).
-Es PROVISIONAL: la firma del experto (Sub-fase B) podría cambiarlo a un
-ratio nombrado por la literatura (theta/beta, beta/alpha). Esta sub-fase
-solo deja el dominio disponible para anclar -- NINGUNA regla real existe
-todavía.
+Ancla neuro: `bar` (Ratio Beta/Alfa), firmado por el experto en la
+Sub-fase B (2026-09-06). Reemplaza a `beta_power` (provisional en la
+Sub-fase A). Es un cociente adimensional de dos band power con cita en
+literatura -- señal primaria derivada honesta, no un índice inventado por
+BIOCORE. Ver el comentario junto a `COUPLABLE_DESCRIPTORS`. La primera
+regla real (`AROUSAL_TAQUICARDIA_BAR`, `VALIDADO_POR_FUENTE`, `enabled`)
+vive en `catalog.py`.
 """
 
 from __future__ import annotations
@@ -72,14 +72,26 @@ class ValidationStatus(str, Enum):
     VALIDADO_POR_FUENTE = "validado_por_fuente"
 
 
-# Señales primarias acoplables por dominio -- ver docstring del módulo para
-# por qué los índices derivados de BIOCORE quedan fuera, y por qué el ancla
-# neuro es `beta_power` (band power, señal primaria) y no `stress_perception`
-# (índice derivado, sigue prohibido).
+# Descriptores acoplables por dominio -- ver docstring del módulo para por
+# qué los índices derivados de BIOCORE quedan fuera.
+#
+# Ancla neuro = `bar` (Ratio Beta/Alfa), FIRMADO POR EL EXPERTO (Sub-fase
+# B, 2026-09-06). Reemplaza a `beta_power` (provisional en Sub-fase A), que
+# el experto rechazó: la potencia beta ABSOLUTA varía por anatomía (cráneo,
+# distancia fuente-sensor, ganancia) y es indefendible entre sujetos. El
+# BAR = P_beta/P_alpha del mismo electrodo cancela esas variables (divide
+# dos bandas de la misma medición) y es un biomarcador de arousal CITADO
+# (Schutter 2006 / Handbook of Psychophysiology cap.10), no una invención
+# de esta app -- por eso SÍ es ancla legítima donde `beta_power` crudo era
+# pobre y `stress_perception` (índice derivado) está prohibido. `bar` se
+# persiste (`builder._neurological_state`) con la procedencia de las band
+# power de origen: es un cociente de dos señales primarias, no un índice
+# calculado por el organismo. `beta_power` YA NO es acoplable (nada más lo
+# usaba); sigue persistiéndose como band power, solo que no como ancla.
 COUPLABLE_DESCRIPTORS: Dict[str, FrozenSet[str]] = {
     "cardiovascular": frozenset({"heart_rate", "hrv"}),
     "respiratory": frozenset({"respiratory_rate", "spo2"}),
-    "neurological": frozenset({"beta_power"}),
+    "neurological": frozenset({"bar"}),
 }
 
 

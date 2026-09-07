@@ -33,6 +33,11 @@ from app.utils.design_system import render_error_state
 # abajo) porque domain.physiology.state/app.engines/app.utils.patient_session
 # son parte del núcleo de la app, no dependencias opcionales.
 from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
+from domain.physiology.coupling import (
+    VALIDATED_RULES,
+    CouplingScenarioBlockedError,
+    apply_couplings,
+)
 from app.engines.digital_twin_organism import DigitalTwinOrganism
 from app.utils.patient_session import get_active_patient_id, get_active_session_factory
 
@@ -523,9 +528,45 @@ with col2:
             )
             with session_factory() as eeg_ups_session:
                 eeg_snapshot_id = save_state(eeg_ups_session, eeg_ups_state)
+
+                # Acoplamientos Sub-fase B (2026-09-06): tras persistir, se
+                # evalúa el catálogo validado (`AROUSAL_TAQUICARDIA_BAR`:
+                # arousal cortical BAR>1.8 -> ↑FC +15 bpm, Guyton cap.61 +
+                # Schutter 2006). `scenario=None`: EEG Lab es un escritor
+                # neuro-sin-CV-correlacionada, NO un escenario de estrés
+                # (`COUPLING_DISABLED_SCENARIOS`). El puente solo escribe
+                # `heart_rate_acoplado` si el snapshot tiene una FC medida
+                # -- este lab no la envía, así que hoy es un no-op honesto
+                # aquí; la regla dispara en cuanto el snapshot lleve FC.
+                try:
+                    coupled = apply_couplings(
+                        eeg_ups_session, eeg_snapshot_id, VALIDATED_RULES, scenario=None
+                    )
+                except CouplingScenarioBlockedError:
+                    coupled = []  # inalcanzable con scenario=None; defensivo
+                bar_desc = eeg_ups_state.neurological.get("bar")
+
             st.success(f"Estado guardado al gemelo -- snapshot: {eeg_snapshot_id}")
+            if bar_desc is not None:
+                bar_txt = f"BAR = {bar_desc.value:.2f}" + (" ⚠️ >1.8 arousal" if bar_desc.value > 1.8 else "")
+            else:
+                bar_txt = "BAR indefinido (sin ritmo alfa)"
             st.caption(
-                f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · "
+                f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
+            )
+            if coupled:
+                ac = coupled[0]
+                st.caption(
+                    f"🔗 Acoplamiento **{ac.rule_id}**: FC medida {ac.base_value:.0f} -> "
+                    f"FC acoplada **{ac.coupled_value:.0f} bpm** (DERIVADO_ACOPLAMIENTO, "
+                    f"confianza {ac.confidence:.2f}) -- BAR observado {ac.observed_value:.2f}"
+                )
+            else:
+                st.caption(
+                    "🔗 Acoplamiento AROUSAL_TAQUICARDIA_BAR: sin FC medida en este snapshot, "
+                    "nada que modular (se aplicaría si el paciente tuviera FC medida y BAR>1.8)."
+                )
+            st.caption(
                 f"cardiovascular: {len(eeg_ups_state.cardiovascular.descriptors)} descriptores "
                 "(vacío esperado -- este lab no envía dato cardíaco) · "
                 f"respiratory: {len(eeg_ups_state.respiratory.descriptors)} descriptores "

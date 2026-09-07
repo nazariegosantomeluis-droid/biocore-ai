@@ -18,12 +18,20 @@ Capa 5A, Sub-fase 1 (2026-08-30): tercer dominio, neurológico
 (`_neurological_state()`) -- mismo patrón y misma disciplina de gate
 anti-órgano-fantasma que cardiovascular/respiratorio. Escribe lo que
 `EegAnalyzer` (`src/signals/eeg/eeg_analyzer.py`) ya calcula (band power
-Welch + estado derivado) -- no construye biomarcadores nuevos."""
+Welch + estado derivado).
+
+Acoplamientos Sub-fase B (2026-09-06): + `bar` (Ratio Beta/Alfa) -- un
+cociente adimensional de dos band power, biomarcador CITADO (Schutter
+2006), no una invención de esta app. Persiste con la procedencia de las
+band power de origen (ver comentario en `_neurological_state`). Es el
+ancla firmada por el experto para la regla de acoplamiento arousal->↑FC."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
+
+from src.signals.eeg.eeg_analyzer import BAR_CITATION, beta_alpha_ratio
 
 from .schema import (
     DomainState,
@@ -203,6 +211,25 @@ def _neurological_state(
         if band in signals:
             descriptors[band] = PhysiologicalDescriptor(
                 band, float(signals[band]), "power (u.a.)", provenance, confidence, source_detail
+            )
+
+    # BAR (Ratio Beta/Alfa) -- Acoplamientos Sub-fase B (2026-09-06). El
+    # experto rechazó `beta_power` crudo como ancla de acoplamiento (potencia
+    # absoluta indefendible entre sujetos) a favor del BAR = P_beta/P_alpha,
+    # que cancela las variables anatómicas y es un biomarcador CITADO (ver
+    # `BAR_CITATION`), no una invención de esta app. Es un cociente
+    # adimensional de DOS señales primarias del mismo dominio -> lleva la
+    # MISMA procedencia que las band power de origen (no `DERIVADO`: no lo
+    # calcula el organismo con pesos propios, es una identidad aritmética
+    # sobre dos mediciones/simulaciones). Sin ritmo alfa medible
+    # (`alpha_power` ~0) el cociente es indefinido -> no se persiste (mismo
+    # criterio que el gate: solo se escribe lo que realmente hay).
+    if "alpha_power" in signals and "beta_power" in signals:
+        bar_value = beta_alpha_ratio(float(signals["beta_power"]), float(signals["alpha_power"]))
+        if bar_value is not None:
+            descriptors["bar"] = PhysiologicalDescriptor(
+                "bar", bar_value, "ratio (adimensional)", provenance, confidence,
+                f"{source_detail + ' | ' if source_detail else ''}beta_alpha_ratio | {BAR_CITATION}",
             )
 
     if has_real_neuro_input:

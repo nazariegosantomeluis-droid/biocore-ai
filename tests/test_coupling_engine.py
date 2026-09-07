@@ -101,31 +101,42 @@ def test_effect_rejects_non_couplable_descriptor():
         CouplingEffect(domain="respiratory", descriptor="hypoxia_risk", direction=EffectDirection.AUMENTA)
 
 
-def test_couplable_descriptors_are_exactly_the_five_primary_signals():
-    """Acoplamientos Sub-fase A (2026-09-06): + neurológico con ancla
-    `beta_power` (band power = señal primaria). Los índices derivados de
-    BIOCORE -- incluidos los neuro (`stress_perception`, etc.) -- siguen
-    fuera; la doctrina no se relajó."""
+def test_couplable_descriptors_neuro_anchor_is_the_expert_signed_bar():
+    """Acoplamientos Sub-fase B (2026-09-06): el ancla neuro pasó de
+    `beta_power` (provisional, Sub-fase A) a `bar` (Ratio Beta/Alfa,
+    firmado por el experto -- cociente de señales primarias con cita, no un
+    índice inventado). Los derivados de BIOCORE siguen fuera."""
     assert COUPLABLE_DESCRIPTORS == {
         "cardiovascular": frozenset({"heart_rate", "hrv"}),
         "respiratory": frozenset({"respiratory_rate", "spo2"}),
-        "neurological": frozenset({"beta_power"}),
+        "neurological": frozenset({"bar"}),
     }
 
 
-def test_neuro_beta_power_is_now_a_valid_coupling_anchor_but_no_rule_uses_it_yet():
-    """La condición se puede instanciar contra `neurological/beta_power`
-    (ya no lanza ValueError) -- pero NINGUNA CouplingRule real existe."""
+def test_neuro_bar_is_a_valid_coupling_anchor():
+    """La condición se instancia contra `neurological/bar` (ya no lanza)."""
     condition = CouplingCondition(
-        domain="neurological", descriptor="beta_power",
-        operator=ComparisonOperator.GREATER_THAN, threshold=25.0, unit="power (u.a.)",
+        domain="neurological", descriptor="bar",
+        operator=ComparisonOperator.GREATER_THAN, threshold=1.8, unit="ratio (adimensional)",
     )
-    assert condition.descriptor == "beta_power"
+    assert condition.descriptor == "bar"
+
+
+def test_neuro_beta_power_is_no_longer_a_coupling_anchor():
+    """`beta_power` era el ancla provisional de la Sub-fase A; el experto lo
+    rechazó (potencia absoluta indefendible entre sujetos). Sigue siendo un
+    descriptor persistido, pero ya NO es acoplable."""
+    assert "beta_power" not in COUPLABLE_DESCRIPTORS["neurological"]
+    with pytest.raises(ValueError, match="no es una señal primaria acoplable"):
+        CouplingCondition(
+            domain="neurological", descriptor="beta_power",
+            operator=ComparisonOperator.GREATER_THAN, threshold=25.0, unit="power (u.a.)",
+        )
 
 
 def test_neuro_derived_index_is_still_rejected_as_anchor():
-    """`stress_perception` es un índice derivado por BIOCORE -- añadir
-    `beta_power` NO abrió la puerta a los derivados neuro."""
+    """`stress_perception` es un índice derivado por BIOCORE -- el cambio a
+    `bar` NO abrió la puerta a los derivados neuro."""
     with pytest.raises(ValueError, match="derivados"):
         CouplingCondition(
             domain="neurological", descriptor="stress_perception",
