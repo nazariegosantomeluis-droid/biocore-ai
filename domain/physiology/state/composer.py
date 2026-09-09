@@ -31,16 +31,26 @@ procedencia/source_detail a todos los descriptores, lo que aplanaría la
 distinción bar-real / FC-arrastrada. El compositor arma los `DomainState`
 directamente.
 
-Tanda 1 es AISLADA: construye y prueba la composición honesta. Cablear
-`apply_couplings()` sobre el snapshot compuesto, y el botón de UI, son la
-Tanda 2.
+Tanda 2 (2026-09-08): tras el `save_state()` del camino feliz, el
+compositor llama `apply_couplings(session, composed_id, VALIDATED_RULES,
+scenario=None)` -- "componer" es atómicamente "componer + acoplar", ningún
+llamador puede olvidar el segundo paso. `scenario=None` SIEMPRE: los
+`SimulationScenario` (incluidos los bloqueados) corren solo sobre
+pacientes efímeros, nunca sobre el paciente continuo; `COUPLING_DISABLED_
+SCENARIOS` queda intacto como barandilla estructural para un hipotético
+compositor de pacientes-de-escenario futuro. Si la regla dispara
+(`bar > 1.8`), `heart_rate_acoplado` se adjunta al MISMO snapshot; si no,
+el snapshot combinado queda con `bar` + `heart_rate` coexistiendo pero sin
+fila acoplada -- el compositor no fuerza un acoplamiento donde el arousal
+no lo justifica. `ComposeResult.coupled` expone qué disparó (vacío si
+nada).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -72,12 +82,18 @@ DEFAULT_MAX_HR_CARRY_AGE_S: float = 120.0
 class ComposeResult:
     """Resultado de una composición -- mismo patrón que `PLVResult`:
     `available` distingue "compuso" de "no disponible (con motivo)", nunca
-    se cae a un snapshot a medias."""
+    se cae a un snapshot a medias.
+
+    `coupled`: los acoplamientos que dispararon sobre el snapshot compuesto
+    (`AppliedCoupling` de `coupling/bridge.py`) -- tupla vacía si `bar`
+    coexiste con `heart_rate` pero la regla no disparó (arousal insuficiente),
+    o si `available=False`."""
 
     available: bool
     snapshot_id: Optional[str] = None
     reason: Optional[str] = None
     hr_age_s: Optional[float] = None
+    coupled: Tuple = field(default_factory=tuple)
 
 
 def compose_neuro_cardiac_snapshot(
@@ -152,4 +168,14 @@ def compose_neuro_cardiac_snapshot(
     )
 
     composed_id = save_state(session, composed)
-    return ComposeResult(available=True, snapshot_id=composed_id, hr_age_s=hr_age_s)
+
+    # "Componer" es atómicamente "componer + acoplar" -- import perezoso
+    # para que la capa `state/` no dependa de `coupling/` en tiempo de
+    # import (coupling ya depende de state; la llamada es one-way en
+    # runtime). scenario=None es estructural aquí -- ver docstring del módulo.
+    from domain.physiology.coupling import VALIDATED_RULES, apply_couplings
+
+    applied = apply_couplings(session, composed_id, VALIDATED_RULES, scenario=None)
+    return ComposeResult(
+        available=True, snapshot_id=composed_id, hr_age_s=hr_age_s, coupled=tuple(applied)
+    )

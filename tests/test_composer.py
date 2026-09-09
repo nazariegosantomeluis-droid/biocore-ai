@@ -2,9 +2,14 @@
 Compositor multi-dominio del paciente único -- Tanda 1 de (b), 2026-09-08.
 
 Prueba que `compose_neuro_cardiac_snapshot()` compone BAR real + FC real de
-forma HONESTA (procedencia por descriptor, arrastre declarado, gate
-temporal espejo del PLV) ANTES de que dispare ningún acoplamiento. Cero
-`apply_couplings`, cero UI.
+forma HONESTA: procedencia por descriptor (bar: origen; heart_rate:
+ARRASTRE_TEMPORAL con declaración), gate temporal espejo del PLV, y "no
+disponible con motivo" en vez de un snapshot a medias.
+
+Tanda 2 (mismo día) añadió la llamada atómica a `apply_couplings()` dentro
+del camino feliz -- estos tests siguen valiendo (no asertan la ausencia de
+`heart_rate_acoplado`); el disparo en vivo vía el botón de Twin OS se
+prueba aparte, en `test_neuro_cardiac_composer_button.py`.
 """
 
 from datetime import datetime, timedelta, timezone

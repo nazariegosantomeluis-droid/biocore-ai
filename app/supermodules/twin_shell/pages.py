@@ -67,6 +67,7 @@ from domain.physiology.scenarios.rich_engine import (
 )
 from domain.physiology.state import (
     EventSeverity,
+    compose_neuro_cardiac_snapshot,
     get_clinical_references_for_patient,
     get_clinical_references_for_snapshot,
     get_events,
@@ -507,6 +508,58 @@ def render_couplings(organism: DigitalTwinOrganism) -> None:
              f"(valor interno: {neuromuscular:.0%} -- se muestra como banda, no como número, "
              "para no fingir precisión)",
     )
+
+
+def render_neuro_cardiac_composer() -> None:
+    """Acoplamientos (b) Tanda 2 (2026-09-08): botón 3a -- el disparador de
+    usuario del acoplamiento neuro->CV en el flujo del paciente único.
+
+    Opt-in deliberado: el estudiante elige unir el BAR guardado (EEG Lab)
+    con la FC medida guardada (ECG/HRV/Twin OS) en un snapshot combinado, y
+    evaluar la regla validada `AROUSAL_TAQUICARDIA_BAR` (Guyton 14a cap.61 +
+    Schutter 2006) sobre él. `compose_neuro_cardiac_snapshot()` compone
+    valores REALES o declara por qué no puede -- nunca finge. Los tres
+    desenlaces se muestran honestamente; un "no disponible" es información
+    pedagógica ("aún no guardaste un EEG para este paciente"), no un fallo a
+    esconder."""
+    session_factory = get_active_session_factory()
+    patient_id = get_active_patient_id()
+
+    st.markdown("#### 🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)")
+    st.caption(
+        "Une el último **BAR** guardado (Ratio Beta/Alfa del EEG Lab) con la última **FC medida** "
+        "guardada (ECG/HRV/este panel) en un snapshot combinado, y evalúa la regla validada "
+        "arousal→↑FC (`AROUSAL_TAQUICARDIA_BAR`: BAR>1.8 ⇒ FC +15 bpm; Guyton 14ª ed. cap.61 + "
+        "Schutter 2006). La FC se arrastra **declarada** (`ARRASTRE_TEMPORAL`, con snapshot de "
+        "origen, timestamp y edad). Si el arousal no lo justifica (BAR ≤ 1.8), o la FC es más "
+        "vieja que la ventana (120 s), se dice por qué — no se fuerza un acoplamiento."
+    )
+    if st.button("Componer y evaluar", key="twin_shell_neuro_cardiac_compose"):
+        with session_factory() as session:
+            result = compose_neuro_cardiac_snapshot(session, patient_id)
+
+        if not result.available:
+            st.info(f"No se pudo componer: {result.reason}")
+            return
+
+        st.success(f"Estado combinado compuesto — snapshot: `{result.snapshot_id}`")
+        if result.coupled:
+            ac = result.coupled[0]
+            st.caption(
+                f"🔗 **{ac.rule_id}** disparó: FC arrastrada {ac.base_value:.0f} → "
+                f"**FC acoplada {ac.coupled_value:.0f} bpm** (`DERIVADO_ACOPLAMIENTO`, "
+                f"confianza {ac.confidence:.2f}) — BAR observado {ac.observed_value:.2f}, "
+                f"FC de hace {result.hr_age_s:.0f} s. Las tres cantidades coexisten en el "
+                "snapshot con procedencias distintas: BAR (origen) · FC (arrastre_temporal) · "
+                "FC acoplada (derivado_acoplamiento)."
+            )
+        else:
+            st.caption(
+                f"Compuesto, **sin acoplamiento**: el BAR observado no supera el umbral de arousal "
+                f"(>1.8). BAR y FC coexisten en el snapshot (FC de hace {result.hr_age_s:.0f} s), "
+                "pero la regla no disparó — el compositor no fuerza un acoplamiento donde el "
+                "arousal no lo justifica."
+            )
 
 
 def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
@@ -1970,6 +2023,7 @@ def main() -> None:
     render_ambient_header(organism)
     render_organ_grid(organism)
     render_couplings(organism)
+    render_neuro_cardiac_composer()
     st.divider()
     render_organ_panel(organism)
     st.divider()

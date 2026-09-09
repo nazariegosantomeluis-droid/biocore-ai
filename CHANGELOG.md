@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 2: el acoplamiento neuro→CV dispara EN VIVO
+
+**Contexto**: la Tanda 1 dejó `compose_neuro_cardiac_snapshot()` probado aislado (6 verdes) — compone valores reales o devuelve "no disponible con motivo", nunca finge. Esta tanda lo conecta a la regla validada (`AROUSAL_TAQUICARDIA_BAR`) y le da su disparador de usuario. El acoplamiento neuro→CV pasa de "probado en test" a **vivo en el flujo del paciente único**. Barandilla de método (Fase 2.2): verificado **por ejecución hasta el final del render** vía `AppTest`, no por lectura — el recon ha mentido antes ("renderiza" cuando crasheaba). Art. I: honesto por arquitectura — compone valores reales o declara por qué no puede.
+
+### Parte A — `apply_couplings` cableado a la salida del compositor (`state/composer.py`)
+
+Tras el `save_state()` del camino feliz, el compositor llama `apply_couplings(session, composed_id, VALIDATED_RULES, scenario=None)` — **dentro** del compositor: "componer" es atómicamente "componer + acoplar", ningún llamador futuro puede olvidar el segundo paso. Import **perezoso** de `domain.physiology.coupling` (la capa `state/` no gana una dependencia de import sobre `coupling/`; `coupling` ya depende de `state`, la llamada es one-way en runtime).
+- `scenario=None` es **estructural**: los 12 `SimulationScenario` (incluidos `stress`/`anxiety`/`seizure`) corren solo sobre pacientes efímeros (`create_ephemeral_basal_patient`/`create_ephemeral_case_patient`), nunca sobre el paciente continuo. `COUPLING_DISABLED_SCENARIOS` queda **intacto** como barandilla para un hipotético compositor de pacientes-de-escenario futuro — no se toca, no se borra. Verificado por ejecución (spy sobre `apply_couplings` captura `scenario is None`).
+- El snapshot combinado tiene `bar` (neurológico) + `heart_rate` (cardiovascular) → si `bar > 1.8`, `heart_rate_acoplado = heart_rate + 15` se adjunta al MISMO snapshot con `Provenance.DERIVADO_ACOPLAMIENTO` (que ahora cabe gracias al `String(30)` de la Tanda 1). Si `bar ≤ 1.8`, `bar` y `heart_rate` coexisten pero **sin** fila acoplada — el compositor no fuerza un acoplamiento donde el arousal no lo justifica.
+- `ComposeResult` gana `coupled: Tuple` — los `AppliedCoupling` que dispararon (vacío si nada), para que la UI muestre el desenlace sin re-consultar.
+
+### Parte B — el botón 3a en Twin OS (`twin_shell/pages.py::render_neuro_cardiac_composer`)
+
+Botón explícito "**Componer y evaluar**" (sección "🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)"), justo después de `render_couplings()`. Opt-in deliberado — el estudiante elige unir el BAR guardado del EEG con la FC medida guardada del ECG. Los tres desenlaces, honestos en la UI:
+- `available=True` + regla disparó → `st.success` + caption: "FC arrastrada 72 → **FC acoplada 87 bpm** (`DERIVADO_ACOPLAMIENTO`, confianza 0.70) — BAR observado 2.60, FC de hace 40 s. Las tres cantidades coexisten con procedencias distintas: BAR (origen) · FC (arrastre_temporal) · FC acoplada (derivado_acoplamiento)".
+- `available=True` + regla no disparó → `st.success` + caption "Compuesto, **sin acoplamiento**: el BAR observado no supera el umbral de arousal (>1.8)".
+- `available=False` → `st.info(f"No se pudo componer: {reason}")` con la razón tal cual ("sin BAR persistido" / "sin FC medida persistida" / "FC arrastrada demasiado vieja: 300s > 120s …") — **NO** un error crudo, **NO** un silencio, **NO** éxito fingido. Es información pedagógica.
+
+### Verificación — por ejecución, `AppTest` hasta el final del render
+
+`tests/test_neuro_cardiac_composer_button.py` (nuevo, primer test del repo con `AppTest`; 6 casos):
+- **Disparo en vivo** (el que importa): paciente sembrado con snapshot EEG (`bar=2.6`) + snapshot ECG (`heart_rate=72`, edad 40 s) → render + click vía `AppTest` → sin excepción en ambas pasadas → el snapshot combinado (`get_latest_state`) tiene `heart_rate=72` (`ARRASTRE_TEMPORAL`), `heart_rate_acoplado=87` (`DERIVADO_ACOPLAMIENTO`), `bar=2.6` (`SIMULACION`) — las **tres procedencias distintas** — y la caption cita `AROUSAL_TAQUICARDIA_BAR` y `87`.
+- **No-op honesto**: `bar=1.1` → compone, **sin** `heart_rate_acoplado`, caption "sin acoplamiento".
+- **Tres no-disponibles**: sin BAR / sin FC / FC de 300 s → `st.info` con la razón correcta, `st.success == []`, sin crash, sin `heart_rate_acoplado` persistido.
+- **`scenario=None` estructural**: spy confirma el kwarg real.
+
+`pytest tests/ -q` → **473 passed** (467 + 6, 0 fallos). App `HTTP 200` (`/_stcore/health` → `ok`). **"Un organismo, no doce herramientas" deja de ser tesis: es un snapshot real** con FC, BAR y FC-acoplada coexistiendo, cada uno declarando de dónde viene.
+
 ## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 1: el compositor multi-dominio, aislado y probado
 
 **Contexto**: el acoplamiento neuro→CV (`AROUSAL_TAQUICARDIA_BAR`, validado en Sub-fase B) no dispara en vivo porque el `bar` (entra solo por EEG Lab) y el `heart_rate` medido (entra por ECG/HRV/Twin OS) pasan por puertas disjuntas — ningún snapshot los tiene juntos. El diagnóstico de composición confirmó: (1) no existe una API "último snapshot del paciente con el descriptor X" — hay que construirla; (2) la procedencia vive **por descriptor** (`ValueRecord`), el esquema soporta el arrastre declarado; (3) el compositor **no debe** pasar por `from_digital_twin_organism()` (una sola procedencia/`source_detail` para todos los descriptores → aplanaría la distinción bar-real / FC-arrastrada). Esta tanda construye la composición y prueba que es honesta **antes** de cablear nada. Cero `apply_couplings`, cero UI — eso es Tanda 2. Art. I: composición honesta per-descriptor; sin BAR real, sin FC real, o FC fuera de ventana → "no disponible con motivo", nunca un snapshot a medias.
