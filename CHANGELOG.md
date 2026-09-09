@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 3 (cierre): superficie honesta + documento maestro
+
+**Contexto**: la Tanda 2 dejó el acoplamiento neuro→CV disparando en vivo con una caption que ya declaraba las tres procedencias. Esta tanda cierra el arco (b): pule la superficie para que un estudiante la entienda (no solo un ingeniero) y actualiza el Plan Maestro. Art. I: honesto por arquitectura — la declaración de procedencia en la UI es información pedagógica, no jerga.
+
+### Parte A — superficie honesta (pulido mínimo, cero cálculo)
+
+Las captions del botón 3a (`render_neuro_cardiac_composer`, `twin_shell/pages.py`) filtraban términos crudos (`ARRASTRE_TEMPORAL`, `DERIVADO_ACOPLAMIENTO`, los tres `provenance.value` en paréntesis). Glosados en lenguaje clínico, con el nombre técnico detrás como nota, no al frente:
+- BAR → "la última medición **neurológica** guardada … una medida de activación cortical".
+- FC arrastrada → "**La FC no se vuelve a medir: se reutiliza la última lectura guardada**, indicando de qué momento viene y cuántos segundos hace".
+- FC acoplada → "un valor **calculado por la regla, no medido por un sensor**".
+- La ventana de 120 s → "para no unir dos momentos sin relación".
+- Tail: "cada una diciendo de dónde viene … Nombres internos de esas procedencias: `simulacion` · `arrastre_temporal` · `derivado_acoplamiento`".
+
+Verificado: `pytest tests/ -q` → **473 passed** (sin tests nuevos ni rotos — cambio cosmético; los tests de caption de la Tanda 2 siguen verdes). App `HTTP 200`.
+
+### Parte B — Plan Maestro actualizado
+
+`~/Downloads/BIOCORE_Plan_Maestro.md` — el `.docx` no tenía Markdown fuente asociado; se **reconstruyó el contenido íntegro** desde el Word y a partir de aquí el `.md` es la fuente de verdad. Actualizado con:
+- El acoplamiento neuro→CV pasa de "construido, validado, probado en test, espera flujo" a **VIVO** en el flujo del paciente único (§13, nuevo sub-arco (b) bajo Capa 5A).
+- El arco (b) completo registrado: consulta por dominio (`get_latest_snapshot_id_with_descriptor`, rowid no timestamp), `Provenance.ARRASTRE_TEMPORAL` (hold de orden cero), gate temporal `max_hr_carry_age_s=120s` (config firmable por experto, degradación espejo del PLV), botón 3a opt-in.
+- Conectado a la Fase 3 (§14 marcada IMPLEMENTADA): primera composición multi-dominio real — dos labs distintos unidos en un cuerpo bajo un `patient_id`.
+- Capa 5A Sub-fases 1 y 2 marcadas hechas (dominio neuro en el UPS + cerebro en el SVG).
+- Refinaciones futuras firmables por experto anotadas: banda de confianza degradada por edad del HR arrastrado (hoy hereda tal cual), reglas de acoplamiento espejo (relajación→↓FC) y el CMC lejano.
+
+**Word NO regenerado**: el entorno no tiene `pandoc` ni `python-docx` (`.docx` es una tanda aparte de formato si se quiere; el contenido correcto y al día vive en el Markdown). El comando queda anotado al pie del `.md`.
+
+**Arco (b) cerrado.** El estrés cortical acelera el corazón en el flujo real, declarado como cálculo del acoplamiento — nunca fingido como medición.
+
 ## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 2: el acoplamiento neuro→CV dispara EN VIVO
 
 **Contexto**: la Tanda 1 dejó `compose_neuro_cardiac_snapshot()` probado aislado (6 verdes) — compone valores reales o devuelve "no disponible con motivo", nunca finge. Esta tanda lo conecta a la regla validada (`AROUSAL_TAQUICARDIA_BAR`) y le da su disparador de usuario. El acoplamiento neuro→CV pasa de "probado en test" a **vivo en el flujo del paciente único**. Barandilla de método (Fase 2.2): verificado **por ejecución hasta el final del render** vía `AppTest`, no por lectura — el recon ha mentido antes ("renderiza" cuando crasheaba). Art. I: honesto por arquitectura — compone valores reales o declara por qué no puede.

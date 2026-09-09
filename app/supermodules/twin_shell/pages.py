@@ -527,12 +527,14 @@ def render_neuro_cardiac_composer() -> None:
 
     st.markdown("#### 🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)")
     st.caption(
-        "Une el último **BAR** guardado (Ratio Beta/Alfa del EEG Lab) con la última **FC medida** "
-        "guardada (ECG/HRV/este panel) en un snapshot combinado, y evalúa la regla validada "
-        "arousal→↑FC (`AROUSAL_TAQUICARDIA_BAR`: BAR>1.8 ⇒ FC +15 bpm; Guyton 14ª ed. cap.61 + "
-        "Schutter 2006). La FC se arrastra **declarada** (`ARRASTRE_TEMPORAL`, con snapshot de "
-        "origen, timestamp y edad). Si el arousal no lo justifica (BAR ≤ 1.8), o la FC es más "
-        "vieja que la ventana (120 s), se dice por qué — no se fuerza un acoplamiento."
+        "Une la última medición **neurológica** guardada (el BAR, Ratio Beta/Alfa del EEG Lab, "
+        "una medida de activación cortical) con la última **frecuencia cardíaca medida** guardada "
+        "(ECG/HRV/este panel) en un mismo momento, y evalúa la regla validada arousal→↑FC "
+        "(`AROUSAL_TAQUICARDIA_BAR`: si el BAR pasa de 1.8, la FC sube +15 bpm; Guyton 14ª ed. "
+        "cap.61 + Schutter 2006). **La FC no se vuelve a medir: se reutiliza la última lectura "
+        "guardada**, indicando de qué momento viene y cuántos segundos hace. Si la activación no "
+        "lo justifica (BAR ≤ 1.8), o esa FC previa es más vieja que la ventana (120 s, para no "
+        "unir dos momentos sin relación), se explica por qué — no se fuerza un acoplamiento."
     )
     if st.button("Componer y evaluar", key="twin_shell_neuro_cardiac_compose"):
         with session_factory() as session:
@@ -546,19 +548,22 @@ def render_neuro_cardiac_composer() -> None:
         if result.coupled:
             ac = result.coupled[0]
             st.caption(
-                f"🔗 **{ac.rule_id}** disparó: FC arrastrada {ac.base_value:.0f} → "
-                f"**FC acoplada {ac.coupled_value:.0f} bpm** (`DERIVADO_ACOPLAMIENTO`, "
-                f"confianza {ac.confidence:.2f}) — BAR observado {ac.observed_value:.2f}, "
-                f"FC de hace {result.hr_age_s:.0f} s. Las tres cantidades coexisten en el "
-                "snapshot con procedencias distintas: BAR (origen) · FC (arrastre_temporal) · "
-                "FC acoplada (derivado_acoplamiento)."
+                f"🔗 La regla **{ac.rule_id}** disparó: una FC previa de {ac.base_value:.0f} bpm "
+                f"(medida hace {result.hr_age_s:.0f} s, reutilizada) → **FC acoplada "
+                f"{ac.coupled_value:.0f} bpm** — un valor **calculado por la regla, no medido por "
+                f"un sensor** (confianza {ac.confidence:.2f}). Disparo: BAR = {ac.observed_value:.2f} "
+                "(> 1.8). Las tres cantidades conviven en el snapshot, cada una diciendo de dónde "
+                "viene: el BAR es una medición neurológica real; la FC previa es una lectura "
+                "cardíaca reutilizada (no se midió ahora); la FC acoplada la calcula la regla. "
+                "Nombres internos de esas procedencias: `simulacion` · `arrastre_temporal` · "
+                "`derivado_acoplamiento`."
             )
         else:
             st.caption(
-                f"Compuesto, **sin acoplamiento**: el BAR observado no supera el umbral de arousal "
-                f"(>1.8). BAR y FC coexisten en el snapshot (FC de hace {result.hr_age_s:.0f} s), "
-                "pero la regla no disparó — el compositor no fuerza un acoplamiento donde el "
-                "arousal no lo justifica."
+                "Compuesto, **sin acoplamiento**: la activación cortical (BAR) no supera el umbral "
+                f"(> 1.8). La medición neurológica y la FC previa (de hace {result.hr_age_s:.0f} s) "
+                "conviven en el snapshot, pero la regla no disparó — no se fuerza un acoplamiento "
+                "donde la activación no lo justifica."
             )
 
 
