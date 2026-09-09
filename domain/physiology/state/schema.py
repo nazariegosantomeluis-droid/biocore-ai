@@ -89,7 +89,29 @@ class Provenance(str, Enum):
     descriptor acoplado se persiste SIEMPRE bajo un nombre distinto del
     medido (sufijo `_acoplado`, p.ej. `heart_rate_acoplado`) para que
     coexista con el medido sin sobrescribirlo -- mismo patrón que
-    `systolic_bp_modelo` en `hemodynamics/ups_bridge.py`."""
+    `systolic_bp_modelo` en `hemodynamics/ups_bridge.py`.
+
+    `ARRASTRE_TEMPORAL` (2026-09-08; compositor multi-dominio, Tanda 1 de
+    (b)) -- un valor REAL medido/simulado en un snapshot T-1, AFIRMADO en
+    un snapshot compuesto T porque se asume que la última lectura sigue
+    vigente dentro de una ventana temporal acotada. Es un "hold de orden
+    cero" (zero-order hold): la señal no se re-mide ni se interpola, se
+    mantiene constante entre muestras. NO es `SENSOR_REAL`: ningún sensor
+    midió en el timestamp del snapshot compuesto -- la lectura es de otro
+    instante. NO es `DERIVADO`: no se calculó a partir de otras entradas,
+    se ARRASTRÓ una medición sin transformarla. El único uso hoy:
+    `compose_neuro_cardiac_snapshot()` (`composer.py`) trae el último
+    `heart_rate` real y lo pone junto a un `bar` de ahora, para que el
+    acoplamiento neuro->CV tenga una FC base sobre la cual disparar. La
+    `confidence` se arrastra TAL CUAL del descriptor de origen (sin banda
+    propia en `CONFIDENCE_REFERENCE`, igual que `REFERENCIA_CLINICA`); la
+    degradación de confianza en función de la edad del arrastre queda como
+    refinación futura, firmada por experto. El `source_detail` declara
+    SIEMPRE el snapshot de origen, su timestamp y la edad del arrastre en
+    segundos -- sin esa declaración el valor no se persiste. La ventana de
+    antigüedad admisible la impone el compositor
+    (`max_hr_carry_age_s`), no esta procedencia: fuera de ventana el
+    compositor devuelve "no disponible", nunca un arrastre marcado."""
 
     SENSOR_REAL = "sensor_real"
     SIMULACION = "simulacion"
@@ -97,6 +119,7 @@ class Provenance(str, Enum):
     REFERENCIA_CLINICA = "referencia_clinica"
     MODELO_HEMODINAMICO = "modelo_hemodinamico"
     DERIVADO_ACOPLAMIENTO = "derivado_acoplamiento"
+    ARRASTRE_TEMPORAL = "arrastre_temporal"
 
 
 class ConfidenceBand(NamedTuple):
@@ -150,6 +173,14 @@ CONFIDENCE_REFERENCE: Dict["Provenance", ConfidenceBand] = {
     # KeyError resultante es la señal correcta de que se está usando el tipo
     # equivocado para un valor de referencia clínica, no un bug que arreglar
     # agregando una banda inventada.
+    #
+    # Provenance.ARRASTRE_TEMPORAL tampoco tiene banda, por otra razón: la
+    # confianza de un valor arrastrado ES la del descriptor de origen, tal
+    # cual -- el compositor la copia, no la inventa ni la promedia. Un
+    # default_confidence(Provenance.ARRASTRE_TEMPORAL) -> KeyError también
+    # es la señal correcta (nadie debería pedir una confianza "por defecto"
+    # para un arrastre; se hereda). La degradación por edad, si se decide,
+    # será una fórmula explícita en el compositor, no una banda aquí.
 }
 
 

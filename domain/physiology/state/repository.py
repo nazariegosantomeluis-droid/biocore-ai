@@ -237,6 +237,40 @@ def get_state_by_snapshot_id(session: Session, snapshot_id: str) -> Optional[Uni
     )
 
 
+def get_latest_snapshot_id_with_descriptor(
+    session: Session, patient_id: str, domain: str, descriptor: str
+) -> Optional[str]:
+    """El id del ÚLTIMO snapshot del paciente que contiene `(domain,
+    descriptor)` -- ignorando los snapshots que no lo tienen (2026-09-08,
+    compositor multi-dominio Tanda 1 de (b)).
+
+    Necesario porque el paciente único acumula snapshots mono-fuente: EEG
+    Lab persiste `bar` sin `heart_rate`, ECG/HRV Lab persiste `heart_rate`
+    sin `bar`. `get_latest_state()` devuelve el snapshot más reciente
+    entero -- que suele tener solo uno de los dos. Esta consulta busca
+    "el último que SÍ tiene X".
+
+    Orden por `rowid DESC` (orden de inserción real en SQLite), NO por
+    `timestamp` -- mismo criterio que `get_latest_state()` /
+    `get_latest_snapshot_id()`, y a propósito distinto de
+    `get_value_history()` (que ordena por timestamp y arrastra el bug de
+    `datetime.now()` no-monótono en Windows). `save_state()` es la única
+    vía de escritura y siempre inserta hacia adelante -- rowid y recencia
+    cronológica coinciden por invariante de la app, no por el reloj."""
+    stmt = (
+        select(SnapshotRecord.id)
+        .join(ValueRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+        .where(
+            SnapshotRecord.patient_id == patient_id,
+            ValueRecord.domain == domain,
+            ValueRecord.descriptor == descriptor,
+        )
+        .order_by(text("ups_snapshots.rowid DESC"))
+        .limit(1)
+    )
+    return session.execute(stmt).scalar_one_or_none()
+
+
 def get_value_history(
     session: Session,
     patient_id: str,

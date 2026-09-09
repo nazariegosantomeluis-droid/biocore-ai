@@ -78,7 +78,10 @@ class ValueRecord(Base):
     descriptor = Column(String(100), nullable=False, index=True)  # p.ej. "heart_rate"
     value = Column(Float, nullable=False)
     unit = Column(String(20), nullable=True)
-    provenance = Column(String(20), nullable=False)  # sensor_real | simulacion | derivado
+    # String(30): cubre `derivado_acoplamiento` (21, latente desde Acopl.
+    # Sub-fase A -- SQLite ignora el largo de VARCHAR, pero Postgres/MySQL
+    # truncarían) y `arrastre_temporal` (17, compositor multi-dominio).
+    provenance = Column(String(30), nullable=False)  # Provenance.value -- ver schema.py
     confidence = Column(Float, nullable=False)
     source_detail = Column(String(255), nullable=True)
 

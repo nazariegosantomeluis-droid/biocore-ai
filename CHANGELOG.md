@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 1: el compositor multi-dominio, aislado y probado
+
+**Contexto**: el acoplamiento neuro→CV (`AROUSAL_TAQUICARDIA_BAR`, validado en Sub-fase B) no dispara en vivo porque el `bar` (entra solo por EEG Lab) y el `heart_rate` medido (entra por ECG/HRV/Twin OS) pasan por puertas disjuntas — ningún snapshot los tiene juntos. El diagnóstico de composición confirmó: (1) no existe una API "último snapshot del paciente con el descriptor X" — hay que construirla; (2) la procedencia vive **por descriptor** (`ValueRecord`), el esquema soporta el arrastre declarado; (3) el compositor **no debe** pasar por `from_digital_twin_organism()` (una sola procedencia/`source_detail` para todos los descriptores → aplanaría la distinción bar-real / FC-arrastrada). Esta tanda construye la composición y prueba que es honesta **antes** de cablear nada. Cero `apply_couplings`, cero UI — eso es Tanda 2. Art. I: composición honesta per-descriptor; sin BAR real, sin FC real, o FC fuera de ventana → "no disponible con motivo", nunca un snapshot a medias.
+
+### Parte A — `get_latest_snapshot_id_with_descriptor()` (`repository.py`)
+
+`(session, patient_id, domain, descriptor) -> Optional[str]`. JOIN `ups_values × ups_snapshots`, filtra por `patient_id + domain + descriptor`, **`ORDER BY ups_snapshots.rowid DESC LIMIT 1`** — rowid, NO timestamp: mismo criterio que `get_latest_state()`/`get_latest_snapshot_id()`, y a propósito distinto de `get_value_history()` (que ordena por timestamp y arrastra el bug de `datetime.now()` no-monótono en Windows). Test: con snapshots sembrados devuelve el id del último que **sí** contiene el descriptor, ignorando los más recientes que no lo tienen; `None` si nadie lo tiene.
+
+### Parte B — `ValueRecord.provenance` `String(20)` → `String(30)` (`models.py`)
+
+Una línea. Cubría `derivado_acoplamiento` (21 chars, latente desde Acopl. Sub-fase A — SQLite ignora el largo de `VARCHAR`, Postgres/MySQL truncarían) y el `arrastre_temporal` nuevo (17).
+
+### Parte C — `Provenance.ARRASTRE_TEMPORAL` (`schema.py`)
+
+Un valor REAL medido/simulado en T-1, afirmado en un snapshot compuesto T porque se asume que la última lectura sigue vigente dentro de una ventana acotada — un **hold de orden cero** (zero-order hold). **NO** es `SENSOR_REAL` (ningún sensor midió en el timestamp compuesto) ni `DERIVADO` (no se calculó de otras entradas — se arrastró una medición sin transformarla). **Sin banda en `CONFIDENCE_REFERENCE`** (igual que `REFERENCIA_CLINICA`): la `confidence` se hereda TAL CUAL del descriptor de origen — el compositor la copia, no la promedia. La degradación de confianza por edad del arrastre queda como refinación futura firmada por experto.
+
+### Parte D — `compose_neuro_cardiac_snapshot()` (`domain/physiology/state/composer.py`, nuevo)
+
+`(session, patient_id, *, max_hr_carry_age_s=120.0) -> ComposeResult`. `ComposeResult = {available, snapshot_id, reason, hr_age_s}` — mismo patrón que `PLVResult` (`biomarkers.py`): "no disponible con motivo", jamás un número inventado.
+
+- `snap_bar = get_latest_snapshot_id_with_descriptor(pid, "neurological", "bar")` → `get_state_by_snapshot_id` → toma el descriptor `bar` completo. Falta → `available=False, reason="sin BAR persistido"`.
+- `snap_hr = get_latest_snapshot_id_with_descriptor(pid, "cardiovascular", "heart_rate")` → idem. Falta → `reason="sin FC medida persistida"`.
+- `hr_age_s = |bar_ts − hr_ts|` (magnitud, **no** se exige `hr_ts < bar_ts` estricto — el Windows no-monótono invierte pares por microsegundos).
+- `hr_age_s > max_hr_carry_age_s` → `available=False, reason="FC arrastrada demasiado vieja: {age}s > {MAX}s — arousal y FC de momentos distintos, no acoplamiento"`. **No persiste.**
+- Camino feliz: `UnifiedPhysiologicalState(timestamp=now, cardiovascular={heart_rate: <valor real, provenance=ARRASTRE_TEMPORAL, confidence heredada, source_detail="FC arrastrada del snapshot ⟨id⟩ del ⟨iso-ts⟩ (edad ⟨N⟩s)">}, neurological={bar: <copia literal, provenance intacta>}, respiratory={})` → `save_state()` → `available=True`. **No pasa por `from_digital_twin_organism()`** — arma los `DomainState` directamente.
+
+### Verificación (aislada, sin `apply_couplings`)
+
+`tests/test_composer.py` (6 tests): camino feliz (`bar` con procedencia de origen intacta + `heart_rate` real con `ARRASTRE_TEMPORAL` y `source_detail` con id/ts/edad); arrastre dentro de ventana (~60s, edad declarada correcta); degradado por edad (>120s → `available=False`, "demasiado vieja", **cero persistencia** — `get_latest_snapshot_id` sin cambios); sin BAR → "sin BAR persistido"; sin FC → "sin FC medida persistida"; la consulta de Parte A devuelve el último correcto ignorando snapshots sin el descriptor.
+
+`pytest tests/ -q` → **467 passed** (461 + 6, 0 fallos). Sin cablear acoplamiento, sin UI — se probó que compone honesto antes de que dispare nada. Tanda 2: `apply_couplings()` sobre el snapshot compuesto + botón.
+
 ## 2026-09-06 — BIOCORE, Acoplamientos Sub-fase B: la primera regla validada (arousal→↑FC)
 
 **Contexto**: la Sub-fase A dejó la infraestructura honesta e inerte (`DERIVADO_ACOPLAMIENTO`, `apply_couplings`, `magnitude_delta`, escenarios bloqueados). El experto validó la primera regla y **rechazó `beta_power` crudo** como ancla —la potencia absoluta varía por anatomía (cráneo, distancia fuente-sensor, ganancia), indefendible entre sujetos— a favor del **Ratio Beta/Alfa (BAR = P_β/P_α)**: un cociente adimensional del mismo electrodo que cancela esas variables y es un biomarcador **citado** (Schutter 2006 / Handbook of Psychophysiology cap.10), no una invención de la app. Esta sub-fase construye el BAR, lo usa de ancla, y activa la regla.

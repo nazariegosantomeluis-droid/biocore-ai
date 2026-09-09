@@ -23,10 +23,12 @@ from .clinical_reference_repository import (
     get_clinical_references_for_patient,
     get_clinical_references_for_snapshot,
 )
+from .composer import ComposeResult, compose_neuro_cardiac_snapshot
 from .db import init_db, make_engine, make_session_factory
 from .repository import (
     create_patient,
     get_events,
+    get_latest_snapshot_id_with_descriptor,
     get_latest_state,
     get_patient,
     get_state_by_snapshot_id,
@@ -54,12 +56,16 @@ __all__ = [
     "make_session_factory",
     "create_patient",
     "get_events",
+    "get_latest_snapshot_id_with_descriptor",
     "get_latest_state",
     "get_patient",
     "get_state_by_snapshot_id",
     "get_value_history",
     "rename_patient",
     "save_state",
+    # Compositor multi-dominio (Tanda 1 de (b), 2026-09-08) -- aditivo.
+    "ComposeResult",
+    "compose_neuro_cardiac_snapshot",
     "CONFIDENCE_REFERENCE",
     "ConfidenceBand",
     "DomainState",
