@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-09 — BIOCORE, Capa 5A dominio muscular, Tanda 1 (lado señal): `EmgAnalyzer` + muerte del shadow `preprocess_emg`
+
+**Contexto**: el diagnóstico del dominio muscular confirmó que la extensión del schema es tamaño-neuro, pero que el lift real está en la señal — y que `app/main.py` tenía un `preprocess_emg` **stub no-op** (`filtered = signal`) que **eclipsaba** el bandpass real de `src/signals/emg/preprocessing.py`, así que `activation` y la MDF se calculaban sobre señal **cruda**. Persistir `activation` así al UPS sería una medición con un asterisco invisible. Esta tanda sanea la señal **antes** de tocar el schema. NO toca el UPS (schema/`_muscular_state()`/botón "Guardar al gemelo" = Tanda 2).
+
+### Parte A — el shadow `preprocess_emg` muerto
+
+Grep: el stub de `app/main.py` (líneas 155-158) era la única definición viva de ese nombre en `app/` — `app/main.py` **no importaba** el real de `src.signals.emg`. Sus 2 llamadores (vistas Clínica + IA de `render_emg_page`) recibían la señal sin filtrar. **Ningún llamador dependía del no-op** (no había doble-filtrado que evitar — es un stub olvidado, confirmado). Stub eliminado; el comentario de cabecera que afirmaba "No existe un src.signals.emg con análisis" (ya falso) reescrito.
+
+### Parte B — `EmgAnalyzer` extraído a `src/signals/emg/emg_analyzer.py`
+
+Mismo contrato que `EegAnalyzer` (`src/signals/eeg/`): `EmgAnalyzer(fs).analyze(signal) -> EmgAnalysis` con `activation_pct` / `median_frequency_hz` / `fatigue_index` + `findings` (strings con unidad). Consolida las 3 funciones sueltas de `app/main.py` (`compute_emg_median_frequency`, `compute_emg_fatigue_index`, la activación inline). **Fórmulas byte-idénticas** — `median_frequency` (searchsorted sobre la CDF del PSD de Welch), `fatigue_index_from_mdf` = `(120 − MDF)/60·100` clip 0-100 (constantes `MDF_BASELINE_HZ`/`MDF_SPAN_HZ` nombradas, heredadas tal cual, sin recalibrar), `activation` = `mean|x|/max|x|·100`. La única diferencia de comportamiento: **todo corre sobre la señal FILTRADA** (`preprocess_emg` interno, butter 20-450 Hz) — no una preferencia, es lo que hace que la MDF sea el marcador de fatiga que la literatura describe. `app/main.py` llama al analizador una vez y reparte el resultado por vista. Guard nuevo: `signal is None` (Origen=CSV sin archivo) → `render_empty_state` + `return` en vez del crash latente pre-existente en las vistas Clínica/IA.
+
+### Parte C — verificado por ejecución
+
+- **La MDF sigue corriéndose y el corrimiento con la fatiga sobrevive la consolidación**: sEMG realista band-limited → fresca MDF **104.5 Hz** (fatigue_index 25.8), fatigada MDF **60.5 Hz** (fatigue_index 99.1). Coincide con el diagnóstico (~101 → ~60).
+- **`activation` ahora sobre señal filtrada — el filtrado tiene efecto medible**: sobre una señal con artefacto de movimiento de 3 Hz, `activation` cruda = 29.8%, filtrada = 19.1% (Δ 10.7); MDF cruda = **2.9 Hz** (destruida por el 3 Hz), MDF filtrada = 233.4 Hz. El bandpass demostrablemente cambia el resultado.
+- **`fatigue_index` sigue clavado en 0.00 sobre el generador demo** (los 3 patrones, MDF ~225-232 Hz ≫ basal 120) — deuda del **generador** (ruido blanco = espectro plano), no de la fórmula. NO se arregla aquí; se difiere (no se persistirá al UPS en la Tanda 2).
+- `tests/test_emg_preprocessing.py` → `tests/test_emg_analyzer.py` (7 tests: `preprocess_emg` real filtra fuera de banda, fórmula de fatiga intacta, corrimiento de MDF, contrato del analizador, **filtered≠raw**, fatigue_index diferido en demo).
+- **AppTest de `render_emg_page` hasta el final** (barandilla de ejecución): las 5 vistas × 3 orígenes (incl. CSV-sin-archivo, antes un crash latente) → sin excepción.
+- `pytest tests/ -q` → **478 passed** (473 + 7 nuevos − 2 retirados). App `HTTP 200`.
+
+**NO en esta tanda**: nada de schema del UPS, `_muscular_state()`, ni botón "Guardar al gemelo". Solo: señal muscular limpia y analizador mantenible antes de elevarla al organismo.
+
 ## 2026-09-08 — BIOCORE, Acoplamientos (b) Tanda 3 (cierre): superficie honesta + documento maestro
 
 **Contexto**: la Tanda 2 dejó el acoplamiento neuro→CV disparando en vivo con una caption que ya declaraba las tres procedencias. Esta tanda cierra el arco (b): pule la superficie para que un estudiante la entienda (no solo un ingeniero) y actualiza el Plan Maestro. Art. I: honesto por arquitectura — la declaración de procedencia en la UI es información pedagógica, no jerga.

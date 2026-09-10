@@ -122,9 +122,15 @@ except Exception as e:
 # try siempre fallaba), así que 'Live Hardware' en render_emg_page() siempre caía
 # en modo demo silenciosamente, sin avisar. El hardware real que sí existe y que
 # usa app/pages_legacy/9_🦾_EMG_Muscle_Lab.py es hardware.emg_stream.EMGStreamer +
-# hardware.sensor_manager.SensorManager. No existe un src.signals.emg con análisis
-# de frecuencia mediana/fatiga, así que esas dos funciones se calculan aquí mismo
-# (Welch PSD) — no son un placeholder, son la única implementación real disponible.
+# hardware.sensor_manager.SensorManager.
+#
+# Capa 5A dominio muscular, Tanda 1 (lado señal, 2026-09-09): el análisis EMG
+# (activación + frecuencia mediana + índice de fatiga) vive ahora en un
+# `EmgAnalyzer` limpio en `src/signals/emg/`, misma forma que `EegAnalyzer`.
+# Antes había 3 funciones sueltas aquí, y un `preprocess_emg` stub NO-OP
+# (`filtered = signal`) que ECLIPSABA el bandpass real de
+# `src/signals/emg/preprocessing.py` — la activación y la MDF se calculaban
+# sobre señal cruda. Stub muerto; el analizador filtra internamente.
 try:
     from hardware.sensor_manager import SensorManager
 except Exception:
@@ -135,27 +141,7 @@ try:
 except Exception:
     EMGStreamer = None
 
-
-def compute_emg_median_frequency(signal: np.ndarray, fs: float) -> float:
-    freqs, psd = welch(signal, fs=fs, nperseg=min(1024, len(signal)))
-    if psd.size == 0:
-        return 0.0
-    cdf = np.cumsum(psd)
-    if cdf[-1] <= 0:
-        return 0.0
-    median_idx = np.searchsorted(cdf, cdf[-1] / 2.0)
-    return float(freqs[min(median_idx, len(freqs) - 1)])
-
-
-def compute_emg_fatigue_index(median_frequency: float) -> float:
-    fatigue = (120.0 - median_frequency) / 60.0 * 100.0
-    return float(np.clip(fatigue, 0.0, 100.0))
-
-
-def preprocess_emg(signal: np.ndarray, fs: float) -> Tuple[np.ndarray, Dict]:
-    filtered = signal
-    metrics = {'mean_rectified': float(np.mean(np.abs(signal))), 'signal_std': float(np.std(signal)), 'fs': fs}
-    return filtered, metrics
+from src.signals.emg import EmgAnalyzer
 
 # Safe Plotly import
 PLOTLY_GO, _, PLOTLY_OK = safe_import_plotly()
@@ -940,10 +926,17 @@ def render_emg_page() -> None:
     # del gemelo real (Digital Twin OS / DigitalTwinOrganism). Ver CHANGELOG.md.
     view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
 
+    if signal is None:
+        # Solo alcanzable con Origen=CSV y ningún archivo cargado todavía.
+        # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
+        render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Live Hardware.")
+        return
+
+    emg_analysis = EmgAnalyzer(fs).analyze(signal)
+
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
-        filtered, metrics = preprocess_emg(signal, fs)
-        activation = float(np.clip(np.mean(np.abs(filtered)) / (np.max(np.abs(filtered)) + 1e-9) * 100, 0, 100))
+        activation = emg_analysis.activation_pct
         st.write('Activación muscular y patrones de contracción')
         render_metric_explained('Activación muscular', f'{activation:.1f}', unit='%',
                     meaning='Nivel promedio de activación muscular a partir del EMG rectificado.',
@@ -963,7 +956,7 @@ def render_emg_page() -> None:
 
     elif view == 'Investigación':
         st.markdown('### Vista Investigación')
-        median_freq = compute_emg_median_frequency(signal, fs)
+        median_freq = emg_analysis.median_frequency_hz
         st.write(f'Median frequency: {median_freq:.1f} Hz')
         if st.button('Exportar EMG para investigación'):
             p = export_lab_report('EMG Research', {'median_freq': median_freq}, notes='EMG export')
@@ -972,14 +965,10 @@ def render_emg_page() -> None:
 
     elif view == 'IA':
         st.markdown('### Vista IA — Narrador clínico')
-        filtered, metrics = preprocess_emg(signal, fs)
-        activation = float(np.clip(np.mean(np.abs(filtered)) / (np.max(np.abs(filtered)) + 1e-9) * 100, 0, 100))
-        median_freq = compute_emg_median_frequency(signal, fs)
-        fatigue_index = compute_emg_fatigue_index(median_freq)
         render_findings_narrator('EMG Muscle Lab', [
-            ('activation_pct', f'{activation:.1f}%', 'Nivel promedio de activación muscular (EMG rectificado).'),
-            ('median_frequency_hz', f'{median_freq:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
-            ('fatigue_index', f'{fatigue_index:.0f}/100', 'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz.'),
+            ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Nivel promedio de activación muscular (EMG rectificado, señal filtrada 20-450 Hz).'),
+            ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
+            ('fatigue_index', f'{emg_analysis.fatigue_index:.0f}/100', 'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz.'),
             ('signal_source', source, 'Origen de la señal: demo sintética, CSV cargado, o hardware en vivo.'),
         ])
 
