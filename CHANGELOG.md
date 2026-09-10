@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-09-10 — BIOCORE, Capa 5A dominio muscular, Tanda 2 (el dominio): `muscular` en el UPS
+
+**Contexto**: la Tanda 1 saneó la señal (mató el shadow `preprocess_emg`, extrajo `EmgAnalyzer`, verificó `activation`/MDF sobre señal filtrada). Con la señal limpia, esta tanda eleva el músculo al UPS como **cuarto dominio**, con la misma disciplina de honestidad que el neuro (Art. I: honesto por arquitectura — se escribe dato real o un dominio vacío, nunca un músculo sano por default indistinguible de uno medido). NO toca la UI: el botón "Guardar estado al gemelo" del EMG Lab es la Tanda 3.
+
+### Parte A — `schema.py`
+
+- `UnifiedPhysiologicalState` gana el campo `muscular: DomainState`, con `default_factory` → `DomainState(domain="muscular")` vacío. Los 11 sitios que construyen `UnifiedPhysiologicalState(...)` pasan todo por keyword (verificado por grep) → reciben el dominio muscular vacío sin editarse.
+- `all_domains()` incluye `"muscular"` → el narrador (`narrator/context.py`, itera `all_domains().values()` genéricamente) y `save_state()` (mismo patrón) cubren el dominio nuevo sin cambios.
+- `EventType` gana un único miembro: `SEVERE_MUSCLE_FATIGUE_EMG = "severe_muscle_fatigue_emg"`.
+
+### Parte B — `builder.py`
+
+`_muscular_state()` — **copiado literal** del patrón de `_neurological_state()`, incluido el gate anti-órgano-fantasma:
+
+- `signals = organism.organs["muscles"].metrics.signals` (el dict que llena `_update_muscles()`).
+- **Gate**: `has_real_muscular_input = "activation" in signals`. `activation` es la señal primaria del músculo — derivable de cualquier sEMG real (`mean|x|/max|x|`), y la única de las tres entradas que consume `_update_muscles()` (`activation`/`efficiency`/`fatigue_index`) que no viene hoy del slider de Twin OS. Sin `activation` → `descriptors = {}` → `DomainState` vacío. La barandilla exacta del neuro.
+- **Persiste, cada uno gateado por presencia**: `activation` (procedencia del llamador, unidad `"%"`), `median_frequency` (procedencia del llamador, `"Hz"`).
+- **Solo si `has_real_muscular_input`**, todos `Provenance.DERIVADO`, unidad `"0-100"`: `health_score`, `risk_score` (de `muscles.metrics.*`), y si `detail is not None`: `neuromuscular_efficiency`, `movement_smoothness` (los dos únicos campos de `MusculoskeletalDetail` que `_update_muscles()` recalcula en cada paso).
+- **`fatigue_index` DIFERIDO**: NO se persiste como descriptor en esta tanda. Comentario explícito en el código — la fórmula (`fatigue_index_from_mdf`) es real y responde sobre sEMG real, pero `generate_demo_emg_signal` (ruido blanco = espectro plano) lo clava en 0.00 en los 3 patrones. Persistirlo desde el demo sería una constante disfrazada de medición (Art. I). Se persistirá cuando la escritura venga de CSV/hardware, o cuando el generador se recalibre con propósito declarado.
+- **Los tres fantasma EXCLUIDOS** con comentario del porqué: `recruitment_pattern`, `motor_symmetry`, `power_output` — `_update_muscles()` **nunca** los asigna (confirmado por lectura completa del método), se quedan para siempre en su default de dataclass (50.0/90.0/100.0). Escribirlos al UPS sería el análogo exacto de `frontal_activity`/`temporal_activity` que `_neurological_state()` ya excluye.
+
+`_detect_events()` — evento muscular único: lee `organism.organs["muscles"].metrics.signals.get("fatigue_index")`; si `> 80` emite `SEVERE_MUSCLE_FATIGUE_EMG` (`domain="muscular"`, `EventSeverity.WARNING`, `related_descriptor="movement_smoothness"`). **Mismo umbral** que ya usa `_update_muscles()` para su tier más alto de `risk_score` — no un criterio clínico nuevo. El evento lee la señal cruda aunque `fatigue_index` no se persista como descriptor, exactamente como `HIGH_STRESS_EEG` lee `stress_level` sin persistirlo. Sobre el generador demo (fatiga en 0) este evento nunca dispara.
+
+`from_digital_twin_organism()` — `muscular = _muscular_state(...)` + `muscular=muscular` en el constructor. Docstring: "+ muscular".
+
+### Parte C — `repository.py`
+
+`muscular=_domain_state_from_values("muscular", values)` añadido en los 2 sitios de reconstrucción (`get_latest_state`, `get_state_by_snapshot_id`). `_domain_state_from_values` ya es genérico (filtra `v.domain == domain`); `save_state` ya itera `all_domains()` → la persistencia del dominio muscular es gratis.
+
+### Parte D — verificado por ejecución
+
+`tests/test_muscular_domain.py` (6 tests, espejo de los del neuro):
+- **`test_muscular_domain_gate_prevents_ghost_muscle`** (la que importa): organismo solo-cardio → `muscular.descriptors == {}`; organismo solo-EMG → muscular poblado, los otros tres vacíos.
+- `test_muscular_domain_persists_only_the_honest_descriptors`: exactamente `{activation, median_frequency, health_score, risk_score, neuromuscular_efficiency, movement_smoothness}` — `activation`/`median_frequency` con procedencia del llamador + unidad honesta, el resto `DERIVADO`.
+- `test_fatigue_index_is_deferred_even_when_present_in_signals`: `fatigue_index` en `signals` → NO aparece como descriptor.
+- `test_muscular_phantom_detail_fields_are_never_persisted`: los tres fantasma ausentes.
+- `test_muscular_domain_survives_persistence_round_trip`: `save_state` → sesión nueva → `get_latest_state` recupera `activation`/`median_frequency`, sin `fatigue_index`.
+- `test_severe_muscle_fatigue_event_uses_same_threshold_as_organism`: `fatigue_index=90` → 1 evento `SEVERE_MUSCLE_FATIGUE_EMG`; `fatigue_index=30` → 0.
+
+`pytest tests/ -q` → **484 passed** (478 + 6 nuevos). App `HTTP 200`.
+
+**NO en esta tanda**: botón "Guardar estado al gemelo" en el EMG Lab, ni UI — es la Tanda 3.
+
 ## 2026-09-09 — BIOCORE, Capa 5A dominio muscular, Tanda 1 (lado señal): `EmgAnalyzer` + muerte del shadow `preprocess_emg`
 
 **Contexto**: el diagnóstico del dominio muscular confirmó que la extensión del schema es tamaño-neuro, pero que el lift real está en la señal — y que `app/main.py` tenía un `preprocess_emg` **stub no-op** (`filtered = signal`) que **eclipsaba** el bandpass real de `src/signals/emg/preprocessing.py`, así que `activation` y la MDF se calculaban sobre señal **cruda**. Persistir `activation` así al UPS sería una medición con un asterisco invisible. Esta tanda sanea la señal **antes** de tocar el schema. NO toca el UPS (schema/`_muscular_state()`/botón "Guardar al gemelo" = Tanda 2).

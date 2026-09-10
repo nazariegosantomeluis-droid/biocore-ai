@@ -209,6 +209,7 @@ def get_latest_state(session: Session, patient_id: str) -> Optional[UnifiedPhysi
         cardiovascular=_domain_state_from_values("cardiovascular", values),
         respiratory=_domain_state_from_values("respiratory", values),
         neurological=_domain_state_from_values("neurological", values),
+        muscular=_domain_state_from_values("muscular", values),
         events=events,
     )
 
@@ -233,6 +234,7 @@ def get_state_by_snapshot_id(session: Session, snapshot_id: str) -> Optional[Uni
         cardiovascular=_domain_state_from_values("cardiovascular", values),
         respiratory=_domain_state_from_values("respiratory", values),
         neurological=_domain_state_from_values("neurological", values),
+        muscular=_domain_state_from_values("muscular", values),
         events=events,
     )
 

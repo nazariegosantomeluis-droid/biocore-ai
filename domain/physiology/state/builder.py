@@ -266,6 +266,88 @@ def _neurological_state(
     return DomainState(domain="neurological", descriptors=descriptors)
 
 
+def _muscular_state(
+    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str]
+) -> DomainState:
+    """Capa 5A, dominio muscular Tanda 2 (2026-09-10): cuarto dominio,
+    patrón COPIADO LITERAL de `_neurological_state()` de arriba, incluido
+    el gate anti-órgano-fantasma.
+
+    Señales primarias: `activation` (mean|x|/max|x| sobre sEMG filtrada, la
+    computa `EmgAnalyzer`, `src/signals/emg/emg_analyzer.py`) y
+    `median_frequency` (MDF del PSD de Welch, marcador de fatiga estándar).
+    Ambas son cantidades reales de la señal, no invenciones de la app."""
+    muscles = organism.organs["muscles"]
+    signals = muscles.metrics.signals
+    detail = muscles.detail
+
+    descriptors = {}
+
+    # Músculo fantasma (mismo criterio que cerebro/corazón/pulmón fantasma):
+    # `MusculoskeletalDetail()` nace poblado con defaults de aspecto
+    # plausible (`_initialize_organs()` -- recruitment_pattern=50.0,
+    # motor_symmetry=90.0, neuromuscular_efficiency=80.0,
+    # movement_smoothness=85.0, power_output=100.0) y
+    # `muscles.metrics.health_score`/`risk_score` arrancan en 50.0/0.0,
+    # todo ANTES de que `_update_muscles()` corra ni una vez. El gate se
+    # basa en `activation` -- la señal primaria que `_update_muscles()`
+    # realmente consume (junto a `efficiency`/`fatigue_index`), y la única
+    # de las tres que se deriva de una señal sEMG real (las otras dos hoy
+    # vienen del slider "Fatiga muscular" de Twin OS). Sin `activation`, el
+    # dominio muscular se escribe vacío -- nunca un músculo sano por
+    # defecto indistinguible de uno medido.
+    has_real_muscular_input = "activation" in signals
+
+    if "activation" in signals:
+        descriptors["activation"] = PhysiologicalDescriptor(
+            "activation", float(signals["activation"]), "%", provenance, confidence, source_detail
+        )
+    if "median_frequency" in signals:
+        descriptors["median_frequency"] = PhysiologicalDescriptor(
+            "median_frequency", float(signals["median_frequency"]), "Hz", provenance, confidence, source_detail
+        )
+
+    # `fatigue_index` DIFERIDO -- NO se persiste en esta tanda. La fórmula
+    # (`fatigue_index_from_mdf`, corrimiento de la MDF vs. un basal de 120
+    # Hz) es real y responde sobre sEMG real (fresca ~101 Hz -> fatigada
+    # ~60 Hz), PERO el generador demo (`generate_demo_emg_signal`, ruido
+    # blanco = espectro plano -> MDF ~fs/4) lo clava en 0.00 en los 3
+    # patrones. Persistirlo desde el demo sería una constante disfrazada de
+    # medición -- el mismo patrón fantasma que ya se evita con los campos
+    # de detail nunca asignados (abajo). Se persistirá cuando la escritura
+    # venga de CSV/hardware, o cuando el generador se recalibre con
+    # propósito declarado. Esto es ausencia DELIBERADA, no olvido -- ver el
+    # diagnóstico del dominio muscular y la Tanda 1 (lado señal).
+
+    if has_real_muscular_input:
+        descriptors["health_score"] = PhysiologicalDescriptor(
+            "health_score", float(muscles.metrics.health_score), "0-100", Provenance.DERIVADO, confidence, source_detail
+        )
+        descriptors["risk_score"] = PhysiologicalDescriptor(
+            "risk_score", float(muscles.metrics.risk_score), "0-100", Provenance.DERIVADO, confidence, source_detail
+        )
+        if detail is not None:
+            # NOTA: `recruitment_pattern`/`motor_symmetry`/`power_output`
+            # (MusculoskeletalDetail) NUNCA se asignan en `_update_muscles()`
+            # -- confirmado por lectura completa del método -- se quedan
+            # para siempre en su default de dataclass (50.0/90.0/100.0).
+            # Escribirlos al UPS sería persistir una constante disfrazada de
+            # medición -- el análogo EXACTO de `frontal_activity`/
+            # `temporal_activity` que `_neurological_state()` excluye por lo
+            # mismo. Se omiten a propósito; solo los 2 campos que sí computa
+            # cada vez.
+            descriptors["neuromuscular_efficiency"] = PhysiologicalDescriptor(
+                "neuromuscular_efficiency", float(detail.neuromuscular_efficiency), "0-100",
+                Provenance.DERIVADO, confidence, source_detail
+            )
+            descriptors["movement_smoothness"] = PhysiologicalDescriptor(
+                "movement_smoothness", float(detail.movement_smoothness), "0-100",
+                Provenance.DERIVADO, confidence, source_detail
+            )
+
+    return DomainState(domain="muscular", descriptors=descriptors)
+
+
 def _detect_events(
     organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, timestamp: datetime
 ) -> List[PhysiologicalEvent]:
@@ -277,6 +359,7 @@ def _detect_events(
     heart_signals = organism.organs["heart"].metrics.signals
     lungs_signals = organism.organs["lungs"].metrics.signals
     brain_signals = organism.organs["brain"].metrics.signals
+    muscle_signals = organism.organs["muscles"].metrics.signals
 
     hr = heart_signals.get("heart_rate")
     hrv = heart_signals.get("hrv")
@@ -358,6 +441,30 @@ def _detect_events(
             )
         )
 
+    # Capa 5A, dominio muscular Tanda 2 (2026-09-10): único evento muscular,
+    # mismo umbral que YA usa `_update_muscles()` para su tier más alto de
+    # `risk_score` (`fatigue > 80` -> 70) -- no se inventa un criterio
+    # clínico nuevo. `fatigue_index` NO se persiste como descriptor todavía
+    # (diferido -- generador demo roto, ver `_muscular_state()`), pero el
+    # evento lee la señal cruda del organismo directamente, exactamente
+    # como el evento de EEG lee `stress_level` sin persistirlo. Sobre el
+    # generador demo (`fatigue_index` clavado en 0) este evento nunca
+    # dispara -- disparará cuando la escritura venga de sEMG real fatigada.
+    fatigue_index = muscle_signals.get("fatigue_index")
+    if fatigue_index is not None and fatigue_index > 80:
+        events.append(
+            PhysiologicalEvent(
+                event_type=EventType.SEVERE_MUSCLE_FATIGUE_EMG,
+                domain="muscular",
+                severity=EventSeverity.WARNING,
+                description=f"Fatiga muscular severa según EMG: índice {fatigue_index:.0f}/100",
+                provenance=provenance,
+                confidence=confidence,
+                timestamp=timestamp,
+                related_descriptor="movement_smoothness",
+            )
+        )
+
     return events
 
 
@@ -370,7 +477,7 @@ def from_digital_twin_organism(
 ) -> UnifiedPhysiologicalState:
     """Construye un `UnifiedPhysiologicalState` a partir del estado actual
     de un `DigitalTwinOrganism` (cardiovascular + respiratorio +
-    neurológico, desde la Capa 5A).
+    neurológico + muscular, desde la Capa 5A).
 
     `provenance`/`confidence` describen los valores medidos/simulados
     (heart_rate, hrv, spo2, respiratory_rate). Los valores que el organismo
@@ -394,6 +501,7 @@ def from_digital_twin_organism(
     cardiovascular = _cardiovascular_state(organism, provenance, confidence, source_detail)
     respiratory = _respiratory_state(organism, provenance, confidence, source_detail)
     neurological = _neurological_state(organism, provenance, confidence, source_detail)
+    muscular = _muscular_state(organism, provenance, confidence, source_detail)
     events = _detect_events(organism, provenance, confidence, timestamp)
 
     return UnifiedPhysiologicalState(
@@ -402,5 +510,6 @@ def from_digital_twin_organism(
         cardiovascular=cardiovascular,
         respiratory=respiratory,
         neurological=neurological,
+        muscular=muscular,
         events=events,
     )

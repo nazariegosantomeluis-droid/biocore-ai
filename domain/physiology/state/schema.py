@@ -7,8 +7,8 @@ fisiológica pasa por `PhysiologicalDescriptor`, que obliga a declarar de
 dónde viene el dato y con qué certeza se conoce — la regla "simulación no es
 dato falso" se cumple a nivel de dato, no de rótulo en la UI.
 
-Alcance (Fase 1.1: cardiovascular + respiratorio; Capa 5A, Sub-fase 1,
-2026-08-30: + neurológico). El resto de los sistemas descritos en
+Alcance (Fase 1.1: cardiovascular + respiratorio; Capa 5A: + neurológico
+2026-08-30, + muscular 2026-09-10). El resto de los sistemas descritos en
 documentation/Nivel 01/104_UNIFIED_PHYSIOLOGICAL_STATE.md se añadirá en
 fases posteriores siguiendo el mismo contrato.
 """
@@ -202,10 +202,10 @@ class EventSeverity(str, Enum):
 
 class EventType(str, Enum):
     """Catálogo cerrado de eventos que el UPS puede emitir en este slice
-    (cardiovascular + respiratorio + neurológico, desde Capa 5A). Los
-    consumidores de fases posteriores (1.3 narrador, 1.4 conexión visual)
-    deben referenciar estos miembros, no strings sueltos — añadir un
-    evento nuevo significa añadir un miembro aquí, no inventar un string
+    (cardiovascular + respiratorio + neurológico + muscular, desde Capa
+    5A). Los consumidores de fases posteriores (1.3 narrador, 1.4 conexión
+    visual) deben referenciar estos miembros, no strings sueltos — añadir
+    un evento nuevo significa añadir un miembro aquí, no inventar un string
     en el llamador."""
 
     ARRHYTHMIA_RISK_HR_EXTREME = "arrhythmia_risk_hr_extreme"
@@ -218,6 +218,15 @@ class EventType(str, Enum):
     # define) -- no se inventa un umbral clínico nuevo, se reutiliza el que
     # ya vive en el motor, mismo criterio que los 4 eventos de arriba.
     HIGH_STRESS_EEG = "high_stress_eeg"
+    # Capa 5A, dominio muscular Tanda 2 (2026-09-10): único evento muscular
+    # -- mismo criterio que HIGH_STRESS_EEG: reutiliza el umbral que YA usa
+    # `_update_muscles()` para su tier más alto de `risk_score`
+    # (`fatigue_index > 80`). El `fatigue_index` NO se persiste como
+    # descriptor todavía (diferido -- generador demo roto, ver
+    # `_muscular_state()`), pero el evento sí puede leer la señal cruda del
+    # organismo, exactamente como el evento de EEG lee `stress_level` sin
+    # persistirlo.
+    SEVERE_MUSCLE_FATIGUE_EMG = "severe_muscle_fatigue_emg"
 
 
 @dataclass(frozen=True)
@@ -280,18 +289,25 @@ class UnifiedPhysiologicalState:
     campo NOMBRADO como los otros dos (el diagnóstico de alcance confirmó
     que este schema es explícito por dominio, no una colección genérica).
     Lleva `default_factory` a un `DomainState` vacío -- no `required` --
-    para que los 6 sitios que ya construyen `UnifiedPhysiologicalState(...)`
-    sin saber de neuro (builder.py, repository.py ×2, 3 tests) sigan
-    funcionando idénticos, con un dominio neuro vacío por default en vez de
-    romper. Mismo principio que el gate anti-órgano-fantasma del builder:
-    "sin dato real, vacío" -- aquí aplicado a nivel de constructor, no solo
-    de builder."""
+    para que los sitios que ya construyen `UnifiedPhysiologicalState(...)`
+    sin saber de neuro sigan funcionando idénticos, con un dominio neuro
+    vacío por default en vez de romper. Mismo principio que el gate
+    anti-órgano-fantasma del builder: "sin dato real, vacío" -- aquí
+    aplicado a nivel de constructor, no solo de builder.
+
+    Capa 5A, dominio muscular Tanda 2 (2026-09-10): `muscular` es el cuarto
+    dominio, EXACTAMENTE igual que `neurological` -- campo nombrado con
+    `default_factory` a un `DomainState` vacío. Verificado: los 11 sitios
+    que construyen `UnifiedPhysiologicalState(...)` (builder, composer,
+    repository ×2, 7 tests) pasan todo por keyword y no fijan `muscular` --
+    reciben el dominio muscular vacío por default, sin editarse."""
 
     patient_id: str
     timestamp: datetime
     cardiovascular: DomainState
     respiratory: DomainState
     neurological: DomainState = field(default_factory=lambda: DomainState(domain="neurological"))
+    muscular: DomainState = field(default_factory=lambda: DomainState(domain="muscular"))
     events: List[PhysiologicalEvent] = field(default_factory=list)
 
     def all_domains(self) -> Dict[str, DomainState]:
@@ -299,4 +315,5 @@ class UnifiedPhysiologicalState:
             "cardiovascular": self.cardiovascular,
             "respiratory": self.respiratory,
             "neurological": self.neurological,
+            "muscular": self.muscular,
         }
