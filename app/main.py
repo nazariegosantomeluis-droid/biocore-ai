@@ -930,6 +930,7 @@ def render_emg_page() -> None:
         # Solo alcanzable con Origen=CSV y ningún archivo cargado todavía.
         # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
         render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Live Hardware.")
+        _render_emg_save_to_twin(fs, source, None)  # declara "sin señal", no finge guardar
         return
 
     emg_analysis = EmgAnalyzer(fs).analyze(signal)
@@ -986,6 +987,101 @@ def render_emg_page() -> None:
         # no quede una pestaña vacía. Ver CHANGELOG.md.
         st.write('Simulación de contracción isométrica con diferente reclutamiento.')
         st.line_chart(signal)
+
+    _render_emg_save_to_twin(fs, source, emg_analysis)
+
+
+def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
+    """Capa 5A dominio muscular, Tanda 3 (2026-09-10): el EMG Lab escribe al
+    UPS por PRIMERA VEZ -- el "Paso 4" del playbook neuro, el mismo botón
+    que ganaron ECG/HRV/Respiratory/EEG Lab (Fase 2.4 / Sub-fase 1).
+    Opt-in deliberado: el estudiante analiza un EMG y elige guardarlo al
+    gemelo -- es la acción que une el lab al organismo.
+
+    El punto crítico de honestidad: `_update_muscles()`
+    (`digital_twin_organism.py`) normalmente se alimenta del slider "Fatiga
+    muscular" de Twin OS (un `fatigue_index` sintético). Este botón lo
+    alimenta con la `activation` MEDIDA por `EmgAnalyzer` sobre la señal
+    FILTRADA (butter 20-450 Hz, Tanda 1) -- la señal primaria real. Lo que
+    llega a `muscles.metrics.signals["activation"]` es el valor del
+    analizador, no un slider.
+
+    Qué se envía: `activation` + `median_frequency` (ambas reales sobre
+    cualquier sEMG). Qué NO: `fatigue_index` -- el generador demo (ruido
+    blanco, espectro plano) lo clava en 0 y `_muscular_state()` lo difiere
+    de todos modos (Tanda 2, Art. I: no persistir una constante disfrazada
+    de medición). Con solo esas dos entradas, `_update_muscles()` calcula
+    health_score/risk_score/neuromuscular_efficiency/movement_smoothness
+    desde `efficiency`/`fatigue_index` DEFAULTEADOS (70/20) -- mismo nivel
+    de tolerancia que ya acepta el EEG Lab (band power reales, stress_level
+    defaulteado). El gate de `_muscular_state()` (`"activation" in signals`)
+    es lo que decide "hay músculo que escribir".
+
+    Procedencia `SIMULACION`: señal de `generate_demo_emg_signal` o CSV
+    cargado, nunca un sensor en vivo verificado.
+    """
+    st.markdown("---")
+    st.markdown("#### 🔗 Guardar estado al gemelo")
+
+    if emg_analysis is None:
+        # Origen=CSV sin archivo -- el caso que la Tanda 1 ya guarda arriba
+        # con render_empty_state. El botón no finge: declara que no hay
+        # señal analizable que persistir. Sin éxito fingido, sin crash.
+        st.info(
+            "Sin señal EMG analizable (Origen=CSV sin archivo cargado). No hay nada "
+            "que persistir al gemelo -- carga un CSV o cambia el Origen a Demo / Live Hardware."
+        )
+        return
+
+    st.caption(
+        f"Escribe la **activación muscular real** ({emg_analysis.activation_pct:.1f}%) y la "
+        f"**frecuencia mediana** ({emg_analysis.median_frequency_hz:.1f} Hz) analizadas de esta "
+        "señal al Unified Physiological State, bajo el mismo paciente que renderiza Digital Twin "
+        "OS -- sus músculos reaccionarán a estos valores la próxima vez que abras esa página. "
+        "La activación viene del `EmgAnalyzer` (señal filtrada 20-450 Hz), NO del slider "
+        "\"Fatiga muscular\" de Twin OS. `fatigue_index` NO se escribe (generador demo de "
+        "espectro plano -- diferido). Procedencia: simulación (señal generada, no un sensor real)."
+    )
+    if st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups"):
+        from app.engines.digital_twin_organism import DigitalTwinOrganism
+
+        session_factory = get_active_session_factory()
+        patient_id = get_active_patient_id()
+
+        emg_organism = DigitalTwinOrganism()
+        emg_organism.update_from_sensors({
+            "emg": {
+                "activation": float(emg_analysis.activation_pct),
+                "median_frequency": float(emg_analysis.median_frequency_hz),
+            }
+        })
+        state = from_digital_twin_organism(
+            emg_organism, patient_id, provenance=Provenance.SIMULACION,
+            source_detail=f"emg_muscle_lab:origen={source}",
+        )
+        with session_factory() as session:
+            snapshot_id = save_state(session, state)
+
+        st.success(f"Estado guardado al gemelo -- snapshot: {snapshot_id}")
+        muscular = state.muscular
+        if muscular.descriptors:
+            st.caption(
+                f"muscular: {len(muscular.descriptors)} descriptores · "
+                f"activation = {muscular.get('activation').value:.1f}% "
+                f"({muscular.get('activation').provenance.value}) · "
+                f"median_frequency = {muscular.get('median_frequency').value:.1f} Hz · "
+                "health_score / risk_score / neuromuscular_efficiency / movement_smoothness "
+                "DERIVADO · sin fatigue_index (diferido) · sin campos fantasma"
+            )
+        else:
+            st.caption("muscular: 0 descriptores (gate no cumplido -- inesperado con activation enviada)")
+        st.caption(
+            f"cardiovascular: {len(state.cardiovascular.descriptors)} · "
+            f"respiratory: {len(state.respiratory.descriptors)} · "
+            f"neurological: {len(state.neurological.descriptors)} "
+            "(vacíos esperados -- este lab solo envía EMG)"
+        )
+
 
 def generate_demo_emg_signal(fs: float, duration: float, pattern: str) -> np.ndarray:
     n = int(fs * duration)

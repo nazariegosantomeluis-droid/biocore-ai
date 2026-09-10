@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-09-10 — BIOCORE, Capa 5A dominio muscular, Tanda 3 (cierre): el EMG Lab escribe al UPS
+
+**Contexto**: la Tanda 2 dejó el dominio muscular poblándose honesto (gate vacío probado, `fatigue_index` diferido, fantasma excluidos, 484 verdes) pero sin ningún flujo que lo escribiera. Esta tanda conecta el EMG Lab a esa escritura — el "Paso 4" del playbook neuro, el mismo botón "Guardar estado al gemelo" que ganaron ECG/HRV/Respiratory/EEG Lab — y cierra el arco. **La Capa 5A gana su segundo dominio vivo.** Barandilla de método (Fase 2.2): verificado **por ejecución hasta el final del render** vía `AppTest`, no por lectura.
+
+### Parte A — el botón "Guardar estado al gemelo" en el EMG Lab (`app/main.py`)
+
+`_render_emg_save_to_twin(fs, source, emg_analysis)`, llamado al final de `render_emg_page()` (todas las vistas) y también en la rama `signal is None` con `emg_analysis=None`. Réplica del patrón del botón del EEG Lab (Sub-fase 1):
+
+- **El punto crítico de honestidad**: `_update_muscles()` (`digital_twin_organism.py`) normalmente se alimenta del slider "Fatiga muscular" de Twin OS (un `fatigue_index` sintético). Este botón alimenta el organismo vía `update_from_sensors({"emg": {"activation": <EmgAnalyzer>, "median_frequency": <EmgAnalyzer>}})` — la `activation` **medida** por el analizador sobre la señal **filtrada** (butter 20-450 Hz, Tanda 1), no un slider. Lo que llega a `muscles.metrics.signals["activation"]` es el valor del analizador. Luego `save_state()` persiste el dominio muscular real.
+- `fatigue_index` NO se envía: el generador demo lo clava en 0 y `_muscular_state()` lo difiere de todos modos (Tanda 2). Con solo `activation` + `median_frequency` de entrada, `_update_muscles()` calcula health/risk/efficiency/smoothness desde `efficiency`/`fatigue_index` defaulteados (70/20) — mismo nivel de tolerancia que ya acepta el EEG Lab (band power reales, `stress_level` defaulteado); el gate de `_muscular_state()` (`"activation" in signals`) es lo que decide "hay músculo que escribir".
+- Procedencia `Provenance.SIMULACION` (`source_detail="emg_muscle_lab:origen=<Demo|CSV|Live Hardware>"`).
+- **Opt-in deliberado**, como el del EEG: el estudiante analiza un EMG y elige guardarlo al gemelo.
+
+### Parte B — los desenlaces honestos en la UI
+
+- **Guardado con `activation` real** → `st.success` con el `snapshot_id` + caption que enumera los descriptores musculares persistidos (`activation` con su procedencia, `median_frequency`, los 4 `DERIVADO`, "sin `fatigue_index` (diferido)", "sin campos fantasma") y confirma que los otros 3 dominios quedaron vacíos (este lab solo envía EMG).
+- **Sin señal analizable** (Origen=CSV sin archivo — el caso que la Tanda 1 ya guarda arriba con `render_empty_state`) → el botón **no se renderiza**; en su lugar un `st.info`: "Sin señal EMG analizable … No hay nada que persistir". Sin éxito fingido, sin crash.
+
+### Parte C — verificado por ejecución (`tests/test_emg_lab_save_to_twin.py`, 3 tests, AppTest hasta el final del render)
+
+- **`test_emg_lab_writes_analyzed_activation_not_slider`** (el que importa): `generate_demo_emg_signal` parcheado a una señal determinista → render (Origen=Demo, vista=Clínica por default) sin excepción → sin snapshot antes del click → click en "Guardar al gemelo" → sin excepción tras el re-render → `get_latest_state(patient_id)` devuelve un dominio muscular con `activation` == `EmgAnalyzer(fs).analyze(señal).activation_pct` (**y ≠ 45.0**, el default de `_update_muscles()`), procedencia `SIMULACION`, unidad `"%"`; `median_frequency` == la del analizador; los 4 derivados `DERIVADO`; **sin `fatigue_index`**, sin los 3 fantasma; cardiovascular/respiratory/neurological vacíos. Es el **primer snapshot muscular escrito por el lab**, no por Twin OS.
+- `test_emg_lab_declares_no_signal_instead_of_faking_save`: Origen=CSV sin archivo → `st.info` "sin señal EMG analizable", **ningún** botón `emg_lab_save_to_ups`, nada persistido.
+- `test_emg_lab_snapshot_round_trips`: `save_state` del lab → sesión nueva → `get_latest_state` recupera `activation`/`median_frequency`, `"muscular" in all_domains()`, sin `fatigue_index`.
+
+`pytest tests/ -q` → **487 passed** (484 + 3 nuevos). App `HTTP 200`.
+
+### Parte D — Plan Maestro (`~/Downloads/BIOCORE_Plan_Maestro.md`, `.md` fuente)
+
+- Estado de cabecera: "segundo dominio (muscular) VIVO en el UPS"; suite 473 → **487**.
+- §13 5A "Hecho" gana el sub-arco **Dominio muscular (Tandas 1–3)** completo: shadow `preprocess_emg` muerto + `EmgAnalyzer` extraído con contrato idéntico al `EegAnalyzer` (Tanda 1); `schema.py` + `_muscular_state()` copia literal del gate del neuro, `fatigue_index` diferido, 3 fantasma excluidos, evento `SEVERE_MUSCLE_FATIGUE_EMG` (Tanda 2); botón del EMG Lab con `activation` analizada, no slider (Tanda 3). Registro explícito del **patrón replicado del neuro**.
+- Nueva subsección **"El camino al CMC (coherencia córtico-muscular)"** — el "santo grial" del experto, con sus **3 precondiciones**: (1) dominio muscular en el UPS ✅ **cumplida esta tanda**; (2) señal EEG+sEMG pareada simultánea ✗ (pariente del problema del PLV — el arrastre temporal del arco (b) no basta, el CMC exige simultaneidad real); (3) firma del experto para banda/protocolo/duración/umbral ✗. Forma de implementación: **patrón PLV** (medida entre-dominios en `biomarkers.py` que degrada a "no disponible"), **NO una `CouplingRule`** (el CMC mide, no modula).
+- "Pendiente" y "Refinaciones futuras" actualizadas: `fatigue_index` sobre señal real; regla de acoplamiento **muscular → CV** (débil, `activation` sostenida → ↑FC modesta, el pressor response del ejercicio isométrico, si se construye — con firma del experto).
+- **Word NO regenerado**: el entorno no tiene `pandoc` ni `python-docx` (como en la Tanda 3 de acoplamiento). El contenido correcto y al día vive en el `.md`; el comando queda anotado al pie.
+
+**Arco del dominio muscular cerrado.** El EMG Lab alimenta el gemelo con activación muscular real analizada, con procedencia honesta — nunca el slider disfrazado de medición. La Capa 5A tiene su segundo dominio.
+
 ## 2026-09-10 — BIOCORE, Capa 5A dominio muscular, Tanda 2 (el dominio): `muscular` en el UPS
 
 **Contexto**: la Tanda 1 saneó la señal (mató el shadow `preprocess_emg`, extrajo `EmgAnalyzer`, verificó `activation`/MDF sobre señal filtrada). Con la señal limpia, esta tanda eleva el músculo al UPS como **cuarto dominio**, con la misma disciplina de honestidad que el neuro (Art. I: honesto por arquitectura — se escribe dato real o un dominio vacío, nunca un músculo sano por default indistinguible de uno medido). NO toca la UI: el botón "Guardar estado al gemelo" del EMG Lab es la Tanda 3.
