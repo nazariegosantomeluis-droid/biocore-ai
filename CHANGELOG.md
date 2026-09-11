@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-10 — BIOCORE, Neuro Tanda 2: firma del experto en DAR/TBR — VALIDADO_POR_FUENTE + badges 🟢/🟡/🔴
+
+**Contexto**: el experto firmó los umbrales clínicos de DAR y TBR (Tanda 1, misma fecha). Esta tanda es transcripción de regla validada, idéntica en forma al cierre de validación del BAR — **sin tocar el motor de cálculo**: los umbrales firmados están definidos sobre potencia espectral estándar (PSD de Welch, `EegAnalyzer._band_power()`), el motor actual, y se aplican sobre ESE cálculo. Un cambio de motor (FOOOF/CWT) es un arco separado que reabriría la validación — no ocurre aquí, y queda registrado como arco futuro, no como deuda.
+
+### Parte A — `PENDING_VALIDATION` retirado, `VALIDADO_POR_FUENTE` transcrito (`eeg_analyzer.py` + `builder.py`)
+
+- `DAR_THRESHOLD_PENDING_VALIDATION`/`TBR_THRESHOLD_PENDING_VALIDATION` (flags booleanos de la Tanda 1) **retirados**. `DAR_ELEVATED_REFERENCE`/`TBR_ELEVATED_REFERENCE` (umbral único) reemplazados por `DAR_THRESHOLDS`/`TBR_THRESHOLDS = (1.5, 3.0)` (tupla leve/severo) — la forma que exige una clasificación de 3 niveles.
+- `DAR_CITATION` pasa a **Claassen J et al. 2004** (sin cambio de fuente, ahora con el sufijo `VALIDADO_POR_FUENTE` en vez de `PENDING_VALIDATION`).
+- `TBR_CITATION` **cambia de fuente**: de Monastra VJ et al. 2001 (discriminante de TDAH pediátrico, cuestionado por el meta-análisis de Arns et al. 2013) a **Boksem MA, Meijman TF, Lorist MM. 2005** ("Effects of mental fatigue on attention") — el experto señaló que Boksem mide exactamente el constructo que BIOCORE usa este ratio para (fatiga cognitiva en adultos), no el de Monastra (diagnóstico categórico de TDAH en niños). Nota honesta en el código: no es una corrección de fórmula, es una corrección de qué estudio respalda qué afirmación — la cita de Monastra queda documentada como retirada, no borrada en silencio.
+- Umbrales firmados: **DAR** 🟢 &lt;1.5 tejido sano · 🟡 1.5–3.0 hipoperfusión leve · 🔴 ≥3.0 isquemia severa/sufrimiento cortical. **TBR** 🟢 &lt;1.5 enganchado/aprendizaje activo · 🟡 1.5–3.0 inicio de fatiga · 🔴 ≥3.0 fatiga cognitiva severa.
+- `source_detail` de los descriptores `dar`/`tbr` (`builder.py::_neurological_state`) pasa de citar `PENDING_VALIDATION` a citar `VALIDADO_POR_FUENTE` — automático, al vivir la marca dentro de `DAR_CITATION`/`TBR_CITATION`. El BAR no lleva ninguna de las dos marcas en su propio `source_detail` (su validación vive en la regla de acoplamiento, un objeto distinto) — sin cambios de comportamiento.
+
+### Parte B — clasificación por umbral (`classify_dar()`/`classify_tbr()`, `eeg_analyzer.py`)
+
+Mismo patrón que las clasificaciones citadas del Digital Twin (NEWS2/ACLS/AASM): toman el ratio, devuelven `(nivel, etiqueta, badge)`. `None` (denominador ~0, ya gateado antes de llegar aquí) → `("no_disponible", "no disponible", "")` — **nunca un verde por default**. `EegAnalysis.findings` para DAR/TBR ahora muestra el badge + etiqueta clínica en vez de la leyenda "umbral clínico PENDING_VALIDATION".
+
+### Parte C — badges en la UI del gemelo (`ups_body_visual.py::_render_neuro_ratio_badges`)
+
+Junto al cerebro (`render_ups_body`), un `st.caption()` por ratio presente: `🔴 DAR = 3.50 (isquemia severa / sufrimiento cortical) — Claassen J et al. 2004, ...`. Mismo componente visual (`st.caption` con la cita) que los badges NEWS2/ACLS/AASM ya existentes en esta app — **no** una reutilización de `BADGES`/`design_system.py` (ese es un eje distinto: procedencia del dato, no clasificación clínica de un valor ya real). Sin badge cuando el descriptor no está (gate individual vacío, o dominio neuro entero vacío) — nunca un verde fabricado sobre un dato ausente.
+
+### Parte D — verificado (`tests/test_neuro_dar_tbr.py` actualizado + `tests/test_neuro_dar_tbr_badges.py` nuevo, 7 tests AppTest)
+
+- Umbrales aplicados correctamente con fronteras exactas en el lado documentado: DAR 1.2→🟢, 2.0→🟡, 3.5→🔴, frontera 1.5→leve, frontera 3.0→severo; TBR igual.
+- `None` → `"no_disponible"`, nunca un verde por default.
+- `PENDING_VALIDATION` ausente y `VALIDADO_POR_FUENTE` presente en `source_detail` de dar/tbr; la cita de Monastra ya no aparece en TBR; el BAR sin ninguna de las dos marcas.
+- **Badge en vivo** (`AppTest` hasta el final del render): color correcto por umbral firmado (parametrizado sobre los 3 niveles), citación de la fuente visible, ausente cuando el descriptor falta o el dominio neuro está vacío, sin crash cuando `state=None`.
+- Regresión: `pytest tests/ -q` → **510 passed** (500 + 10 nuevos). App `HTTP 200`. BAR sin cambios de comportamiento.
+
+**Nota registrada para el futuro**: los umbrales de DAR/TBR firmados en esta tanda viven sobre el motor de banda Welch actual (PSD estándar). Un cambio futuro de motor de señal (parametrización espectral FOOOF, o wavelets/CWT en vez de potencia de banda cruda) **no hereda** esta validación — reabriría la pregunta de si `1.5`/`3.0` siguen aplicando sobre la nueva escala. Es un arco separado, registrado explícitamente como **futuro**, no como deuda de esta tanda.
+
 ## 2026-09-10 — BIOCORE, Neuro DAR+TBR: dos ratios de banda más en el dominio neurológico (umbral PENDING_VALIDATION)
 
 **Contexto**: el dominio neurológico ya persistía el BAR (Beta/Alfa) como descriptor real, gateado, con procedencia honesta y una regla `VALIDADO_POR_FUENTE` en el arco de acoplamiento. DAR (Delta/Alfa) y TBR (Theta/Beta) son el mismo patrón de ratio adimensional sobre band power que el `EegAnalyzer` ya calcula — esta tanda los añade replicando el arco del BAR exacto, salvo en un punto: su umbral clínico se marca `PENDING_VALIDATION` en vez de tratarse como asentado, porque a diferencia del BAR (firma del experto ya obtenida) nadie ha confirmado esos puntos de corte para BIOCORE. Art. I: el ratio se persiste sin reservas (es real); la interpretación clínica del umbral espera firma.

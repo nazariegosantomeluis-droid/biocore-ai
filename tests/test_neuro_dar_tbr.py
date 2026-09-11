@@ -1,20 +1,21 @@
 """
-Capa 5A, dominio neurológico -- Neuro DAR+TBR (2026-09-10).
+Capa 5A, dominio neurológico -- Neuro DAR+TBR.
 
-DAR (Delta/Alfa) y TBR (Theta/Beta) replican el arco del BAR EXACTO: cociente
-adimensional de dos band power del mismo electrodo, gate individual (se
-persiste solo si ambas bandas están presentes y el cociente no es
-indefinido), procedencia del llamador (no `DERIVADO`), y `None` honesto
-cuando el denominador es ~0 -- nunca un infinito ni un cero fabricado.
+Tanda 1 (2026-09-10): DAR (Delta/Alfa) y TBR (Theta/Beta) replican el arco
+del BAR: cociente adimensional de dos band power del mismo electrodo, gate
+individual (se persiste solo si ambas bandas están presentes y el cociente
+no es indefinido), procedencia del llamador (no `DERIVADO`), y `None`
+honesto cuando el denominador es ~0 -- nunca un infinito ni un cero
+fabricado. Umbrales clínicos quedaron `PENDING_VALIDATION`.
 
-Lo que NO replica del BAR: el umbral clínico. El BAR ya tiene una regla
-`VALIDADO_POR_FUENTE` en el arco de acoplamiento (arousal > 1.8). DAR y TBR
-solo tienen un valor de referencia TRANSCRITO de la literatura --
-`DAR_ELEVATED_REFERENCE`/`TBR_ELEVATED_REFERENCE`, ambos marcados
-`PENDING_VALIDATION` en `eeg_analyzer.py` y en el `source_detail` de cada
-descriptor persistido-- hasta que el experto firme si ese punto de corte
-aplica a la población de BIOCORE. El ratio SÍ se persiste sin reservas: es
-real, calculado de band power reales.
+Tanda 2 (2026-09-10, misma fecha, firma del experto aplicada): los umbrales
+pasan a `VALIDADO_POR_FUENTE` -- `DAR_THRESHOLDS`/`TBR_THRESHOLDS = (1.5,
+3.0)`, `DAR_CITATION` (Claassen et al. 2004) y `TBR_CITATION` (Boksem et
+al. 2005, reemplaza la cita de Monastra 2001 de la Tanda 1 -- constructo
+distinto, ver `eeg_analyzer.py`). `classify_dar()`/`classify_tbr()`
+mapean el ratio a `(nivel, etiqueta, badge)` 🟢/🟡/🔴, con `None` ->
+"no disponible" nunca un verde por default. El motor de cálculo (PSD de
+Welch) NO cambió -- los umbrales están definidos sobre ESE motor.
 """
 
 import numpy as np
@@ -33,10 +34,12 @@ from domain.physiology.state import (
 )
 from src.signals.eeg import (
     DAR_CITATION,
-    DAR_THRESHOLD_PENDING_VALIDATION,
+    DAR_THRESHOLDS,
     TBR_CITATION,
-    TBR_THRESHOLD_PENDING_VALIDATION,
+    TBR_THRESHOLDS,
     EegAnalyzer,
+    classify_dar,
+    classify_tbr,
     delta_alpha_ratio,
     theta_beta_ratio,
 )
@@ -85,18 +88,50 @@ def test_eeg_analyzer_computes_bar_dar_tbr_from_the_same_band_power():
     assert result.tbr is not None
     assert result.dar == pytest.approx(result.band_power["delta"] / result.band_power["alpha"])
     assert result.tbr == pytest.approx(result.band_power["theta"] / result.band_power["beta"])
-    assert "PENDING_VALIDATION" in result.findings["Delta/Alpha Ratio (DAR)"]
-    assert "PENDING_VALIDATION" in result.findings["Theta/Beta Ratio (TBR)"]
+    # Tanda 2: el finding cita el badge + la etiqueta clínica del umbral
+    # firmado, no un aviso de validación pendiente.
+    assert "PENDING_VALIDATION" not in result.findings["Delta/Alpha Ratio (DAR)"]
+    assert "PENDING_VALIDATION" not in result.findings["Theta/Beta Ratio (TBR)"]
 
 
-def test_citations_and_pending_validation_flags_are_exposed():
-    """Los flags PENDING_VALIDATION existen y son True hasta firma del
-    experto -- mismo patrón de nomenclatura que
-    `domain/physiology/hemodynamics` (BAROREFLEX_PARAMETERS_PENDING_VALIDATION, etc.)."""
-    assert DAR_THRESHOLD_PENDING_VALIDATION is True
-    assert TBR_THRESHOLD_PENDING_VALIDATION is True
-    assert "PENDING_VALIDATION" in DAR_CITATION
-    assert "PENDING_VALIDATION" in TBR_CITATION
+def test_citations_are_validated_by_source_pending_validation_retired():
+    """PENDING_VALIDATION retirado (Tanda 2): las citas ahora declaran
+    VALIDADO_POR_FUENTE, con los umbrales firmados como tupla (leve, severo)."""
+    assert DAR_THRESHOLDS == (1.5, 3.0)
+    assert TBR_THRESHOLDS == (1.5, 3.0)
+    assert "VALIDADO_POR_FUENTE" in DAR_CITATION
+    assert "VALIDADO_POR_FUENTE" in TBR_CITATION
+    assert "PENDING_VALIDATION" not in DAR_CITATION
+    assert "PENDING_VALIDATION" not in TBR_CITATION
+    assert "Claassen" in DAR_CITATION
+    assert "Boksem" in TBR_CITATION
+    assert "Monastra" not in TBR_CITATION  # cita reemplazada, no coexiste
+
+
+# --- Parte B: clasificación por umbral 🟢/🟡/🔴 ------------------------------
+
+def test_classify_dar_thresholds_and_boundaries():
+    assert classify_dar(1.2) == ("normal", "tejido sano", "🟢")
+    assert classify_dar(2.0) == ("leve", "hipoperfusión leve", "🟡")
+    assert classify_dar(3.5) == ("severo", "isquemia severa / sufrimiento cortical", "🔴")
+    # fronteras exactas, en el lado documentado: 1.5 -> leve, 3.0 -> severo
+    assert classify_dar(1.5)[0] == "leve"
+    assert classify_dar(3.0)[0] == "severo"
+
+
+def test_classify_tbr_thresholds_and_boundaries():
+    assert classify_tbr(1.2) == ("normal", "enganchado / aprendizaje activo", "🟢")
+    assert classify_tbr(2.0) == ("leve", "inicio de fatiga", "🟡")
+    assert classify_tbr(3.5) == ("severo", "fatiga cognitiva severa", "🔴")
+    assert classify_tbr(1.5)[0] == "leve"
+    assert classify_tbr(3.0)[0] == "severo"
+
+
+def test_classify_dar_and_tbr_none_is_no_disponible_not_a_default_green():
+    """La barandilla de siempre: `None` (denominador indefinido, ya gateado
+    antes de llegar aquí) -> 'no disponible', NUNCA un verde por default."""
+    assert classify_dar(None) == ("no_disponible", "no disponible", "")
+    assert classify_tbr(None) == ("no_disponible", "no disponible", "")
 
 
 # --- Parte B: DAR/TBR persistidos como descriptores neuro (patrón BAR) -----
@@ -208,14 +243,14 @@ def test_denominador_cero_tbr_no_se_persiste(db_path):
         assert "dar" in neuro
 
 
-def test_pending_validation_visible_in_source_detail(db_path):
-    """El source_detail de dar/tbr declara PENDING_VALIDATION y la cita --
-    quien lea el UPS ve que la interpretación clínica, no el cálculo, está
-    pendiente de firma. El BAR (regla ya validada en el arco de
-    acoplamiento) no lleva esa marca."""
+def test_validado_por_fuente_visible_in_source_detail_pending_validation_gone(db_path):
+    """Tanda 2: el source_detail de dar/tbr declara VALIDADO_POR_FUENTE y la
+    cita firmada -- PENDING_VALIDATION ya no aparece. El BAR, con su propia
+    validación independiente (arco de acoplamiento), no lleva ninguna de
+    las dos marcas en su source_detail -- no le pertenece este vocabulario."""
     SessionLocal = _session_factory(db_path)
     with SessionLocal() as session:
-        patient_id = create_patient(session, display_name="Paciente PENDING_VALIDATION")
+        patient_id = create_patient(session, display_name="Paciente VALIDADO_POR_FUENTE")
         o = DigitalTwinOrganism()
         o.update_from_sensors({
             "eeg": {"delta_power": 5.0, "theta_power": 6.0, "alpha_power": 10.0, "beta_power": 3.0}
@@ -223,16 +258,20 @@ def test_pending_validation_visible_in_source_detail(db_path):
         state = from_digital_twin_organism(o, patient_id, Provenance.SIMULACION, 0.85)
 
         neuro = state.neurological.descriptors
-        assert "PENDING_VALIDATION" in neuro["dar"].source_detail
+        assert "VALIDADO_POR_FUENTE" in neuro["dar"].source_detail
+        assert "PENDING_VALIDATION" not in neuro["dar"].source_detail
         assert "delta_alpha_ratio" in neuro["dar"].source_detail
         assert "Claassen" in neuro["dar"].source_detail
 
-        assert "PENDING_VALIDATION" in neuro["tbr"].source_detail
+        assert "VALIDADO_POR_FUENTE" in neuro["tbr"].source_detail
+        assert "PENDING_VALIDATION" not in neuro["tbr"].source_detail
         assert "theta_beta_ratio" in neuro["tbr"].source_detail
-        assert "Monastra" in neuro["tbr"].source_detail
+        assert "Boksem" in neuro["tbr"].source_detail
+        assert "Monastra" not in neuro["tbr"].source_detail  # cita retirada, no coexiste
 
-        # el BAR no lleva la marca -- no es el mismo estado de validación
+        # el BAR no lleva ninguna de las dos marcas -- validación independiente
         assert "PENDING_VALIDATION" not in neuro["bar"].source_detail
+        assert "VALIDADO_POR_FUENTE" not in neuro["bar"].source_detail
 
 
 def test_dar_tbr_survive_persistence_round_trip(db_path):
@@ -250,7 +289,7 @@ def test_dar_tbr_survive_persistence_round_trip(db_path):
         latest = get_latest_state(session, patient_id)
     assert latest.neurological.get("dar").value == pytest.approx(0.5)
     assert latest.neurological.get("tbr").value == pytest.approx(2.0)
-    assert "PENDING_VALIDATION" in latest.neurological.get("dar").source_detail
+    assert "VALIDADO_POR_FUENTE" in latest.neurological.get("dar").source_detail
 
 
 def test_no_neuro_input_still_yields_empty_domain_dar_tbr_included(db_path):

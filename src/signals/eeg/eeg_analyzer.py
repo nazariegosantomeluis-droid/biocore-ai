@@ -23,49 +23,62 @@ BAR_CITATION: str = "Schutter DJLG 2006 / Handbook of Psychophysiology 3a ed. ca
 # indefinido (None), nunca se fuerza a un número.
 _BAR_ALPHA_FLOOR: float = 1e-9
 
-# DAR (Ratio Delta/Alfa) -- Neuro DAR+TBR (2026-09-10). Cociente de dos
-# band power del mismo electrodo, mismo criterio que el BAR (cancela
-# variables anatómicas). Citado en monitorización EEG continua de UCI
-# neurocrítica: la razón INVERSA alfa/delta que cae sostenidamente (>50%,
-# >=2h) predice isquemia cerebral diferida tras hemorragia subaracnoidea de
-# mal grado -- DAR es su inverso, sube cuando delta domina sobre alfa
-# (enlentecimiento cortical). Fuente: Claassen J et al. 2004, Clin
-# Neurophysiol 115(12):2699-2710.
+# DAR (Ratio Delta/Alfa) -- Neuro Tanda 2 (2026-09-10): FIRMA DEL EXPERTO
+# APLICADA, `PENDING_VALIDATION` retirado. Cociente de dos band power del
+# mismo electrodo, mismo criterio que el BAR (cancela variables anatómicas).
+# Fuente: Claassen J et al. 2004, Clin Neurophysiol 115(12):2699-2710
+# (monitorización EEG continua de UCI neurocrítica -- la razón INVERSA
+# alfa/delta que cae sostenidamente predice isquemia cerebral diferida tras
+# hemorragia subaracnoidea de mal grado; DAR es su inverso, sube cuando
+# delta domina sobre alfa).
 #
-# PENDING_VALIDATION: `DAR_ELEVATED_REFERENCE` es el valor transcrito de
-# ESE contexto clínico específico (HSA en UCI, cambio relativo sostenido en
-# el tiempo) -- NO confirmado por el experto como umbral aplicable a la
-# población general de BIOCORE ni a una lectura puntual. El ratio en sí
-# (band power reales / band power reales) se persiste sin reservas; lo que
-# espera firma es la interpretación clínica de "sufrimiento cortical" sobre
-# ese número. No degradar a validado sin confirmación explícita.
-DAR_ELEVATED_REFERENCE: float = 1.0
+# Umbrales VALIDADOS_POR_FUENTE (firma del experto, 2026-09-10):
+#   🟢 <1.5 tejido sano · 🟡 1.5-3.0 hipoperfusión leve ·
+#   🔴 >=3.0 isquemia severa / sufrimiento cortical.
+# Ver `classify_dar()` más abajo para la clasificación.
+#
+# BARANDILLA -- motor de cálculo: estos umbrales están definidos sobre
+# POTENCIA ESPECTRAL ESTÁNDAR (PSD de Welch, `EegAnalyzer._band_power()`),
+# el motor ACTUAL y el mismo que usa la literatura citada. Un cambio futuro
+# de motor (p.ej. parametrización espectral FOOOF, o wavelets/CWT en vez de
+# potencia de banda cruda) NO hereda esta validación automáticamente --
+# reabriría la pregunta de si el umbral sigue aplicando sobre la nueva
+# escala. Ese cambio de motor es un arco separado, registrado como futuro,
+# no como deuda de esta tanda.
+DAR_THRESHOLDS: Tuple[float, float] = (1.5, 3.0)  # (techo "leve", techo "severo": >= es severo)
 DAR_CITATION: str = (
     "Claassen J et al. 2004, Clin Neurophysiol 115(12):2699-2710 (razón alfa/delta inversa, "
-    "isquemia cerebral diferida post-HSA) -- PENDING_VALIDATION"
+    "isquemia cerebral diferida post-HSA) -- VALIDADO_POR_FUENTE"
 )
-DAR_THRESHOLD_PENDING_VALIDATION: bool = True
 _DAR_ALPHA_FLOOR: float = 1e-9
 
 # TBR (Ratio Theta/Beta) -- mismo cociente adimensional, banda frontal.
-# Citado originalmente como discriminante de TDAH (cutoff que luego adoptó
-# el sistema "NEBA" con autorización FDA). Fuente: Monastra VJ, Lubar JF,
-# Linden M. 2001, Neuropsychology 15(1):136-144.
+# FIRMA DEL EXPERTO APLICADA (2026-09-10): fuente Boksem MA, Meijman TF,
+# Lorist MM. 2005 ("Effects of mental fatigue on attention") -- mide
+# EXACTAMENTE el constructo que BIOCORE usa este ratio para (fatiga
+# cognitiva en adultos durante una tarea sostenida).
 #
-# PENDING_VALIDATION: el meta-análisis posterior de Arns M, Conners CK,
-# Kraemer HC. 2013, J Atten Disord 17(5):374-383 ("A decade of EEG
-# Theta/Beta Ratio Research in ADHD") encontró que el tamaño de efecto del
-# TBR elevado se redujo con los años y cuestionó la generalización de ese
-# punto de corte -- la propia literatura está en disputa, razón de más para
-# no hardcodear `TBR_ELEVATED_REFERENCE` como umbral validado sin que el
-# experto confirme su aplicabilidad aquí.
-TBR_ELEVATED_REFERENCE: float = 3.0
+# NOTA HONESTA (reemplaza la cita de la Tanda 1): la Tanda 1 citó Monastra
+# VJ, Lubar JF, Linden M. 2001 (discriminante de TDAH pediátrico, cutoff
+# que adoptó el sistema "NEBA" con autorización FDA) -- un estudio real,
+# pero de una POBLACIÓN (niños con sospecha de TDAH) y un CONSTRUCTO
+# (diagnóstico categórico) distintos del uso que le da BIOCORE, y además
+# cuestionado por el meta-análisis posterior de Arns M, Conners CK, Kraemer
+# HC. 2013 (J Atten Disord 17(5):374-383). El experto señaló que Boksem
+# 2005 es la cita correcta para fatiga cognitiva -- no una corrección de
+# fórmula, una corrección de qué estudio respalda qué afirmación.
+#
+# Umbrales VALIDADOS_POR_FUENTE (firma del experto, 2026-09-10):
+#   🟢 <1.5 enganchado/aprendizaje activo · 🟡 1.5-3.0 inicio de fatiga ·
+#   🔴 >=3.0 fatiga cognitiva severa.
+# Ver `classify_tbr()` más abajo. Misma barandilla de motor Welch que el
+# DAR (ver comentario arriba) -- un cambio de motor reabriría esta
+# validación, arco futuro separado.
+TBR_THRESHOLDS: Tuple[float, float] = (1.5, 3.0)
 TBR_CITATION: str = (
-    "Monastra VJ, Lubar JF, Linden M. 2001, Neuropsychology 15(1):136-144; cuestionado por "
-    "Arns M, Conners CK, Kraemer HC. 2013, J Atten Disord 17(5):374-383 (meta-análisis) -- "
-    "PENDING_VALIDATION"
+    "Boksem MA, Meijman TF, Lorist MM. 2005 (Effects of mental fatigue on attention) -- "
+    "VALIDADO_POR_FUENTE"
 )
-TBR_THRESHOLD_PENDING_VALIDATION: bool = True
 _TBR_BETA_FLOOR: float = 1e-9
 
 
@@ -88,9 +101,8 @@ def delta_alpha_ratio(delta_power: float, alpha_power: float) -> Optional[float]
     """DAR = delta_power / alpha_power. Mismo criterio de honestidad de
     borde que `beta_alpha_ratio`: `None` si `alpha_power` es ~0 (indefinido,
     NO un infinito ni un tope arbitrario). Fuente: ver `DAR_CITATION`. El
-    umbral de interpretación clínica (`DAR_ELEVATED_REFERENCE`) está
-    PENDING_VALIDATION -- esta función solo calcula el ratio, no lo
-    clasifica."""
+    umbral clínico (`DAR_THRESHOLDS`) está VALIDADO_POR_FUENTE -- esta
+    función solo calcula el ratio; usa `classify_dar()` para clasificarlo."""
     if delta_power is None or alpha_power is None:
         return None
     if not np.isfinite(delta_power) or not np.isfinite(alpha_power):
@@ -103,9 +115,9 @@ def delta_alpha_ratio(delta_power: float, alpha_power: float) -> Optional[float]
 def theta_beta_ratio(theta_power: float, beta_power: float) -> Optional[float]:
     """TBR = theta_power / beta_power. Mismo criterio de honestidad de
     borde: `None` si `beta_power` es ~0 (indefinido). Fuente: ver
-    `TBR_CITATION`. El umbral de interpretación clínica
-    (`TBR_ELEVATED_REFERENCE`) está PENDING_VALIDATION -- esta función solo
-    calcula el ratio, no lo clasifica."""
+    `TBR_CITATION`. El umbral clínico (`TBR_THRESHOLDS`) está
+    VALIDADO_POR_FUENTE -- esta función solo calcula el ratio; usa
+    `classify_tbr()` para clasificarlo."""
     if theta_power is None or beta_power is None:
         return None
     if not np.isfinite(theta_power) or not np.isfinite(beta_power):
@@ -113,6 +125,36 @@ def theta_beta_ratio(theta_power: float, beta_power: float) -> Optional[float]:
     if abs(beta_power) < _TBR_BETA_FLOOR:
         return None
     return float(theta_power) / float(beta_power)
+
+
+def classify_dar(dar: Optional[float]) -> Tuple[str, str, str]:
+    """Clasifica un valor DAR según los umbrales VALIDADOS_POR_FUENTE (ver
+    `DAR_THRESHOLDS`/`DAR_CITATION`). Devuelve `(nivel, etiqueta, badge)`.
+
+    `None` (cociente indefinido -- denominador ~0, ya gateado antes de
+    llegar aquí) -> `("no_disponible", "no disponible", "")` -- NUNCA un
+    verde por default cuando falta el dato."""
+    if dar is None:
+        return ("no_disponible", "no disponible", "")
+    leve, severo = DAR_THRESHOLDS
+    if dar < leve:
+        return ("normal", "tejido sano", "🟢")
+    if dar < severo:
+        return ("leve", "hipoperfusión leve", "🟡")
+    return ("severo", "isquemia severa / sufrimiento cortical", "🔴")
+
+
+def classify_tbr(tbr: Optional[float]) -> Tuple[str, str, str]:
+    """Espejo de `classify_dar()` para TBR (ver `TBR_THRESHOLDS`/
+    `TBR_CITATION`). `None` -> `("no_disponible", "no disponible", "")`."""
+    if tbr is None:
+        return ("no_disponible", "no disponible", "")
+    leve, severo = TBR_THRESHOLDS
+    if tbr < leve:
+        return ("normal", "enganchado / aprendizaje activo", "🟢")
+    if tbr < severo:
+        return ("leve", "inicio de fatiga", "🟡")
+    return ("severo", "fatiga cognitiva severa", "🔴")
 
 
 def _trapz(y: np.ndarray, x: np.ndarray) -> float:
@@ -136,11 +178,11 @@ class EegAnalysis:
     bar: Optional[float] = None
     # DAR (Ratio Delta/Alfa) -- enlentecimiento cortical (ver
     # `delta_alpha_ratio` y `DAR_CITATION`). `None` si alpha_power ~0.
-    # Umbral clínico PENDING_VALIDATION -- ver `DAR_ELEVATED_REFERENCE`.
+    # Umbral clínico VALIDADO_POR_FUENTE -- ver `DAR_THRESHOLDS`/`classify_dar()`.
     dar: Optional[float] = None
     # TBR (Ratio Theta/Beta) -- carga/fatiga atencional (ver
     # `theta_beta_ratio` y `TBR_CITATION`). `None` si beta_power ~0.
-    # Umbral clínico PENDING_VALIDATION -- ver `TBR_ELEVATED_REFERENCE`.
+    # Umbral clínico VALIDADO_POR_FUENTE -- ver `TBR_THRESHOLDS`/`classify_tbr()`.
     tbr: Optional[float] = None
 
 
@@ -175,11 +217,13 @@ class EegAnalyzer:
         summary = self._build_summary(dominant_band, band_power, classification, clinical_note)
         findings = self._build_findings(dominant_band, classification, clinical_note, band_power)
         findings['Beta/Alpha Ratio (BAR)'] = f"{bar:.2f}" if bar is not None else "indefinido (sin ritmo alfa)"
+        _, dar_label, dar_badge = classify_dar(dar)
+        _, tbr_label, tbr_badge = classify_tbr(tbr)
         findings['Delta/Alpha Ratio (DAR)'] = (
-            f"{dar:.2f} (umbral clínico PENDING_VALIDATION)" if dar is not None else "indefinido (sin ritmo alfa)"
+            f"{dar_badge} {dar:.2f} ({dar_label})" if dar is not None else "indefinido (sin ritmo alfa)"
         )
         findings['Theta/Beta Ratio (TBR)'] = (
-            f"{tbr:.2f} (umbral clínico PENDING_VALIDATION)" if tbr is not None else "indefinido (sin ritmo beta)"
+            f"{tbr_badge} {tbr:.2f} ({tbr_label})" if tbr is not None else "indefinido (sin ritmo beta)"
         )
 
         return EegAnalysis(

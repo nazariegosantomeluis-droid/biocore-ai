@@ -53,6 +53,7 @@ from domain.physiology.state import (
     PhysiologicalEvent,
     UnifiedPhysiologicalState,
 )
+from src.signals.eeg import DAR_CITATION, TBR_CITATION, classify_dar, classify_tbr
 
 # Sub-fase 1 (2026-08-30) escribió estos 5 band power al dominio neurológico
 # — mismos nombres que `builder._neurological_state()`. El cerebro elige su
@@ -348,6 +349,37 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
     )
 
 
+def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> None:
+    """Neuro Tanda 2 (firma del experto, 2026-09-10): badges clínicos
+    🟢/🟡/🔴 para DAR/TBR, junto al cerebro. Mismo componente visual que los
+    badges NEWS2/ACLS/AASM de arriba en esta app (`st.caption()` con la cita
+    de la fuente) -- no una reutilización de `BADGES` (`design_system.py`),
+    que es un eje distinto (procedencia del DATO: medido/heurístico/
+    fantasma) y no de la clasificación clínica de un VALOR ya real.
+
+    Honesto por gate: si `dar`/`tbr` no está en el dominio (gate individual
+    vacío -- band power insuficientes, o el dominio neuro entero vacío), no
+    se renderiza NADA para ese ratio -- nunca un verde fabricado sobre un
+    dato ausente. `classify_dar`/`classify_tbr` devuelven badge `""` para
+    `None`, pero ese caso no debería llegar aquí (el descriptor solo existe
+    si el cociente fue real) -- el guard `if descriptor is not None` es la
+    barrera real."""
+    neuro = state.all_domains()["neurological"] if state else None
+    descriptors = neuro.descriptors if neuro is not None else {}
+
+    dar_descriptor = descriptors.get("dar")
+    if dar_descriptor is not None:
+        _, dar_label, dar_badge = classify_dar(dar_descriptor.value)
+        if dar_badge:
+            st.caption(f"{dar_badge} DAR = {dar_descriptor.value:.2f} ({dar_label}) — {DAR_CITATION}")
+
+    tbr_descriptor = descriptors.get("tbr")
+    if tbr_descriptor is not None:
+        _, tbr_label, tbr_badge = classify_tbr(tbr_descriptor.value)
+        if tbr_badge:
+            st.caption(f"{tbr_badge} TBR = {tbr_descriptor.value:.2f} ({tbr_label}) — {TBR_CITATION}")
+
+
 def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:
     """Fase 1.4: corazón y pulmones coloreados/animados desde un
     `UnifiedPhysiologicalState` real — nunca de texto del narrador.
@@ -376,6 +408,7 @@ def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:
     _, brain_col, _ = st.columns([1, 2, 1])
     with brain_col:
         st.markdown(_render_brain_card(state), unsafe_allow_html=True)
+        _render_neuro_ratio_badges(state)
 
     col1, col2 = st.columns(2)
     with col1:

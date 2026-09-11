@@ -259,7 +259,7 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.neurological.get("bar").unit == "ratio (adimensional)"
         # `dar` = delta/alpha = 1.1/12.5, `tbr` = theta/beta = 3.1/7.2 --
         # mismo criterio de procedencia que `bar`. Ver tests/test_neuro_dar_tbr.py
-        # para el gate individual y el umbral PENDING_VALIDATION.
+        # para el gate individual y la clasificación por umbral VALIDADO_POR_FUENTE.
         assert eeg_state.neurological.get("dar").value == pytest.approx(1.1 / 12.5)
         assert eeg_state.neurological.get("dar").provenance == Provenance.SIMULACION
         assert eeg_state.neurological.get("tbr").value == pytest.approx(3.1 / 7.2)

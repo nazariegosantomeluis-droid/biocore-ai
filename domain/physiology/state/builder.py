@@ -239,7 +239,7 @@ def _neurological_state(
                 f"{source_detail + ' | ' if source_detail else ''}beta_alpha_ratio | {BAR_CITATION}",
             )
 
-    # DAR (Ratio Delta/Alfa) -- Neuro DAR+TBR (2026-09-10). MISMO patrón que
+    # DAR (Ratio Delta/Alfa) -- Neuro Tanda 1 (2026-09-10). MISMO patrón que
     # el BAR arriba: cociente adimensional de dos band power del MISMO
     # dominio -> lleva la MISMA procedencia que las band power de origen
     # (no `DERIVADO` -- es una identidad aritmética, no un cálculo del
@@ -249,14 +249,13 @@ def _neurological_state(
     # pero no alpha puede tener `tbr` sin `dar`, exactamente como puede
     # tener band power sin `bar`.
     #
-    # PENDING_VALIDATION (ver `DAR_CITATION`/`DAR_ELEVATED_REFERENCE` en
-    # `eeg_analyzer.py`): el RATIO se persiste sin reservas -- es real,
-    # calculado de dos band power reales. Lo que NO se persiste como
-    # validado es la INTERPRETACIÓN clínica ("sufrimiento cortical" a partir
-    # de qué valor) -- el `source_detail` declara explícitamente que ese
-    # umbral espera firma del experto, para que quien lea el UPS no lo
-    # confunda con el BAR (que sí tiene regla `VALIDADO_POR_FUENTE` en el
-    # arco de acoplamiento).
+    # Neuro Tanda 2 (2026-09-10): firma del experto aplicada --
+    # `DAR_CITATION` (`eeg_analyzer.py`) pasó de `PENDING_VALIDATION` a
+    # `VALIDADO_POR_FUENTE` (Claassen et al. 2004), mismo estado que el BAR.
+    # El umbral clínico (🟢/🟡/🔴, `DAR_THRESHOLDS`/`classify_dar()`) está
+    # definido sobre el motor de banda Welch ACTUAL -- un cambio de motor de
+    # señal (FOOOF/CWT) reabriría esta validación, no la hereda; ver
+    # CHANGELOG.md.
     if "delta_power" in signals and "alpha_power" in signals:
         dar_value = delta_alpha_ratio(float(signals["delta_power"]), float(signals["alpha_power"]))
         if dar_value is not None:
@@ -266,10 +265,12 @@ def _neurological_state(
             )
 
     # TBR (Ratio Theta/Beta) -- mismo patrón, gate individual propio
-    # (`theta_power`/`beta_power`). PENDING_VALIDATION (ver `TBR_CITATION`/
-    # `TBR_ELEVATED_REFERENCE`): la propia literatura disputa el punto de
-    # corte original -- razón de más para declarar la interpretación
-    # pendiente en vez de tratarla como un umbral clínico asentado.
+    # (`theta_power`/`beta_power`). Neuro Tanda 2: firma del experto
+    # aplicada -- `TBR_CITATION` pasó de Monastra 2001/PENDING_VALIDATION a
+    # Boksem et al. 2005 (VALIDADO_POR_FUENTE) -- la cita correcta para
+    # fatiga cognitiva en adultos, no el discriminante de TDAH pediátrico de
+    # la Tanda 1 (ver `eeg_analyzer.py` para la nota completa). Mismo umbral
+    # sobre el motor Welch actual, misma barandilla de re-validación futura.
     if "theta_power" in signals and "beta_power" in signals:
         tbr_value = theta_beta_ratio(float(signals["theta_power"]), float(signals["beta_power"]))
         if tbr_value is not None:
