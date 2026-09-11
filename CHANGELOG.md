@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-10 — BIOCORE, Neuro DAR+TBR: dos ratios de banda más en el dominio neurológico (umbral PENDING_VALIDATION)
+
+**Contexto**: el dominio neurológico ya persistía el BAR (Beta/Alfa) como descriptor real, gateado, con procedencia honesta y una regla `VALIDADO_POR_FUENTE` en el arco de acoplamiento. DAR (Delta/Alfa) y TBR (Theta/Beta) son el mismo patrón de ratio adimensional sobre band power que el `EegAnalyzer` ya calcula — esta tanda los añade replicando el arco del BAR exacto, salvo en un punto: su umbral clínico se marca `PENDING_VALIDATION` en vez de tratarse como asentado, porque a diferencia del BAR (firma del experto ya obtenida) nadie ha confirmado esos puntos de corte para BIOCORE. Art. I: el ratio se persiste sin reservas (es real); la interpretación clínica del umbral espera firma.
+
+*(Precede a esta tanda un diagnóstico de viabilidad del dominio metabólico, sin código: veredicto **ARCHIVAR** — no existe órgano/estado metabólico en `digital_twin_organism.py`, ni señal medida-real, ni derivación citable ya implementada; todo lo que llevó la etiqueta "metabólico" en el repo es fantasma cazado (`metabolic_efficiency`/RER, retirado 2026-08-15), código huérfano nunca llamado (`generate_metabolic_profile`/glucosa/lactato en `data_generator.py`, cero llamadores vivos), o alias de otro dominio (`RecoveryState.metabolic_recovery` = copia literal de `autonomic.metrics.health_score`, sin consumidor). Decisión archivada, no pendiente — no reabrir sin una fuente de señal nueva.)*
+
+### Parte A — DAR y TBR en el `EegAnalyzer` (`src/signals/eeg/eeg_analyzer.py`)
+
+Reusan los mismos `band_power` que el BAR ya deriva del PSD de Welch — no se recalcula nada:
+- `delta_alpha_ratio(delta_power, alpha_power)` / `theta_beta_ratio(theta_power, beta_power)` — mismo criterio de honestidad de borde que `beta_alpha_ratio`: `None` si el denominador es ~0 (indefinido, nunca un infinito ni un tope arbitrario).
+- `DAR_CITATION` (Claassen J et al. 2004, Clin Neurophysiol — razón alfa/delta inversa, isquemia cerebral diferida post-HSA) y `TBR_CITATION` (Monastra VJ et al. 2001, Neuropsychology — discriminante de TDAH original; cuestionado por el meta-análisis de Arns M et al. 2013, J Atten Disord). `DAR_ELEVATED_REFERENCE=1.0` / `TBR_ELEVATED_REFERENCE=3.0` son los valores transcritos de esos estudios — **no** umbrales confirmados para BIOCORE.
+- `DAR_THRESHOLD_PENDING_VALIDATION` / `TBR_THRESHOLD_PENDING_VALIDATION = True` — mismo patrón de nomenclatura que `domain/physiology/hemodynamics` (`BAROREFLEX_PARAMETERS_PENDING_VALIDATION`, etc.), para que el flag sea imposible de pasar por alto al importarlo.
+- `EegAnalysis` gana los campos `dar`/`tbr` (mismo tratamiento que `bar`); `analyze()` los calcula y los añade a `findings` con la leyenda "(umbral clínico PENDING_VALIDATION)" cuando están definidos.
+
+### Parte B — persistidos como descriptores neurológicos (`builder.py::_neurological_state`)
+
+Mismo bloque que el BAR, gate **individual** por ratio (no el gate del dominio):
+- `dar`: solo `if "delta_power" in signals and "alpha_power" in signals` y el cociente no es `None`. Procedencia del llamador (no `DERIVADO` — es una identidad aritmética de dos band power, no un cálculo del organismo), unidad `"ratio (adimensional)"`, `source_detail` con `delta_alpha_ratio | {DAR_CITATION}` (la cita ya incluye `PENDING_VALIDATION`).
+- `tbr`: mismo tratamiento, `if "theta_power" in signals and "beta_power" in signals`, `source_detail` con `TBR_CITATION`.
+- **Gate individual real, no todo-o-nada**: un escritor sin `delta_power` puede tener `bar`+`tbr` sin `dar`; sin `beta_power` puede tener `dar` sin `bar` ni `tbr` (ambos dependen de beta). Cada ratio vive de sus propias bandas.
+- El BAR intacto: mismo cálculo, mismo `source_detail` (sin la marca `PENDING_VALIDATION`, porque su regla de arousal ya tiene firma `VALIDADO_POR_FUENTE`). El gate del dominio (`has_real_neuro_input`) sin cambios. Los campos fantasma (`frontal_activity`/`temporal_activity`) siguen excluidos.
+
+### Parte C — verificado (`tests/test_neuro_dar_tbr.py`, 13 tests + `test_ups_state.py` actualizado)
+
+- Fórmulas + `None` en denominador cero/ausente, a nivel de función y de `EegAnalyzer`.
+- **Camino feliz**: 4 band power reales → `bar`+`dar`+`tbr` persistidos, procedencia y unidad correctas.
+- **Gate individual** (el que importa): sin `delta_power` → `dar` ausente, `bar`/`tbr` presentes; sin `alpha_power`/`beta_power` → los ratios que dependen de esa banda ausentes, los que no, presentes.
+- **Denominador cero**: `alpha_power=0.0` → `dar` indefinido, no se persiste (`bar`, mismo denominador, tampoco); `beta_power=0.0` → `tbr` indefinido, no se persiste, pero `bar` SÍ (beta es su numerador ahí, un valor real, no un denominador indefinido) — distinción verificada explícitamente.
+- **PENDING_VALIDATION visible**: `source_detail` de `dar`/`tbr` contiene la cita + la marca; el de `bar` NO la contiene (no es el mismo estado de validación).
+- Round-trip de persistencia; gate del dominio (sin neuro real → dominio vacío, dar/tbr incluidos) sin cambios.
+- `test_ups_state.py::test_neurological_domain_gate_prevents_ghost_brain` actualizado: el set exacto de descriptores neuro con las 5 band power reales pasa de 13 a 15 claves (+`dar`+`tbr`).
+
+`pytest tests/ -q` → **500 passed** (487 + 13 nuevos). App `HTTP 200`. BAR sin cambios de comportamiento.
+
 ## 2026-09-10 — BIOCORE, Capa 5A dominio muscular, Tanda 3 (cierre): el EMG Lab escribe al UPS
 
 **Contexto**: la Tanda 2 dejó el dominio muscular poblándose honesto (gate vacío probado, `fatigue_index` diferido, fantasma excluidos, 484 verdes) pero sin ningún flujo que lo escribiera. Esta tanda conecta el EMG Lab a esa escritura — el "Paso 4" del playbook neuro, el mismo botón "Guardar estado al gemelo" que ganaron ECG/HRV/Respiratory/EEG Lab — y cierra el arco. **La Capa 5A gana su segundo dominio vivo.** Barandilla de método (Fase 2.2): verificado **por ejecución hasta el final del render** vía `AppTest`, no por lectura.

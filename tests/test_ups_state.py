@@ -240,10 +240,11 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.cardiovascular.descriptors == {}  # corazón NO fabricado
         assert eeg_state.respiratory.descriptors == {}  # pulmón NO fabricado
 
-        # Los 5 band power + `bar` (Ratio Beta/Alfa, Acoplamientos Sub-fase B)
-        # + los 5 detail + health_score/risk_score = 13.
+        # Los 5 band power + `bar`/`dar`/`tbr` (Neuro DAR+TBR, 2026-09-10,
+        # mismo patrón de ratio adimensional) + los 5 detail +
+        # health_score/risk_score = 15.
         assert set(eeg_state.neurological.descriptors.keys()) == {
-            "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar",
+            "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar", "dar", "tbr",
             "health_score", "risk_score",
             "mental_workload", "cognitive_fatigue", "attention", "stress_perception", "sleepiness",
         }
@@ -256,6 +257,13 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.neurological.get("bar").value == pytest.approx(7.2 / 12.5)
         assert eeg_state.neurological.get("bar").provenance == Provenance.SIMULACION
         assert eeg_state.neurological.get("bar").unit == "ratio (adimensional)"
+        # `dar` = delta/alpha = 1.1/12.5, `tbr` = theta/beta = 3.1/7.2 --
+        # mismo criterio de procedencia que `bar`. Ver tests/test_neuro_dar_tbr.py
+        # para el gate individual y el umbral PENDING_VALIDATION.
+        assert eeg_state.neurological.get("dar").value == pytest.approx(1.1 / 12.5)
+        assert eeg_state.neurological.get("dar").provenance == Provenance.SIMULACION
+        assert eeg_state.neurological.get("tbr").value == pytest.approx(3.1 / 7.2)
+        assert eeg_state.neurological.get("tbr").provenance == Provenance.SIMULACION
 
         # `frontal_activity`/`temporal_activity` (NeurologicalDetail) nunca
         # se asignan en `_update_brain()` -- no deben aparecer como

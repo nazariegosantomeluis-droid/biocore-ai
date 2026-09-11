@@ -31,7 +31,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from src.signals.eeg.eeg_analyzer import BAR_CITATION, beta_alpha_ratio
+from src.signals.eeg.eeg_analyzer import (
+    BAR_CITATION,
+    DAR_CITATION,
+    TBR_CITATION,
+    beta_alpha_ratio,
+    delta_alpha_ratio,
+    theta_beta_ratio,
+)
 
 from .schema import (
     DomainState,
@@ -230,6 +237,45 @@ def _neurological_state(
             descriptors["bar"] = PhysiologicalDescriptor(
                 "bar", bar_value, "ratio (adimensional)", provenance, confidence,
                 f"{source_detail + ' | ' if source_detail else ''}beta_alpha_ratio | {BAR_CITATION}",
+            )
+
+    # DAR (Ratio Delta/Alfa) -- Neuro DAR+TBR (2026-09-10). MISMO patrón que
+    # el BAR arriba: cociente adimensional de dos band power del MISMO
+    # dominio -> lleva la MISMA procedencia que las band power de origen
+    # (no `DERIVADO` -- es una identidad aritmética, no un cálculo del
+    # organismo). Gate INDIVIDUAL, no el gate del dominio: solo si AMBAS
+    # bandas (`delta_power`/`alpha_power`) están presentes Y el cociente no
+    # es indefinido (alpha_power ~0) -- un escritor que envíe delta+beta
+    # pero no alpha puede tener `tbr` sin `dar`, exactamente como puede
+    # tener band power sin `bar`.
+    #
+    # PENDING_VALIDATION (ver `DAR_CITATION`/`DAR_ELEVATED_REFERENCE` en
+    # `eeg_analyzer.py`): el RATIO se persiste sin reservas -- es real,
+    # calculado de dos band power reales. Lo que NO se persiste como
+    # validado es la INTERPRETACIÓN clínica ("sufrimiento cortical" a partir
+    # de qué valor) -- el `source_detail` declara explícitamente que ese
+    # umbral espera firma del experto, para que quien lea el UPS no lo
+    # confunda con el BAR (que sí tiene regla `VALIDADO_POR_FUENTE` en el
+    # arco de acoplamiento).
+    if "delta_power" in signals and "alpha_power" in signals:
+        dar_value = delta_alpha_ratio(float(signals["delta_power"]), float(signals["alpha_power"]))
+        if dar_value is not None:
+            descriptors["dar"] = PhysiologicalDescriptor(
+                "dar", dar_value, "ratio (adimensional)", provenance, confidence,
+                f"{source_detail + ' | ' if source_detail else ''}delta_alpha_ratio | {DAR_CITATION}",
+            )
+
+    # TBR (Ratio Theta/Beta) -- mismo patrón, gate individual propio
+    # (`theta_power`/`beta_power`). PENDING_VALIDATION (ver `TBR_CITATION`/
+    # `TBR_ELEVATED_REFERENCE`): la propia literatura disputa el punto de
+    # corte original -- razón de más para declarar la interpretación
+    # pendiente en vez de tratarla como un umbral clínico asentado.
+    if "theta_power" in signals and "beta_power" in signals:
+        tbr_value = theta_beta_ratio(float(signals["theta_power"]), float(signals["beta_power"]))
+        if tbr_value is not None:
+            descriptors["tbr"] = PhysiologicalDescriptor(
+                "tbr", tbr_value, "ratio (adimensional)", provenance, confidence,
+                f"{source_detail + ' | ' if source_detail else ''}theta_beta_ratio | {TBR_CITATION}",
             )
 
     if has_real_neuro_input:
