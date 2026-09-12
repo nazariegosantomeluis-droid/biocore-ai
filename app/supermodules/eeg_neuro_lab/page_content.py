@@ -422,6 +422,12 @@ with col1:
             result = analyzer.analyze(eeg_data[lead])
             analysis_cards.append((lead, result))
             st.markdown(f"### Canal {lead}")
+            # Arco 2A: `result.available=False` (degradación tipo-PLV) deja
+            # `summary=None`/`band_power={}` -- mostrar el motivo en vez de
+            # `.write(None)` o un KeyError sobre un dict vacío.
+            if not result.available:
+                st.caption(f"⚠️ {result.reason}")
+                continue
             st.write(result.summary)
             band_table = {
                 'Delta': f"{result.band_power['delta']:.2f}",
@@ -435,7 +441,15 @@ with col1:
 with col2:
     st.markdown("## 📊 Métricas y Clasificación")
     overall = analysis_cards[0][1] if analysis_cards else None
-    if overall is not None:
+    # Arco 2A (2026-09-11): degradación tipo-PLV -- `overall.available`
+    # puede ser `False` (rechazo de artefactos dejó menos de
+    # `MIN_CLEAN_EEG_DURATION_S` de señal limpia). En ese caso
+    # `dominant_band`/`classification` son `None` -- mostrar el motivo en
+    # vez de crashear con `.upper()` sobre `None`, espejo del PLV
+    # ("no disponible", nunca un número sobre lo que sobró).
+    if overall is not None and not overall.available:
+        st.info(f"Canal {analysis_cards[0][0]}: {overall.reason}")
+    elif overall is not None:
         st.metric("Banda dominante", overall.dominant_band.upper())
         st.metric("Clasificación", overall.classification)
         st.markdown("### Interpretación Clínica")
@@ -509,69 +523,82 @@ with col2:
             "(señal generada, no un sensor real)."
         )
         if st.button("💾 Guardar estado al gemelo", key="eeg_lab_save_to_ups"):
-            session_factory = get_active_session_factory()
-            patient_id = get_active_patient_id()
+            # Arco 2A (2026-09-11): `overall` puede llegar `available=False`
+            # (degradación tipo-PLV -- rechazo de artefactos dejó menos
+            # señal limpia que `MIN_CLEAN_EEG_DURATION_S`). El botón no
+            # finge guardar: declara que no hay banda de potencia real que
+            # persistir, y NO llama a `update_from_sensors()` -- el gate de
+            # `_neurological_state()` (sin tocar) deja el dominio neuro
+            # vacío porque nunca recibe `alpha_power`/`beta_power`.
+            if not overall.available:
+                st.info(
+                    f"Sin señal EEG limpia suficiente para guardar al gemelo -- {overall.reason}. "
+                    "No hay banda de potencia real que persistir."
+                )
+            else:
+                session_factory = get_active_session_factory()
+                patient_id = get_active_patient_id()
 
-            eeg_organism = DigitalTwinOrganism()
-            eeg_organism.update_from_sensors({
-                "eeg": {
-                    "delta_power": float(overall.band_power["delta"]),
-                    "theta_power": float(overall.band_power["theta"]),
-                    "alpha_power": float(overall.band_power["alpha"]),
-                    "beta_power": float(overall.band_power["beta"]),
-                    "gamma_power": float(overall.band_power["gamma"]),
-                }
-            })
-            eeg_ups_state = from_digital_twin_organism(
-                eeg_organism, patient_id, provenance=Provenance.SIMULACION,
-                source_detail=f"eeg_neuro_lab:canal={eeg_lab_channel}:banda_dominante={overall.dominant_band}",
-            )
-            with session_factory() as eeg_ups_session:
-                eeg_snapshot_id = save_state(eeg_ups_session, eeg_ups_state)
+                eeg_organism = DigitalTwinOrganism()
+                eeg_organism.update_from_sensors({
+                    "eeg": {
+                        "delta_power": float(overall.band_power["delta"]),
+                        "theta_power": float(overall.band_power["theta"]),
+                        "alpha_power": float(overall.band_power["alpha"]),
+                        "beta_power": float(overall.band_power["beta"]),
+                        "gamma_power": float(overall.band_power["gamma"]),
+                    }
+                })
+                eeg_ups_state = from_digital_twin_organism(
+                    eeg_organism, patient_id, provenance=Provenance.SIMULACION,
+                    source_detail=f"eeg_neuro_lab:canal={eeg_lab_channel}:banda_dominante={overall.dominant_band}",
+                )
+                with session_factory() as eeg_ups_session:
+                    eeg_snapshot_id = save_state(eeg_ups_session, eeg_ups_state)
 
-                # Acoplamientos Sub-fase B (2026-09-06): tras persistir, se
-                # evalúa el catálogo validado (`AROUSAL_TAQUICARDIA_BAR`:
-                # arousal cortical BAR>1.8 -> ↑FC +15 bpm, Guyton cap.61 +
-                # Schutter 2006). `scenario=None`: EEG Lab es un escritor
-                # neuro-sin-CV-correlacionada, NO un escenario de estrés
-                # (`COUPLING_DISABLED_SCENARIOS`). El puente solo escribe
-                # `heart_rate_acoplado` si el snapshot tiene una FC medida
-                # -- este lab no la envía, así que hoy es un no-op honesto
-                # aquí; la regla dispara en cuanto el snapshot lleve FC.
-                try:
-                    coupled = apply_couplings(
-                        eeg_ups_session, eeg_snapshot_id, VALIDATED_RULES, scenario=None
+                    # Acoplamientos Sub-fase B (2026-09-06): tras persistir, se
+                    # evalúa el catálogo validado (`AROUSAL_TAQUICARDIA_BAR`:
+                    # arousal cortical BAR>1.8 -> ↑FC +15 bpm, Guyton cap.61 +
+                    # Schutter 2006). `scenario=None`: EEG Lab es un escritor
+                    # neuro-sin-CV-correlacionada, NO un escenario de estrés
+                    # (`COUPLING_DISABLED_SCENARIOS`). El puente solo escribe
+                    # `heart_rate_acoplado` si el snapshot tiene una FC medida
+                    # -- este lab no la envía, así que hoy es un no-op honesto
+                    # aquí; la regla dispara en cuanto el snapshot lleve FC.
+                    try:
+                        coupled = apply_couplings(
+                            eeg_ups_session, eeg_snapshot_id, VALIDATED_RULES, scenario=None
+                        )
+                    except CouplingScenarioBlockedError:
+                        coupled = []  # inalcanzable con scenario=None; defensivo
+                    bar_desc = eeg_ups_state.neurological.get("bar")
+
+                st.success(f"Estado guardado al gemelo -- snapshot: {eeg_snapshot_id}")
+                if bar_desc is not None:
+                    bar_txt = f"BAR = {bar_desc.value:.2f}" + (" ⚠️ >1.8 arousal" if bar_desc.value > 1.8 else "")
+                else:
+                    bar_txt = "BAR indefinido (sin ritmo alfa)"
+                st.caption(
+                    f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
+                )
+                if coupled:
+                    ac = coupled[0]
+                    st.caption(
+                        f"🔗 Acoplamiento **{ac.rule_id}**: FC medida {ac.base_value:.0f} -> "
+                        f"FC acoplada **{ac.coupled_value:.0f} bpm** (DERIVADO_ACOPLAMIENTO, "
+                        f"confianza {ac.confidence:.2f}) -- BAR observado {ac.observed_value:.2f}"
                     )
-                except CouplingScenarioBlockedError:
-                    coupled = []  # inalcanzable con scenario=None; defensivo
-                bar_desc = eeg_ups_state.neurological.get("bar")
-
-            st.success(f"Estado guardado al gemelo -- snapshot: {eeg_snapshot_id}")
-            if bar_desc is not None:
-                bar_txt = f"BAR = {bar_desc.value:.2f}" + (" ⚠️ >1.8 arousal" if bar_desc.value > 1.8 else "")
-            else:
-                bar_txt = "BAR indefinido (sin ritmo alfa)"
-            st.caption(
-                f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
-            )
-            if coupled:
-                ac = coupled[0]
+                else:
+                    st.caption(
+                        "🔗 Acoplamiento AROUSAL_TAQUICARDIA_BAR: sin FC medida en este snapshot, "
+                        "nada que modular (se aplicaría si el paciente tuviera FC medida y BAR>1.8)."
+                    )
                 st.caption(
-                    f"🔗 Acoplamiento **{ac.rule_id}**: FC medida {ac.base_value:.0f} -> "
-                    f"FC acoplada **{ac.coupled_value:.0f} bpm** (DERIVADO_ACOPLAMIENTO, "
-                    f"confianza {ac.confidence:.2f}) -- BAR observado {ac.observed_value:.2f}"
+                    f"cardiovascular: {len(eeg_ups_state.cardiovascular.descriptors)} descriptores "
+                    "(vacío esperado -- este lab no envía dato cardíaco) · "
+                    f"respiratory: {len(eeg_ups_state.respiratory.descriptors)} descriptores "
+                    "(vacío esperado -- este lab no envía dato respiratorio)"
                 )
-            else:
-                st.caption(
-                    "🔗 Acoplamiento AROUSAL_TAQUICARDIA_BAR: sin FC medida en este snapshot, "
-                    "nada que modular (se aplicaría si el paciente tuviera FC medida y BAR>1.8)."
-                )
-            st.caption(
-                f"cardiovascular: {len(eeg_ups_state.cardiovascular.descriptors)} descriptores "
-                "(vacío esperado -- este lab no envía dato cardíaco) · "
-                f"respiratory: {len(eeg_ups_state.respiratory.descriptors)} descriptores "
-                "(vacío esperado -- este lab no envía dato respiratorio)"
-            )
 
     st.markdown("---")
     st.markdown("## 📚 Referencias EEG")

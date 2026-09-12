@@ -1,11 +1,54 @@
 """
 EEG Analyzer - Frequency band analysis and clinical pattern classification.
+
+Arco 2A (2026-09-11): bandpass activado + rechazo de artefactos por
+gradiente. `preprocess_eeg()` (`preprocessing.py`, butter 0.5-40 Hz) tenía
+CERO llamadores en todo el repo -- `analyze()` iba directo de señal cruda
+al PSD de Welch, así que BAR/DAR/TBR (Neuro Tanda 1/2, firmados sobre la
+premisa de banda estándar Welch) corrían sobre una señal ni siquiera
+filtrada. Confirmado por grep antes de tocar nada (mismo procedimiento que
+el shadow `preprocess_emg` saneado en la Tanda 1 muscular): el único
+llamador vivo de `EegAnalyzer.analyze()` es `eeg_neuro_lab/page_content.py`
+(un bucle `analyzer.analyze(eeg_data[lead])` por canal), que solo lee
+`band_power`/`dominant_band`/`bar`/`dar`/`tbr`/`findings` del resultado --
+ninguno depende de que la entrada sea cruda.
+
+El diagnóstico previo (mismo día) probó empíricamente que un parpadeo
+(pulso Hann ~50ms, ~80µV, `EegSignalGenerator._blink_artifacts()`) añade un
+piso de potencia a TODAS las bandas -- insignificante como % de una banda
+grande, devastador como % de una banda pequeña. Como alpha es el
+denominador de BAR y DAR, un parpadeo puede colapsar el BAR de 62 a 16 sin
+que el estado cortical real cambie -- falso positivo/negativo clínico
+sobre los umbrales firmados en Neuro Tanda 2. Mono-canal confirmado (sin
+≥2 canales reales simultáneos ni referencia EOG en el repo -- RLS/ICA/
+covarianza no tienen sustrato): el rechazo por gradiente de amplitud, tras
+el bandpass y antes del Welch, es el único método honesto disponible.
+
+Degradación tipo-PLV (espejo de `PLVResult` en `biomarkers.py`): si el
+rechazo descarta suficientes ventanas como para que quede menos señal
+limpia que `MIN_CLEAN_EEG_DURATION_S`, `analyze()` NO calcula band power
+sobre lo que sobró -- devuelve `EegAnalysis(available=False, reason=...)`.
+Como `beta_alpha_ratio`/`delta_alpha_ratio`/`theta_beta_ratio` ya declaran
+`None` ante un band power inválido, y `_neurological_state()`
+(`domain/physiology/state/builder.py`) ya no persiste lo que no está en
+`signals`, la cadena hasta el gate no requiere tocar `builder.py` -- solo
+que el llamador (el botón "Guardar estado al gemelo" del EEG Lab) respete
+`available` antes de escribir al organismo.
+
+NOTA DE HONESTIDAD (Art. I): el rechazo se calibró y se valida contra el
+parpadeo MODELADO del generador demo (pulso Hann sintético, no un registro
+EOG real). Su generalización a artefactos de parpadeo/movimiento REALES es
+trabajo futuro, cuando exista captura de hardware real contra la que
+calibrar -- no leer nada de esta tanda como "rechazo de artefactos
+clínicamente validado".
 """
 
 import numpy as np
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 from scipy.signal import welch
+
+from .preprocessing import preprocess_eeg
 
 # Ratio Beta/Alfa (BAR) -- biomarcador de arousal cortical citado, NO una
 # invención de esta app: BAR = P_beta / P_alpha del MISMO electrodo, así que
@@ -80,6 +123,40 @@ TBR_CITATION: str = (
     "VALIDADO_POR_FUENTE"
 )
 _TBR_BETA_FLOOR: float = 1e-9
+
+# --- Arco 2A (2026-09-11): rechazo de artefactos por gradiente ------------
+#
+# Config nombrada, no constantes mágicas -- mismo espíritu que
+# `MAX_HR_CARRY_AGE_S` (arco de acoplamiento) o `MIN_PLV_DURATION_S`
+# (`biomarkers.py`): valores de ingeniería razonables, anotados para que un
+# experto los ajuste contra ruido de hardware real, NO umbrales clínicos
+# citados como DAR_THRESHOLDS/TBR_THRESHOLDS.
+#
+# `ARTIFACT_WINDOW_S` -- duración de cada ventana de análisis. El rechazo
+# es de GRANO GRUESO: si una ventana de 1s contiene el pulso de ~50ms del
+# parpadeo, se descarta la ventana completa (1s), no solo los 50ms
+# contaminados -- simplicidad sobre precisión quirúrgica, mismo criterio
+# que aceptó el diagnóstico.
+ARTIFACT_WINDOW_S: float = 1.0
+
+# `ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S` -- calibrado EMPÍRICAMENTE contra
+# el generador demo (2026-09-11): sobre señal ya filtrada (0.5-40 Hz), el
+# gradiente máximo (|Δx|·fs) de una ventana de 1s SIN parpadeo, para los 4
+# patrones base del generador (alpha/beta/theta/delta, amplitud 40), no
+# superó ~4300 unidades/s; toda ventana CON parpadeo superó ~6700. 5500 cae
+# a medio camino, con margen hacia ambos lados. Es un default de
+# ingeniería sobre señal SINTÉTICA -- pendiente de recalibrar contra el
+# piso de ruido de hardware real cuando exista (ver nota de honestidad del
+# módulo).
+ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S: float = 5500.0
+
+# `MIN_CLEAN_EEG_DURATION_S` -- mínimo de señal limpia (tras rechazo) para
+# seguir calculando band power. Espejo directo de `MIN_PLV_DURATION_S`
+# (ambos son "necesito al menos esto de señal utilizable, o declaro
+# indisponible"), aunque la magnitud es mucho menor porque aquí no hay un
+# requisito de fase citado -- solo que el promedio de Welch tenga más de 1
+# ventana para no ser un solo periodograma disfrazado de PSD.
+MIN_CLEAN_EEG_DURATION_S: float = 2.0
 
 
 def beta_alpha_ratio(beta_power: float, alpha_power: float) -> Optional[float]:
@@ -167,10 +244,12 @@ def _trapz(y: np.ndarray, x: np.ndarray) -> float:
 
 @dataclass
 class EegAnalysis:
-    dominant_band: str
+    # `None` únicamente cuando `available=False` (degradación tipo-PLV,
+    # Arco 2A) -- ver `EegAnalyzer._welch_with_artifact_rejection()`.
+    dominant_band: Optional[str]
     band_power: Dict[str, float]
-    classification: str
-    summary: str
+    classification: Optional[str]
+    summary: Optional[str]
     findings: Dict[str, Any]
     # BAR (Ratio Beta/Alfa) -- biomarcador de arousal cortical (ver
     # `beta_alpha_ratio` y `BAR_CITATION`). `None` si no hay ritmo alfa
@@ -184,6 +263,25 @@ class EegAnalysis:
     # `theta_beta_ratio` y `TBR_CITATION`). `None` si beta_power ~0.
     # Umbral clínico VALIDADO_POR_FUENTE -- ver `TBR_THRESHOLDS`/`classify_tbr()`.
     tbr: Optional[float] = None
+    # Arco 2A -- degradación tipo-PLV (espejo de `PLVResult.available` en
+    # `biomarkers.py`). `False` cuando el rechazo de artefactos dejó menos
+    # de `MIN_CLEAN_EEG_DURATION_S` de señal limpia -- en ese caso
+    # `band_power={}` (todo ausente, ningún `0.0` fabricado) y
+    # `bar`/`dar`/`tbr` son `None` (los mismos que ya devuelven `None` ante
+    # un band power inválido -- ninguna rama especial nueva en esas
+    # funciones). Un llamador honesto (el botón "Guardar estado al gemelo"
+    # del EEG Lab) debe comprobar `available` ANTES de escribir al
+    # organismo -- si no escribe `alpha_power`/`beta_power`, el gate de
+    # `_neurological_state()` (sin tocar) ya deja el dominio neuro vacío.
+    available: bool = True
+    # Motivo de no-disponibilidad, solo si `available=False` -- información
+    # pedagógica ("cuánta señal limpia quedó vs. cuánta se necesitaba"),
+    # nunca un error crudo.
+    reason: Optional[str] = None
+    # Fracción de ventanas de `ARTIFACT_WINDOW_S` que pasaron el rechazo
+    # (0.0-1.0) -- diagnóstico de calidad de señal, disponible incluso
+    # cuando `available=True` (útil para ver "casi se degrada").
+    clean_fraction: Optional[float] = None
 
 
 class EegAnalyzer:
@@ -196,8 +294,29 @@ class EegAnalyzer:
         if signal.ndim != 1:
             signal = signal.flatten()
 
-        nperseg = min(512, signal.shape[0])
-        freqs, psd = welch(signal, fs=self.fs, nperseg=nperseg)
+        # Arco 2A: bandpass activado antes de cualquier otra cosa --
+        # `preprocess_eeg()` ya no es un fantasma sin llamadores.
+        filtered, _ = preprocess_eeg(signal, self.fs)
+
+        freqs, psd, clean_fraction = self._welch_with_artifact_rejection(filtered)
+        if freqs is None:
+            total_s = len(filtered) / self.fs
+            clean_s = clean_fraction * total_s
+            reason = (
+                f"señal EEG insuficiente tras rechazo de artefactos: {clean_s:.1f}s limpios de "
+                f"{total_s:.1f}s totales (mínimo {MIN_CLEAN_EEG_DURATION_S:.0f}s) -- no se calcula "
+                "band power sobre el fragmento que sobró"
+            )
+            return EegAnalysis(
+                dominant_band=None,
+                band_power={},
+                classification=None,
+                summary=None,
+                findings={"Estado": f"no disponible: {reason}"},
+                bar=None, dar=None, tbr=None,
+                available=False, reason=reason, clean_fraction=clean_fraction,
+            )
+
         band_power = {
             'delta': self._band_power(freqs, psd, 0.5, 3.5),
             'theta': self._band_power(freqs, psd, 4.0, 7.5),
@@ -235,7 +354,58 @@ class EegAnalyzer:
             bar=bar,
             dar=dar,
             tbr=tbr,
+            available=True,
+            reason=None,
+            clean_fraction=clean_fraction,
         )
+
+    def _welch_with_artifact_rejection(
+        self, filtered: np.ndarray
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
+        """Arco 2A: rechazo de artefactos por gradiente, mono-canal, TRAS el
+        bandpass y ANTES del PSD. Segmenta la señal filtrada en ventanas de
+        `ARTIFACT_WINDOW_S`; descarta las que excedan
+        `ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S` (gradiente de amplitud -- un
+        parpadeo de ~50ms es una deflexión mucho más rápida que cualquier
+        oscilación cortical de amplitud comparable); promedia el
+        periodograma de Welch SOLO sobre las ventanas que pasaron --
+        literalmente el mismo paso de promediado que ya hace
+        `scipy.signal.welch()` internamente, con las ventanas contaminadas
+        EXCLUIDAS del promedio en vez de zero-padded (que introduciría un
+        escalón espectral propio, un artefacto nuevo para tapar el viejo).
+
+        Devuelve `(freqs, psd_promediado, clean_fraction)`. `freqs=None` si
+        la señal limpia resultante es menor que `MIN_CLEAN_EEG_DURATION_S`
+        -- degradación tipo-PLV, nunca un PSD sobre fragmento insuficiente."""
+        n_total = filtered.shape[0]
+        if n_total == 0:
+            return None, None, 0.0
+
+        window_samples = max(1, int(round(ARTIFACT_WINDOW_S * self.fs)))
+        if n_total < window_samples:
+            # Señal más corta que una ventana -- se trata como una sola
+            # ventana (mismo espíritu que el `nperseg = min(512, N)`
+            # anterior a esta tanda para señales cortas de test).
+            window_samples = n_total
+        n_windows = n_total // window_samples
+
+        clean_psds = []
+        freqs = None
+        for i in range(n_windows):
+            segment = filtered[i * window_samples:(i + 1) * window_samples]
+            gradient = float(np.max(np.abs(np.diff(segment))) * self.fs) if segment.shape[0] > 1 else 0.0
+            if gradient > ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S:
+                continue
+            f, psd = welch(segment, fs=self.fs, nperseg=segment.shape[0])
+            freqs = f
+            clean_psds.append(psd)
+
+        clean_fraction = len(clean_psds) / n_windows if n_windows > 0 else 0.0
+        clean_duration_s = len(clean_psds) * (window_samples / self.fs)
+        if not clean_psds or clean_duration_s < MIN_CLEAN_EEG_DURATION_S:
+            return None, None, clean_fraction
+
+        return freqs, np.mean(clean_psds, axis=0), clean_fraction
 
     def _band_power(self, freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> float:
         mask = (freqs >= low) & (freqs <= high)

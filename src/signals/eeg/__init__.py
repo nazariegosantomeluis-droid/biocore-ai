@@ -2,11 +2,14 @@
 from .preprocessing import preprocess_eeg
 from .eeg_generator import EegSignalGenerator, EegPattern
 from .eeg_analyzer import (
+    ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S,
+    ARTIFACT_WINDOW_S,
     BAR_AROUSAL_THRESHOLD,
     BAR_BASELINE_RANGE,
     BAR_CITATION,
     DAR_CITATION,
     DAR_THRESHOLDS,
+    MIN_CLEAN_EEG_DURATION_S,
     TBR_CITATION,
     TBR_THRESHOLDS,
     EegAnalysis,
@@ -23,4 +26,5 @@ __all__ = [
     'beta_alpha_ratio', 'BAR_AROUSAL_THRESHOLD', 'BAR_BASELINE_RANGE', 'BAR_CITATION',
     'delta_alpha_ratio', 'DAR_CITATION', 'DAR_THRESHOLDS', 'classify_dar',
     'theta_beta_ratio', 'TBR_CITATION', 'TBR_THRESHOLDS', 'classify_tbr',
+    'ARTIFACT_WINDOW_S', 'ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S', 'MIN_CLEAN_EEG_DURATION_S',
 ]

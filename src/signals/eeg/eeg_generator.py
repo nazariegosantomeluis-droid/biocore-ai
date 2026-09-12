@@ -88,6 +88,18 @@ class EegSignalGenerator:
             bursts[start:end] += 30.0 * np.sin(2 * np.pi * 12.0 * time[start:end])
         return bursts
 
+    def generate_blink_artifact(self, duration: float, rate: float = 0.5) -> np.ndarray:
+        """Arco 2A (2026-09-11) -- wrapper PÚBLICO de `_blink_artifacts()`,
+        para que el banco de pruebas del rechazo de artefactos pueda
+        inyectar el parpadeo MODELADO (pulso Hann ~50ms, ~80µV, repetido
+        cada `1/rate` segundos) sin depender de un método privado de esta
+        clase. No cambia la fórmula ni la usa `_generate_channel()` en su
+        lugar -- solo expone la misma señal que ya vive detrás del patrón
+        "Artifact (parpadeo)" del selector del EEG Lab."""
+        n_samples = int(duration * self.fs)
+        time = np.arange(n_samples) * self.dt
+        return self._blink_artifacts(time, rate)
+
     def _blink_artifacts(self, time: np.ndarray, rate: float) -> np.ndarray:
         artifacts = np.zeros_like(time)
         interval = int(self.fs / max(rate, 0.1))

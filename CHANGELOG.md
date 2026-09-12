@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-09-11 — BIOCORE, Arco 2A: bandpass activado + rechazo de artefactos por gradiente en el EEG (degradación tipo-PLV)
+
+**Contexto**: el diagnóstico de viabilidad (mismo día) probó empíricamente que un parpadeo (pulso Hann ~50ms/~80µV, `EegSignalGenerator._blink_artifacts()`) añade un piso de potencia a TODAS las bandas — insignificante como % de una banda grande, devastador como % de una banda pequeña. Como alpha es el denominador de BAR y DAR, un solo parpadeo puede colapsar el BAR de ~62 a ~16 **sin que el estado cortical real cambie** — falso positivo/negativo clínico sobre los umbrales que el experto firmó en Neuro Tanda 2. Además, el diagnóstico confirmó que `preprocess_eeg()` (bandpass 0.5-40 Hz) tenía **CERO llamadores** — `EegAnalyzer.analyze()` iba directo de señal cruda al PSD de Welch, así que la señal sobre la que viven BAR/DAR/TBR no estaba ni filtrada. Mono-canal confirmado (sin ≥2 canales reales simultáneos ni referencia EOG en el repo) — RLS/ICA/covarianza no tienen sustrato; el rechazo por gradiente de amplitud es el único método honesto disponible.
+
+### Parte A — el bandpass olvidado, activado (`EegAnalyzer.analyze`)
+
+`preprocess_eeg()` cableado dentro de `analyze()`, antes del `welch()`, igual que `EmgAnalyzer` corre su `preprocess_emg` interno (Tanda 1 muscular). Confirmado por grep: el único llamador vivo de `analyze()` en todo el repo es `eeg_neuro_lab/page_content.py` (un bucle por canal), que solo lee `band_power`/`dominant_band`/`bar`/`dar`/`tbr`/`findings` del resultado — ninguno depende de recibir señal cruda. Verificado con una barandilla directa: un drift de 0.05 Hz (fuera de la banda 0.5-40 Hz) que antes inflaba `delta_power` a 80.76 ahora se atenúa a 1.77 — 45× menos.
+
+### Parte B — rechazo de artefactos por gradiente (mono-canal, tras el bandpass, antes del Welch)
+
+`EegAnalyzer._welch_with_artifact_rejection()`: segmenta la señal filtrada en ventanas de `ARTIFACT_WINDOW_S` (1.0s, config nombrada); descarta las que excedan `ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S` (gradiente de amplitud `|Δx|·fs`, calibrado empíricamente contra el generador demo — clean ~4300 unidades/s máx., contaminado ~6700+ mín., umbral en 5500 con margen a ambos lados; config nombrada, no una constante mágica, pendiente de recalibrar contra hardware real); promedia el periodograma de Welch **solo sobre las ventanas que pasaron** — el mismo paso de promediado que ya hace `scipy.signal.welch()` internamente, con las ventanas contaminadas **excluidas** del promedio en vez de zero-padded (que introduciría un escalón espectral propio, un artefacto nuevo para tapar el viejo).
+
+### Parte C — degradación tipo-PLV cuando queda señal insuficiente
+
+Espejo exacto de `PLVResult(available=False, reason=...)` (`biomarkers.py`): si el rechazo deja menos de `MIN_CLEAN_EEG_DURATION_S` (2.0s, config nombrada) de señal limpia, `analyze()` devuelve `EegAnalysis(available=False, reason=..., band_power={}, dominant_band=None, bar=dar=tbr=None)` — **nunca** calcula un número sobre el fragmento que sobró. La cadena hasta el gate se verificó **sin tocar `builder.py`**: `beta_alpha_ratio`/`delta_alpha_ratio`/`theta_beta_ratio` ya declaraban `None` ante un band power inválido (ninguna rama especial nueva); un llamador honesto que no escribe `alpha_power`/`beta_power` al organismo cuando `available=False` deja el gate ya existente de `_neurological_state()` (`"alpha_power" in signals or "beta_power" in signals`) vacío por sí solo. El botón "Guardar estado al gemelo" del EEG Lab (`page_content.py`) y el panel de "Métricas y Clasificación"/loop por canal se actualizaron para comprobar `available` antes de leer `band_power`/`dominant_band` — sin este guard, un `AttributeError`/`KeyError` sería la propia regresión que 2A introduciría.
+
+### Parte D — wrapper público del generador de parpadeo
+
+`EegSignalGenerator.generate_blink_artifact(duration, rate=0.5)` — expone `_blink_artifacts()` (privado) sin cambiar su fórmula, para que el banco de pruebas inyecte el parpadeo MODELADO sin depender de un método privado de otra clase.
+
+### Verificado (`tests/test_eeg_artifact_rejection.py`, 13 tests nuevos)
+
+- **Convergencia (el test que importa)**: `analyze(base_limpia + parpadeo)` con rechazo activo converge de vuelta a `analyze(base_limpia)` dentro de tolerancia (35%) — y, por comparación explícita contra el pipeline crudo (sin filtrar ni rechazar) sobre la MISMA señal contaminada, el rechazo deja el BAR objetivamente más cerca del real que el crudo (que se desploma a menos de la mitad).
+- **Señal limpia pasa intacta**: `clean_fraction == 1.0` sobre los 4 patrones base sin artefacto — ninguna ventana se rechaza de más; los band power quedan dentro de una tolerancia amplia del pipeline sin rechazo.
+- **Degradación tipo-PLV**: un parpadeo por ventana (rate=1.0) sobre una base real → `available=False`, motivo declarado, `band_power={}`, `bar`/`dar`/`tbr` ausentes. Cadena hasta el gate confirmada sin editar `builder.py`.
+- **Bandpass activo**: drift de 0.05 Hz atenuado 45× tras el filtrado.
+- `AppTest` hasta el final del render del EEG Lab (patrón "Artifact (parpadeo)" incluido): sin excepción.
+- Regresión: `tests/test_coupling_subfase_b.py`, `tests/test_neuro_dar_tbr.py`, `tests/test_neuro_dar_tbr_badges.py`, `tests/test_ups_state.py` — **verdes sin ningún cambio** (sus señales sintéticas de 4s ya vivían holgadamente dentro del nuevo `MIN_CLEAN_EEG_DURATION_S`, y sus aserciones son relativas/recomputadas dentro del mismo pipeline, no valores absolutos fijados contra la señal cruda de antes).
+
+`pytest tests/ -q` → **523 passed** (510 + 13). App `HTTP 200`.
+
+**NOTA DE HONESTIDAD explícita (Art. I)**: el rechazo se calibró y se valida contra el parpadeo **MODELADO** del generador demo (pulso Hann sintético, ~50ms/~80µV) — **no** contra un registro EOG real. Su generalización a artefactos de parpadeo/movimiento reales es trabajo futuro, cuando exista captura de hardware real contra la que calibrar. No leer esta tanda como "rechazo de artefactos clínicamente validado" — es rechazo de artefactos validado contra el artefacto que el propio simulador educativo sabe producir.
+
 ## 2026-09-10 — BIOCORE, Neuro Tanda 2: firma del experto en DAR/TBR — VALIDADO_POR_FUENTE + badges 🟢/🟡/🔴
 
 **Contexto**: el experto firmó los umbrales clínicos de DAR y TBR (Tanda 1, misma fecha). Esta tanda es transcripción de regla validada, idéntica en forma al cierre de validación del BAR — **sin tocar el motor de cálculo**: los umbrales firmados están definidos sobre potencia espectral estándar (PSD de Welch, `EegAnalyzer._band_power()`), el motor actual, y se aplican sobre ESE cálculo. Un cambio de motor (FOOOF/CWT) es un arco separado que reabriría la validación — no ocurre aquí, y queda registrado como arco futuro, no como deuda.
