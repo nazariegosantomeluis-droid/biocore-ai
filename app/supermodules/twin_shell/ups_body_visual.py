@@ -54,6 +54,7 @@ from domain.physiology.state import (
     UnifiedPhysiologicalState,
 )
 from src.signals.eeg import DAR_CITATION, TBR_CITATION, classify_dar, classify_tbr
+from src.signals.eeg.spectral_model import CHI_CITATION, classify_chi
 
 # Sub-fase 1 (2026-08-30) escribió estos 5 band power al dominio neurológico
 # — mismos nombres que `builder._neurological_state()`. El cerebro elige su
@@ -357,13 +358,21 @@ def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> No
     que es un eje distinto (procedencia del DATO: medido/heurístico/
     fantasma) y no de la clasificación clínica de un VALOR ya real.
 
-    Honesto por gate: si `dar`/`tbr` no está en el dominio (gate individual
-    vacío -- band power insuficientes, o el dominio neuro entero vacío), no
-    se renderiza NADA para ese ratio -- nunca un verde fabricado sobre un
-    dato ausente. `classify_dar`/`classify_tbr` devuelven badge `""` para
-    `None`, pero ese caso no debería llegar aquí (el descriptor solo existe
-    si el cociente fue real) -- el guard `if descriptor is not None` es la
-    barrera real."""
+    Arco 2D (2026-09-18): + badge 🔴/🔵/💤 para chi (χ aperiódico), mismo
+    componente, mismo patrón de gate honesto. La banda 🔵 intermedia
+    (`classify_chi` -- "indeterminado / línea base") se renderiza IGUAL que
+    las demás: es un estado clínico legítimo (cerca de línea base, no
+    discriminable a la resolución del instrumento), no una ausencia ni un
+    fallo -- por eso no lleva ninguna rama especial aquí, el `if chi_badge`
+    de abajo ya la deja pasar como cualquier otro badge no vacío.
+
+    Honesto por gate: si `dar`/`tbr`/`chi_aperiodic` no está en el dominio
+    (gate individual vacío -- band power/evidencia insuficientes, o el
+    dominio neuro entero vacío), no se renderiza NADA para ese ratio --
+    nunca un verde fabricado sobre un dato ausente. `classify_dar`/
+    `classify_tbr`/`classify_chi` devuelven badge `""` para `None`, pero ese
+    caso no debería llegar aquí (el descriptor solo existe si el valor fue
+    real) -- el guard `if descriptor is not None` es la barrera real."""
     neuro = state.all_domains()["neurological"] if state else None
     descriptors = neuro.descriptors if neuro is not None else {}
 
@@ -378,6 +387,12 @@ def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> No
         _, tbr_label, tbr_badge = classify_tbr(tbr_descriptor.value)
         if tbr_badge:
             st.caption(f"{tbr_badge} TBR = {tbr_descriptor.value:.2f} ({tbr_label}) — {TBR_CITATION}")
+
+    chi_descriptor = descriptors.get("chi_aperiodic")
+    if chi_descriptor is not None:
+        _, chi_label, chi_badge = classify_chi(chi_descriptor.value)
+        if chi_badge:
+            st.caption(f"{chi_badge} χ = {chi_descriptor.value:.2f} ({chi_label}) — {CHI_CITATION}")
 
 
 def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:

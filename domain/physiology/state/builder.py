@@ -39,7 +39,7 @@ from src.signals.eeg.eeg_analyzer import (
     delta_alpha_ratio,
     theta_beta_ratio,
 )
-from src.signals.eeg.spectral_model import CHI_APERIODIC_CITATION
+from src.signals.eeg.spectral_model import CHI_APERIODIC_CITATION, CHI_CITATION
 
 from .schema import (
     DomainState,
@@ -292,20 +292,24 @@ def _neurological_state(
     # exponente que devolvió el ajuste), no un cálculo del organismo --
     # misma procedencia que las band power de origen, no `DERIVADO`.
     #
-    # PENDING_VALIDATION (Art. I y IV): a diferencia de bar/dar/tbr, χ NO
-    # tiene todavía un umbral clínico firmado -- qué valor indica qué
-    # balance excitación/inhibición es una interpretación que espera firma
-    # de un experto (mismo estado que vivieron DAR/TBR antes de Neuro
-    # Tanda 2, ver `eeg_analyzer.py`). `CHI_APERIODIC_CITATION` respalda el
-    # MÉTODO de ajuste (Donoghue et al. 2020), no el significado clínico
-    # del número -- por eso se marca `PENDING_VALIDATION` explícitamente en
-    # `source_detail`, y no existe (todavía) un `classify_chi()` ni un
-    # badge 🟢/🟡/🔴 para él, a diferencia de `classify_dar()`/`classify_tbr()`.
+    # Arco 2D (2026-09-18): firma del experto aplicada -- `PENDING_VALIDATION`
+    # retirado, mismo cierre que vivieron DAR/TBR en Neuro Tanda 2 (ver
+    # `eeg_analyzer.py`). `source_detail` ahora lleva DOS citas, cada una de
+    # su propio eje: `CHI_APERIODIC_CITATION` (Donoghue et al. 2020, respalda
+    # el ALGORITMO de ajuste FOOOF) y `CHI_CITATION` (Gao et al. 2017,
+    # respalda la INTERPRETACIÓN clínica del número ya ajustado, con la
+    # cláusula de alcance LFP->EEG de superficie incluida en su propio
+    # texto -- ver `spectral_model.py`). El umbral clínico (🔴/🔵/💤,
+    # `CHI_THRESHOLDS`/`classify_chi()`, `spectral_model.py`) ya existe --
+    # a diferencia de `classify_dar()`/`classify_tbr()`, que viven en
+    # `eeg_analyzer.py`, `classify_chi()` vive junto a `fit_aperiodic_
+    # component()` en `spectral_model.py`, donde chi se calcula.
     if "chi_aperiodic" in signals:
         descriptors["chi_aperiodic"] = PhysiologicalDescriptor(
             "chi_aperiodic", float(signals["chi_aperiodic"]), "exponente (adimensional)",
             provenance, confidence,
-            f"{source_detail + ' | ' if source_detail else ''}PENDING_VALIDATION | {CHI_APERIODIC_CITATION}",
+            f"{source_detail + ' | ' if source_detail else ''}"
+            f"VALIDADO_POR_FUENTE | {CHI_APERIODIC_CITATION} | {CHI_CITATION}",
         )
 
     if has_real_neuro_input:

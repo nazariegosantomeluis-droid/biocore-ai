@@ -60,14 +60,19 @@ desaparece pero la VARIANZA por pocas ventanas promediadas sigue empujando
 el error fuera de tolerancia en el peor caso (hasta 0.29, R² igual de alto).
 Son dos guardianes independientes -- ninguno reemplaza al otro.
 
-AISLAMIENTO PARCIAL (vigente, ver test de aislamiento): el chi NO es
-biomarcador clínico interpretado todavía -- se persiste en el UPS marcado
-`PENDING_VALIDATION` (sin badge, sin clasificación 🟢/🟡/🔴, sin umbral). La
-cita a Donoghue et al. 2020 es METODOLÓGICA (respalda el algoritmo de
-ajuste), no clínica. Qué valor de chi indica qué balance E/I espera firma
-de un experto -- eso es Arco 2D, mismo patrón que DAR/TBR esperaron su
-firma en Neuro Tanda 2 antes de clasificar clínicamente en vez de solo
-calcular.
+Arco 2D (2026-09-18) -- CIERRA el aislamiento clínico: firma del experto
+aplicada (fuente: Gao R, Peterson EJ, Voytek B. 2017, "Inferring synaptic
+excitation/inhibition balance from field potentials"). `PENDING_VALIDATION`
+se retira del chi; el descriptor persistido pasa a `VALIDADO_POR_FUENTE`
+con la cláusula de alcance explícita ("índice de E/I cortical por analogía
+LFP, sobre EEG de superficie") -- mismo patrón que DAR/TBR en Neuro
+Tanda 2, salvo que aquí conviven DOS citas de ejes distintos: la
+METODOLÓGICA (`CHI_APERIODIC_CITATION`, Donoghue et al. 2020 -- respalda el
+ALGORITMO de ajuste FOOOF) y la CLÍNICA (`CHI_CITATION`, Gao et al. 2017 --
+respalda la INTERPRETACIÓN del número ya ajustado). Ver `CHI_THRESHOLDS`/
+`classify_chi()` más abajo, junto a la barandilla de holgura del instrumento
+(`CHI_INSTRUMENT_ERROR`) que impide afilar esos umbrales por debajo del
+piso que 2C midió.
 
 Consume el PSD de Welch que `EegAnalyzer._welch_with_artifact_rejection()`
 (Arco 2A) ya produce sobre señal limpia -- el diagnóstico de 2B confirmó
@@ -222,16 +227,84 @@ MIN_CHI_CLEAN_WINDOWS: int = 30
 # diferencia de `BAR_CITATION`/`DAR_CITATION`/`TBR_CITATION`
 # (`eeg_analyzer.py`), que citan el valor DIAGNÓSTICO de cada ratio, esta
 # cita respalda únicamente que FOOOF separa aperiódico/periódico
-# correctamente -- qué chi indica qué balance excitación/inhibición está
-# marcado `PENDING_VALIDATION` explícitamente hasta que un experto lo firme
-# (Arco 2D, mismo patrón que DAR/TBR antes de Neuro Tanda 2).
+# correctamente. Qué chi indica qué balance excitación/inhibición es un eje
+# DISTINTO, respaldado por `CHI_CITATION` (más abajo, Arco 2D) -- las dos
+# citas coexisten en el `source_detail` que persiste `builder.py`, cada una
+# defendiendo su propio alcance.
 CHI_APERIODIC_CITATION: str = (
     "Donoghue T et al. 2020, Nature Neuroscience 23(12):1655-1665 "
     "(\"Parameterizing neural power spectra into periodic and aperiodic "
-    "components\") -- cita METODOLÓGICA del ajuste FOOOF, NO validación "
-    "clínica del significado de chi -- PENDING_VALIDATION hasta firma del "
-    "experto (Arco 2D)"
+    "components\") -- cita METODOLÓGICA del ajuste FOOOF, NO de la "
+    "interpretación clínica de chi (ver CHI_CITATION)"
 )
+
+
+# --- Arco 2D (2026-09-18): firma del experto -- interpretación clínica -----
+#
+# Fuente: Gao R, Peterson EJ, Voytek B. 2017, NeuroImage 158:70-78
+# ("Inferring synaptic excitation/inhibition balance from field
+# potentials"). Dirección: chi PLANO (bajo) -> mayor excitación relativa;
+# chi EMPINADO (alto) -> mayor inhibición relativa -- el mismo sentido que
+# la pendiente 1/f^chi mide sobre el campo local.
+#
+# CLÁUSULA DE ALCANCE (honestidad, Art. I): Gao 2017 valida chi como índice
+# de balance E/I sobre POTENCIALES DE CAMPO LOCAL (LFP, registro
+# intracraneal). Este repo lo aplica por ANALOGÍA sobre EEG de SUPERFICIE
+# (`fit_aperiodic_component()` corre sobre el PSD de scalp que
+# `EegAnalyzer` produce) -- una extrapolación razonable, no la misma
+# medición. `CHI_CITATION` incluye esta cláusula en su propio texto --
+# nunca "mide E/I" a secas, siempre "índice de E/I cortical por analogía
+# LFP, sobre EEG de superficie".
+#
+# Umbrales VALIDADOS_POR_FUENTE (firma del experto, 2026-09-18) -- gruesos a
+# propósito, ver barandilla de holgura debajo:
+#   🔴 <1.0 excitación (tejido anómalamente activo/hiperexcitado)
+#   🔵 1.0-1.6 indeterminado/línea base (el error del instrumento no
+#      discrimina dentro de esta banda -- se reporta el valor, nunca se
+#      asume un estado)
+#   💤 >1.6 inhibición (tejido suprimido/enlentecimiento global)
+# Ver `classify_chi()` más abajo.
+#
+# BARANDILLA DE HOLGURA (no negociable): Arco 2C midió, sobre el pipeline de
+# producción completo, un error de recuperación de chi de hasta
+# `CHI_INSTRUMENT_ERROR` = 0.175 (peor caso dentro del piso aceptado,
+# `MIN_CHI_CLEAN_WINDOWS`=30 ventanas / 30s). La banda indeterminada
+# (1.0->1.6 = 0.60) es >3x ese error -- las fronteras viven SOBRE la
+# medición real, no sobre una precisión que no tenemos.
+# `tests/test_eeg_chi_expert_signature.py` graba este piso en la suite: si
+# alguien afila `CHI_THRESHOLDS` por debajo de él, el test falla.
+CHI_INSTRUMENT_ERROR: float = 0.175
+CHI_THRESHOLDS: Tuple[float, float] = (1.0, 1.6)  # (techo "excitación", piso "inhibición")
+CHI_CITATION: str = (
+    "Gao R, Peterson EJ, Voytek B. 2017, NeuroImage 158:70-78 (\"Inferring synaptic "
+    "excitation/inhibition balance from field potentials\") -- índice de E/I cortical por "
+    "analogía LFP, sobre EEG de superficie -- VALIDADO_POR_FUENTE"
+)
+
+
+def classify_chi(chi: Optional[float]) -> Tuple[str, str, str]:
+    """Clasifica un valor chi según los umbrales VALIDADOS_POR_FUENTE (ver
+    `CHI_THRESHOLDS`/`CHI_CITATION`). Mismo patrón que `classify_dar()`/
+    `classify_tbr()` (`eeg_analyzer.py`): devuelve `(nivel, etiqueta,
+    badge)`.
+
+    `None` (chi no disponible -- degradado por cualquiera de los dos
+    guardianes de Arco 2C, `MIN_CHI_CLEAN_WINDOWS`/R², o simplemente
+    ausente) -> `("no_disponible", "no disponible", "")` -- NUNCA un estado
+    por default.
+
+    La banda `🔵` intermedia (1.0-1.6) es un estado clínico HONESTO, no una
+    ausencia ni un "todo bien" verde: significa "cerca de línea base, no
+    discriminable a esta resolución" -- `CHI_INSTRUMENT_ERROR` es demasiado
+    grande para afirmar excitación o inhibición dentro de esa banda."""
+    if chi is None:
+        return ("no_disponible", "no disponible", "")
+    excitacion_techo, inhibicion_piso = CHI_THRESHOLDS
+    if chi < excitacion_techo:
+        return ("excitacion", "excitación cortical (hiperexcitabilidad)", "🔴")
+    if chi <= inhibicion_piso:
+        return ("indeterminado", "indeterminado / línea base", "🔵")
+    return ("inhibicion", "inhibición cortical (supresión/enlentecimiento)", "💤")
 
 
 @dataclass(frozen=True)

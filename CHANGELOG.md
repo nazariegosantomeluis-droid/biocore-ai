@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-09-18 — BIOCORE, Arco 2D: firma del experto aplicada al χ aperiódico — cierre del Arco 2
+
+**Contexto**: 2C elevó χ al UPS pero lo dejó `PENDING_VALIDATION` — el ajuste FOOOF es real y corregido, pero qué balance excitación/inhibición indica un χ dado esperaba firma clínica, mismo patrón que DAR/TBR esperaron su firma en Neuro Tanda 2. El experto firmó: fuente Gao R, Peterson EJ, Voytek B. 2017 (NeuroImage 158:70-78, "Inferring synaptic excitation/inhibition balance from field potentials"), dirección (χ plano→excitación, χ empinado→inhibición), y umbrales gruesos con cláusula de alcance explícita — Gao 2017 valida esto sobre LFP intracraneal, este repo lo aplica por analogía sobre EEG de superficie, nunca "mide E/I" a secas.
+
+### Parte A — `PENDING_VALIDATION` retirado, `VALIDADO_POR_FUENTE` (`spectral_model.py` + `builder.py`)
+
+`CHI_THRESHOLDS=(1.0, 1.6)` y `CHI_CITATION` (nuevas, `spectral_model.py`) — la cita incluye la cláusula de alcance en su propio texto ("índice de E/I cortical por analogía LFP, sobre EEG de superficie"), no solo la referencia pelada. `CHI_APERIODIC_CITATION` (Donoghue et al. 2020) se mantiene intacta, en su propio eje — respalda el ALGORITMO de ajuste, no la interpretación clínica. `builder.py::_neurological_state()` persiste `chi_aperiodic` con `source_detail` llevando AMBAS citas: `VALIDADO_POR_FUENTE | {CHI_APERIODIC_CITATION} | {CHI_CITATION}`.
+
+### Parte B — `classify_chi()` (`spectral_model.py`, junto a `fit_aperiodic_component()`)
+
+Mismo patrón que `classify_dar()`/`classify_tbr()`: `(nivel, etiqueta, badge)`. 🔴 χ&lt;1.0 excitación cortical · 🔵 1.0≤χ≤1.6 indeterminado/línea base (la banda honesta — el error del instrumento no discrimina aquí, se reporta el valor, nunca se asume un estado) · 💤 χ&gt;1.6 inhibición cortical. `None`/degradado (los guardianes de 2C) → "no disponible", nunca un badge por default.
+
+### Parte C — badge en vivo (`ups_body_visual.py`)
+
+`_render_neuro_ratio_badges()` gana un tercer bloque para χ, junto a los de DAR/TBR — mismo componente `st.caption()`. La banda 🔵 se renderiza como CUALQUIER otro badge, sin rama especial que la esconda: es un estado clínico legítimo, no una ausencia. Nuevo importador deliberado de `spectral_model` (tercero, junto a `builder.py`/`page_content.py`) — `src/signals/eeg/__init__.py` NO reexporta nada de `spectral_model` a propósito (evita forzar `fooof` sobre cualquier importador de `src.signals.eeg`), así que `ups_body_visual.py` importa `CHI_CITATION`/`classify_chi` directamente del submódulo, igual que `builder.py`.
+
+### Parte D — barandilla de holgura grabada en la suite (`test_eeg_chi_expert_signature.py`)
+
+`CHI_INSTRUMENT_ERROR=0.175` (nueva, `spectral_model.py`) — el error máximo de recuperación que 2C midió sobre el pipeline de producción real, en el piso exacto de `MIN_CHI_CLEAN_WINDOWS`. `test_chi_thresholds_never_narrower_than_instrument_error` asevera que la banda indeterminada (0.60) excede ese piso — de hecho es &gt;3× el error — y falla si alguien afila `CHI_THRESHOLDS` por debajo de él en el futuro. Los umbrales viven sobre la medición real, no sobre una precisión que no tenemos.
+
+### Verificado
+
+- `tests/test_eeg_chi_expert_signature.py` (nuevo, 13 tests): umbrales y fronteras exactas (0.8→🔴, 1.3→🔵, 1.8→💤; 1.0 y 1.6 del lado documentado), la banda 🔵 como estado honesto (no default), `None`→no disponible sin badge, la barandilla de holgura (piso no negociable + margen &gt;3× documentado), `CHI_INSTRUMENT_ERROR` es el piso medido en 2C (0.175), persistencia con `VALIDADO_POR_FUENTE`+ambas citas+cláusula de alcance, y badge en vivo (`AppTest` hasta el final del render) parametrizado por umbral, banda indeterminada legítima, ausente sin descriptor/sin state, DAR/TBR intactos junto al nuevo badge de χ.
+- `tests/test_eeg_chi_production_elevation.py`: las tres aserciones que dependían de `PENDING_VALIDATION`/ausencia de `classify_chi` actualizadas a la nueva realidad de 2D (documentado en el propio archivo, no editado en silencio).
+- `tests/test_eeg_aperiodic_spectral_model.py::test_spectral_model_import_surface_matches_arco_2d_wiring` (renombrado de `..._arco_2c_wiring`): `allowed_importers` gana `ups_body_visual.py` como tercer importador deliberado; `eeg_analyzer.py`/`eeg_generator.py` siguen sin importar `spectral_model` — sin regresión del aislamiento de 2A/2B.
+- `pytest tests/ -q` → verde, sin tests previos movidos salvo las tres actualizaciones documentadas arriba.
+
+**NOTAS DE HONESTIDAD explícitas**: (1) La cláusula de alcance no es cosmética — Gao 2017 mide sobre LFP intracraneal, este repo extrapola a EEG de superficie; `CHI_CITATION` lo dice en su propio texto para que ningún consumidor futuro (narrador clínico incluido) cite esto como "χ mide E/I" sin calificar. (2) Los umbrales son deliberadamente gruesos — la banda indeterminada de 0.60 no es conservadurismo arbitrario, es la banda mínima defendible dado `CHI_INSTRUMENT_ERROR` medido en 2C; angostarla requeriría primero mejorar la recuperación del motor (más ventanas, mejor SNR), no solo cambiar dos números. (3) χ sigue sin narrador clínico propio (`domain/physiology/narrator/`) — este arco cierra la clasificación/badge, no una integración de IA nueva; el narrador ya lee el UPS y con esto puede citar el badge si el descriptor está presente, sin cambios adicionales en esta tanda.
+
 ## 2026-09-14 — BIOCORE, Arco 2C: χ aperiódico elevado al UPS (aditivo) + corrección del sesgo de bandpass descubierto durante la implementación
 
 **Contexto**: 2B validó χ contra ground truth sintético SIN filtrar (error 0.095). El mini-diagnóstico de 2C midió que a resolución de producción (1Hz) χ se recupera fiel si hay suficientes ventanas, y propuso `MIN_CHI_CLEAN_WINDOWS`. Al implementar el banco de pruebas de producción de esta tanda, corriendo χ por PRIMERA VEZ a través de `EegAnalyzer.analyze()` completo (no una réplica), se encontró que ese mini-diagnóstico tenía un hueco: su réplica de "PSD de producción" nunca invocó `preprocess_eeg()` — el bandpass real nunca corrió en esas mediciones. Corrido de verdad, el bandpass Butterworth orden 2 de Arco 2A introduce un sesgo sistemático de ~+0.46 sobre χ (15 semillas, grid completo, con y sin picos) — el roll-off del filtro distorsiona la PENDIENTE log-log que χ mide, algo que BAR/DAR/TBR nunca sufren porque integran potencia por banda. Se presentó el hallazgo al usuario antes de continuar; decisión: derivar una corrección PRINCIPIADA del filtro conocido, no un rango de ajuste angosto ad-hoc ni un factor empírico.

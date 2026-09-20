@@ -1,8 +1,11 @@
 """
 Arco 2C (2026-09-14) -- el χ aperiódico elevado a descriptor del UPS,
 ADITIVO. BAR/DAR/TBR intactos (Parte A: nuevos campos en `EegAnalysis` que
-solo reexponen PSD ya calculado). χ se persiste `PENDING_VALIDATION`, sin
-badge ni umbral clínico -- eso espera firma del experto (Arco 2D).
+solo reexponen PSD ya calculado). χ se persistía `PENDING_VALIDATION`, sin
+badge ni umbral clínico -- Arco 2D (2026-09-18, ver
+`tests/test_eeg_chi_expert_signature.py`) aplicó la firma del experto y
+retiró ese estado; las aserciones de este archivo que dependían de él ya
+están actualizadas.
 
 Dos guardianes INDEPENDIENTES protegen a χ de reportarse con confianza y
 estar mal, ninguno redundante con el otro:
@@ -159,13 +162,22 @@ def test_new_psd_fields_coexist_with_unchanged_ratios():
     assert result.band_power['alpha'] >= 0.0
 
 
-# --- PENDING_VALIDATION, cita metodológica, sin badge -----------------------
+# --- VALIDADO_POR_FUENTE (Arco 2D), dos citas de ejes distintos -------------
+#
+# NOTA (2026-09-18): esta sección documentaba el estado `PENDING_VALIDATION`
+# de Arco 2C. Arco 2D aplicó la firma del experto (Gao et al. 2017) --
+# actualizada aquí en vez de reescribir la historia en silencio, mismo
+# criterio que 2C aplicó a la nota de DAR/TBR (ver `test_neuro_dar_tbr.py`).
+# El test de cobertura completo de Arco 2D vive en
+# `tests/test_eeg_chi_expert_signature.py`.
 
-def test_chi_persisted_as_pending_validation_with_methodological_citation():
-    """Bloque nuevo de `_neurological_state()` (Parte C): mismo patrón que
-    bar/dar/tbr, `source_detail` marca PENDING_VALIDATION y cita a Donoghue
-    et al. 2020 como respaldo METODOLÓGICO, no clínico. bar/dar/tbr,
-    presentes en el mismo dict de señales, no se ven afectados."""
+def test_chi_persisted_as_validado_por_fuente_with_both_citations():
+    """Bloque de `_neurological_state()` (Parte C de 2C, actualizado por
+    Arco 2D): mismo patrón que bar/dar/tbr, `source_detail` marca
+    VALIDADO_POR_FUENTE y lleva DOS citas -- Donoghue et al. 2020
+    (metodológica, el ajuste FOOOF) y Gao et al. 2017 (clínica, la
+    interpretación E/I). bar/dar/tbr, presentes en el mismo dict de
+    señales, no se ven afectados."""
     from app.engines.digital_twin_organism import DigitalTwinOrganism
     from domain.physiology.state import from_digital_twin_organism
 
@@ -182,8 +194,10 @@ def test_chi_persisted_as_pending_validation_with_methodological_citation():
 
     assert "chi_aperiodic" in neuro
     assert neuro["chi_aperiodic"].value == pytest.approx(1.35)
-    assert "PENDING_VALIDATION" in neuro["chi_aperiodic"].source_detail
+    assert "VALIDADO_POR_FUENTE" in neuro["chi_aperiodic"].source_detail
+    assert "PENDING_VALIDATION" not in neuro["chi_aperiodic"].source_detail
     assert "Donoghue" in neuro["chi_aperiodic"].source_detail
+    assert "Gao" in neuro["chi_aperiodic"].source_detail
     assert neuro["chi_aperiodic"].provenance == Provenance.SIMULACION
     assert "bar" in neuro and "dar" in neuro and "tbr" in neuro
 
@@ -206,14 +220,14 @@ def test_chi_absent_when_signal_key_missing_same_gate_pattern_as_ratios():
     assert "chi_aperiodic" not in state.neurological.descriptors
 
 
-def test_no_clinical_badge_or_threshold_exists_for_chi_yet():
-    """Confirma la frontera de 2C: a diferencia de `classify_dar()`/
-    `classify_tbr()` (`eeg_analyzer.py`), no existe todavía un
-    `classify_chi()` ni un umbral clínico para chi -- ninguna interpretación
-    clínica hasta la firma del experto (Arco 2D)."""
+def test_clinical_badge_and_threshold_now_exist_for_chi_arco_2d():
+    """Cierra la frontera que 2C dejó documentada aquí mismo: Arco 2D SÍ
+    define `classify_chi()`/`CHI_THRESHOLDS` en `spectral_model.py` -- la
+    firma del experto ya se aplicó. Cobertura completa de la clasificación
+    en `tests/test_eeg_chi_expert_signature.py`."""
     import src.signals.eeg.spectral_model as spectral_model
-    assert not hasattr(spectral_model, "classify_chi")
-    assert not hasattr(spectral_model, "CHI_THRESHOLDS")
+    assert hasattr(spectral_model, "classify_chi")
+    assert hasattr(spectral_model, "CHI_THRESHOLDS")
 
 
 # ---------------------------- AppTest: producción real ----------------------
@@ -293,7 +307,7 @@ def test_eeg_lab_short_duration_chi_not_persisted_rest_of_save_intact(ups, monke
 def test_eeg_lab_long_duration_chi_persisted(ups, monkeypatch):
     """Degradación en la UI, señal larga: con Duración=90s (>= el piso de
     `MIN_CHI_CLEAN_WINDOWS` con margen), el chi se persiste junto al resto,
-    PENDING_VALIDATION."""
+    VALIDADO_POR_FUENTE (Arco 2D)."""
     sf, pid = ups
     signal_fn = lambda duration, fs: generate_colored_noise(1.5, duration, fs, seed=321) * 15.0
     at = _run_eeg_page(sf, pid, monkeypatch=monkeypatch, colored_signal=signal_fn)
@@ -309,4 +323,5 @@ def test_eeg_lab_long_duration_chi_persisted(ups, monkeypatch):
     assert state is not None
     neuro = state.neurological.descriptors
     assert "chi_aperiodic" in neuro
-    assert "PENDING_VALIDATION" in neuro["chi_aperiodic"].source_detail
+    assert "VALIDADO_POR_FUENTE" in neuro["chi_aperiodic"].source_detail
+    assert "PENDING_VALIDATION" not in neuro["chi_aperiodic"].source_detail

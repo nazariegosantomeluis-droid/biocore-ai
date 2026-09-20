@@ -166,20 +166,29 @@ def test_generate_colored_noise_matches_prescribed_chi_via_log_log_slope():
 
 # --- Aislamiento: confirmado por grep de IMPORTS reales, no por asunción ---
 
-def test_spectral_model_import_surface_matches_arco_2c_wiring():
+def test_spectral_model_import_surface_matches_arco_2d_wiring():
     """Arco 2B mantenía `spectral_model.py` sin ningún importador de
-    producción. Arco 2C lo eleva DELIBERADAMENTE -- `builder.py` (Parte C)
-    y `page_content.py` del EEG Lab (Parte D) ahora SÍ lo importan para
-    persistir/gatear el χ. Esta prueba ya no confirma "cero importadores"
-    (dejó de ser cierto a propósito) sino la frontera que SIGUE vigente:
+    producción. Arco 2C lo elevó DELIBERADAMENTE -- `builder.py` (Parte C)
+    y `page_content.py` del EEG Lab (Parte D) para persistir/gatear el χ.
+    Arco 2D (2026-09-18) suma un tercer importador, también deliberado:
+    `ups_body_visual.py` (Parte C de 2D), que renderiza el badge clínico
+    🔴/🔵/💤 (`classify_chi`/`CHI_CITATION`) junto a los de DAR/TBR -- mismo
+    criterio que ya justificaba a `builder.py`/`page_content.py`: consume
+    directamente `spectral_model` en vez de pasar por `src.signals.eeg`
+    (cuyo `__init__.py` deliberadamente NO reexporta nada de `spectral_
+    model` para no forzar `fooof` sobre cualquier importador del paquete,
+    ver `src/signals/eeg/__init__.py`). Esta prueba ya no confirma "cero
+    importadores" (dejó de ser cierto a propósito) sino la frontera que
+    SIGUE vigente:
 
     1. `eeg_analyzer.py`/`eeg_generator.py` (el motor Welch/rechazo de
        artefactos de Arco 2A) NUNCA importan `spectral_model` -- el motor de
        señal permanece desacoplado de `fooof`; solo expone el PSD que ya
        calculaba para que OTRO módulo lo consuma.
-    2. Solo los dos archivos explícitamente cableados en 2C lo importan --
+    2. Solo los archivos explícitamente cableados (2C + 2D) lo importan --
        ningún otro archivo de `app/`/`domain/` debería hacerlo sin que este
-       test se actualice a propósito (igual que se actualizó de 2B a 2C).
+       test se actualice a propósito (igual que se actualizó de 2B a 2C y
+       de 2C a 2D).
 
     Nota de diseño: la versión de 2B usaba una búsqueda de substring
     ("spectral_model" en cualquier parte del texto), que daba falso
@@ -210,6 +219,7 @@ def test_spectral_model_import_surface_matches_arco_2c_wiring():
     allowed_importers = {
         (repo_root / "domain" / "physiology" / "state" / "builder.py").resolve(),
         (repo_root / "app" / "supermodules" / "eeg_neuro_lab" / "page_content.py").resolve(),
+        (repo_root / "app" / "supermodules" / "twin_shell" / "ups_body_visual.py").resolve(),
     }
 
     actual_importers = set()

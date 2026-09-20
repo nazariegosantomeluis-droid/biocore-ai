@@ -58,10 +58,11 @@ except ImportError as e:
 # (potencia de banda, BAR/DAR/TBR, guardado al gemelo) sigue funcionando sin
 # χ, nunca crashea por su ausencia.
 try:
-    from src.signals.eeg.spectral_model import fit_aperiodic_component
+    from src.signals.eeg.spectral_model import classify_chi, fit_aperiodic_component
     SpectralModel_import_error = None
 except ImportError as e:
     fit_aperiodic_component = None
+    classify_chi = None
     SpectralModel_import_error = e
 
 try:
@@ -518,8 +519,9 @@ with col2:
         # solo si supera su propio gate de duración+calidad
         # (`MIN_CHI_CLEAN_WINDOWS` + R², más estricto que el de band power);
         # si degrada, la clave `chi_aperiodic` no se envía y el resto del
-        # guardado no se ve afectado. χ se persiste `PENDING_VALIDATION`
-        # (sin badge ni umbral clínico) -- ver `builder.py::_neurological_state`.
+        # guardado no se ve afectado. Arco 2D (2026-09-18): χ se persiste
+        # `VALIDADO_POR_FUENTE` con badge 🔴/🔵/💤 (`classify_chi()`) --
+        # ver `builder.py::_neurological_state`.
         # Con solo band power como entrada,
         # `_update_brain()` (`digital_twin_organism.py`) calcula
         # health_score/risk_score/detail desde `stress_level`/
@@ -628,13 +630,15 @@ with col2:
                 st.caption(
                     f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
                 )
-                # Arco 2C: transparencia del χ, SIN badge ni clasificación
-                # (no hay `classify_chi()` -- PENDING_VALIDATION, ver
-                # `spectral_model.CHI_APERIODIC_CITATION`). Muestra el
-                # número real cuando se persistió, o el motivo honesto
-                # cuando no (mismo criterio que "BAR indefinido" arriba).
+                # Arco 2D (2026-09-18): firma del experto aplicada -- badge
+                # 🔴/🔵/💤 vía `classify_chi()` (`spectral_model.py`), mismo
+                # criterio visual que `bar_txt` arriba. La banda 🔵
+                # intermedia se muestra igual que las demás -- un estado
+                # honesto ("indeterminado / línea base"), no un aviso de
+                # validación pendiente (ese estado ya se cerró).
                 if chi_result is not None and chi_result.available:
-                    st.caption(f"χ (aperiódico) = {chi_result.exponent:.2f} -- PENDING_VALIDATION, sin interpretación clínica todavía")
+                    _, chi_label, chi_badge = classify_chi(chi_result.exponent)
+                    st.caption(f"{chi_badge} χ (aperiódico) = {chi_result.exponent:.2f} ({chi_label})")
                 elif chi_result is not None:
                     st.caption(f"χ (aperiódico) no persistido: {chi_result.reason}")
                 if coupled:
