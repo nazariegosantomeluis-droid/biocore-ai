@@ -106,3 +106,8 @@ reasoning_output_*.json
 
 # ── Jupyter ───────────────────────────────────────────────
 .ipynb_checkpoints/
+
+# ── graphify (codebase knowledge-graph tool, isolated venv + output) ──
+.graphify-tool/
+graphify-out/
+.graphifyignore
