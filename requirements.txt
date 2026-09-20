@@ -49,6 +49,15 @@ anthropic>=0.40.0
 # Unified Physiological State persistence (Fase 1.1)
 sqlalchemy>=2.0.0
 
+# Motor de parametrización espectral (Arco 2B, src/signals/eeg/spectral_model.py)
+# -- exponente aperiódico chi (1/f), banco de pruebas AISLADO, no cableado a
+# producción todavía. fooof (no specparam, su sucesor aún en release
+# candidate) porque es la versión estable citable: Donoghue et al. 2020,
+# Nature Neuroscience. Pinned a 1.1.1 -- deprecado a favor de specparam
+# pero plenamente funcional; migrar es decisión deliberada de un arco futuro,
+# no accidente de "instaló lo último".
+fooof==1.1.1
+
 # AI Explainability (Phase 2)
 shap>=0.42.0
 lime>=0.2.0

@@ -282,6 +282,27 @@ class EegAnalysis:
     # (0.0-1.0) -- diagnóstico de calidad de señal, disponible incluso
     # cuando `available=True` (útil para ver "casi se degrada").
     clean_fraction: Optional[float] = None
+    # Arco 2C (2026-09-14): tres campos ADITIVOS que reexponen lo que
+    # `_welch_with_artifact_rejection()` ya calculaba internamente y
+    # descartaba -- CERO líneas tocadas en el cálculo de `band_power`/
+    # `bar`/`dar`/`tbr` para exponerlos. `psd_freqs`/`psd_power` son el PSD
+    # de Welch promediado sobre las ventanas limpias (el mismo que ya
+    # alimenta `_band_power()` arriba); `clean_window_count` es el número
+    # de esas ventanas limpias (no la fracción -- un consumidor de
+    # evidencia insuficiente, como el gate de duración propio del χ en
+    # `spectral_model.py`, necesita el CONTEO, no el porcentaje: 3/3
+    # ventanas es fracción 1.0 pero evidencia insuficiente igual).
+    #
+    # Consumidor previsto: `src.signals.eeg.spectral_model.
+    # fit_aperiodic_component()` (Arco 2B/2C) -- pero este módulo NO lo
+    # importa ni lo llama. `eeg_analyzer.py` sigue sin depender de `fooof`;
+    # solo conserva datos que ya calculaba, para que OTRO módulo pueda
+    # consumirlos sin que `analyze()` recalcule el PSD por segunda vez.
+    # `None` en ambos campos cuando `available=False` (no hay PSD que
+    # exponer, igual que `band_power={}` en ese caso).
+    psd_freqs: Optional[np.ndarray] = None
+    psd_power: Optional[np.ndarray] = None
+    clean_window_count: Optional[int] = None
 
 
 class EegAnalyzer:
@@ -298,7 +319,7 @@ class EegAnalyzer:
         # `preprocess_eeg()` ya no es un fantasma sin llamadores.
         filtered, _ = preprocess_eeg(signal, self.fs)
 
-        freqs, psd, clean_fraction = self._welch_with_artifact_rejection(filtered)
+        freqs, psd, clean_fraction, clean_window_count = self._welch_with_artifact_rejection(filtered)
         if freqs is None:
             total_s = len(filtered) / self.fs
             clean_s = clean_fraction * total_s
@@ -315,6 +336,7 @@ class EegAnalyzer:
                 findings={"Estado": f"no disponible: {reason}"},
                 bar=None, dar=None, tbr=None,
                 available=False, reason=reason, clean_fraction=clean_fraction,
+                psd_freqs=None, psd_power=None, clean_window_count=clean_window_count,
             )
 
         band_power = {
@@ -357,11 +379,14 @@ class EegAnalyzer:
             available=True,
             reason=None,
             clean_fraction=clean_fraction,
+            psd_freqs=freqs,
+            psd_power=psd,
+            clean_window_count=clean_window_count,
         )
 
     def _welch_with_artifact_rejection(
         self, filtered: np.ndarray
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float, int]:
         """Arco 2A: rechazo de artefactos por gradiente, mono-canal, TRAS el
         bandpass y ANTES del PSD. Segmenta la señal filtrada en ventanas de
         `ARTIFACT_WINDOW_S`; descarta las que excedan
@@ -374,12 +399,18 @@ class EegAnalyzer:
         EXCLUIDAS del promedio en vez de zero-padded (que introduciría un
         escalón espectral propio, un artefacto nuevo para tapar el viejo).
 
-        Devuelve `(freqs, psd_promediado, clean_fraction)`. `freqs=None` si
-        la señal limpia resultante es menor que `MIN_CLEAN_EEG_DURATION_S`
-        -- degradación tipo-PLV, nunca un PSD sobre fragmento insuficiente."""
+        Devuelve `(freqs, psd_promediado, clean_fraction, clean_window_count)`.
+        `freqs=None` si la señal limpia resultante es menor que
+        `MIN_CLEAN_EEG_DURATION_S` -- degradación tipo-PLV, nunca un PSD
+        sobre fragmento insuficiente. `clean_window_count` (Arco 2C) es el
+        NÚMERO de ventanas limpias promediadas -- se devuelve siempre
+        (incluso cuando `freqs=None`), es el dato que el gate de duración
+        propio del χ (`spectral_model.MIN_CHI_CLEAN_WINDOWS`) necesita y
+        que `clean_fraction` por sí solo no puede dar (una fracción de 1.0
+        sobre 3 ventanas totales sigue siendo muy poca evidencia)."""
         n_total = filtered.shape[0]
         if n_total == 0:
-            return None, None, 0.0
+            return None, None, 0.0, 0
 
         window_samples = max(1, int(round(ARTIFACT_WINDOW_S * self.fs)))
         if n_total < window_samples:
@@ -401,11 +432,12 @@ class EegAnalyzer:
             clean_psds.append(psd)
 
         clean_fraction = len(clean_psds) / n_windows if n_windows > 0 else 0.0
-        clean_duration_s = len(clean_psds) * (window_samples / self.fs)
+        clean_window_count = len(clean_psds)
+        clean_duration_s = clean_window_count * (window_samples / self.fs)
         if not clean_psds or clean_duration_s < MIN_CLEAN_EEG_DURATION_S:
-            return None, None, clean_fraction
+            return None, None, clean_fraction, clean_window_count
 
-        return freqs, np.mean(clean_psds, axis=0), clean_fraction
+        return freqs, np.mean(clean_psds, axis=0), clean_fraction, clean_window_count
 
     def _band_power(self, freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> float:
         mask = (freqs >= low) & (freqs <= high)

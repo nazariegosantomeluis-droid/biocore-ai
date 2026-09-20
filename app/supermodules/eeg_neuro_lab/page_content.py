@@ -50,6 +50,20 @@ except ImportError as e:
     EegAnalyzer = None
     Eeg_import_error = e
 
+# Arco 2C (2026-09-14): motor de parametrización espectral (χ aperiódico),
+# elevado desde el banco de pruebas aislado de Arco 2B
+# (`src/signals/eeg/spectral_model.py`). Import guardado igual que
+# `EegAnalyzer` arriba -- `fooof` es una dependencia nueva y más pesada que
+# scipy/numpy; si no resolviera en algún entorno, el resto del EEG Lab
+# (potencia de banda, BAR/DAR/TBR, guardado al gemelo) sigue funcionando sin
+# χ, nunca crashea por su ausencia.
+try:
+    from src.signals.eeg.spectral_model import fit_aperiodic_component
+    SpectralModel_import_error = None
+except ImportError as e:
+    fit_aperiodic_component = None
+    SpectralModel_import_error = e
+
 try:
     from hardware.sensor_manager import SensorManager
     SensorManager_import_error = None
@@ -498,7 +512,15 @@ with col2:
         # Qué escribe: los 5 band power reales de `overall`
         # (`EegAnalyzer.analyze()` sobre el canal `analysis_cards[0][0]`,
         # el mismo que ya alimenta "Métricas y Clasificación" arriba -- sin
-        # recalcular nada). Con solo band power como entrada,
+        # recalcular nada). Arco 2C (2026-09-14): + χ aperiódico (exponente
+        # 1/f, `spectral_model.fit_aperiodic_component()`) sobre el MISMO
+        # PSD de `overall` (`psd_freqs`/`psd_power`, aditivos desde 2C) --
+        # solo si supera su propio gate de duración+calidad
+        # (`MIN_CHI_CLEAN_WINDOWS` + R², más estricto que el de band power);
+        # si degrada, la clave `chi_aperiodic` no se envía y el resto del
+        # guardado no se ve afectado. χ se persiste `PENDING_VALIDATION`
+        # (sin badge ni umbral clínico) -- ver `builder.py::_neurological_state`.
+        # Con solo band power como entrada,
         # `_update_brain()` (`digital_twin_organism.py`) calcula
         # health_score/risk_score/detail desde `stress_level`/
         # `relaxation_level` DEFAULTEADOS (35/65 -- este lab no mide
@@ -539,16 +561,41 @@ with col2:
                 session_factory = get_active_session_factory()
                 patient_id = get_active_patient_id()
 
+                # Arco 2C (2026-09-14): χ aperiódico, aditivo -- consume el
+                # MISMO PSD que `overall` ya calculó (`psd_freqs`/`psd_power`,
+                # expuestos aditivamente en Arco 2C, Parte A -- ningún
+                # recálculo de band power). `clean_window_count` alimenta el
+                # gate de duración propio del χ (`MIN_CHI_CLEAN_WINDOWS`,
+                # más estricto que el de los ratios) -- si degrada (pocas
+                # ventanas O R² bajo), `chi_result.available=False` y la
+                # clave `chi_aperiodic` simplemente no se agrega abajo: el
+                # resto del guardado (band power, BAR/DAR/TBR) sigue intacto.
+                chi_result = None
+                if fit_aperiodic_component is not None and overall.psd_freqs is not None:
+                    # `bandpass_fs=fs`: el PSD de `overall` pasó por el
+                    # bandpass de `preprocess_eeg()` dentro de `analyze()`
+                    # (Arco 2A) -- sin corregir esa distorsión, chi queda
+                    # sesgado ~+0.46 (hallazgo de Arco 2C, ver
+                    # `spectral_model.py`). `fs` es la misma frecuencia de
+                    # muestreo que ya se usó para instanciar `analyzer`.
+                    chi_result = fit_aperiodic_component(
+                        overall.psd_freqs, overall.psd_power,
+                        clean_window_count=overall.clean_window_count,
+                        bandpass_fs=fs,
+                    )
+
+                eeg_sensors = {
+                    "delta_power": float(overall.band_power["delta"]),
+                    "theta_power": float(overall.band_power["theta"]),
+                    "alpha_power": float(overall.band_power["alpha"]),
+                    "beta_power": float(overall.band_power["beta"]),
+                    "gamma_power": float(overall.band_power["gamma"]),
+                }
+                if chi_result is not None and chi_result.available:
+                    eeg_sensors["chi_aperiodic"] = float(chi_result.exponent)
+
                 eeg_organism = DigitalTwinOrganism()
-                eeg_organism.update_from_sensors({
-                    "eeg": {
-                        "delta_power": float(overall.band_power["delta"]),
-                        "theta_power": float(overall.band_power["theta"]),
-                        "alpha_power": float(overall.band_power["alpha"]),
-                        "beta_power": float(overall.band_power["beta"]),
-                        "gamma_power": float(overall.band_power["gamma"]),
-                    }
-                })
+                eeg_organism.update_from_sensors({"eeg": eeg_sensors})
                 eeg_ups_state = from_digital_twin_organism(
                     eeg_organism, patient_id, provenance=Provenance.SIMULACION,
                     source_detail=f"eeg_neuro_lab:canal={eeg_lab_channel}:banda_dominante={overall.dominant_band}",
@@ -581,6 +628,15 @@ with col2:
                 st.caption(
                     f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
                 )
+                # Arco 2C: transparencia del χ, SIN badge ni clasificación
+                # (no hay `classify_chi()` -- PENDING_VALIDATION, ver
+                # `spectral_model.CHI_APERIODIC_CITATION`). Muestra el
+                # número real cuando se persistió, o el motivo honesto
+                # cuando no (mismo criterio que "BAR indefinido" arriba).
+                if chi_result is not None and chi_result.available:
+                    st.caption(f"χ (aperiódico) = {chi_result.exponent:.2f} -- PENDING_VALIDATION, sin interpretación clínica todavía")
+                elif chi_result is not None:
+                    st.caption(f"χ (aperiódico) no persistido: {chi_result.reason}")
                 if coupled:
                     ac = coupled[0]
                     st.caption(
