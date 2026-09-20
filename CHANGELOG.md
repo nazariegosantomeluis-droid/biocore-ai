@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-09-18 — BIOCORE, tanda de cierre e higiene: migración de ratios archivada, commits pendientes cerrados
+
+**Contexto**: tanda de cierre — sin código de producción tocado. Registra el veredicto del diagnóstico de migración de BAR/DAR/TBR a potencia oscilatoria (FOOOF), cierra en git los commits que quedaron pendientes de Arco 2B/2C/2D, resuelve el `.gitignore` colgado desde la tanda de graphify, y mapea (sin retirar) tres fantasmas metabólicos dormidos.
+
+### Migración de BAR/DAR/TBR a potencia oscilatoria (FOOOF) — archivada 2026-09-18
+
+Diagnóstico (cero producción tocada): cambio sustancial pero en dirección equivocada — aleja los ratios de sus umbrales citados en vez de refinarlos. Evidencia medida sobre el ground truth de 2B + motor de producción: (1) magnitud — |%diff| medio BAR 32.6%, DAR 35.2%, TBR 18.2%; DAR cruza la frontera de Claassen en 3/9 corridas aun en el escenario más favorable (pico real en las 4 bandas); (2) dirección — en el caso fisiológicamente plausible (delta/theta fundidos con el fondo 1/f, sin pico discreto — limitación conocida de FOOOF), DAR se desploma ~87% (de 1.0–2.0 a 0.06–0.13), un orden de magnitud bajo el piso 1.5, dejando los umbrales de Claassen/Boksem sin significado sobre la escala nueva; (3) fragilidad — heredaría los guardianes del χ (2s→30s, 15× más señal exigida) sobre ratios que hoy funcionan con capturas cortas. El BAR (cita descriptiva, no umbral clínico rígido) es el "menos malo" pero también se mueve ~30% sin ganancia predictiva demostrada — no alcanza la barra. Los ratios sobre Welch limpio (post-2A) siguen siendo la versión honesta y firmada. Razón de fondo: el χ nació de la potencia aperiódica (su cita, Gao/Voytek, vive ahí — el FOOOF es su hogar); DAR/TBR nacieron de la potencia estándar (Claassen/Boksem firman esa escala — el FOOOF es su exilio). No reabrir sin literatura de DAR/TBR sobre potencia-verdadera que reancle los umbrales — que hoy no existe.
+
+### Higiene de código muerto — tres fantasmas metabólicos mapeados (NO retirados)
+
+Junto a `app/utils/data_generator.py` (`DataGenerator`, ya anotado más arriba en este archivo — 7 funciones sin llamador vivo fuera de `_archive/`), quedan mapeados tres miembros dormidos de la familia "metabólico" para un barrido de cierre futuro — fuera de alcance de esta tanda, no urgentes, pero anotados para que nadie los reconecte sin saber qué son:
+
+- **`RecoveryState.metabolic_recovery`** (`app/engines/digital_twin_organism.py`) — alias literal: `self.recovery.metabolic_recovery = autonomic.metrics.health_score`. No es una medición ni un cálculo propio, es una copia de otro campo bajo un nombre distinto.
+- **`generate_metabolic_profile()`** (`app/utils/data_generator.py`, re-exportado vía `app/supermodules/__init__.py`) — `np.random` huérfano: solo se llama a sí mismo internamente (`DataGenerator.generate_sample_patient()`), cero llamadores fuera del propio módulo.
+- **`SleepState`** (`app/engines/digital_twin_organism.py`) — instanciada una vez en el constructor (`self.sleep = SleepState()`) con sus tres campos en default fijo (`sleep_stage="awake"`, `sleep_quality=65.0`, `sleep_efficiency=85.0`) y nunca reasignada en ningún otro punto del archivo; se expone tal cual, congelada, vía `get_full_state()['sleep']`.
+
+### `.gitignore` — resuelto: commiteado (era legítimo)
+
+Cambio colgando desde la tanda de graphify (trece tandas): `.graphify-tool/`, `graphify-out/` y `.graphifyignore` añadidos al ignore. Confirmado por inspección de disco — ambos directorios existen realmente (fecha de modificación anterior a esta sesión), y es precisamente ese `.gitignore` sin commitear el que los mantenía fuera de `git status` hasta ahora. Commiteado solo, con su propio mensaje (`chore: gitignore de graphify`).
+
+### Commits pendientes cerrados
+
+Arco 2B+2C (motor FOOOF + χ elevado al UPS `PENDING_VALIDATION`) y Arco 2D (firma del experto, `VALIDADO_POR_FUENTE` + badge) vivían mezclados sin commitear desde varias tandas atrás. Reconstruidos con precisión (se guardó el estado final de cada archivo mixto, se revirtieron a mano los cambios de Arco 2D hasta recuperar el estado exacto de 2C, se commiteó ese estado, y se restauró el contenido final) y cerrados en dos commits separados, mismo patrón de un commit por tanda que ya usa este repo (ver `Neuro DAR+TBR`/`Neuro Tanda 2`). `git status` queda limpio.
+
 ## 2026-09-18 — BIOCORE, Arco 2D: firma del experto aplicada al χ aperiódico — cierre del Arco 2
 
 **Contexto**: 2C elevó χ al UPS pero lo dejó `PENDING_VALIDATION` — el ajuste FOOOF es real y corregido, pero qué balance excitación/inhibición indica un χ dado esperaba firma clínica, mismo patrón que DAR/TBR esperaron su firma en Neuro Tanda 2. El experto firmó: fuente Gao R, Peterson EJ, Voytek B. 2017 (NeuroImage 158:70-78, "Inferring synaptic excitation/inhibition balance from field potentials"), dirección (χ plano→excitación, χ empinado→inhibición), y umbrales gruesos con cláusula de alcance explícita — Gao 2017 valida esto sobre LFP intracraneal, este repo lo aplica por analogía sobre EEG de superficie, nunca "mide E/I" a secas.
