@@ -1,22 +1,30 @@
-LICENSE — PENDING OWNER DECISION
-================================
+BIOCORE AI — Source-Available, Non-Commercial License
+Copyright (c) 2026 Luis Nazariego Santome. All rights reserved.
 
-No license has been chosen for this project yet. This is a deliberate
-placeholder, not an oversight.
+This software and its associated documentation (the "Software") are made
+publicly available for the purposes of review, study, evaluation, and
+non-commercial use only.
 
-Until this file is replaced with an actual license text, **all rights are
-reserved** by the copyright holder (Luis Nazariego Santomé). No permission is
-granted to use, copy, modify, or distribute this software.
+PERMITTED, without a separate agreement:
+  - Viewing, reading, and studying the source code.
+  - Running the Software for personal, educational, academic, or research
+    purposes that are not commercial in nature.
+  - Creating and sharing modifications for the above non-commercial purposes,
+    provided this license and copyright notice are retained.
 
-The choice is a product decision the owner must make — e.g.:
+NOT PERMITTED without prior written agreement with the copyright holder:
+  - Any commercial use, including selling, licensing, hosting as a paid
+    service, or using the Software (in whole or in part) in a product or
+    service offered for a fee or other commercial consideration.
+  - Redistribution for commercial purposes.
+  - Removing or altering this license or the copyright notice.
 
-  - MIT / Apache-2.0 / BSD-3-Clause  — permissive, maximal adoption.
-  - GPL-3.0 / AGPL-3.0               — copyleft; derivatives stay open.
-  - PolyForm Noncommercial / BSL     — free for non-commercial/academic use,
-                                       commercial use reserved.
-  - A dual-license scheme            — open-source core + commercial terms
-                                       for institutions.
+For commercial licensing inquiries, contact the copyright holder.
 
-Once decided, replace this file's entire contents with the canonical license
-text and add the matching SPDX identifier / `license` field to project
-metadata.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.

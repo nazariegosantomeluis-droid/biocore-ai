@@ -111,3 +111,19 @@ reasoning_output_*.json
 .graphify-tool/
 graphify-out/
 .graphifyignore
+
+# ── Secrets / credentials (ampliado) ──
+*.pfx
+*.p12
+*.ppk
+id_rsa
+id_ed25519
+.netrc
+*_credentials.json
+client_secret*.json
+*-serviceaccount*.json
+secrets/
+.aws/
+
+# ── Consolidation scaffolding ──
+_archive/
