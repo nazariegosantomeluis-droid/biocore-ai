@@ -25,7 +25,25 @@ def render_views():
     # en el repo. Candidatas a contenido futuro, ver CHANGELOG.md.
     # Fase 2.3 Tanda 3 (2026-08-29): título de módulo con el sistema
     # compartido -- este módulo no tenía ninguno propio.
-    render_module_header("EEG Neuro Lab", icon="🧠")
+    # Consolidación Visual Tanda 1 (2026-09-20): el subtítulo se movió aquí
+    # desde `page_content.py`, que dibujaba su propio "# 🧠 EEG Neuro Lab"
+    # + subtítulo por separado -- título triplicado por carga de página
+    # (este `<h1>`, el `<h2>` de "Vista Clínica" abajo, y el `# ` propio de
+    # page_content.py). Bug de renderizado, no estética -- ver CHANGELOG.md.
+    # Consolidación Visual, Tanda Final (2026-09-22): `validation=None`
+    # EXPLÍCITO, firmado por el experto -- no un olvido. EEG Neuro Lab es
+    # un contenedor MIXTO: DAR/TBR llevan cita clínica real (Claassen/
+    # Boksem, marco de severidad), χ está en observación (Gao/Voytek,
+    # marco de estado neutro, sin badge de validación de módulo). Una
+    # sola etiqueta de módulo mentiría sobre alguna de esas partes --
+    # los badges por-métrica (`render_metric_card`, ya en la vista en
+    # vivo desde Tanda 3) hacen el trabajo fino que un `validation=`
+    # único no puede.
+    render_module_header(
+        "EEG Neuro Lab", icon="🧠",
+        subtitle="Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales",
+        validation=None,
+    )
     tabs = st.tabs(["Clínica"])
 
     with tabs[0]:

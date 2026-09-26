@@ -13,12 +13,22 @@ try:
 except ImportError:
     PLOTLY_GO, PLOTLY_OK = None, False
 
-from app.utils.design_system import render_module_header, render_section_header, render_error_state
+from app.utils.design_system import BADGES, render_module_header, render_section_header, render_error_state, render_metric_card
 
 # Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
 # antes apuntaba a app/pages_legacy/7_💨_Respiratory-Lab.py — mismo contenido,
 # copiado tal cual a page_content.py junto a este archivo, sin cambiar una línea.
 MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
+
+# Consolidación Visual, Tanda Final (2026-09-22): texto VERBATIM de la
+# firma del experto (Luis) -- vive aquí, no en `app/main.py`, porque
+# `render_module_header()` de este módulo se llama desde este archivo
+# (ver `render_views()` abajo), no desde `main.py`.
+_RESPIRATORY_VALIDATION_DETAIL = (
+    "Cálculo de AHI y estratificación de severidad conformes a los manuales de puntuación de la "
+    "American Academy of Sleep Medicine (AASM)."
+)
+
 
 def render_views():
     # Consolidación, Tanda 1 (2026-07-13): la pestaña "IA" se eliminó — era una
@@ -35,7 +45,15 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    render_module_header("Respiratory Lab", icon="💨")
+    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
+    # AHI/severidad conformes a criterio AASM real (confirmado por
+    # revisión: `_assess_severity()`, `respiratory_analyzer.py:378`,
+    # cita AASM en el propio código) -- `validation="VALIDATED"`.
+    render_module_header(
+        "Respiratory Lab", icon="💨",
+        validation="VALIDATED",
+        validation_detail=_RESPIRATORY_VALIDATION_DETAIL,
+    )
     tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
 
     with tabs[0]:
@@ -64,7 +82,7 @@ def _render_investigacion_tab():
     st.session_state. No vuelve a calcular nada: el bloque `with tabs[0]:` de
     arriba ya corrió y pobló `_respiratory_lab_analysis` antes de llegar aquí,
     en el mismo rerun de Streamlit (2026-08-21, Capa 2 Fase 2.2, Ejecución 2)."""
-    st.header("Vista Investigación — Índice AHI y eventos de apnea")
+    render_section_header("Vista Investigación — Índice AHI y eventos de apnea")
 
     bridge = st.session_state.get('_respiratory_lab_analysis')
     if bridge is None:
@@ -80,10 +98,27 @@ def _render_investigacion_tab():
         f"ventana de **{bridge['duration']}s**. Mismo cálculo, sin recalcular."
     )
 
+    # Consolidación Visual Tanda 3 (2026-09-21): `col.metric` crudo ->
+    # `render_metric_card`. `BADGES.CLINICAL` (no HEURISTIC): el AHI y su
+    # severidad se calculan según criterio AASM -- el mismo estándar que
+    # `twin_shell/pages.py` ya cita para AHI (`PROVENANCE_SOURCE_AASM`),
+    # no una heurística de ingeniería propia. Sin `classification=`: no
+    # existe un `classify_ahi()` de 3 niveles en el repo -- inventar uno
+    # aquí sería fabricar una clasificación clínica sin firma del experto
+    # (mismo criterio que BAR sin `classify_bar()`).
     col1, col2, col3 = st.columns(3)
-    col1.metric("Índice AHI", f"{analysis.apnea_hypopnea_index:.1f}", help="Eventos de apnea/hipopnea por hora")
-    col2.metric("Severidad", analysis.severity.title())
-    col3.metric("Eventos de apnea detectados", len(analysis.apnea_events))
+    with col1:
+        render_metric_card(
+            "Índice AHI", f"{analysis.apnea_hypopnea_index:.1f}",
+            provenance=BADGES.CLINICAL,
+        )
+    with col2:
+        render_metric_card("Severidad", analysis.severity.title(), provenance=BADGES.CLINICAL)
+    with col3:
+        render_metric_card(
+            "Eventos de apnea detectados", str(len(analysis.apnea_events)),
+            provenance=BADGES.CLINICAL,
+        )
 
     if analysis.apnea_detected and analysis.apnea_events:
         import pandas as pd
@@ -193,7 +228,7 @@ def _render_simulacion_tab():
     escala con volumen corriente; el conteo de ciclos en la ventana escala con
     RR, tal como usa `cycle_duration = 60.0 / respiratory_rate` dentro del
     generador real)."""
-    st.header("Vista Simulación — Generador respiratorio paramétrico")
+    render_section_header("Vista Simulación — Generador respiratorio paramétrico")
     st.write(
         "Ajusta frecuencia respiratoria y volumen corriente (profundidad) y observa la señal "
         "real regenerada por `RespiratorySignalGenerator` (patrón normal) -- el mismo motor que "
@@ -212,10 +247,22 @@ def _render_simulacion_tab():
     airflow = sim_data['airflow']
     time_arr = sim_data['time']
 
+    # Consolidación Visual Tanda 3 (2026-09-21): `col.metric` crudo ->
+    # `render_metric_card`. `BADGES.HEURISTIC`: propiedades descriptivas
+    # de una señal SIMULADA (generador paramétrico bajo control de
+    # sliders) -- cálculo real, sin cita/umbral clínico detrás.
     col_ptp, col_cycles = st.columns(2)
     chest_ptp = float(np.max(chest) - np.min(chest))
-    col_ptp.metric("Amplitud torácica (pico-a-pico)", f"{chest_ptp:.2f}")
-    col_cycles.metric("Ciclos respiratorios en 30s", f"{(30 * sim_rr / 60):.0f}")
+    with col_ptp:
+        render_metric_card(
+            "Amplitud torácica (pico-a-pico)", f"{chest_ptp:.2f}",
+            provenance=BADGES.HEURISTIC,
+        )
+    with col_cycles:
+        render_metric_card(
+            "Ciclos respiratorios en 30s", f"{(30 * sim_rr / 60):.0f}",
+            provenance=BADGES.HEURISTIC,
+        )
 
     if PLOTLY_OK:
         fig = PLOTLY_GO.Figure()

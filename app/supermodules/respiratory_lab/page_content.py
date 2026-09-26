@@ -35,6 +35,13 @@ from src.signals.respiration import (
     create_respiratory_summary
 )
 
+# Consolidación Visual Tanda 3 (2026-09-21): `PALETTE`/`BADGES`/
+# `render_metric_card`/`render_section_header` -- fuente única de color y
+# de tarjeta de métrica (`app/utils/design_system.py`), reemplaza el
+# `<style>` propio de este archivo (retirado más abajo) y los ~24
+# `st.metric()` a mano repartidos por las pestañas.
+from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_section_header
+
 # ═══════════════════════════════════════════════════════════════
 # PAGE CONFIGURATION
 # ═══════════════════════════════════════════════════════════════
@@ -45,9 +52,15 @@ from src.signals.respiration import (
 # `app/main.py` (vía `runpy.run_path()` desde `respiratory_lab/pages.py`),
 # que ya configuró la página una sola vez al inicio. Ver CHANGELOG.md.
 
-st.markdown("""
-    <div style='padding: 16px; border-radius: 16px; background: #0f172a; border: 1px solid #1f2937; margin-bottom: 24px;'>
-        <h2 id="panel-respiratorio" style='color: #8ecae6;'>💨 Laboratorio Respiratorio</h2>
+# Consolidación Visual Tanda 3 (2026-09-21): background/color de esta
+# tarjeta decorativa migrados de hex propios a `PALETTE.BACKGROUND`/
+# `PALETTE.ACCENT_ON_DARK` -- coinciden exactamente con los valores viejos
+# (#0f172a/#8ecae6), ahora referenciando la fuente única en vez de
+# repetirla. El borde (#1f2937) no corresponde a ningún token de
+# `PALETTE` -- se deja igual, no se inventa una correspondencia.
+st.markdown(f"""
+    <div style='padding: 16px; border-radius: 16px; background: {PALETTE.BACKGROUND}; border: 1px solid #1f2937; margin-bottom: 24px;'>
+        <h2 id="panel-respiratorio" style='color: {PALETTE.ACCENT_ON_DARK};'>💨 Laboratorio Respiratorio</h2>
         <p>Experimenta con patrones de respiración, monitorea SpO2 y aprende a reconocer señales de apnea y respiración irregular.</p>
         <ul>
             <li><strong>Normal:</strong> respiración estable y oxigenación saludable.</li>
@@ -59,57 +72,15 @@ st.markdown("""
     unsafe_allow_html=True,
 )
 
-# Theme configuration
-st.markdown("""
-    <style>
-        :root {
-            --primary-color: #8ecae6;
-            --background-color: #0f172a;
-            --text-color: #e0e7ff;
-        }
-        
-        body {
-            background-color: #0f172a;
-            color: #e0e7ff;
-        }
-        
-        .main {
-            background-color: #0f172a;
-        }
-        
-        .stTabs [data-baseweb="tab-list"] button {
-            color: #8ecae6;
-            border-bottom: 2px solid transparent;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            border-bottom: 2px solid #8ecae6;
-        }
-        
-        h1, h2, h3 {
-            color: #8ecae6;
-        }
-        
-        .metric-card {
-            background-color: #1a2a4a;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 4px solid #8ecae6;
-        }
-        
-        .clinical-note {
-            background-color: #1a2a4a;
-            border-left: 4px solid #ff6b6b;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-        
-        .normal-note {
-            border-left: 4px solid #51cf66;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# Consolidación Visual Tanda 3 (2026-09-21): `<style>` propio retirado --
+# `inject_global_theme()` (`app/main.py`) ya cubre fondo/texto globales con
+# los mismos tokens; `.metric-card`/`.clinical-note`/`.normal-note` no se
+# usaban en ningún `<div>` de este archivo (CSS muerto, confirmado por
+# grep -- cero referencias a esas clases fuera de esta declaración). El
+# acento de pestañas (`.stTabs`) se pierde con el retiro -- pérdida
+# cosmética menor, consistente con el resto de la migración de Tanda 3
+# (mismo criterio de retiro seguro que ECG-12/EEG Neuro Lab, ver
+# CHANGELOG.md).
 
 # ═══════════════════════════════════════════════════════════════
 # SIDEBAR CONFIGURATION
@@ -281,11 +252,15 @@ st.session_state['_respiratory_lab_analysis'] = {
     'duration': duration,
 }
 
-# Main title
-st.markdown(f"""
-    # 💨 Laboratorio Respiratorio
-    ## Patrón: {selected_pattern_display}
-""")
+# Consolidación Visual Tanda 3 (2026-09-21): el `# 💨 Laboratorio
+# Respiratorio` (h1) se retira -- duplicaba el `<h1>` que
+# `respiratory_lab/pages.py::render_views()` ya dibuja vía
+# `render_module_header("Respiratory Lab", icon="💨")` antes de invocar
+# este archivo por `runpy` (mismo bug que ya se corrigió en ECG-12/EEG
+# Neuro Lab, Tandas 1-2). "Patrón: X" sí es información genuina de
+# sub-sección (cambia con la selección del sidebar) -- se conserva como
+# `render_section_header()`, no un segundo título de módulo.
+render_section_header(f"Patrón: {selected_pattern_display}")
 
 # ═══════════════════════════════════════════════════════════════
 # METRICS ROW
@@ -293,36 +268,42 @@ st.markdown(f"""
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
+# Consolidación Visual Tanda 3 (2026-09-21): los 5 `st.metric()` de esta
+# fila -> `render_metric_card`. Todos son cálculo real de
+# `RespiratoryAnalyzer` sin un `classify_*()`/`*_CITATION` en
+# `src/signals/respiration` que los respalde -- `BADGES.HEURISTIC`,
+# criterio conservador por default. Sin `classification=`: no se fabrica
+# un semáforo de 3 niveles que nadie validó; el emoji de severidad
+# (`severity_colors`, cálculo ya existente, sin cambios) se conserva
+# dentro del texto del valor, igual que antes.
 with col1:
-    st.metric(
-        "Frecuencia Respiratoria",
-        f"{analysis.respiratory_rate:.1f} r/min",
-        delta=None,
-        delta_color="off"
+    render_metric_card(
+        "Frecuencia Respiratoria", f"{analysis.respiratory_rate:.1f} r/min",
+        provenance=BADGES.HEURISTIC,
     )
 
 with col2:
-    st.metric(
-        "SpO2 Mínimo",
-        f"{analysis.minimum_spo2:.1f}%",
-        delta=None,
-        delta_color="off"
+    render_metric_card(
+        "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%",
+        provenance=BADGES.HEURISTIC,
     )
 
 with col3:
-    st.metric(
-        "Índice AHI",
-        f"{analysis.apnea_hypopnea_index:.1f}",
-        delta=None,
-        delta_color="off"
+    # BADGES.CLINICAL, no HEURISTIC (corregido tras revisión -- consistencia
+    # con `respiratory_lab/pages.py::_render_investigacion_tab()` y con
+    # `twin_shell/pages.py::_RISK_SYSTEM_PROVENANCE`, que ya cita
+    # `PROVENANCE_SOURCE_AASM` para este mismo AHI): `_assess_severity()`
+    # (`src/signals/respiration/respiratory_analyzer.py:378`) está basado
+    # en el criterio AASM real, no es una heurística de ingeniería sin cita.
+    render_metric_card(
+        "Índice AHI", f"{analysis.apnea_hypopnea_index:.1f}",
+        provenance=BADGES.CLINICAL,
     )
 
 with col4:
-    st.metric(
-        "Patrón",
-        analysis.breathing_pattern.capitalize(),
-        delta=None,
-        delta_color="off"
+    render_metric_card(
+        "Patrón", analysis.breathing_pattern.capitalize(),
+        provenance=BADGES.HEURISTIC,
     )
 
 with col5:
@@ -333,11 +314,10 @@ with col5:
         "severe": "🔴"
     }
     severity_emoji = severity_colors.get(analysis.severity, "⚪")
-    st.metric(
-        "Severidad",
-        f"{severity_emoji} {analysis.severity.upper()}",
-        delta=None,
-        delta_color="off"
+    # BADGES.CLINICAL: misma razón que "Índice AHI" arriba -- AASM real.
+    render_metric_card(
+        "Severidad", f"{severity_emoji} {analysis.severity.upper()}",
+        provenance=BADGES.CLINICAL,
     )
 
 st.markdown("---")
@@ -427,32 +407,40 @@ with tab1:
     
     col1, col2, col3, col4 = st.columns(4)
     
+    # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
+    # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real, sin cita
+    # clínica). "N/A" (sin respiraciones detectadas) -> `value=None` +
+    # `unavailable_reason` real, en vez de un string "N/A" opaco.
     with col1:
-        st.metric(
-            "Total Respiraciones",
-            len(analysis.breaths),
-            help="Número de ciclos respiratorios completos detectados"
+        render_metric_card(
+            "Total Respiraciones", str(len(analysis.breaths)),
+            provenance=BADGES.HEURISTIC,
         )
-    
+
     with col2:
         if len(analysis.breaths) > 0:
             mean_duration = np.mean([b.duration_seconds for b in analysis.breaths])
-            st.metric("Duración Promedio", f"{mean_duration:.2f}s")
+            render_metric_card("Duración Promedio", f"{mean_duration:.2f}s", provenance=BADGES.HEURISTIC)
         else:
-            st.metric("Duración Promedio", "N/A")
-    
+            render_metric_card(
+                "Duración Promedio", None,
+                unavailable_reason="sin respiraciones detectadas en este patrón/parámetros",
+            )
+
     with col3:
         if len(analysis.breaths) > 0:
             mean_ie = np.mean([b.i_e_ratio for b in analysis.breaths])
-            st.metric("Ratio I:E Promedio", f"{mean_ie:.2f}")
+            render_metric_card("Ratio I:E Promedio", f"{mean_ie:.2f}", provenance=BADGES.HEURISTIC)
         else:
-            st.metric("Ratio I:E Promedio", "N/A")
-    
+            render_metric_card(
+                "Ratio I:E Promedio", None,
+                unavailable_reason="sin respiraciones detectadas en este patrón/parámetros",
+            )
+
     with col4:
-        st.metric(
-            "Variabilidad RR",
-            f"{analysis.rr_variability:.2f}",
-            help="Desviación estándar (menor = más regular)"
+        render_metric_card(
+            "Variabilidad RR", f"{analysis.rr_variability:.2f}",
+            provenance=BADGES.HEURISTIC,
         )
 
 with tab2:
@@ -523,17 +511,20 @@ with tab2:
     
     col1, col2, col3, col4 = st.columns(4)
     
+    # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
+    # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real sobre la señal
+    # de SpO2, sin cita clínica de umbral en este módulo).
     with col1:
-        st.metric("SpO2 Basal", f"{analysis.baseline_spo2:.1f}%")
-    
+        render_metric_card("SpO2 Basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+
     with col2:
-        st.metric("SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%")
-    
+        render_metric_card("SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+
     with col3:
-        st.metric("Tiempo <90%", f"{analysis.time_below_90:.1f}s")
-    
+        render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f}s", provenance=BADGES.HEURISTIC)
+
     with col4:
-        st.metric("Tiempo <85%", f"{analysis.time_below_85:.1f}s")
+        render_metric_card("Tiempo <85%", f"{analysis.time_below_85:.1f}s", provenance=BADGES.HEURISTIC)
 
 with tab3:
     st.markdown("### 📈 Análisis Avanzado")
@@ -568,11 +559,23 @@ with tab3:
         else:
             ahi_severity = "🔴 Severa (AOS severa)"
         
-        st.markdown(f"""
-        **Índice AHI (Apnea-Hypopnea Index):** {ahi:.1f} eventos/hora
-        
-        **Clasificación:** {ahi_severity}
-        """)
+        # Consolidación Visual Tanda 3 (2026-09-21): bloque de texto libre
+        # -> `render_metric_card`. `BADGES.CLINICAL` (corregido tras
+        # revisión, no HEURISTIC): los cortes 5/15/30 de `ahi_severity`
+        # son exactamente los umbrales AASM reales (Normal<5, Leve 5-15,
+        # Moderada 15-30, Severa>30) -- mismo estándar que `analysis.
+        # severity` (`_assess_severity()`, AASM) y que `PROVENANCE_SOURCE_
+        # AASM` ya cita en `twin_shell/pages.py` para este mismo AHI. Sin
+        # `classification=`: no existe un `classify_*()` de 3-tupla que
+        # envuelva este cálculo -- no se fabrica uno a mano.
+        render_metric_card(
+            "Índice AHI (Apnea-Hypopnea Index)", f"{ahi:.1f} eventos/hora",
+            provenance=BADGES.CLINICAL,
+        )
+        render_metric_card(
+            "Clasificación AHI", ahi_severity,
+            provenance=BADGES.CLINICAL,
+        )
     else:
         st.success("✅ No se detectaron apneas")
     
@@ -773,21 +776,27 @@ st.markdown("---")
 
 st.markdown("### 📋 Resumen Clínico")
 
+# Consolidación Visual Tanda 3 (2026-09-21): los 9 `st.metric()` del
+# resumen -> `render_metric_card`, `BADGES.HEURISTIC` (mismos valores ya
+# calculados arriba, sin recalcular nada -- solo cambia el renderizador).
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric("Frecuencia respiratoria", f"{analysis.respiratory_rate:.1f}", "breaths/min")
-    st.metric("Patrón respiratorio", analysis.breathing_pattern.title())
-    st.metric("Eventos de apnea", "Sí" if analysis.apnea_detected else "No")
+    render_metric_card("Frecuencia respiratoria", f"{analysis.respiratory_rate:.1f} breaths/min", provenance=BADGES.HEURISTIC)
+    render_metric_card("Patrón respiratorio", analysis.breathing_pattern.title(), provenance=BADGES.HEURISTIC)
+    render_metric_card("Eventos de apnea", "Sí" if analysis.apnea_detected else "No", provenance=BADGES.HEURISTIC)
 
 with col2:
-    st.metric("AHI estimado", f"{analysis.apnea_hypopnea_index:.1f}", "eventos/h")
-    st.metric("Severidad", analysis.severity.title())
-    st.metric("Respiraciones detectadas", len(analysis.breaths))
+    # BADGES.CLINICAL para estos dos (corregido tras revisión): mismo AHI/
+    # severidad AASM-real que arriba -- ver la nota completa junto a la
+    # fila de métricas principal.
+    render_metric_card("AHI estimado", f"{analysis.apnea_hypopnea_index:.1f} eventos/h", provenance=BADGES.CLINICAL)
+    render_metric_card("Severidad", analysis.severity.title(), provenance=BADGES.CLINICAL)
+    render_metric_card("Respiraciones detectadas", str(len(analysis.breaths)), provenance=BADGES.HEURISTIC)
 
 with col3:
-    st.metric("SpO2 basal", f"{analysis.baseline_spo2:.1f}%")
-    st.metric("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%")
-    st.metric("Tiempo <90%", f"{analysis.time_below_90:.1f}", "s")
+    render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+    render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+    render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.HEURISTIC)
 
 st.markdown("**Notas clínicas clave:**")
 for note in analysis.clinical_notes:

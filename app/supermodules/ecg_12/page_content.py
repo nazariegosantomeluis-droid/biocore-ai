@@ -22,6 +22,14 @@ from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgPar
 from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
 from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
 
+# Consolidación Visual Tanda 3 (2026-09-21): `PALETTE`/`BADGES`/
+# `render_metric_card` -- fuente única de color y de tarjeta de métrica
+# (`app/utils/design_system.py`), reemplaza el `<style>` propio de este
+# archivo (retirado más abajo) y los hex sueltos de `.warning-box`/
+# `.normal-box` (`#dc2626`/`#059669`, que ni siquiera coincidían con
+# `PALETTE.CRITICAL`/`PALETTE.STABLE`).
+from app.utils.design_system import BADGES, PALETTE, render_metric_card
+
 
 def load_ecg_csv_file(uploaded_file) -> Dict[str, np.ndarray]:
     """Load ECG leads from a CSV file and normalize to 12-lead format."""
@@ -151,19 +159,15 @@ def simulate_device_capture(condition_short: str) -> Dict[str, np.ndarray]:
 # (`RUN_BIOCORE.bat`/`run_local.ps1`) que nada ejecuta este archivo standalone.
 # Ver CHANGELOG.md.
 
-# Styling
-st.markdown("""
-    <style>
-    body { background-color: #0f172a; color: #8ecae6; }
-    .stMetric { text-align: center; }
-    .metric-card { background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 100%); 
-                   padding: 20px; border-radius: 10px; border: 2px solid #8ecae6; }
-    .warning-box { background: #dc2626; padding: 15px; border-radius: 8px; color: white; }
-    .normal-box { background: #059669; padding: 15px; border-radius: 8px; color: white; }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("# 📋 ECG de 12 Derivaciones")
+# Consolidación Visual Tanda 3 (2026-09-21): `<style>` propio retirado --
+# `inject_global_theme()` (`app/main.py`) ya cubre fondo/texto globales con
+# los mismos tokens (`PALETTE.BACKGROUND`/`PALETTE.ACCENT_ON_DARK`);
+# `.metric-card` no se usaba en ningún `<div>` de este archivo (CSS
+# muerto), y `.warning-box`/`.normal-box` usaban hex propios
+# (`#dc2626`/`#059669`) que ni siquiera coincidían con
+# `PALETTE.CRITICAL`/`PALETTE.STABLE` -- las dos únicas aplicaciones reales
+# de esas clases (el banner de diagnóstico principal, más abajo) ahora
+# construyen su color inline desde `PALETTE` directamente. Ver CHANGELOG.md.
 st.caption(
     "Elige un escenario clínico y genera el ECG de 12 derivaciones al instante — el análisis "
     "automático (eje QRS, ST, bloqueos, arritmias) se ejecuta apenas se genera la señal."
@@ -339,11 +343,11 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 
     if signal_source == "Simular captura de dispositivo" and len(ecg_data) == 0:
         ecg_data = simulate_device_capture(condition_short)
-    
+
     if signal_source == "Generar señal sintética" or len(ecg_data) == 0:
         if condition_short in ["af", "flutter", "wpw", "long_qt"]:
             from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
-            
+
             if condition_short == "af":
                 signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(
                     duration=10.0, sampling_rate=500, ventricular_rate=110
@@ -360,7 +364,7 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
                 signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(
                     duration=10.0, sampling_rate=500, qt_prolongation=1.7
                 )
-            
+
             ecg_data = {
                 'I': signal * 0.8,
                 'II': signal,
@@ -391,7 +395,7 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
                 lvh_pattern="lvh" in condition_short,
             )
             ecg_data = generator.generate_ecg(duration=10.0, params=ecg_params)
-    
+
     st.session_state.ecg_data = ecg_data
     st.session_state.condition = condition_short
     st.session_state.heart_rate = heart_rate
@@ -401,7 +405,7 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 if "ecg_data" in st.session_state:
     ecg_data = st.session_state.ecg_data
     time = ecg_data['time']
-    
+
     # clinical.ecg12.plot_ecg_12_leads renders the standard clinical layout
     # (3x4 sequential leads + rhythm strip on real ECG-paper grid) and
     # already falls back to Matplotlib internally if Plotly is unavailable.
@@ -417,14 +421,14 @@ if "ecg_data" in st.session_state:
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.pyplot(fig2)
-    
+
     # Analysis section
     st.markdown("---")
     st.markdown("## 📋 Interpretación Clínica Automática")
 
     if 'signal_source' in st.session_state:
         st.markdown(f"*Origen de la señal: {st.session_state.signal_source}*")
-    
+
     analyzer = TwelveLeadEcgAnalyzer()
     interpretation = analyzer.analyze_12lead(ecg_data)
 
@@ -447,61 +451,76 @@ if "ecg_data" in st.session_state:
 
     # Display clinical summary
     col_analysis1, col_analysis2 = st.columns([1.5, 1])
-    
+
     with col_analysis1:
         # Primary findings
         st.markdown("### 🎯 Hallazgos Principales")
-        
-        # Diagnostic result
+
+        # Diagnostic result -- Consolidación Visual Tanda 3 (2026-09-21):
+        # `.warning-box`/`.normal-box` (hex propios `#dc2626`/`#059669`,
+        # retirados con el `<style>` de arriba) -> mismo banner, color
+        # inline desde `PALETTE.CRITICAL`/`PALETTE.STABLE` directamente.
+        # NO se enruta por `render_metric_card`: `primary_diagnosis` es
+        # texto de diagnóstico libre de `TwelveLeadEcgAnalyzer` (sin un
+        # `classify_*()` de 3 niveles que lo respalde), y forzarlo por la
+        # tarjeta de métrica sin `classification=` habría aplanado el color
+        # a NEUTRAL siempre -- una regresión visual real (perder la
+        # distinción crítico/normal), no solo un re-skin. Ver CHANGELOG.md.
         if "INFARCTION" in interpretation.primary_diagnosis:
-            st.markdown(f'<div class="warning-box">🔴 CRÍTICO: {interpretation.primary_diagnosis}</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="background:{PALETTE.CRITICAL}; padding:15px; border-radius:8px; color:white;">'
+                f'🔴 CRÍTICO: {interpretation.primary_diagnosis}</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            st.markdown(f'<div class="normal-box">✅ {interpretation.primary_diagnosis}</div>', 
-                       unsafe_allow_html=True)
-        
+            st.markdown(
+                f'<div style="background:{PALETTE.STABLE}; padding:15px; border-radius:8px; color:white;">'
+                f'✅ {interpretation.primary_diagnosis}</div>',
+                unsafe_allow_html=True,
+            )
+
         # QRS Axis
         st.markdown(f"**Eje QRS:** {interpretation.qrs_axis.description}")
-        
+
         # Rhythm
         st.markdown(f"**Ritmo:** {interpretation.rhythm}")
-        
+
         # ST Findings
         if interpretation.st_findings:
             st.markdown("**Elevaciones/Depresiones ST:**")
             for f in interpretation.st_findings:
                 st.write(f"  • {f.lead}: {f.elevation_mv:+.2f} mV ({f.location})")
-        
+
         # Conduction blocks
         if interpretation.conduction_blocks:
             st.markdown("**Bloqueos de Conducción:**")
             for b in interpretation.conduction_blocks:
                 st.write(f"  • {b.block_type}: {b.description}")
-        
+
         # Wave abnormalities
         if interpretation.wave_abnormalities:
             st.markdown("**Anomalías de Ondas:**")
             for w in interpretation.wave_abnormalities:
                 st.write(f"  • {w.wave_type} wave in {', '.join(w.leads_affected)}: {w.abnormality}")
-    
+
     with col_analysis2:
         st.markdown("### 📋 Recomendaciones Clínicas")
-        
+
         # Clinical significance
         st.info(interpretation.clinical_significance)
-        
+
         # Recommendations
         st.markdown("**Acciones Recomendadas:**")
         for rec in interpretation.recommendations[:3]:
             st.write(f"  {rec}")
-        
+
         if len(interpretation.recommendations) > 3:
             with st.expander("Ver más recomendaciones"):
                 for rec in interpretation.recommendations[3:]:
                     st.write(f"  {rec}")
-    
+
     st.markdown("---")
-    
+
     # Educational quiz
     st.markdown("## 🎓 Desafío Educativo")
 
@@ -640,29 +659,38 @@ if "ecg_data" in st.session_state:
 
 with col2:
     st.markdown("## 📊 Métricas")
-    
+
     if "heart_rate" in st.session_state:
-        # Metrics display
-        st.metric(
-            "FC (bpm)",
-            f"{st.session_state.heart_rate}",
-            help="Frecuencia Cardíaca"
+        # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
+        # `render_metric_card`. `heart_rate` es el parámetro de generación
+        # elegido por el usuario (slider), no una medición sobre la señal
+        # -- `BADGES.HEURISTIC` (no hay `*_CITATION` que lo respalde; sin
+        # `classification=`, no se fabrica un semáforo de 3 niveles).
+        render_metric_card(
+            "FC (bpm)", f"{st.session_state.heart_rate}",
+            provenance=BADGES.HEURISTIC,
         )
-    
+
     if "ecg_data" in st.session_state:
         analysis = st.session_state.ecg_data
-        
-        # Lead quality metrics
+
+        # Lead quality metrics -- Consolidación Visual Tanda 3 (2026-09-21):
+        # `st.write` con SNR calculado en línea -> `render_metric_card`.
+        # SNR = max(|señal|)/std(señal), cálculo real sin cita clínica --
+        # `BADGES.HEURISTIC`.
         st.markdown("### 📡 Calidad de Señal")
         for lead in ['I', 'II', 'V1', 'V4']:
             signal = analysis.get(lead, np.zeros(1))
             snr = np.max(np.abs(signal)) / (np.std(signal) + 1e-6)
-            st.write(f"**{lead}**: SNR = {snr:.1f}")
-    
+            render_metric_card(
+                f"{lead} SNR", f"{snr:.1f}",
+                provenance=BADGES.HEURISTIC,
+            )
+
     st.markdown("---")
-    
+
     st.markdown("### 📚 Información Clínica")
-    
+
     st.info("""
     **Referencia Normal (Adulto):**
     - FC: 60-100 bpm
@@ -671,9 +699,9 @@ with col2:
     - QT: <440 ms (♂) <460 ms (♀)
     - Eje: -30° a +90°
     """)
-    
+
     st.markdown("---")
-    
+
     st.markdown("### 🔍 Territorios Vasculares")
     st.write("""
     - **LAD** (Anterior): V1-V4
@@ -681,9 +709,9 @@ with col2:
     - **RCA** (Inferior): II, III, aVF
     - **Posterior**: V1-V2 (reciprocal)
     """)
-    
+
     st.markdown("---")
-    
+
     st.markdown("### 💓 Patrones Avanzados")
     with st.expander("Arritmias Supraventriculares"):
         st.write("""
@@ -692,14 +720,14 @@ with col2:
         - Baseline con fibrilación fina/gruesa
         - Ritmo irregularmente irregular
         - FC variable (100-160 típico)
-        
+
         **Flutter Auricular**
         - Ondas flutter regulares (sawtooth)
         - FC > 250 bpm auricular
         - VR depende de AV bloqueo (2:1, 3:1, etc.)
         - Ritmo regular/regularizado
         """)
-    
+
     with st.expander("Síndromes especiales"):
         st.write("""
         **WPW (Wolff-Parkinson-White)**
@@ -708,16 +736,16 @@ with col2:
         - QRS prolongado (>120 ms)
         - ST depression secundaria
         - Riesgo de AF preexcitada
-        
+
         **Long QT Syndrome**
         - QT muy prolongado (>500 ms)
         - T wave prominente/bífido
         - U waves visibles
         - Riesgo de torsades de pointes
         """)
-    
+
     st.markdown("---")
-    
+
     st.markdown("### 🎓 Desafíos de Aprendizaje")
     st.write("""
     1. Identifica todas las ondas (P, Q, R, S, T)

@@ -187,9 +187,25 @@ class FallbackMultisensoralRecord:
         return float(fallback)
 
     def _estimate_heart_rate(self) -> float:
+        # Bug 2 del ECG (2026-09-26): `estimate_ecg_heart_rate()` retirada
+        # (ver su comentario de retiro más abajo) -- este fallback (solo
+        # alcanzable si `dashboards.multisensor` falla al importar, algo
+        # que no ocurre en este entorno) ahora mide con el mismo motor TKEO
+        # validado que el resto del pipeline, en vez del detector naive sin
+        # distancia mínima. Si TKEO no encuentra suficientes picos, cae al
+        # mismo default 72.0 que ya usa esta clase para SpO2/temperatura
+        # ausentes -- consistente con el resto de `FallbackMultisensoralRecord`,
+        # no una promesa de medición real.
         for channel in self.channels:
             if channel.signal_type == 'ecg' and channel.signal.size > 0:
-                return float(estimate_ecg_heart_rate(channel.signal, channel.fs))
+                try:
+                    from clinical.ecg_analyzer import ECGAnalyzer
+                    peaks = ECGAnalyzer(fs=channel.fs).detect_r_peaks_tkeo(channel.signal)
+                    if len(peaks) >= 2:
+                        return float(60.0 * channel.fs / np.mean(np.diff(peaks)))
+                except ImportError:
+                    pass
+                return 72.0
         return 72.0
 
     def _estimate_respiration_rate(self) -> float:
@@ -199,19 +215,22 @@ class FallbackMultisensoralRecord:
         return 16.0
 
 
-def estimate_ecg_heart_rate(signal: np.ndarray, fs: float) -> float:
-    signal = np.asarray(signal, dtype=float)
-    if signal.size < fs:
-        return 0.0
-    threshold = np.mean(signal) + 0.35 * np.std(signal)
-    peaks = np.where(
-        (signal[1:-1] > threshold) &
-        (signal[1:-1] > signal[:-2]) &
-        (signal[1:-1] > signal[2:])
-    )[0] + 1
-    n_beats = len(peaks)
-    duration_s = len(signal) / fs
-    return float(np.clip((n_beats / duration_s) * 60.0, 0, 220))
+# estimate_ecg_heart_rate() retirada (Bug 2 del ECG, 2026-09-26, ver
+# CHANGELOG.md) -- detector de máximos locales sin distancia mínima ni
+# discriminación de altura entre picos. Confirmado por ejecución contra
+# DynamicECGGenerator (ya corregido, Bugs 1+3): cuenta el par R+T del MISMO
+# latido como dos latidos separados (hr real=100 -> 201bpm medido), satura
+# en 220bpm desde hr real~140 en adelante. Persistía incluso sobre una señal
+# con período/morfología ya corregidos -- bug propio del detector, no del
+# generador que lo alimentaba. Reemplazada en TODAS sus fuentes (demo Y
+# señal real: MIT-BIH/PTB-XL/CSV/hardware, `render_ecg_monitor_page()`) por
+# `ECGAnalyzer.detect_r_peaks_tkeo()` -- el mismo motor TKEO (banda 5-15Hz +
+# energía Teager-Kaiser + refractario, 6 rondas de validación con el
+# experto) que ya usaba el resto del pipeline clínico. Error medido en vivo
+# contra hr conocido: 0.00-0.12bpm en 40-200bpm (ver
+# tests/test_ecg_hr_detector_consolidation.py). Sin detección fiable
+# (<2 picos), el llamador declara "no disponible" -- nunca un número de
+# relleno.
 
 
 def estimate_respiration_rate(signal: np.ndarray, fs: float) -> float:

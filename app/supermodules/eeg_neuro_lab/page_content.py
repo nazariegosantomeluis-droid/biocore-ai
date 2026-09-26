@@ -25,7 +25,7 @@ import shutil
 # profundidad, así que el cálculo de la raíz del repo necesita un salto más.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from app.utils.design_system import render_error_state
+from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -42,12 +42,20 @@ from app.engines.digital_twin_organism import DigitalTwinOrganism
 from app.utils.patient_session import get_active_patient_id, get_active_session_factory
 
 try:
-    from src.signals.eeg import EegSignalGenerator, EegPattern, EegAnalyzer
+    from src.signals.eeg import (
+        EegSignalGenerator, EegPattern, EegAnalyzer,
+        classify_dar, classify_tbr, DAR_CITATION, TBR_CITATION, BAR_CITATION,
+    )
     Eeg_import_error = None
 except ImportError as e:
     EegSignalGenerator = None
     EegPattern = None
     EegAnalyzer = None
+    classify_dar = None
+    classify_tbr = None
+    DAR_CITATION = None
+    TBR_CITATION = None
+    BAR_CITATION = None
     Eeg_import_error = e
 
 # Arco 2C (2026-09-14): motor de parametrización espectral (χ aperiódico),
@@ -58,11 +66,12 @@ except ImportError as e:
 # (potencia de banda, BAR/DAR/TBR, guardado al gemelo) sigue funcionando sin
 # χ, nunca crashea por su ausencia.
 try:
-    from src.signals.eeg.spectral_model import classify_chi, fit_aperiodic_component
+    from src.signals.eeg.spectral_model import CHI_CITATION, classify_chi, fit_aperiodic_component
     SpectralModel_import_error = None
 except ImportError as e:
     fit_aperiodic_component = None
     classify_chi = None
+    CHI_CITATION = None
     SpectralModel_import_error = e
 
 try:
@@ -151,22 +160,22 @@ def expand_hardware_eeg_to_channels(reference_signal: np.ndarray, fs: float, cha
 # `app/main.py` (vía `runpy.run_path()` desde `eeg_neuro_lab/pages.py`), que
 # ya configuró la página una sola vez al inicio. Ver CHANGELOG.md.
 
-st.markdown("""
-    <style>
-        body { background-color: #0f172a; color: #e0e7ff; }
-        .stButton>button { background-color: #1d4ed8; color: white; }
-        h1, h2, h3, h4 { color: #8ecae6; }
-        .metric-card { background-color: #1a2a4a; border-left: 4px solid #8ecae6; padding: 20px; border-radius: 10px; }
-    </style>
-""", unsafe_allow_html=True)
+# Consolidación Visual Tanda 3 (2026-09-21): `<style>` propio retirado --
+# duplicaba `inject_global_theme()` (fondo/texto/acento globales, ya
+# cableado en `app/main.py`) con los MISMOS 4 hex (`#0f172a`/`#e0e7ff`/
+# `#1d4ed8`/`#8ecae6`, ver `PALETTE`), y `.metric-card` (el único selector
+# no cubierto por el tema global) no se usaba en ningún `<div>` de este
+# archivo -- CSS muerto, mismo patrón que `.biocore-card` que ya documentó
+# `design_system.py::inject_global_theme()`. Ver CHANGELOG.md.
 
 if Eeg_import_error is not None or EegSignalGenerator is None:
     render_error_state("El módulo de generación/análisis de EEG no se ha podido cargar.", exception=Eeg_import_error)
     st.stop()
 
-st.markdown("# 🧠 EEG Neuro Lab")
-st.markdown("*Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales*")
-
+# Consolidación Visual Tanda 1 (2026-09-20): título + subtítulo propios
+# retirados -- duplicaban el `<h1>` que `pages.py::render_views()` ya
+# dibuja vía `render_module_header("EEG Neuro Lab", ..., subtitle=...)`
+# antes de invocar este archivo por `runpy`. Ver CHANGELOG.md.
 st.markdown("### Cómo funciona esta plataforma")
 st.write(
     "Este laboratorio estudia la señal EEG en tres fases: adquisición, espectro y clasificación clínica. "
@@ -465,14 +474,82 @@ with col2:
     if overall is not None and not overall.available:
         st.info(f"Canal {analysis_cards[0][0]}: {overall.reason}")
     elif overall is not None:
-        st.metric("Banda dominante", overall.dominant_band.upper())
-        st.metric("Clasificación", overall.classification)
+        # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
+        # `render_metric_card`. `dominant_band`/`classification` son
+        # cálculo real de `EegAnalyzer` (banda de potencia máxima + mapa de
+        # texto interno) sin cita clínica externa que los respalde --
+        # `BADGES.HEURISTIC`, criterio conservador por default cuando no
+        # hay `*_CITATION` que aplicar (a diferencia de DAR/TBR/BAR/χ, que
+        # sí tienen la suya, ver abajo). Sin `classification=`: no existe
+        # un `classify_*()` para banda dominante/clasificación de patrón,
+        # así que el marco queda NEUTRAL por default -- no se fabrica un
+        # semáforo que nadie validó.
+        render_metric_card(
+            "Banda dominante", overall.dominant_band.upper(),
+            provenance=BADGES.HEURISTIC,
+        )
+        render_metric_card(
+            "Clasificación", overall.classification,
+            provenance=BADGES.HEURISTIC,
+        )
         st.markdown("### Interpretación Clínica")
         st.write(
             "Este laboratorio simula ondas EEG típicas y las clasifica en patrones de alerta, relajación y sueño."
         )
         st.markdown("### Hallazgos clínicos EEG")
+        # Consolidación Visual Tanda 3 (2026-09-21): DAR/TBR/BAR ya no se
+        # leen desde `overall.findings` (donde llegaban como texto plano
+        # pre-formateado con su badge incrustado a mano, p.ej.
+        # `f"{dar_badge} {dar:.2f} ({dar_label})"` -- construido en
+        # `eeg_analyzer.py`, sin marco de honestidad alrededor). Se
+        # recalculan aquí exactamente como ya hace el botón "Exportar
+        # informe EEG" más abajo (`classify_dar(overall.dar)`/
+        # `classify_tbr(overall.tbr)`, MISMA expresión, cero cambio de
+        # valor) y se renderizan con `render_metric_card` -- honestidad
+        # visible también en la vista EN VIVO, no solo en el export. Las
+        # tres claves de ratio se excluyen del loop genérico de abajo para
+        # no mostrar el mismo valor dos veces con dos estilos distintos.
+        _ratio_keys = {'Delta/Alpha Ratio (DAR)', 'Theta/Beta Ratio (TBR)', 'Beta/Alpha Ratio (BAR)'}
+        if classify_dar is not None:
+            if overall.dar is not None:
+                render_metric_card(
+                    'DAR (Delta/Alfa)', f'{overall.dar:.2f}',
+                    classification=classify_dar(overall.dar), citation=DAR_CITATION,
+                )
+            else:
+                render_metric_card(
+                    'DAR (Delta/Alfa)', None,
+                    unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
+                )
+        if classify_tbr is not None:
+            if overall.tbr is not None:
+                render_metric_card(
+                    'TBR (Theta/Beta)', f'{overall.tbr:.2f}',
+                    classification=classify_tbr(overall.tbr), citation=TBR_CITATION,
+                )
+            else:
+                render_metric_card(
+                    'TBR (Theta/Beta)', None,
+                    unavailable_reason='indefinido -- sin ritmo beta medible (beta_power ~0)',
+                )
+        # BAR: sin `classify_bar()` a propósito (decisión firme, ver
+        # `design_system.py`/CHANGELOG.md -- Schutter 2006 no establece
+        # zonas clínicas de 3 niveles). `GRAMMAR_NEUTRAL_STATE` sin
+        # `classification=`: el marco queda NEUTRAL, la forma honesta de
+        # mostrar un estado sin fabricar un semáforo.
+        if overall.bar is not None:
+            render_metric_card(
+                'BAR (Beta/Alfa)', f'{overall.bar:.2f}',
+                provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE, citation=BAR_CITATION,
+            )
+        else:
+            render_metric_card(
+                'BAR (Beta/Alfa)', None,
+                unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
+            )
         for key, value in overall.findings.items():
+            if key in _ratio_keys:
+                continue
             st.write(f"**{key}:** {value}")
 
         if export_lab_report is not None and st.button("Exportar informe EEG"):
@@ -486,6 +563,72 @@ with col2:
                 metrics[f'band_{bname}'] = float(val)
             notes = f"EEG Neuro Lab autogenerated report. {overall.findings.get('Clinical Note', '')}"
             findings = overall.findings
+
+            # Consolidación Visual Tanda 2 (2026-09-21): antes `findings`
+            # llevaba el badge+etiqueta de DAR/TBR (heredado de
+            # `EegAnalyzer.analyze()`) pero NUNCA la cita, y χ no aparecía
+            # en este export en absoluto -- el hallazgo central del
+            # diagnóstico anterior. `honesty_cards` arma cada valor desde
+            # la MISMA fuente que la app viva (`resolve_metric_card()`,
+            # `design_system.py`) -- DAR/TBR bajo su gramática de siempre
+            # (severidad, sin cambios), BAR y χ bajo GRAMMAR_NEUTRAL_STATE
+            # (decisión firme de esta tanda: son estados sin valencia de
+            # peligro, no un semáforo). Ningún valor se fabrica: si DAR/
+            # TBR/BAR son indefinidos (denominador ~0) o χ degrada por sus
+            # guardianes (Arco 2C), la tarjeta lleva el motivo exacto, no
+            # un número relleno.
+            honesty_cards = []
+            if classify_dar is not None:
+                if overall.dar is not None:
+                    honesty_cards.append(resolve_metric_card(
+                        'DAR (Delta/Alfa)', f'{overall.dar:.2f}',
+                        classification=classify_dar(overall.dar), citation=DAR_CITATION,
+                    ))
+                else:
+                    honesty_cards.append(resolve_metric_card(
+                        'DAR (Delta/Alfa)', None,
+                        unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
+                    ))
+            if classify_tbr is not None:
+                if overall.tbr is not None:
+                    honesty_cards.append(resolve_metric_card(
+                        'TBR (Theta/Beta)', f'{overall.tbr:.2f}',
+                        classification=classify_tbr(overall.tbr), citation=TBR_CITATION,
+                    ))
+                else:
+                    honesty_cards.append(resolve_metric_card(
+                        'TBR (Theta/Beta)', None,
+                        unavailable_reason='indefinido -- sin ritmo beta medible (beta_power ~0)',
+                    ))
+            if overall.bar is not None:
+                honesty_cards.append(resolve_metric_card(
+                    'BAR (Beta/Alfa)', f'{overall.bar:.2f}',
+                    provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE, citation=BAR_CITATION,
+                ))
+            else:
+                honesty_cards.append(resolve_metric_card(
+                    'BAR (Beta/Alfa)', None,
+                    unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
+                ))
+            # χ: mismo motor y mismas entradas reales que ya usa el botón
+            # "Guardar estado al gemelo" (overall.psd_freqs/psd_power/
+            # clean_window_count, fs) -- sin duplicar fit_aperiodic_
+            # component(). Si `fooof` no resolvió en este entorno, χ
+            # simplemente no se agrega, nunca se fabrica.
+            if fit_aperiodic_component is not None and overall.psd_freqs is not None:
+                chi_result = fit_aperiodic_component(
+                    overall.psd_freqs, overall.psd_power,
+                    clean_window_count=overall.clean_window_count, bandpass_fs=fs,
+                )
+                if chi_result.available:
+                    honesty_cards.append(resolve_metric_card(
+                        'χ (aperiódico)', f'{chi_result.exponent:.2f}',
+                        classification=classify_chi(chi_result.exponent), grammar=GRAMMAR_NEUTRAL_STATE,
+                        citation=CHI_CITATION,
+                    ))
+                else:
+                    honesty_cards.append(resolve_metric_card('χ (aperiódico)', None, unavailable_reason=chi_result.reason))
+
             tmpdir = tempfile.mkdtemp(prefix='bsp_report_')
             try:
                 bp_path = os.path.join(tmpdir, 'eeg_band_power.png')
@@ -498,7 +641,16 @@ with col2:
                 image_paths = []
                 if os.path.exists(bp_path):
                     image_paths.append(('EEG Band Power', bp_path))
-                path = export_lab_report('EEG Neuro Lab', metrics, notes=notes, findings=findings, image_paths=image_paths)
+                # Sin `validation=`: firmado explícitamente como mudo por
+                # el experto (Tanda Final, ver `eeg_neuro_lab/pages.py`) --
+                # contenedor mixto (DAR/TBR clínico, χ en observación), una
+                # etiqueta de módulo única mentiría sobre alguna parte. Los
+                # `honesty_cards` de arriba (DAR/TBR/BAR/χ, cada uno con su
+                # propio badge) hacen el trabajo fino también en el export.
+                path = export_lab_report(
+                    'EEG Neuro Lab', metrics, notes=notes, findings=findings, image_paths=image_paths,
+                    honesty_cards=honesty_cards,
+                )
             finally:
                 try:
                     shutil.rmtree(tmpdir)
@@ -623,24 +775,33 @@ with col2:
                     bar_desc = eeg_ups_state.neurological.get("bar")
 
                 st.success(f"Estado guardado al gemelo -- snapshot: {eeg_snapshot_id}")
+                st.caption(f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores")
+                # Consolidación Visual Tanda 3 (2026-09-21): `bar_txt`/el
+                # caption manual de χ (f-strings con el badge incrustado a
+                # mano) -> `render_metric_card`, mismo criterio que la
+                # sección "Hallazgos clínicos EEG" arriba -- BAR bajo
+                # GRAMMAR_NEUTRAL_STATE sin classification (sin
+                # `classify_bar()`), χ bajo GRAMMAR_NEUTRAL_STATE con
+                # `classify_chi()` (idéntica llamada a la que ya usaba el
+                # caption manual, cero cambio de valor).
                 if bar_desc is not None:
-                    bar_txt = f"BAR = {bar_desc.value:.2f}" + (" ⚠️ >1.8 arousal" if bar_desc.value > 1.8 else "")
+                    render_metric_card(
+                        'BAR (Beta/Alfa)', f'{bar_desc.value:.2f}',
+                        provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE, citation=BAR_CITATION,
+                    )
                 else:
-                    bar_txt = "BAR indefinido (sin ritmo alfa)"
-                st.caption(
-                    f"neurological: {len(eeg_ups_state.neurological.descriptors)} descriptores · {bar_txt}"
-                )
-                # Arco 2D (2026-09-18): firma del experto aplicada -- badge
-                # 🔴/🔵/💤 vía `classify_chi()` (`spectral_model.py`), mismo
-                # criterio visual que `bar_txt` arriba. La banda 🔵
-                # intermedia se muestra igual que las demás -- un estado
-                # honesto ("indeterminado / línea base"), no un aviso de
-                # validación pendiente (ese estado ya se cerró).
+                    render_metric_card(
+                        'BAR (Beta/Alfa)', None,
+                        unavailable_reason='indefinido (sin ritmo alfa)',
+                    )
                 if chi_result is not None and chi_result.available:
-                    _, chi_label, chi_badge = classify_chi(chi_result.exponent)
-                    st.caption(f"{chi_badge} χ (aperiódico) = {chi_result.exponent:.2f} ({chi_label})")
+                    render_metric_card(
+                        'χ (aperiódico)', f'{chi_result.exponent:.2f}',
+                        classification=classify_chi(chi_result.exponent), grammar=GRAMMAR_NEUTRAL_STATE,
+                        citation=CHI_CITATION,
+                    )
                 elif chi_result is not None:
-                    st.caption(f"χ (aperiódico) no persistido: {chi_result.reason}")
+                    render_metric_card('χ (aperiódico)', None, unavailable_reason=chi_result.reason)
                 if coupled:
                     ac = coupled[0]
                     st.caption(

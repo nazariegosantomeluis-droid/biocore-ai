@@ -1962,7 +1962,10 @@ def render_risk_assessment(organism: DigitalTwinOrganism) -> None:
             # completo). Neurológico/Muscular/Autonómico no citan ningún
             # umbral (documentado en `_RISK_SYSTEM_PROVENANCE` desde Tanda 2,
             # 2026-08-14) -- fuera del alcance de esta tanda, sin tocar.
-            prefix = "🟢🔵 " if name in ("cardiovascular", "respiratory") else ""
+            # Consolidación Visual Tanda 1 (2026-09-20): literal suelto
+            # reemplazado por las mismas constantes que ya usa el resto de
+            # este archivo -- mismo valor visual exacto, ahora sin bypass.
+            prefix = f"{PROVENANCE_CLINICAL_BADGE}{PROVENANCE_HEURISTIC_BADGE} " if name in ("cardiovascular", "respiratory") else ""
             # Bonus (hallazgo de Fase 1, no barrido exhaustivo): "respiratory"
             # es una clave interna en inglés (system_risks, prediction_engine.py)
             # -- name.capitalize() mostraba "Respiratory" sin traducir. Se

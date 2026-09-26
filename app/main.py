@@ -29,7 +29,6 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from app.supermodules import (
-    estimate_ecg_heart_rate,
     generate_demo_bp_signal,
     generate_demo_ppg_signal,
     generate_demo_respiration_signal,
@@ -53,6 +52,7 @@ from app.engines import DigitalTwinOrganism
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
+    inject_global_theme, resolve_metric_card, render_metric_card,
 )
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -218,31 +218,13 @@ PAGE_TABS = [page for pages in HUBS.values() for page in pages]
 DEFAULT_HUB = "Digital Twin OS"
 
 
-def inject_biocore_css() -> None:
-    st.markdown(
-        """
-        <style>
-            :root { color-scheme: dark; font-family: 'Inter', 'Segoe UI', sans-serif; }
-            html, body, [data-testid='stAppViewContainer'] {
-                background: radial-gradient(circle at top left, rgba(11, 196, 221, 0.18), transparent 26%),
-                            linear-gradient(180deg, #05101f 0%, #040812 100%);
-                color: #eef7ff;
-            }
-            .biocore-card { background: rgba(6, 16, 32, 0.90); border: 1px solid rgba(12, 185, 221, 0.18);
-                            border-radius: 26px; padding: 20px; margin-bottom: 18px; }
-            .biocore-panel { background: rgba(5, 14, 30, 0.95); border: 1px solid rgba(12, 185, 221, 0.18);
-                            border-radius: 28px; box-shadow: 0 24px 58px rgba(0, 0, 0, 0.30); padding: 26px 28px; margin-bottom: 22px; }
-            .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px;
-                          border-radius: 22px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
-                          color: #d5e8ff; font-size: 0.92rem; margin-bottom: 8px; }
-            .pulse-dot { width: 12px; height: 12px; border-radius: 999px; background: #39ffbe;
-                        box-shadow: 0 0 12px rgba(57,255,190,0.45); animation: pulse 1.6s ease-in-out infinite; }
-            @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.9; } 50% { transform: scale(1.15); opacity: 1; }
-                              100% { transform: scale(0.9); opacity: 0.9; } }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+# `inject_biocore_css()` (degradado cian, clases `.biocore-card`/
+# `.biocore-panel`/`.status-pill`/`.pulse-dot` sin ningún consumidor en
+# todo el repo) retirado -- Consolidación Visual Tanda 1 (2026-09-20, ver
+# CHANGELOG.md). Reemplazado por `inject_global_theme()`
+# (`app/utils/design_system.py`), que construye el mismo tipo de fondo
+# desde `PALETTE` en vez de valores hex propios que ganaban visualmente
+# sobre `.streamlit/config.toml`.
 
 def init_state() -> None:
     if 'selected_hub' not in st.session_state:
@@ -393,6 +375,42 @@ def render_ecg_12_page() -> None:
     run_ecg_12()
 
 
+# Consolidación Visual Tanda 1/2/Final (2026-09-20/21/22): un solo texto
+# por nivel de validación, reusado por `render_module_header()` (el
+# encabezado dentro de la app) Y por `export_lab_report(validation_detail=
+# ...)` (el export que sale de ella) -- misma fuente, dos superficies,
+# ninguna reimplementa la frase. Tanda Final: las 6 constantes de abajo
+# son transcripción VERBATIM de la firma del experto (Luis) -- no se
+# parafrasean, no se resumen. Reemplazan el texto provisional de Tanda 1
+# (ECG/Multisensor) que describía el nivel en términos propios de esta
+# app, no en el lenguaje formal que el experto firmó.
+_ECG_VALIDATION_DETAIL = (
+    "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database "
+    "(Sensibilidad >99%). Filtros estándar AHA."
+)
+# NOTA: Respiratory Lab tiene su propia constante equivalente en
+# `app/supermodules/respiratory_lab/pages.py` (`_RESPIRATORY_VALIDATION_
+# DETAIL`) -- vive ahí, no aquí, porque su `render_module_header()` se
+# llama desde ese archivo, no desde `main.py` (evita un import cruzado
+# innecesario entre un supermodule y `main.py`).
+_HRV_VALIDATION_DETAIL = (
+    "Métricas de dominio temporal (SDNN, RMSSD) calculadas bajo los estándares de la Task Force "
+    "de la European Society of Cardiology (ESC/NASPE)."
+)
+_MULTISENSOR_VALIDATION_DETAIL = (
+    "Health Score propietario de BIOCORE. Índice agregado de peso paramétrico no validado "
+    "poblacionalmente."
+)
+_BIOMARKERS_VALIDATION_DETAIL = (
+    "Índices compuestos (Estrés, Carga Cognitiva) derivados analíticamente de literatura base sin "
+    "calibración de dispositivo médico."
+)
+_EMG_VALIDATION_DETAIL = (
+    "Activación RMS fisiológica; el índice de fatiga muscular (fatigue_index) opera bajo umbrales "
+    "sintéticos fijos."
+)
+
+
 def render_ecg_lab_page() -> None:
     """Fusión ECG Monitor + ECG-12 (2026-07-14) — "ECG Lab": una sola entrada
     de menú con dos pestañas, cada una invocando su flujo íntegro sin tocar
@@ -411,8 +429,20 @@ def render_ecg_lab_page() -> None:
     Ninguna otra key se tocó: `render_view_selector()` (usado por ECG
     Monitor) ya namespacea su key por el nombre de la función llamadora, y
     el resto de los widgets de ambos flujos no compartía label con nada del
-    otro lado."""
-    render_module_header("ECG Lab", icon="🫀")
+    otro lado.
+
+    Consolidación Visual Tanda 1 (2026-09-20): primer extremo de la
+    prueba de la jerarquía de confianza (`validation=` en
+    `render_module_header`, `design_system.py`) -- ECG Lab es el módulo
+    más validado de todo el repo (detector TKEO, 6 rondas con el experto
+    contra 25 registros de la cohorte MIT-BIH, ver CHANGELOG.md). Tanda
+    Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
+    la firma del experto (antes, texto provisional de Tanda 1)."""
+    render_module_header(
+        "ECG Lab", icon="🫀",
+        validation="VALIDATED",
+        validation_detail=_ECG_VALIDATION_DETAIL,
+    )
     tab_monitoreo, tab_12_derivaciones = st.tabs(["Monitoreo", "12 Derivaciones"])
     with tab_monitoreo:
         render_ecg_monitor_page()
@@ -595,7 +625,17 @@ def render_biomarkers_page() -> None:
     # Piloto 2 de la Fase 2.3 Tanda 1 (2026-08-24): reemplaza el
     # <h1 style='color:#1f77b4'> a mano (uno de los 52 hex sin fuente única
     # que encontró el recon) por el sistema de diseño compartido.
-    render_module_header("Biomarkers Lab", icon="🧬")
+    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
+    # los índices compuestos (Estrés, Carga Cognitiva, etc.) son
+    # derivación analítica sin calibración de dispositivo médico,
+    # `validation="HEURISTIC"`. Texto verbatim -- coherente con el badge
+    # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
+    # Eje C, el nivel del MÓDULO completo.
+    render_module_header(
+        "Biomarkers Lab", icon="🧬",
+        validation="HEURISTIC",
+        validation_detail=_BIOMARKERS_VALIDATION_DETAIL,
+    )
 
     if not BIOMARKERS_AVAILABLE:
         render_error_state("Módulo de Biomarcadores no encontrado -- verifica que 'app/supermodules/biomarkers.py' exista y que numpy/pandas estén instalados.")
@@ -750,12 +790,18 @@ def render_biomarkers_page() -> None:
 
     st.divider()
     st.subheader("📊 Índices fisiológicos BIOCORE")
+    # Consolidación Visual Tanda 3 (2026-09-21): la leyenda de los 4 badges
+    # de procedencia se armaba con texto propio de este módulo
+    # (BIOMARKER_*_BADGE + frase suelta), duplicando en otras palabras el
+    # vocabulario que design_system.py ya declara como fuente única
+    # (BADGES._LABELS). Ahora compone directo con BADGES.label() -- el
+    # texto de cada badge vive en un solo lugar; solo la frase de cierre
+    # ("pasa el mouse...", específica de este panel) sigue aquí.
     st.caption(
-        f"{BIOMARKER_CLINICAL_BADGE} constante citada por el validador · "
-        f"{BIOMARKER_HEURISTIC_BADGE} ponderación heurística de BIOCORE (no derivada de estudio de "
-        f"cohorte) · {BIOMARKER_METHOD_BADGE} método citado (algoritmo, no un rango) · "
-        f"{BIOMARKER_GHOST_BADGE} fantasma: input sin fuente de señal real en el repo hoy "
-        "— pasa el mouse sobre cada métrica (ⓘ) para el detalle exacto."
+        " · ".join(
+            BADGES.label(b) for b in (BADGES.CLINICAL, BADGES.HEURISTIC, BADGES.METHOD, BADGES.GHOST)
+        )
+        + " — pasa el mouse sobre cada métrica (ⓘ) para el detalle exacto."
     )
 
     col1, col2, col3 = st.columns(3)
@@ -775,28 +821,55 @@ def render_biomarkers_page() -> None:
         st.metric(label="Resiliencia Fisiológica", value=f"{resultados['Physiological Resilience Score']['score']}/100", delta=resultados['Physiological Resilience Score']['status'], help=_BIOMARKER_HELP["Physiological Resilience Score"])
 
     with col3:
+        # Consolidación Visual Tanda 3 (2026-09-21): antes cada "no
+        # disponible" tenía su propio armado a mano (st.markdown en negrita
+        # + st.caption con el motivo) -- un estilo distinto por métrica. Se
+        # unifica la FORMA en render_metric_card (disponible o no), sin
+        # tocar ningún motivo textual (unavailable_reason conserva el texto
+        # exacto que ya se mostraba, badge/emoji incluidos). PLV: badge
+        # METHOD (🟣, cita el algoritmo, no un rango) -- coincide con el
+        # que _BIOMARKER_HELP ya documenta. El "delta" (duration_s) que
+        # antes mostraba st.metric se conserva en la cita, no se pierde.
         plv_entry = resultados['NeuroCardiac PLV']
         if plv_entry['available']:
-            st.metric(label="NeuroCardiac PLV", value=f"{plv_entry['plv']:.2f}", delta=f"{plv_entry['duration_s']:.0f}s de señal", help=_BIOMARKER_HELP["NeuroCardiac PLV"])
+            render_metric_card(
+                "NeuroCardiac PLV", f"{plv_entry['plv']:.2f}",
+                provenance=BADGES.METHOD,
+                citation=f"{plv_entry['duration_s']:.0f}s de señal · {_BIOMARKER_HELP['NeuroCardiac PLV']}",
+            )
         else:
-            st.markdown("**NeuroCardiac PLV**", help=_BIOMARKER_HELP["NeuroCardiac PLV"])
             muestra = f"{plv_entry['duration_s']:.0f}s" if plv_entry['duration_s'] is not None else "0s"
-            st.caption(
-                f"🟣 Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. "
-                f"Muestra actual: {muestra}."
+            render_metric_card(
+                "NeuroCardiac PLV", None,
+                unavailable_reason=(
+                    f"🟣 Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. "
+                    f"Muestra actual: {muestra}."
+                ),
             )
 
+        # Learning Readiness: badge HEURISTIC (🔵), igual que _BIOMARKER_HELP.
         readiness_entry = resultados['Learning Readiness Index']
         if readiness_entry['available']:
-            st.metric(label="Learning Readiness Index", value=f"{readiness_entry['score']}/100", delta=readiness_entry['status'], help=_BIOMARKER_HELP["Learning Readiness Index"])
+            render_metric_card(
+                "Learning Readiness Index", f"{readiness_entry['score']}/100",
+                provenance=BADGES.HEURISTIC,
+                citation=f"{readiness_entry['status']} · {_BIOMARKER_HELP['Learning Readiness Index']}",
+            )
         else:
-            st.markdown("**Learning Readiness Index**", help=_BIOMARKER_HELP["Learning Readiness Index"])
-            st.caption("🔵 Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.")
+            render_metric_card(
+                "Learning Readiness Index", None,
+                unavailable_reason="🔵 Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.",
+            )
 
-    st.markdown("**Autonomic Stability**")
-    st.info(
-        "🔴 No disponible — sin fuente de señal real. Requiere presión arterial y PPG-PTT que hoy no "
-        "existen en el pipeline (ver 🔴 Fantasmas abajo)."
+    # Autonomic Stability: siempre no disponible hoy (0/2 inputs con fuente
+    # real, ver 🔴 Fantasmas abajo) -- antes st.markdown en negrita + st.info
+    # con el mismo motivo, ahora la misma forma que PLV/Learning Readiness.
+    render_metric_card(
+        "Autonomic Stability", None,
+        unavailable_reason=(
+            "🔴 No disponible — sin fuente de señal real. Requiere presión arterial y PPG-PTT que hoy no "
+            "existen en el pipeline (ver 🔴 Fantasmas abajo)."
+        ),
     )
 
     with st.expander("🔴 Fantasmas — inputs sin fuente de señal real"):
@@ -843,7 +916,16 @@ def render_biomarkers_page() -> None:
 # ==================== EMG PAGE (COMPLETE) ====================
 
 def render_emg_page() -> None:
-    render_module_header("EMG Muscle Lab", icon="🦾")
+    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
+    # la activación RMS es fisiológica real, pero `fatigue_index` opera
+    # sobre umbrales sintéticos fijos (no calibrados) -- `validation=
+    # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
+    # dos partes del lab en la propia cita.
+    render_module_header(
+        "EMG Muscle Lab", icon="🦾",
+        validation="HEURISTIC",
+        validation_detail=_EMG_VALIDATION_DETAIL,
+    )
 
     source = st.sidebar.radio('Origen EMG', ['Demo','CSV','Live Hardware'])
     pattern = st.sidebar.selectbox('Patrón', ['Isométrica','Rápida','Fatiga'])
@@ -958,9 +1040,33 @@ def render_emg_page() -> None:
     elif view == 'Investigación':
         st.markdown('### Vista Investigación')
         median_freq = emg_analysis.median_frequency_hz
-        st.write(f'Median frequency: {median_freq:.1f} Hz')
+        # Consolidación Visual Tanda 3 (2026-09-21): antes un st.write() sin
+        # ninguna honestidad de procedencia. HEURISTIC -- mismo criterio ya
+        # usado un poco más abajo para el export de esta misma vista (Tanda
+        # 2): cálculo real sobre señal filtrada, sin cita/umbral clínico
+        # propio en este repo (no existe classify_emg()).
+        render_metric_card('Median Frequency', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
         if st.button('Exportar EMG para investigación'):
-            p = export_lab_report('EMG Research', {'median_freq': median_freq}, notes='EMG export')
+            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
+            # {'median_freq': median_freq} desnudo -- un número sin
+            # procedencia. HEURISTIC (no CLINICAL): es un cálculo real
+            # sobre señal filtrada (EmgAnalyzer), pero sin cita/umbral
+            # clínico propio en este repo (confirmado: no existe
+            # classify_emg() ni una constante *_CITATION para EMG).
+            # Tanda Final (2026-09-22): EMG Muscle Lab ya tiene nivel de
+            # validación firmado por el experto (HEURISTIC) -- el export
+            # lo hereda igual que ya hacían ECG/Multisensor.
+            honesty_cards = [
+                resolve_metric_card(
+                    'Median Frequency', f'{median_freq:.1f} Hz',
+                    provenance=BADGES.HEURISTIC,
+                ),
+            ]
+            p = export_lab_report(
+                'EMG Research', {'median_freq': median_freq}, notes='EMG export',
+                honesty_cards=honesty_cards,
+                validation="HEURISTIC", validation_detail=_EMG_VALIDATION_DETAIL,
+            )
             if p:
                 st.success(f'Exportado: {p}')
 
@@ -1248,6 +1354,38 @@ def _ecg_create_reproducible_notebook(csv_path: str, metadata: dict) -> str:
     with open(prov_path, 'w', encoding='utf-8') as pf:
         json.dump(metadata, pf, indent=2)
     return nb_path
+
+
+def _measure_ecg_heart_rate_tkeo(signal: np.ndarray, fs: float, ECGAnalyzerCls) -> Optional[float]:
+    """Bug 2 del ECG (2026-09-26, ver CHANGELOG.md) -- fuente única de
+    medición de HR para `render_ecg_monitor_page()`, consolidada sobre
+    `ECGAnalyzer.detect_r_peaks_tkeo()` (banda 5-15Hz + energía
+    Teager-Kaiser + refractario, 6 rondas de validación con el experto) en
+    vez de la vieja `estimate_ecg_heart_rate()` (naive, sin distancia
+    mínima -- contaba el par R+T del mismo latido como dos latidos, saturaba
+    en 220bpm). Antes de esta tanda solo la fuente demo usaba TKEO; las
+    fuentes de señal REAL (MIT-BIH/PTB-XL/CSV/hardware) seguían con el
+    detector roto -- un HR de 220 sobre un ECG de paciente real, no solo
+    sobre una demo sintética. Ahora las 6 fuentes de `render_ecg_monitor_page()`
+    pasan por esta misma función.
+
+    Devuelve `None` (no un número de relleno) cuando no hay detección
+    fiable -- ECGAnalyzer no disponible en el entorno, o menos de 2 picos
+    R encontrados (señal demasiado corta, sin QRS reconocible en la banda
+    5-15Hz, o ritmo no evaluable). El llamador declara "no disponible" con
+    el motivo, nunca sustituye por un valor inventado (Art. I).
+
+    Error medido en vivo contra `DynamicECGGenerator` con hr conocido:
+    0.00-0.12bpm en el rango 40-200bpm (ver
+    tests/test_ecg_hr_detector_consolidation.py -- el mismo banco que ya
+    validó el generador en Fase 5B sirve, sin modificar, como banco de
+    regresión de este detector)."""
+    if ECGAnalyzerCls is None:
+        return None
+    peaks = ECGAnalyzerCls(fs=fs).detect_r_peaks_tkeo(signal)
+    if len(peaks) < 2:
+        return None
+    return float(60.0 * fs / np.mean(np.diff(peaks)))
 
 
 def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGAnalyzerCls) -> None:
@@ -1590,20 +1728,18 @@ def render_ecg_monitor_page() -> None:
     # era una animación 3D decorativa y un "Contractility Index" ad-hoc,
     # desconectados de ese gemelo real. Ver CHANGELOG.md.
     view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
-    # Fase 5B (2026-08-30): la fuente demo ahora se mide con el detector
-    # TKEO (`ECGAnalyzer.detect_r_peaks_tkeo`, el mismo motor que usa el
-    # resto del pipeline clínico), no con `estimate_ecg_heart_rate()` (tope
-    # duro en 220bpm -- el origen del "220 fijo" del generador viejo). Sigue
-    # siendo una MEDICIÓN, nunca el `hr_demo` pedido repetido tal cual --
-    # coherente con la garantía de honestidad; solo que ahora el generador
-    # es fiel, así que medir y pedir coinciden. Las demás fuentes (MIT-BIH/
-    # PTB-XL/CSV/hardware -- señal real, no se toca) siguen con el detector
-    # de siempre.
-    if metadata.get('source') == 'demo' and ECGAnalyzer is not None:
-        demo_peaks = ECGAnalyzer(fs=fs).detect_r_peaks_tkeo(signal)
-        hr = 60.0 * fs / np.mean(np.diff(demo_peaks)) if len(demo_peaks) >= 2 else 0.0
-    else:
-        hr = estimate_ecg_heart_rate(signal, fs)
+    # Bug 2 del ECG (2026-09-26, ver CHANGELOG.md): las 6 fuentes de esta
+    # página ahora miden con el mismo detector TKEO (`_measure_ecg_heart_
+    # rate_tkeo()`, el motor que ya usaba solo la fuente demo desde Fase 5B).
+    # `estimate_ecg_heart_rate()` -- naive, sin distancia mínima, contaba el
+    # par R+T del mismo latido como dos latidos, saturaba en 220bpm --
+    # retirada por completo; seguía viva para MIT-BIH/PTB-XL/CSV/hardware,
+    # que hasta esta tanda mostraban un HR de relleno sobre señal de
+    # paciente REAL, no solo sobre la demo sintética. Sigue siendo una
+    # MEDICIÓN, nunca el `hr_demo` pedido repetido tal cual en la fuente
+    # demo. `hr is None` (sin detección fiable) se declara "no disponible"
+    # en las 3 vistas que lo consumen abajo -- nunca un número inventado.
+    hr = _measure_ecg_heart_rate_tkeo(signal, fs, ECGAnalyzer)
     vm = np.arange(len(signal)) / fs
 
     def show_anatomy(part: str):
@@ -1617,12 +1753,23 @@ def render_ecg_monitor_page() -> None:
 
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
-        render_metric_explained('Heart Rate', f'{hr:.0f}', unit='bpm',
-                    meaning='Frecuencia cardíaca derivada del ECG.',
-                    importance='Principal indicador de estado cardiovascular y esfuerzo.',
-                    affects='Ejercicio, arritmias, fármacos, volumen intravascular.',
-                    relations='Afecta perfusión, demanda metabólica y sincronía con respiración.',
-                    consequences='Cambios bruscos pueden indicar arritmia o shock.')
+        if hr is None:
+            render_metric_explained('Heart Rate', 'No disponible', unit='',
+                        meaning='El detector TKEO no encontró suficientes picos R fiables en esta señal '
+                                'para medir un intervalo -- degradación honesta (Art. I), no un número de relleno.',
+                        importance='Principal indicador de estado cardiovascular y esfuerzo -- sin un valor '
+                                    'fiable aquí, no se muestra ninguno.',
+                        affects='Señal demasiado corta, sin complejo QRS reconocible en la banda 5-15Hz, '
+                                'ritmo no evaluable, o el motor ECGAnalyzer no está disponible en este entorno.',
+                        relations='Sin HR medido, no hay base para comparar contra otros sistemas en este momento.',
+                        consequences='Prueba con otra fuente/registro, o una señal de mayor duración/calidad.')
+        else:
+            render_metric_explained('Heart Rate', f'{hr:.0f}', unit='bpm',
+                        meaning='Frecuencia cardíaca derivada del ECG.',
+                        importance='Principal indicador de estado cardiovascular y esfuerzo.',
+                        affects='Ejercicio, arritmias, fármacos, volumen intravascular.',
+                        relations='Afecta perfusión, demanda metabólica y sincronía con respiración.',
+                        consequences='Cambios bruscos pueden indicar arritmia o shock.')
         st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs} Hz")
 
         st.divider()
@@ -1702,7 +1849,35 @@ def render_ecg_monitor_page() -> None:
         st.markdown('### Vista Investigación')
         st.write('Genera series temporales, compara cohortes y exporta datos para análisis científico.')
         if st.button('Exportar segmento para investigación'):
-            path = export_lab_report('ECG Segment', {'length': len(signal)}, notes='Segmento ECG para investigación')
+            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
+            # {'length': len(signal)} desnudo -- ni siquiera un valor
+            # clínico, solo metadata. `hr` (ya medido arriba, TKEO sobre las
+            # 6 fuentes desde el cierre del Bug 2, 2026-09-26) SÍ es un valor
+            # clínico real -- HEURISTIC, no CLINICAL: esta lectura NO pasó
+            # por la compuerta de calidad (pRRx/metrónomo/Vpp) que sí exige
+            # `_render_ecg_save_to_twin()` antes de escribir al gemelo --
+            # llamarla "validada" aquí sería la fachada que el diagnóstico
+            # de Tanda 1 advirtió. `validation` reusa el mismo nivel que
+            # `render_ecg_lab_page()` ya declaró para todo el módulo -- este
+            # segmento vive dentro de ECG Lab, no es un módulo aparte con su
+            # propio nivel. `hr is None` (sin detección fiable) exporta con
+            # `unavailable_reason` -- nunca un número inventado.
+            if hr is not None:
+                honesty_cards = [
+                    resolve_metric_card('Heart Rate', f'{hr:.0f} bpm', provenance=BADGES.HEURISTIC),
+                ]
+            else:
+                honesty_cards = [
+                    resolve_metric_card(
+                        'Heart Rate', provenance=BADGES.HEURISTIC,
+                        unavailable_reason='El detector TKEO no encontró suficientes picos R en esta señal.',
+                    ),
+                ]
+            path = export_lab_report(
+                'ECG Segment', {'length': len(signal)}, notes='Segmento ECG para investigación',
+                honesty_cards=honesty_cards,
+                validation="VALIDATED", validation_detail=_ECG_VALIDATION_DETAIL,
+            )
             if path:
                 st.success(f'Exportado: {path}')
 
@@ -1769,7 +1944,15 @@ def render_ecg_monitor_page() -> None:
         # "near-miss" de dos widgets equivalentes en ecg_12/page_content.py
         # (difieren solo en mayúscula/redacción) — con ambos flujos ahora en
         # la misma página, la key ya no depende de que el texto siga distinto.
-        fc = st.slider('Frecuencia cardíaca (bpm)', 30, 160, int(hr), key="ecglab_monitor_sim_hr")
+        # Bug 2 del ECG (2026-09-26): `hr` puede ser `None` (sin detección
+        # fiable) o, ahora que el detector ya no está roto, un valor real
+        # fuera del rango 30-160 del slider (p.ej. taquicardia real de un
+        # registro MIT-BIH) -- `int(None)`/un default fuera de rango
+        # rompería este slider de exploración educativa. Se recorta al
+        # rango del slider (sandbox de "qué pasaría si", no un valor
+        # reportado) y cae a 72 sin medición.
+        fc_default = min(160, max(30, int(hr))) if hr is not None else 72
+        fc = st.slider('Frecuencia cardíaca (bpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
         pr = st.slider('PR (ms)', 80, 300, 160)
         qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
         qt = st.slider('QT (ms)', 200, 500, 360)
@@ -1809,7 +1992,21 @@ def _build_multisensor_record(channels: dict, BiosignalChannel, MultisensoralRec
 
 
 def render_multisensor_page() -> None:
-    render_module_header("Multisensor Fusion Lab", icon="🔗")
+    # Consolidación Visual Tanda 1 (2026-09-20): segundo extremo de la
+    # prueba de la jerarquía de confianza -- Multisensor combina índices
+    # fisiológicos con una fórmula heurística de ingeniería
+    # (`MultisensoralRecord.health_score()`), sin validación contra
+    # literatura o cohorte clínica (a diferencia del detector TKEO de ECG
+    # Lab). `validation="HEURISTIC"` usa un marco NEUTRAL, no una alarma
+    # -- ser heurístico no es un peligro, es un nivel de confianza distinto.
+    # Tanda Final (2026-09-22): tier renombrado a "HEURISTIC" (antes
+    # "heuristico") y texto actualizado al verbatim de la firma del
+    # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
+    render_module_header(
+        "Multisensor Fusion Lab", icon="🔗",
+        validation="HEURISTIC",
+        validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
+    )
     _, _, _, _, _ = safe_import_ecg_modules()
     _, src_ok = safe_import_src_modules()
     BiosignalChannel, MultisensoralRecord, multisensor_ok = safe_import_multisensor()
@@ -1839,8 +2036,21 @@ def render_multisensor_page() -> None:
                     importance='Sirve para priorizar intervenciones y monitoreo.',
                     affects='Variaciones en ECG, PPG, SpO2 y respiración.',
                     relations='Resume interacciones entre sistemas cardiovasculares y respiratorios.')
-        render_metric_explained('Heart Rate', f"{indices['heart_rate']:.0f}", unit='bpm')
-        render_metric_explained('SpO2', f"{indices['spo2_mean']:.1f}", unit='%')
+        # Consolidación Visual Tanda 3 (2026-09-21): capa de honestidad
+        # añadida junto al contenido educativo de arriba (que se conserva
+        # tal cual -- no lo reemplaza). HEURISTIC en los tres, mismo
+        # criterio que ya usa el export de esta misma vista (Tanda 2):
+        # `health_score()`/`compute_physiological_indices()` son una
+        # fórmula heurística de ingeniería, sin validación contra
+        # literatura o cohorte -- mismo nivel que `validation="HEURISTIC"`
+        # ya declara para todo el módulo arriba, ahora también por métrica
+        # (Eje A, no el Eje C del encabezado). Heart Rate/SpO2 antes eran
+        # render_metric_explained() sin ningún meaning propio (solo
+        # defaults genéricos) -- se reemplazan por completo, sin perder
+        # contenido educativo real.
+        render_metric_card('Health Score', f"{health['overall']:.1f}/100", provenance=BADGES.HEURISTIC)
+        render_metric_card('Heart Rate', f"{indices['heart_rate']:.0f} bpm", provenance=BADGES.HEURISTIC)
+        render_metric_card('SpO2', f"{indices['spo2_mean']:.1f}%", provenance=BADGES.HEURISTIC)
         st.write('Qué significa: índice agregado de bienestar fisiológico. Por qué importa: prioriza intervenciones.')
         render_scientific_discovery_layer(demo_channels)
 
@@ -1855,7 +2065,28 @@ def render_multisensor_page() -> None:
         st.markdown('### Vista Investigación')
         st.write('Exporta registros sincronizados y calcula correlaciones avanzadas.')
         if st.button('Exportar multisensor para investigación'):
-            p = export_lab_report('Multisensor Research', {'channels': list(demo_channels.keys())}, notes='Multisensor export')
+            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
+            # {'channels': [...]} desnudo -- nombres de canal, ni un solo
+            # valor clínico. Se calculan aquí los MISMOS índices reales que
+            # ya usa la Vista Clínica de este mismo módulo
+            # (`_build_multisensor_record()` + `compute_physiological_
+            # indices()`/`health_score()`, sin recalcular nada nuevo) para
+            # que el export lleve algo más que metadata. HEURISTIC en los
+            # tres -- `validation="HEURISTIC"` (Tanda Final: texto verbatim
+            # de la firma del experto, ver `_MULTISENSOR_VALIDATION_DETAIL`).
+            record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
+            indices = record.compute_physiological_indices()
+            health = record.health_score()
+            honesty_cards = [
+                resolve_metric_card('Health Score', f"{health['overall']:.1f}/100", provenance=BADGES.HEURISTIC),
+                resolve_metric_card('Heart Rate', f"{indices['heart_rate']:.0f} bpm", provenance=BADGES.HEURISTIC),
+                resolve_metric_card('SpO2', f"{indices['spo2_mean']:.1f}%", provenance=BADGES.HEURISTIC),
+            ]
+            p = export_lab_report(
+                'Multisensor Research', {'channels': list(demo_channels.keys())}, notes='Multisensor export',
+                honesty_cards=honesty_cards,
+                validation="HEURISTIC", validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
+            )
             if p:
                 st.success(f'Exportado: {p}')
 
@@ -1914,10 +2145,17 @@ def render_multisensor_page() -> None:
         sim_indices = sim_record.compute_physiological_indices()
         sim_health = sim_record.health_score()
 
+        # Consolidación Visual Tanda 3 (2026-09-21): st.metric() nativo sin
+        # ninguna honestidad de procedencia -- mismo criterio HEURISTIC que
+        # la Vista Clínica de este módulo, arriba (idéntica ruta de
+        # cálculo, valores recalculados en vivo desde los sliders).
         col_hr, col_spo2, col_health = st.columns(3)
-        col_hr.metric('Heart Rate (detectado del ECG)', f"{sim_indices.get('heart_rate', 0):.0f} bpm")
-        col_spo2.metric('SpO2 (recalculado)', f"{sim_indices.get('spo2_mean', 0):.1f} %")
-        col_health.metric('Health Score (recalculado)', f"{sim_health['overall']:.1f} /100")
+        with col_hr:
+            render_metric_card('Heart Rate (detectado del ECG)', f"{sim_indices.get('heart_rate', 0):.0f} bpm", provenance=BADGES.HEURISTIC)
+        with col_spo2:
+            render_metric_card('SpO2 (recalculado)', f"{sim_indices.get('spo2_mean', 0):.1f} %", provenance=BADGES.HEURISTIC)
+        with col_health:
+            render_metric_card('Health Score (recalculado)', f"{sim_health['overall']:.1f} /100", provenance=BADGES.HEURISTIC)
 
         st.caption(
             '**HR y SpO2 son controles activos de esta pestaña**: recalculan el Health Score de verdad, '
@@ -2007,7 +2245,14 @@ def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
 
 
 def render_hrv_page() -> None:
-    render_module_header("HRV Analysis", icon="📈")
+    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
+    # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
+    # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
+    render_module_header(
+        "HRV Analysis", icon="📈",
+        validation="VALIDATED",
+        validation_detail=_HRV_VALIDATION_DETAIL,
+    )
     st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas tiempo-frecuencia y explanation clínica.')
     source = st.sidebar.radio('HRV Source', ['Demo (ECG-derived)','Manual RR series'], index=0)
     rr_ms = None
@@ -2175,7 +2420,13 @@ def render_patient_pipeline_page() -> None:
       — en el `Finding` que se le pasa al narrador."""
     import pandas as pd  # local, mismo criterio que _ecg_create_reproducible_notebook() más arriba
 
-    render_module_header("Patient Pipeline", icon="👥")
+    # Consolidación Visual, Tanda Final (2026-09-22): `validation=None`
+    # EXPLÍCITO, firmado por el experto -- no un olvido. Patient Pipeline
+    # es infraestructura ETL (arma/persiste snapshots del UPS y adjunta
+    # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
+    # ninguna inferencia propia que "validar" o "no validar". El concepto
+    # de nivel de confianza clínico no aplica a este módulo.
+    render_module_header("Patient Pipeline", icon="👥", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 
     # Fase 3 (paciente único de sesión, 2026-08-30): Patient Pipeline ya NO
@@ -2366,7 +2617,7 @@ def render_patient_pipeline_page() -> None:
 
 def main() -> None:
     init_state()
-    inject_biocore_css()
+    inject_global_theme()
     
     st.sidebar.markdown("## ECOSISTEMA BIOCORE AI")
     selected_hub = st.sidebar.radio('Selecciona un hub', list(HUBS.keys()), index=list(HUBS.keys()).index(st.session_state.selected_hub), label_visibility='hidden')

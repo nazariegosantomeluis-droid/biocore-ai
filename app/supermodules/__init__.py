@@ -27,7 +27,10 @@ safe_import_src_modules = app_utils.safe_import_src_modules
 safe_import_multisensor = app_utils.safe_import_multisensor
 FallbackBiosignalChannel = app_utils.FallbackBiosignalChannel
 FallbackMultisensoralRecord = app_utils.FallbackMultisensoralRecord
-estimate_ecg_heart_rate = app_utils.estimate_ecg_heart_rate
+# estimate_ecg_heart_rate retirada (Bug 2 del ECG, 2026-09-26) -- ver
+# app/utils.py y CHANGELOG.md. Reemplazada por
+# `ECGAnalyzer.detect_r_peaks_tkeo()`, importado directo donde hace falta
+# (mismo patrón que generate_demo_ecg_signal, retirada por Fase 5B arriba).
 estimate_respiration_rate = app_utils.estimate_respiration_rate
 # generate_demo_ecg_signal retirada (Fase 5B, 2026-08-30) -- ver
 # app/utils.py y CHANGELOG.md. Reemplazada por DynamicECGGenerator
@@ -69,7 +72,7 @@ __all__ = [
 __all__.extend([
     'safe_import_plotly', 'safe_import_ecg_modules',
     'safe_import_src_modules', 'safe_import_multisensor', 'FallbackBiosignalChannel',
-    'FallbackMultisensoralRecord', 'estimate_ecg_heart_rate', 'estimate_respiration_rate',
+    'FallbackMultisensoralRecord', 'estimate_respiration_rate',
     'generate_demo_ppg_signal', 'generate_demo_spo2_signal',
     'generate_demo_respiration_signal', 'generate_demo_temperature_signal', 'generate_demo_bp_signal',
     'plot_signal_matplotlib', 'plot_clinical_ecg_safe', 'display_error_message',
