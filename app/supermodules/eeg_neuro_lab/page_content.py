@@ -74,6 +74,22 @@ except ImportError as e:
     CHI_CITATION = None
     SpectralModel_import_error = e
 
+# Mu ERD Tanda 2 (2026-09-26): conecta el detector aislado de Tanda 1
+# (`src/signals/eeg/erd_detector.py`, probado contra ground truth, nunca
+# importado hasta ahora) al EEG Lab. Import guardado igual que
+# `spectral_model` arriba -- ninguna dependencia nueva detrás (solo scipy,
+# ya presente), pero mismo patrón defensivo del resto del archivo: si algo
+# falla al importar, el resto del EEG Lab (potencia de banda, BAR/DAR/TBR,
+# guardado al gemelo) sigue funcionando sin la demostración de ERD.
+try:
+    from src.signals.eeg.erd_detector import MU_ERD_SCOPE_NOTE, compute_mu_power_timeseries, detect_mu_erd
+    ErdDetector_import_error = None
+except ImportError as e:
+    detect_mu_erd = None
+    compute_mu_power_timeseries = None
+    MU_ERD_SCOPE_NOTE = None
+    ErdDetector_import_error = e
+
 try:
     from hardware.sensor_manager import SensorManager
     SensorManager_import_error = None
@@ -213,7 +229,11 @@ pattern = st.sidebar.selectbox(
         "Delta (sueño profundo)",
         "Sleep Spindle",
         "Seizure (espigas)",
-        "Artifact (parpadeo)"
+        "Artifact (parpadeo)",
+        # Mu ERD Tanda 2 (2026-09-26): mismo tamaño que los otros 7 patrones
+        # del selector -- el estudiante lo elige igual que "Seizure" o
+        # "Artifact", no un flujo aparte.
+        "Motor Imagery (ERD)",
     ]
 )
 channels = st.sidebar.selectbox("Número de canales", [2, 3, 4], index=2)
@@ -226,6 +246,30 @@ signal_source = st.sidebar.radio(
 duration = st.sidebar.slider("Duración (segundos)", min_value=10, max_value=120, value=30, step=10)
 fs = st.sidebar.selectbox("Frecuencia de muestreo (Hz)", [128, 256, 512], index=1)
 noise = st.sidebar.slider("Nivel de ruido de fondo", min_value=0.0, max_value=0.5, value=0.18, step=0.02)
+
+# Mu ERD Tanda 2 (2026-09-26): los dos únicos parámetros honestos del
+# evento motor -- profundidad (lo que el ground truth de Tanda 1 valida) y
+# momento (para que el estudiante vea la caída donde la pide, no en un
+# instante fijo). Transición/meseta/recuperación se dejan en el default del
+# generador (1s/3s/3s) -- exponerlos también habría sido ruido de control
+# sin ganancia pedagógica para esta tanda.
+motor_erd_depth_pct = 60.0
+motor_event_time = min(10.0, max(2.0, float(duration) - 7.5))
+if pattern == "Motor Imagery (ERD)":
+    st.sidebar.markdown("#### Evento motor (ERD)")
+    motor_erd_depth_pct = st.sidebar.slider(
+        "Profundidad del ERD (%)", min_value=10, max_value=90, value=60, step=5,
+        help="Caída de POTENCIA en banda mu durante el evento, respecto al reposo -- la fórmula de "
+             "Pfurtscheller (ERD% = (baseline-evento)/baseline·100). Este es el valor que el detector "
+             "de la Tanda 1 debe recuperar.",
+    )
+    max_event_time = max(3.0, float(duration) - 7.5)
+    motor_event_time = st.sidebar.slider(
+        "Momento del evento (s)", min_value=2.0, max_value=max_event_time,
+        value=min(10.0, max_event_time), step=1.0,
+        help="Instante en que empieza la desincronización simulada. Deja reposo antes (baseline) y "
+             "espacio después (transición + evento + recuperación, ~7s con los defaults).",
+    )
 
 live_mode = st.sidebar.checkbox(
     "Habilitar análisis en tiempo real",
@@ -355,6 +399,7 @@ pattern_map = {
     "Sleep Spindle": "sleep_spindle",
     "Seizure (espigas)": "seizure",
     "Artifact (parpadeo)": "artifact",
+    "Motor Imagery (ERD)": "motor_imagery",
 }
 
 data_source = "Sintético"
@@ -393,7 +438,9 @@ elif signal_source == "Hardware EEG en vivo":
             fs=fs,
             amplitude=40.0,
             noise_level=noise,
-            channels=channels
+            channels=channels,
+            motor_erd_depth_pct=motor_erd_depth_pct,
+            motor_event_time=motor_event_time,
         )
         generator = EegSignalGenerator(sampling_rate=fs)
         eeg_data, time = generator.generate_eeg(params)
@@ -404,7 +451,9 @@ else:
         fs=fs,
         amplitude=40.0,
         noise_level=noise,
-        channels=channels
+        channels=channels,
+        motor_erd_depth_pct=motor_erd_depth_pct,
+        motor_event_time=motor_event_time,
     )
     generator = EegSignalGenerator(sampling_rate=fs)
     eeg_data, time = generator.generate_eeg(params)
@@ -461,6 +510,98 @@ with col1:
                 'Gamma': f"{result.band_power['gamma']:.2f}",
             }
             st.write(band_table)
+
+        # Mu ERD Tanda 2 (2026-09-26, Partes B+C): a diferencia de las
+        # métricas espectrales de arriba (un número o un espectro
+        # promediado), el ERD es TEMPORAL -- se muestra la curva de
+        # potencia mu en el tiempo, no un solo valor. Gateado sobre el
+        # patrón elegido (no sobre `signal_source`): solo tiene sentido
+        # cuando el estudiante generó el evento sintético con timing/
+        # profundidad conocidos -- correrlo sobre "Seizure"/CSV real
+        # produciría un panel sin ningún evento que localizar.
+        if pattern_map.get(pattern) == "motor_imagery" and len(display_leads) > 0:
+            st.markdown("## 🧠🖐️ Desincronización de banda Mu (ERD)")
+            st.markdown(
+                "Demostrador del principio del BCI (interfaz cerebro-computadora): la potencia de la "
+                "banda mu (8-13Hz) cae alrededor de un evento motor y se recupera después -- la "
+                "desincronización que un sistema BCI real detecta para inferir intención de movimiento."
+            )
+            # Parte C -- el rótulo de alcance, SIEMPRE visible (disponible o
+            # no la medición): mismo peso que la cláusula de χ, no una nota
+            # al pie. `st.warning` (no `st.caption`) a propósito -- debe
+            # notarse, no perderse entre el resto del texto.
+            if MU_ERD_SCOPE_NOTE is not None:
+                st.warning(f"**Alcance de esta demostración:** {MU_ERD_SCOPE_NOTE}")
+
+            if detect_mu_erd is None or compute_mu_power_timeseries is None:
+                render_error_state(
+                    "El detector de ERD (erd_detector.py) no está disponible en este entorno.",
+                    exception=ErdDetector_import_error,
+                )
+            else:
+                erd_lead = display_leads[0]
+                erd_signal = eeg_data[erd_lead]
+                baseline_duration_s = min(4.0, max(1.0, motor_event_time - 0.5))
+                event_offset_s = 1.0  # = motor_transition_s por defecto del generador
+                event_duration_s = 2.0
+                erd_result = detect_mu_erd(
+                    erd_signal, fs, t_event=motor_event_time,
+                    baseline_duration_s=baseline_duration_s,
+                    event_offset_s=event_offset_s, event_duration_s=event_duration_s,
+                )
+                power_curve = compute_mu_power_timeseries(erd_signal, fs)
+
+                fig_erd = go.Figure()
+                fig_erd.add_trace(go.Scatter(
+                    x=time, y=power_curve, name=f"Potencia mu ({erd_lead})",
+                    line=dict(color='#8ecae6', width=1.5),
+                ))
+                fig_erd.add_vline(
+                    x=motor_event_time, line_dash="dash", line_color="#ffc542",
+                    annotation_text="Evento motor", annotation_position="top",
+                )
+                if erd_result.available:
+                    fig_erd.add_vrect(
+                        x0=motor_event_time - baseline_duration_s, x1=motor_event_time,
+                        fillcolor="#39d98a", opacity=0.15, line_width=0,
+                        annotation_text="Baseline", annotation_position="top left",
+                    )
+                    fig_erd.add_vrect(
+                        x0=motor_event_time + event_offset_s,
+                        x1=motor_event_time + event_offset_s + event_duration_s,
+                        fillcolor="#ff4d4d", opacity=0.15, line_width=0,
+                        annotation_text="ERD", annotation_position="top",
+                    )
+                fig_erd.update_layout(
+                    template='plotly_dark', height=320,
+                    paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'),
+                    xaxis_title="Tiempo (s)", yaxis_title="Potencia instantánea banda mu (µV²)",
+                )
+                st.plotly_chart(fig_erd, use_container_width=True)
+                st.caption(
+                    f"Canal mostrado: {erd_lead} -- demostración MONO-CANAL (ver rótulo de alcance arriba)."
+                )
+
+                # Degradación honesta (Parte B): el motivo, nunca una curva
+                # o un ERD% fabricados si el detector no pudo medir.
+                if erd_result.available:
+                    render_metric_card(
+                        'ERD (mu) recuperado', f'{erd_result.erd_percent:.1f}%',
+                        # Parte D: METHOD, no CLINICAL/HEURISTIC -- es una
+                        # demostración de fenómeno con fórmula real
+                        # (Pfurtscheller), no un score clínico validado ni
+                        # una heurística de ingeniería sobre datos reales.
+                        provenance=BADGES.METHOD, grammar=GRAMMAR_NEUTRAL_STATE,
+                        citation=MU_ERD_SCOPE_NOTE,
+                    )
+                    st.caption(
+                        f"Evento en t={erd_result.t_event:.1f}s · potencia baseline="
+                        f"{erd_result.baseline_power:.1f} · potencia durante el evento="
+                        f"{erd_result.event_power:.1f}"
+                    )
+                else:
+                    st.info(f"ERD no disponible: {erd_result.reason}")
+                    render_metric_card('ERD (mu) recuperado', None, unavailable_reason=erd_result.reason)
 
 with col2:
     st.markdown("## 📊 Métricas y Clasificación")
