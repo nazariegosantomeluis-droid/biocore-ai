@@ -16,7 +16,66 @@ Generates multi-channel EEG with clinical patterns:
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, Tuple, List
+from typing import Dict, NamedTuple, Optional, Tuple, List
+
+
+# Ventanas de medición del ERD derivadas del evento (ver
+# `MotorImageryEvent.measurement_windows()`): baseline de hasta 4s (mínimo
+# 1s), que deja al menos 0.5s de señal antes de empezar; ventana de evento de
+# 2s (acotada a la meseta) que arranca al terminar la transición.
+_ERD_BASELINE_MAX_S = 4.0
+_ERD_BASELINE_MIN_S = 1.0
+_ERD_BASELINE_LEAD_IN_S = 0.5
+_ERD_EVENT_WINDOW_S = 2.0
+
+
+class MeasurementWindows(NamedTuple):
+    """Parámetros de ventana en la forma que `erd_detector.detect_mu_erd()`
+    recibe -- el detector sigue genérico y no conoce `MotorImageryEvent`."""
+
+    baseline_duration_s: float
+    event_offset_s: float
+    event_duration_s: float
+
+
+@dataclass(frozen=True)
+class MotorImageryEvent:
+    """Evento motor del patrón `motor_imagery` -- dueño único de su
+    temporización: el generador la usa para construir la envolvente, el
+    panel del EEG Lab para acotar el slider y para decirle al detector
+    dónde medir. Defaults: evento en t=10s, transición 1s, meseta 3s,
+    recuperación 3s -> termina en 17s, cabe en `duration=20.0`."""
+
+    t_event: float = 10.0
+    depth_pct: float = 60.0
+    transition_s: float = 1.0
+    plateau_s: float = 3.0
+    recovery_s: float = 3.0
+
+    def __post_init__(self):
+        if self.t_event < 0.0:
+            raise ValueError(f"t_event debe ser >= 0, recibido {self.t_event}")
+        if not 0.0 <= self.depth_pct < 100.0:
+            raise ValueError(f"depth_pct debe estar en [0, 100), recibido {self.depth_pct}")
+        for name in ("transition_s", "plateau_s", "recovery_s"):
+            value = getattr(self, name)
+            if value <= 0.0:
+                raise ValueError(f"{name} debe ser > 0, recibido {value}")
+
+    @property
+    def total_span_s(self) -> float:
+        """Transición + meseta + recuperación: cuánto dura el evento desde `t_event`."""
+        return self.transition_s + self.plateau_s + self.recovery_s
+
+    def measurement_windows(self) -> MeasurementWindows:
+        """Baseline inmediatamente antes de `t_event`; ventana de evento que
+        salta la transición (mide la meseta ya asentada, no la pendiente) y
+        cabe dentro de la meseta."""
+        return MeasurementWindows(
+            baseline_duration_s=min(_ERD_BASELINE_MAX_S, max(_ERD_BASELINE_MIN_S, self.t_event - _ERD_BASELINE_LEAD_IN_S)),
+            event_offset_s=self.transition_s,
+            event_duration_s=min(_ERD_EVENT_WINDOW_S, self.plateau_s),
+        )
 
 
 @dataclass
@@ -29,16 +88,13 @@ class EegPattern:
     seizure_frequency: float = 6.0
     blink_rate: float = 0.5
     channels: int = 4
-    # Mu ERD Tanda 1 (2026-09-26) -- parámetros del patrón `motor_imagery`,
-    # solo usados cuando `pattern_type == "motor_imagery"`. Defaults
-    # dimensionados para caber dentro de `duration=20.0` por default: evento
-    # en t=10s, transición 1s, meseta 3s, recuperación 3s -> termina en 17s,
-    # deja 3s de reposo recuperado al final.
-    motor_event_time: float = 10.0
-    motor_erd_depth_pct: float = 60.0
-    motor_transition_s: float = 1.0
-    motor_event_duration_s: float = 3.0
-    motor_recovery_s: float = 3.0
+    # Solo lo lee el patrón `motor_imagery`; `None` -> `MotorImageryEvent()` por defecto.
+    motor_event: Optional[MotorImageryEvent] = None
+
+
+def _raised_cosine(frac: np.ndarray) -> np.ndarray:
+    """Rampa suave 0 -> 1 para `frac` en [0, 1] (sin escalón abrupto)."""
+    return (1.0 - np.cos(np.pi * frac)) / 2.0
 
 
 class EegSignalGenerator:
@@ -76,7 +132,7 @@ class EegSignalGenerator:
             base = self._band_signal(time, 10.0, params.amplitude * 0.5)
             base += self._blink_artifacts(time, params.blink_rate)
         elif params.pattern_type == 'motor_imagery':
-            base = self._motor_imagery_erd(time, params)
+            base = self._motor_imagery_erd(time, params.amplitude, params.motor_event or MotorImageryEvent())
         else:
             base = self._band_signal(time, 10.0, params.amplitude * 0.8)
 
@@ -87,20 +143,20 @@ class EegSignalGenerator:
         phase = 2 * np.pi * center_hz * time
         return amplitude * np.sin(phase) * np.exp(-time / (len(time) * self.dt * 2))
 
-    def _motor_imagery_erd(self, time: np.ndarray, params: EegPattern) -> np.ndarray:
+    def _motor_imagery_erd(self, time: np.ndarray, amplitude: float, event: MotorImageryEvent) -> np.ndarray:
         """Mu ERD Tanda 1 (2026-09-26) -- ritmo mu (10Hz, centro de la banda
         8-13Hz) con una envolvente de AMPLITUD conocida por construcción:
         reposo (potencia mu normal) -> transición suave (coseno alzado, sin
-        escalón abrupto) a una caída de `motor_erd_depth_pct`% de POTENCIA
-        (definición Pfurtscheller de ERD%) en `motor_event_time` -> meseta de
-        `motor_event_duration_s` sostenida en el nivel reducido ->
+        escalón abrupto) a una caída de `depth_pct`% de POTENCIA
+        (definición Pfurtscheller de ERD%) en `t_event` -> meseta de
+        `plateau_s` sostenida en el nivel reducido ->
         recuperación suave a la potencia basal.
 
         Deliberadamente NO usa `_band_signal()` (que aplica a los otros 7
         patrones): ese decaimiento exponencial de fondo, aplicado a TODA la
         señal, contaminaría el ground truth -- la única modulación de
         amplitud aquí debe ser la envolvente ERD exacta, para que
-        `motor_erd_depth_pct` sea lo que `erd_detector.detect_mu_erd()` mide
+        `depth_pct` sea lo que `erd_detector.detect_mu_erd()` mide
         de vuelta, no una aproximación con una fuente de sesgo extra sin
         modelar.
 
@@ -116,35 +172,28 @@ class EegSignalGenerator:
         PRESCRITO matemáticamente -- nunca un registro de imaginación motora
         real. Ground truth de banco de pruebas, mismo criterio que
         `generate_blink_artifact()`/`spectral_model.generate_colored_noise()`
-        -- el detector se valida midiendo si RECUPERA `motor_erd_depth_pct`,
+        -- el detector se valida midiendo si RECUPERA `depth_pct`,
         no si "se ve razonable"."""
-        t_event = params.motor_event_time
-        transition_s = max(params.motor_transition_s, 1e-9)
-        event_duration_s = params.motor_event_duration_s
-        recovery_s = max(params.motor_recovery_s, 1e-9)
-        depth_pct = float(np.clip(params.motor_erd_depth_pct, 0.0, 99.9))
+        event_amplitude_factor = float(np.sqrt(1.0 - event.depth_pct / 100.0))
+        drop = 1.0 - event_amplitude_factor
 
-        event_amplitude_factor = float(np.sqrt(1.0 - depth_pct / 100.0))
-
-        t_transition_end = t_event + transition_s
-        t_plateau_end = t_transition_end + event_duration_s
-        t_recovery_end = t_plateau_end + recovery_s
+        t_transition_end = event.t_event + event.transition_s
+        t_plateau_end = t_transition_end + event.plateau_s
+        t_recovery_end = t_plateau_end + event.recovery_s
 
         envelope = np.ones_like(time)
 
-        in_transition = (time >= t_event) & (time < t_transition_end)
-        frac = (time[in_transition] - t_event) / transition_s
-        envelope[in_transition] = 1.0 - (1.0 - event_amplitude_factor) * (1.0 - np.cos(np.pi * frac)) / 2.0
+        in_transition = (time >= event.t_event) & (time < t_transition_end)
+        envelope[in_transition] = 1.0 - drop * _raised_cosine((time[in_transition] - event.t_event) / event.transition_s)
 
         in_plateau = (time >= t_transition_end) & (time < t_plateau_end)
         envelope[in_plateau] = event_amplitude_factor
 
         in_recovery = (time >= t_plateau_end) & (time < t_recovery_end)
-        frac_r = (time[in_recovery] - t_plateau_end) / recovery_s
-        envelope[in_recovery] = event_amplitude_factor + (1.0 - event_amplitude_factor) * (1.0 - np.cos(np.pi * frac_r)) / 2.0
+        envelope[in_recovery] = event_amplitude_factor + drop * _raised_cosine((time[in_recovery] - t_plateau_end) / event.recovery_s)
         # time >= t_recovery_end ya vale 1.0 por el np.ones_like inicial.
 
-        mu_carrier = params.amplitude * 0.8 * np.sin(2 * np.pi * 10.0 * time)
+        mu_carrier = amplitude * 0.8 * np.sin(2 * np.pi * 10.0 * time)
         return mu_carrier * envelope
 
     def _seizure_spikes(self, time: np.ndarray, frequency: float) -> np.ndarray:

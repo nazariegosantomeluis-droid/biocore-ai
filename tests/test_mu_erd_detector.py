@@ -21,7 +21,7 @@ import re
 import numpy as np
 import pytest
 
-from src.signals.eeg.eeg_generator import EegSignalGenerator, EegPattern
+from src.signals.eeg.eeg_generator import EegSignalGenerator, EegPattern, MotorImageryEvent
 from src.signals.eeg.erd_detector import (
     MU_ERD_SCOPE_NOTE,
     ErdResult,
@@ -31,21 +31,23 @@ from src.signals.eeg.erd_detector import (
 _FS = 256.0
 
 
-def _generate_motor_imagery(seed: int, depth_pct: float, **overrides) -> np.ndarray:
+def _generate_motor_imagery(
+    seed: int, depth_pct: float, duration: float = 20.0, noise_level: float = 0.1, **event_overrides
+) -> np.ndarray:
     np.random.seed(seed)
     gen = EegSignalGenerator(sampling_rate=_FS)
-    params = dict(
-        pattern_type="motor_imagery", duration=20.0, fs=_FS, amplitude=40.0,
-        noise_level=0.1, channels=1, motor_event_time=10.0, motor_erd_depth_pct=depth_pct,
-        motor_transition_s=1.0, motor_event_duration_s=3.0, motor_recovery_s=3.0,
+    event_kw = dict(t_event=10.0, depth_pct=depth_pct, transition_s=1.0, plateau_s=3.0, recovery_s=3.0)
+    event_kw.update(event_overrides)
+    params = EegPattern(
+        pattern_type="motor_imagery", duration=duration, fs=_FS, amplitude=40.0,
+        noise_level=noise_level, channels=1, motor_event=MotorImageryEvent(**event_kw),
     )
-    params.update(overrides)
-    eeg, _ = gen.generate_eeg(EegPattern(**params))
+    eeg, _ = gen.generate_eeg(params)
     return eeg["Fp1"]
 
 
 # Ventana de evento por defecto en estos tests: `event_offset_s=1.0` salta
-# la transición completa (1.0s, mismo valor que `motor_transition_s`) para
+# la transición completa (1.0s, mismo valor que `transition_s`) para
 # medir la meseta ya asentada, no la pendiente -- coherente con cómo
 # `detect_mu_erd()` documenta su propio `event_offset_s`.
 _EVENT_KW = dict(baseline_duration_s=4.0, event_offset_s=1.0, event_duration_s=2.0)
@@ -108,7 +110,7 @@ def test_detector_localizes_the_drop_near_true_t_event_not_elsewhere():
 # --- Degradación honesta, nunca un ERD de relleno --------------------------
 
 def test_no_event_signal_gives_near_zero_erd_not_a_fabricated_value():
-    """`motor_erd_depth_pct=0.0` -- la envolvente queda en 1.0 todo el
+    """`depth_pct=0.0` -- la envolvente queda en 1.0 todo el
     tiempo (sin caída real inyectada). El detector debe medir ~0%, un
     resultado genuino (ruido, no fabricación) -- disponible, porque SÍ hay
     suficiente señal para medir, solo que no hay nada que reportar."""
@@ -123,8 +125,8 @@ def test_declines_honestly_when_baseline_window_falls_before_signal_start():
     pedida se sale antes de la muestra 0. `available=False` con motivo,
     nunca un ERD calculado sobre una ventana que no existe."""
     signal = _generate_motor_imagery(
-        seed=0, depth_pct=60.0, duration=5.0, motor_event_time=2.0,
-        motor_transition_s=0.5, motor_event_duration_s=1.0, motor_recovery_s=1.0,
+        seed=0, depth_pct=60.0, duration=5.0, t_event=2.0,
+        transition_s=0.5, plateau_s=1.0, recovery_s=1.0,
     )
     result = detect_mu_erd(
         signal, _FS, t_event=2.0,
@@ -138,7 +140,7 @@ def test_declines_honestly_when_baseline_window_falls_before_signal_start():
 def test_declines_honestly_when_event_window_exceeds_signal_end():
     """Ventana de evento pedida más allá del final de la señal --
     `available=False` con motivo, no un índice fuera de rango silenciado."""
-    signal = _generate_motor_imagery(seed=0, depth_pct=60.0, duration=10.0, motor_event_time=8.0)
+    signal = _generate_motor_imagery(seed=0, depth_pct=60.0, duration=10.0, t_event=8.0)
     result = detect_mu_erd(
         signal, _FS, t_event=8.0,
         baseline_duration_s=2.0, event_offset_s=1.0, event_duration_s=5.0,
@@ -155,6 +157,31 @@ def test_declines_honestly_on_zero_baseline_power():
     result = detect_mu_erd(flat, _FS, t_event=10.0, **_EVENT_KW)
     assert not result.available
     assert result.erd_percent is None
+
+
+@pytest.mark.parametrize("n_samples", [0, 1, 15, 27])
+def test_declines_honestly_on_a_signal_too_short_to_filter(n_samples):
+    """Por debajo de `MIN_FILTERABLE_SAMPLES` (28 con los filtros actuales)
+    `filtfilt` no puede operar -- el detector declina con motivo explícito
+    y sin curva, en vez de dejar escapar el `ValueError` crudo de scipy."""
+    from src.signals.eeg.erd_detector import MIN_FILTERABLE_SAMPLES
+
+    assert MIN_FILTERABLE_SAMPLES == 28
+    signal = np.random.default_rng(0).normal(0, 40.0, n_samples)
+    result = detect_mu_erd(signal, _FS, t_event=0.5, baseline_duration_s=0.4, event_offset_s=0.0, event_duration_s=0.3)
+    assert not result.available
+    assert result.erd_percent is None
+    assert result.power_curve is None, "sin curva calculable, nunca una curva de relleno"
+    assert f"{n_samples} muestras" in result.reason and "28" in result.reason
+
+
+def test_signal_at_the_filterable_threshold_gets_a_curve():
+    """En el umbral exacto ya se filtra: hay curva, y el motivo de declinar
+    (si lo hay) es el de las ventanas, no el de longitud."""
+    signal = np.random.default_rng(0).normal(0, 40.0, 28)
+    result = detect_mu_erd(signal, _FS, t_event=0.5, baseline_duration_s=0.4, event_offset_s=0.0, event_duration_s=0.3)
+    assert result.power_curve is not None and result.power_curve.shape == (28,)
+    assert "muestras" not in result.reason
 
 
 # --- Artefacto excluido SIN colapsar la serie temporal ---------------------
@@ -250,29 +277,93 @@ def test_detector_is_generic_1d_not_coupled_to_a_named_channel():
     # cualquier señal 1-D sin lanzar excepción ni requerir un canal nombrado.
 
 
-def test_compute_mu_power_timeseries_matches_the_detectors_own_pipeline():
-    """Una fuente, dos consumidores: la curva completa (`compute_mu_power_
-    timeseries()`, Tanda 2 -- la visualización) y la potencia por ventana
-    que usa `detect_mu_erd()` internamente deben coincidir en las MISMAS
-    muestras -- confirmado indirectamente: la media de la curva completa
-    sobre la ventana de baseline exacta debe ser igual (mismo pipeline
-    preprocess_eeg -> _bandpass_mu -> Hilbert, sin rechazo de artefactos de
-    por medio en un caso limpio) a `baseline_power` del `ErdResult`."""
-    from src.signals.eeg.erd_detector import compute_mu_power_timeseries
-
+def test_power_curve_matches_the_detectors_own_window_average():
+    """Una sola cadena de potencia: la curva completa que viaja en
+    `ErdResult.power_curve` (la que dibuja el EEG Lab) y la potencia por
+    ventana que el detector promedia salen del MISMO cálculo -- la media de
+    la curva sobre `baseline_window` exacta debe ser igual a
+    `baseline_power` (caso limpio, sin rechazo de artefactos de por medio)."""
     signal = _generate_motor_imagery(seed=0, depth_pct=60.0)
-    curve = compute_mu_power_timeseries(signal, _FS)
+    result = detect_mu_erd(signal, _FS, t_event=10.0, **_EVENT_KW)
+    assert result.available
+    curve = result.power_curve
     assert curve.shape == signal.shape
     assert np.all(curve >= 0.0), "la potencia instantánea nunca es negativa"
 
-    result = detect_mu_erd(signal, _FS, t_event=10.0, **_EVENT_KW)
-    assert result.available
-    i0, i1 = int(6.0 * _FS), int(10.0 * _FS)  # la ventana de baseline exacta, sin artefactos que excluir
+    assert result.baseline_window == (6.0, 10.0)
+    i0, i1 = (int(t * _FS) for t in result.baseline_window)
     baseline_from_curve = float(np.mean(curve[i0:i1]))
     assert abs(baseline_from_curve - result.baseline_power) < 1e-6, (
         "la curva completa y el detector deben coincidir en la misma ventana, sin ningún rechazo "
         "de artefactos de por medio en este caso limpio"
     )
+
+
+def test_declined_result_still_carries_curve_and_windows():
+    """La curva se dibuja también cuando el detector declina -- el motivo
+    se muestra junto a la señal real, nunca en su lugar."""
+    flat = np.zeros(int(_FS * 20))
+    result = detect_mu_erd(flat, _FS, t_event=10.0, **_EVENT_KW)
+    assert not result.available
+    assert result.power_curve.shape == flat.shape
+    assert result.baseline_window == (6.0, 10.0)
+    assert result.event_window == (11.0, 13.0)
+
+
+def test_detector_runs_the_mu_power_chain_exactly_once(monkeypatch):
+    """La cadena preprocess -> pasa-banda mu -> Hilbert existe una vez y
+    corre una vez por llamada -- no una para la curva y otra para las
+    ventanas."""
+    import src.signals.eeg.erd_detector as erd_detector_module
+
+    calls = []
+    original = erd_detector_module._mu_power
+
+    def _counting_mu_power(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(erd_detector_module, "_mu_power", _counting_mu_power)
+    detect_mu_erd(_generate_motor_imagery(seed=0, depth_pct=60.0), _FS, t_event=10.0, **_EVENT_KW)
+    assert len(calls) == 1
+
+
+# --- MotorImageryEvent: dueño único de la temporización --------------------
+
+def test_motor_imagery_event_defaults_match_the_previous_timing():
+    event = MotorImageryEvent()
+    assert (event.t_event, event.depth_pct) == (10.0, 60.0)
+    assert (event.transition_s, event.plateau_s, event.recovery_s) == (1.0, 3.0, 3.0)
+    assert event.total_span_s == 7.0
+
+
+@pytest.mark.parametrize("t_event, expected_baseline", [(10.0, 4.0), (3.0, 2.5), (1.0, 1.0)])
+def test_measurement_windows_skip_the_transition_and_fit_the_plateau(t_event, expected_baseline):
+    """Mismos valores que el EEG Lab usaba antes del refactor:
+    baseline = min(4, max(1, t_event - 0.5)), offset = transición (1s),
+    evento = 2s (dentro de la meseta de 3s)."""
+    windows = MotorImageryEvent(t_event=t_event).measurement_windows()
+    assert windows.baseline_duration_s == expected_baseline
+    assert windows.event_offset_s == 1.0
+    assert windows.event_duration_s == 2.0
+
+
+def test_measurement_window_follows_a_changed_transition():
+    """El acoplamiento que antes era un `1.0` copiado a mano: si la
+    transición cambia, la ventana de evento se mueve con ella."""
+    event = MotorImageryEvent(transition_s=1.5, plateau_s=1.2)
+    windows = event.measurement_windows()
+    assert windows.event_offset_s == 1.5
+    assert windows.event_duration_s == 1.2
+
+
+@pytest.mark.parametrize("bad", [
+    dict(transition_s=0.0), dict(plateau_s=0.0), dict(recovery_s=-1.0),
+    dict(depth_pct=100.0), dict(depth_pct=-5.0), dict(t_event=-1.0),
+])
+def test_motor_imagery_event_rejects_invalid_parameters_instead_of_correcting_them(bad):
+    with pytest.raises(ValueError):
+        MotorImageryEvent(**bad)
 
 
 def test_erd_detector_stays_out_of_the_ups_even_after_ui_wiring():

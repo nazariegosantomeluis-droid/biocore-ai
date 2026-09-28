@@ -19,7 +19,7 @@ motivo por el que `spectral_model.py` toma `(freqs, power_spectrum)`
 genéricos en vez de un `EegAnalyzer`. Tanda 1 (2026-09-26) lo dejó AISLADO
 -- probado solo, sin importar desde ningún consumidor -- para validarlo
 contra ground truth antes de mostrarlo. Tanda 2 (mismo día) lo conecta al
-EEG Neuro Lab (`app/supermodules/eeg_neuro_lab/page_content.py`), import
+EEG Neuro Lab (`app/supermodules/eeg_neuro_lab/mu_erd_panel.py`), import
 directo por módulo (mismo patrón que `spectral_model.py` -- nunca
 reexportado desde `src/signals/eeg/__init__.py`, ver ese archivo). Sigue
 SIN importarse desde `builder.py`/el UPS -- es una demostración de
@@ -60,7 +60,7 @@ import numpy as np
 from scipy.signal import butter, filtfilt, hilbert
 
 from .eeg_analyzer import ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S, ARTIFACT_WINDOW_S
-from .preprocessing import preprocess_eeg
+from .preprocessing import FILTER_ORDER, preprocess_eeg
 
 # Banda mu -- el rango citado en toda la literatura ERD/BCI de mano
 # (Pfurtscheller & Lopes da Silva 1999). No confundir con la banda "alpha"
@@ -73,6 +73,13 @@ MU_HIGH_HZ: float = 13.0
 # `preprocessing.py` (orden 2), así que necesita más orden para separar la
 # banda de 5Hz de ancho de sus vecinas sin una transición demasiado ancha.
 _MU_FILTER_ORDER: int = 4
+
+# Mínimo de muestras para poder filtrar: `filtfilt` exige una señal más
+# larga que su `padlen` por defecto, 3 * (número de coeficientes), y un
+# Butterworth pasa-banda de orden N tiene 2N+1. Manda el más largo de los
+# dos filtros de `_mu_power()` (mu, orden 4 -> 27; `preprocess_eeg`, orden 2
+# -> 15). Por debajo no hay curva que calcular: se declina, no se crashea.
+MIN_FILTERABLE_SAMPLES: int = 3 * (2 * max(_MU_FILTER_ORDER, FILTER_ORDER) + 1) + 1
 
 # Mínimo de señal limpia (tras rechazo de artefactos) requerido en baseline
 # y en la ventana de evento, cada uno por separado -- mismo espíritu que
@@ -92,21 +99,69 @@ MU_ERD_SCOPE_NOTE: str = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ErdResult:
-    """Salida de `detect_mu_erd()`. `available=False` -> `erd_percent` y las
-    potencias son `None` o parciales (lo que se alcanzó a medir antes de
-    declinar) -- `reason` siempre está poblado en ese caso. `scope_note` es
-    la cláusula de alcance de Parte C, presente en TODO resultado
-    (disponible o no) -- el límite no depende de si la medición salió bien."""
+    """Salida de `detect_mu_erd()`. Lleva `power_curve` (la potencia
+    instantánea mu de la señal completa, para dibujarla) -- `None` solo
+    cuando la señal es demasiado corta para filtrarse
+    (`MIN_FILTERABLE_SAMPLES`), nunca una curva de relleno -- y las ventanas
+    absolutas `[inicio, fin)` en segundos que el detector usó
+    (`baseline_window`, `event_window`) -- quien dibuje la medición dibuja
+    ESTAS ventanas, no las recalcula. `available=False` -> `erd_percent` es
+    `None`, las potencias son `None` o parciales (lo que se alcanzó a medir
+    antes de declinar) y `reason` explica por qué. `scope_note` es la
+    cláusula de alcance de Parte C, presente en TODO resultado -- el límite
+    no depende de si la medición salió bien.
+
+    Construir con `ErdResult.measured(...)` / `ErdResult.declined(...)`."""
 
     available: bool
-    erd_percent: Optional[float]
-    baseline_power: Optional[float]
-    event_power: Optional[float]
-    t_event: Optional[float]
-    reason: Optional[str]
+    t_event: float
+    baseline_window: Tuple[float, float]
+    event_window: Tuple[float, float]
+    power_curve: Optional[np.ndarray]
+    erd_percent: Optional[float] = None
+    baseline_power: Optional[float] = None
+    event_power: Optional[float] = None
+    reason: Optional[str] = None
     scope_note: str = MU_ERD_SCOPE_NOTE
+
+    @classmethod
+    def measured(
+        cls,
+        *,
+        t_event: float,
+        baseline_window: Tuple[float, float],
+        event_window: Tuple[float, float],
+        power_curve: np.ndarray,
+        baseline_power: float,
+        event_power: float,
+    ) -> "ErdResult":
+        """ERD% de Pfurtscheller sobre las dos potencias medidas."""
+        return cls(
+            available=True, t_event=t_event,
+            baseline_window=baseline_window, event_window=event_window, power_curve=power_curve,
+            erd_percent=(baseline_power - event_power) / baseline_power * 100.0,
+            baseline_power=baseline_power, event_power=event_power,
+        )
+
+    @classmethod
+    def declined(
+        cls,
+        *,
+        t_event: float,
+        baseline_window: Tuple[float, float],
+        event_window: Tuple[float, float],
+        power_curve: Optional[np.ndarray],
+        reason: str,
+        baseline_power: Optional[float] = None,
+        event_power: Optional[float] = None,
+    ) -> "ErdResult":
+        return cls(
+            available=False, t_event=t_event,
+            baseline_window=baseline_window, event_window=event_window, power_curve=power_curve,
+            baseline_power=baseline_power, event_power=event_power, reason=reason,
+        )
 
 
 def _bandpass_mu(signal: np.ndarray, fs: float) -> np.ndarray:
@@ -117,23 +172,18 @@ def _bandpass_mu(signal: np.ndarray, fs: float) -> np.ndarray:
     return filtfilt(b, a, signal)
 
 
-def compute_mu_power_timeseries(signal: np.ndarray, fs: float) -> np.ndarray:
-    """Mu ERD Tanda 2 (2026-09-26) -- la curva COMPLETA de potencia
-    instantánea en banda mu, para visualización (la curva que el
-    estudiante ve caer alrededor del evento). MISMO pipeline exacto que
-    `detect_mu_erd()` (`preprocess_eeg` -> `_bandpass_mu` -> Hilbert) --
-    una fuente, dos consumidores: esta función y `detect_mu_erd()` nunca
-    deberían divergir en CÓMO se calcula la potencia, solo en qué hacen
-    con ella (una la dibuja completa, la otra la resume en baseline/evento
-    con rechazo de artefactos). Sin rechazo de artefactos ni ventaneo aquí
-    -- es la curva cruda, para que el estudiante vea también dónde
-    quedaría un artefacto si lo hubiera, no una versión ya depurada."""
-    signal = np.asarray(signal, dtype=float)
-    if signal.ndim != 1:
-        signal = signal.flatten()
+def _mu_power(signal: np.ndarray, fs: float) -> Tuple[np.ndarray, np.ndarray]:
+    """La única cadena de potencia mu: `preprocess_eeg` (0.5-40Hz) ->
+    pasa-banda mu -> |Hilbert|^2. Devuelve `(wideband, inst_power)`: la
+    señal de banda ancha es la que el rechazo de artefactos necesita (el
+    umbral de gradiente de Arco 2A se calibró post-bandpass -- sobre la
+    señal cruda, el ruido blanco muestra-a-muestra dispararía falsos
+    rechazos); la potencia instantánea es la curva completa, sin rechazo ni
+    ventaneo, para que el estudiante vea también dónde quedaría un
+    artefacto."""
     wideband = preprocess_eeg(signal, fs)[0]
-    filtered_mu = _bandpass_mu(wideband, fs)
-    return np.abs(hilbert(filtered_mu)) ** 2
+    inst_power = np.abs(hilbert(_bandpass_mu(wideband, fs))) ** 2
+    return wideband, inst_power
 
 
 def _clean_window_mean_power(
@@ -196,7 +246,7 @@ def detect_mu_erd(
     """Genérico 1-D: `signal` es cualquier traza de un solo canal + `fs` --
     NO depende de `EegAnalyzer` ni de un nombre de canal (ver docstring de
     módulo). `t_event` es el instante CONOCIDO del evento (un disparador
-    real de ensayo en captura futura; el `motor_event_time` inyectado por
+    real de ensayo en captura futura; el `MotorImageryEvent.t_event` inyectado por
     `eeg_generator.EegSignalGenerator` en el banco de pruebas de esta
     tanda) -- este detector nunca lo descubre por sí mismo, igual que
     ningún análisis ERD real descubre el momento de la señal de aviso.
@@ -210,6 +260,7 @@ def detect_mu_erd(
     la meseta ya asentada, no la pendiente.
 
     Degradación honesta (`available=False`, nunca un ERD fabricado):
+    señal más corta que `MIN_FILTERABLE_SAMPLES` (sin `power_curve`);
     baseline pedido antes del inicio de la señal; ventana de evento después
     del final de la señal; baseline o evento con menos de
     `min_clean_baseline_s`/`min_clean_event_s` de señal limpia tras el
@@ -221,55 +272,49 @@ def detect_mu_erd(
         signal = signal.flatten()
 
     total_duration_s = len(signal) / fs
-    baseline_start = t_event - baseline_duration_s
-    baseline_end = t_event
-    event_start = t_event + event_offset_s
-    event_end = event_start + event_duration_s
+    baseline_window = (t_event - baseline_duration_s, t_event)
+    event_window = (t_event + event_offset_s, t_event + event_offset_s + event_duration_s)
+    baseline_start, baseline_end = baseline_window
+    event_start, event_end = event_window
+
+    if len(signal) < MIN_FILTERABLE_SAMPLES:
+        return ErdResult.declined(
+            t_event=t_event, baseline_window=baseline_window, event_window=event_window, power_curve=None,
+            reason=f"señal de {len(signal)} muestras -- se necesitan al menos {MIN_FILTERABLE_SAMPLES} para "
+            "filtrar la banda mu; no hay curva de potencia que calcular",
+        )
+
+    wideband, inst_power = _mu_power(signal, fs)
+    common = dict(
+        t_event=t_event, baseline_window=baseline_window, event_window=event_window, power_curve=inst_power,
+    )
 
     if baseline_start < 0.0:
-        return ErdResult(
-            False, None, None, None, t_event,
-            f"la ventana de baseline pedida [{baseline_start:.2f}s, {baseline_end:.2f}s) "
+        return ErdResult.declined(
+            **common,
+            reason=f"la ventana de baseline pedida [{baseline_start:.2f}s, {baseline_end:.2f}s) "
             "empieza antes del inicio de la señal -- se necesita más reposo antes de t_event",
         )
     if event_end > total_duration_s:
-        return ErdResult(
-            False, None, None, None, t_event,
-            f"la ventana de evento pedida [{event_start:.2f}s, {event_end:.2f}s) excede la "
+        return ErdResult.declined(
+            **common,
+            reason=f"la ventana de evento pedida [{event_start:.2f}s, {event_end:.2f}s) excede la "
             f"duración de la señal ({total_duration_s:.2f}s)",
         )
-
-    # Mismo pipeline que Arco 2A (`EegAnalyzer.analyze()`): pasa-banda ancho
-    # PRIMERO (`preprocess_eeg`, 0.5-40Hz), y el rechazo de artefactos por
-    # gradiente corre sobre ESA señal, no sobre la cruda. `ARTIFACT_GRADIENT_
-    # THRESHOLD_UV_PER_S` se calibró post-bandpass -- sobre la señal cruda,
-    # el ruido blanco muestra-a-muestra (`noise_level` del generador, o
-    # ruido de hardware real) infla el gradiente muy por encima del umbral
-    # incluso sin ningún artefacto real, disparando falsos rechazos.
-    #
-    # `wideband` se recalcula aquí (en vez de reusar `compute_mu_power_
-    # timeseries()` completo) porque el rechazo de artefactos necesita la
-    # señal de banda ANCHA para su gradiente -- `compute_mu_power_
-    # timeseries()` solo devuelve la potencia ya angosta a mu, no expone el
-    # intermedio. Mismas dos llamadas (`preprocess_eeg` + `_bandpass_mu`),
-    # sin fórmula duplicada.
-    wideband = preprocess_eeg(signal, fs)[0]
-    filtered_mu = _bandpass_mu(wideband, fs)
-    inst_power = np.abs(hilbert(filtered_mu)) ** 2
 
     baseline_power, baseline_clean_s = _clean_window_mean_power(
         wideband, inst_power, fs, baseline_start, baseline_end, window_s
     )
     if baseline_power is None or baseline_clean_s < min_clean_baseline_s:
-        return ErdResult(
-            False, None, baseline_power, None, t_event,
-            f"baseline insuficiente tras rechazo de artefactos: {baseline_clean_s:.1f}s limpios "
+        return ErdResult.declined(
+            **common, baseline_power=baseline_power,
+            reason=f"baseline insuficiente tras rechazo de artefactos: {baseline_clean_s:.1f}s limpios "
             f"de {baseline_duration_s:.1f}s pedidos (mínimo {min_clean_baseline_s:.1f}s)",
         )
     if baseline_power <= 0.0:
-        return ErdResult(
-            False, None, baseline_power, None, t_event,
-            "potencia de banda mu en baseline indistinguible de cero -- ERD% indefinido sobre "
+        return ErdResult.declined(
+            **common, baseline_power=baseline_power,
+            reason="potencia de banda mu en baseline indistinguible de cero -- ERD% indefinido sobre "
             "un denominador nulo",
         )
 
@@ -277,11 +322,10 @@ def detect_mu_erd(
         wideband, inst_power, fs, event_start, event_end, window_s
     )
     if event_power is None or event_clean_s < min_clean_event_s:
-        return ErdResult(
-            False, None, baseline_power, event_power, t_event,
-            f"ventana de evento insuficiente tras rechazo de artefactos: {event_clean_s:.1f}s "
+        return ErdResult.declined(
+            **common, baseline_power=baseline_power, event_power=event_power,
+            reason=f"ventana de evento insuficiente tras rechazo de artefactos: {event_clean_s:.1f}s "
             f"limpios de {event_duration_s:.1f}s pedidos (mínimo {min_clean_event_s:.1f}s)",
         )
 
-    erd_percent = (baseline_power - event_power) / baseline_power * 100.0
-    return ErdResult(True, erd_percent, baseline_power, event_power, t_event, None)
+    return ErdResult.measured(**common, baseline_power=baseline_power, event_power=event_power)

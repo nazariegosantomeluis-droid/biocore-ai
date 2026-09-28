@@ -14,6 +14,7 @@ cláusula de alcance debe aparecer COMPLETA, no truncada, en la UI.
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -149,7 +150,7 @@ def test_curve_renders_without_exception_for_several_event_times(eeg_ups):
         event_slider = next(s for s in at.sidebar.slider if s.label == "Momento del evento (s)")
         event_slider.set_value(value)
         at.run(timeout=30)
-        assert at.exception == [], f"excepción con motor_event_time={value}: {at.exception}"
+        assert at.exception == [], f"excepción con t_event={value}: {at.exception}"
 
 
 # --- Parte C: el rótulo de alcance, la aserción central de honestidad ------
@@ -180,8 +181,8 @@ def test_scope_note_is_prominent_not_a_tiny_footnote():
     el mismo tipo de elemento con peso visual que el resto de la app usa
     para avisos que no deben perderse -- no `st.caption` (el texto
     pequeño ya usado para notas secundarias en esta misma página)."""
-    src = open("app/supermodules/eeg_neuro_lab/page_content.py", encoding="utf-8").read()
-    assert 'st.warning(f"**Alcance de esta demostración:** {MU_ERD_SCOPE_NOTE}")' in src
+    src = open("app/supermodules/eeg_neuro_lab/mu_erd_panel.py", encoding="utf-8").read()
+    assert 'st.warning(f"**Alcance de esta demostración:** {result.scope_note}")' in src
 
 
 # --- Degradación honesta -----------------------------------------------------
@@ -190,13 +191,16 @@ def test_declines_honestly_instead_of_fabricating_a_curve(eeg_ups):
     """Detector forzado a `available=False` (monkeypatch sobre el módulo
     origen, no sobre `page_content` -- éste corre vía `runpy.run_path()`,
     en un namespace fresco que no es `sys.modules`, así que el punto de
-    parcheo correcto es `src.signals.eeg.erd_detector.detect_mu_erd`, de
-    donde `page_content.py` hace `from ... import detect_mu_erd` en cada
-    ejecución). La UI debe mostrar el motivo, nunca una curva o un ERD%
+    parcheo correcto es `src.signals.eeg.erd_detector.detect_mu_erd`, que
+    `mu_erd_panel.py` resuelve por atributo del módulo en cada render).
+    La UI debe mostrar el motivo, nunca una curva o un ERD%
     inventados."""
 
-    def _fake_detect_mu_erd(*args, **kwargs):
-        return ErdResult(False, None, None, None, kwargs.get("t_event"), "MOTIVO DE PRUEBA FORZADO")
+    def _fake_detect_mu_erd(signal, fs, **kwargs):
+        return ErdResult.declined(
+            t_event=kwargs["t_event"], baseline_window=(0.0, 1.0), event_window=(2.0, 3.0),
+            power_curve=np.zeros(len(signal)), reason="MOTIVO DE PRUEBA FORZADO",
+        )
 
     with patch.object(erd_detector_module, "detect_mu_erd", _fake_detect_mu_erd):
         at = _run_eeg_lab(eeg_ups)
@@ -217,17 +221,100 @@ def test_declines_honestly_instead_of_fabricating_a_curve(eeg_ups):
 
 def test_import_guard_exists_for_when_the_erd_module_itself_is_unavailable():
     """El otro camino de degradación (módulo entero sin importar, no solo
-    un resultado declinado): mismo patrón defensivo que `spectral_model`
-    (`SpectralModel_import_error`/`fit_aperiodic_component=None`) ya usa en
-    este archivo -- confirmado por lectura de código, no por ejecución:
-    forzar un `ImportError` real de un módulo ya cargado en `sys.modules`
-    (por los tests de arriba, en el mismo proceso) no es representativo de
-    un entorno donde `erd_detector` de verdad no resuelve."""
-    src = open("app/supermodules/eeg_neuro_lab/page_content.py", encoding="utf-8").read()
-    assert "ErdDetector_import_error" in src
-    assert "except ImportError as e:\n    detect_mu_erd = None" in src
-    assert "detect_mu_erd is None or compute_mu_power_timeseries is None" in src
-    assert "render_error_state" in src.split("detect_mu_erd is None or compute_mu_power_timeseries is None")[1][:200]
+    un resultado declinado): un único centinela en `mu_erd_panel.py` --
+    confirmado por lectura de código, no por ejecución: forzar un
+    `ImportError` real de un módulo ya cargado en `sys.modules` no es
+    representativo de un entorno donde `erd_detector` de verdad no resuelve."""
+    src = open("app/supermodules/eeg_neuro_lab/mu_erd_panel.py", encoding="utf-8").read()
+    assert "erd_detector_import_error" in src
+    assert "except ImportError as e:\n    erd_detector = None" in src
+    assert "render_error_state" in src.split("if erd_detector is None:")[1][:200]
+
+
+# --- Refactor de calidad: estructura, no comportamiento ----------------------
+
+def test_drawn_windows_are_the_measured_windows():
+    """Dibujo = medición: los rectángulos de baseline/ERD del gráfico son
+    exactamente `result.baseline_window`/`result.event_window`, las ventanas
+    sobre las que el detector promedió -- no una copia recalculada."""
+    from src.signals.eeg.eeg_generator import EegPattern, EegSignalGenerator, MotorImageryEvent
+    from src.signals.eeg.erd_detector import detect_mu_erd
+    from app.supermodules.eeg_neuro_lab.mu_erd_panel import build_erd_figure
+
+    fs = 256.0
+    event = MotorImageryEvent(t_event=8.0, depth_pct=60.0)
+    np.random.seed(0)
+    eeg, time = EegSignalGenerator(sampling_rate=fs).generate_eeg(
+        EegPattern(pattern_type="motor_imagery", duration=20.0, fs=fs, noise_level=0.1, channels=1, motor_event=event)
+    )
+    w = event.measurement_windows()
+    result = detect_mu_erd(
+        eeg["Fp1"], fs, t_event=event.t_event, baseline_duration_s=w.baseline_duration_s,
+        event_offset_s=w.event_offset_s, event_duration_s=w.event_duration_s,
+    )
+    assert result.available
+
+    fig = build_erd_figure(result, time, "Fp1")
+    rects = [(shape.x0, shape.x1) for shape in fig.layout.shapes if shape.type == "rect"]
+    assert rects == [result.baseline_window, result.event_window]
+    assert result.baseline_window == (4.0, 8.0)
+    assert result.event_window == (9.0, 11.0)
+
+    # ...y el detector promedió de verdad sobre esas ventanas.
+    i0, i1 = (int(t * fs) for t in result.baseline_window)
+    assert abs(float(np.mean(result.power_curve[i0:i1])) - result.baseline_power) < 1e-6
+    vline_x = [shape.x0 for shape in fig.layout.shapes if shape.type == "line"]
+    assert vline_x == [result.t_event]
+
+
+def test_one_mu_power_computation_per_render(eeg_ups):
+    """La página hace UNA sola llamada al detector, que corre la cadena de
+    potencia mu una sola vez -- antes se filtraba dos veces por render (una
+    para la curva, otra dentro del detector)."""
+    calls = []
+    original = erd_detector_module._mu_power
+
+    def _counting_mu_power(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    with patch.object(erd_detector_module, "_mu_power", _counting_mu_power):
+        at = _run_eeg_lab(eeg_ups)
+        calls.clear()
+        at = _select_pattern(at, "Motor Imagery (ERD)")
+        assert at.exception == []
+    assert len(calls) == 1, f"la cadena de potencia mu corrió {len(calls)} veces en un render"
+
+
+def test_panel_declines_honestly_on_a_signal_too_short_to_filter():
+    """Una señal de 20 muestras (alcanzable desde la UI: el hardware en vivo
+    acepta búferes desde 16) -- el panel muestra el motivo y la tarjeta
+    "no disponible", sin gráfico, en vez de tumbar la Vista Clínica entera
+    con un `ValueError` de scipy."""
+
+    def _script():
+        import numpy as np
+        from app.supermodules.eeg_neuro_lab.mu_erd_panel import render_mu_erd_panel
+        from src.signals.eeg.eeg_generator import MotorImageryEvent
+
+        signal = np.random.default_rng(0).normal(0, 40.0, 20)
+        render_mu_erd_panel(signal, "Fp1", 256.0, np.arange(20) / 256.0, MotorImageryEvent())
+
+    at = AppTest.from_function(_script)
+    at.run(timeout=30)
+    assert at.exception == []
+
+    info_text = " ".join(i.value for i in at.main.info)
+    assert "ERD no disponible: señal de 20 muestras" in info_text
+    assert MU_ERD_SCOPE_NOTE in " ".join(w.value for w in at.main.warning), "el rótulo de alcance sigue visible"
+    metric_text = " ".join(md.value for md in at.main.markdown if "ERD (mu) recuperado" in md.value)
+    assert "20 muestras" in metric_text
+    assert len(at.get("plotly_chart")) == 0, "sin curva calculable no se dibuja un gráfico"
+
+
+def test_page_content_back_under_900_lines():
+    lines = Path("app/supermodules/eeg_neuro_lab/page_content.py").read_text(encoding="utf-8").splitlines()
+    assert len(lines) < 900, f"page_content.py tiene {len(lines)} líneas"
 
 
 # --- El resto del EEG Lab, intacto ------------------------------------------

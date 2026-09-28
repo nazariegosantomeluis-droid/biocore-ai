@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-09-28 — BIOCORE, Mu ERD: refactor de calidad de código (comportamiento invariante) — una fuente de verdad por dato, también en el código
+
+**Contexto**: la revisión de calidad del commit `a1d5703` (Mu ERD Tandas 1-2) encontró un bloqueo (`page_content.py` pasó de 882 a 1023 líneas) y un defecto estructural de la misma familia que las fachadas de datos que el proyecto combate: dos fuentes de una verdad que debería tener una. La temporización del evento motor vivía en 4 sitios que coincidían por casualidad (campos `motor_*` de `EegPattern`, un `7.5` mágico repetido dos veces en el sidebar, un `event_offset_s = 1.0  # = motor_transition_s por defecto` copiado a mano, y la aritmética de los `vrect` recalculada en la página), y la cadena de potencia mu estaba duplicada (`compute_mu_power_timeseries()` + `detect_mu_erd()`), filtrando la misma señal dos veces por render. Este refactor cambia dónde vive cada verdad, no qué se calcula ni qué se ve.
+
+### `MotorImageryEvent`, dueño único de la temporización (`src/signals/eeg/eeg_generator.py`)
+
+- Objeto inmutable (`t_event`, `depth_pct`, `transition_s`, `plateau_s`, `recovery_s`) con `total_span_s` y `measurement_windows()` (baseline = `min(4, max(1, t_event - 0.5))`, `event_offset_s = transition_s`, evento de 2s acotado a la meseta — los mismos valores que la página usaba a mano).
+- `__post_init__` valida y lanza `ValueError` ante parámetros inválidos (transición/meseta/recuperación ≤ 0, profundidad fuera de [0, 100), `t_event` negativo) — reemplaza los `max(x, 1e-9)`/`np.clip` que corregían en silencio.
+- `EegPattern` deja de cargar los 5 campos `motor_*` (configuración de un solo patrón en una estructura compartida por los 8) → `motor_event: MotorImageryEvent | None = None`.
+- `_raised_cosine(frac)` extraído — la rampa `(1 - cos(π·frac))/2` ya no se escribe dos veces.
+- El detector sigue genérico: no importa `MotorImageryEvent`; el panel traduce el evento a `baseline_duration_s`/`event_offset_s`/`event_duration_s`.
+
+### Una sola cadena de potencia mu + `ErdResult` con curva y ventanas (`src/signals/eeg/erd_detector.py`)
+
+- `_mu_power(signal, fs) -> (wideband, inst_power)`: la secuencia `preprocess_eeg → pasa-banda mu → |Hilbert|²` existe una vez. `compute_mu_power_timeseries()` retirada (sin consumidores fuera de los tests; la curva viaja ahora en el resultado).
+- `ErdResult` lleva `power_curve` y las ventanas realmente medidas (`baseline_window`, `event_window`, absolutas en segundos) — el gráfico dibuja esas, no las recalcula: **el dibujo no puede desviarse de la medición**. La curva está presente también cuando el detector declina (como antes, la UI la dibuja junto al motivo).
+- Constructores con nombre `ErdResult.measured(...)` (calcula el ERD% de Pfurtscheller) y `ErdResult.declined(...)` en lugar de los 6 `ErdResult(False, None, None, None, ...)` posicionales. `t_event` pasa a `float` (nunca era `None`).
+- `scope_note`: un solo camino al texto — el panel lo lee de `result.scope_note` (rótulo `st.warning` y `citation=` de la tarjeta); ya no usa también la constante del módulo.
+
+### Panel extraído (`app/supermodules/eeg_neuro_lab/mu_erd_panel.py`)
+
+- `render_mu_erd_sidebar(pattern, duration) -> MotorImageryEvent | None` (el límite del slider sale de `total_span_s`, sin el `7.5`), `build_erd_figure(result, time, lead)` (pura, testeable) y `render_mu_erd_panel(signal, lead, fs, time, event)` (UNA llamada al detector por render).
+- Guard de import reducido a un centinela (`erd_detector` / `erd_detector_import_error`); la comprobación redundante `detect_mu_erd is None or compute_mu_power_timeseries is None` desaparece. El detector se resuelve por atributo del módulo, así que el parche de degradación de los tests sigue llegando.
+- La condición del patrón se unifica: `motor_event is not None` en vez de `pattern == "Motor Imagery (ERD)"` en el sidebar y `pattern_map.get(pattern) == "motor_imagery"` en el panel. La etiqueta vive una vez (`MOTOR_IMAGERY_LABEL`).
+- Colores a tokens de `PALETTE` (`ACCENT_ON_DARK`, `WARNING`, `STABLE`, `CRITICAL`, `BACKGROUND`, `TEXT` — mismos hex).
+- `page_content.py`: 1023 → **882 líneas**; el ERD ocupa 3 líneas (import dentro del guard de `src.signals.eeg`, llamada al sidebar, llamada al panel). `EegPattern(...)` se construye una sola vez antes del `if/else` de origen de datos, no en las dos ramas. Comentarios de changelog sobre líneas sueltas retirados (su lugar es este archivo).
+
+### Verificación (no-regresión de comportamiento)
+
+- **Equivalencia numérica contra `HEAD`** (script de comparación, 80 configuraciones: 5 semillas × 4 profundidades × 4 combinaciones duración/momento, 4 canales, ruido 0.18): diferencia máxima de señal generada = 0.0, de ERD% = 0.0, de curva de potencia = 0.0; mismas ventanas y mismos motivos de declinación. Idéntico al bit.
+- Tests existentes verdes ajustando solo la construcción de `EegPattern`/`ErdResult` (y las lecturas de código que apuntaban a `page_content.py`, ahora a `mu_erd_panel.py`): recuperación 40/60/80% con error <6pp, localización temporal, degradación honesta, rótulo de alcance verbatim, anti-placebo del slider.
+- Nuevos: **dibujo = medición** (los `vrect` del gráfico son exactamente `baseline_window`/`event_window`, y la media de `power_curve` sobre esa ventana es `baseline_power`); **una sola filtración por render** (AppTest con `_mu_power` instrumentado → 1 llamada al seleccionar el patrón; y 1 por llamada al detector); `MotorImageryEvent` (defaults = temporización previa, ventanas = aritmética previa, la ventana sigue a una transición cambiada, parámetros inválidos → `ValueError`); `page_content.py` < 900 líneas.
+- `pytest tests/ -q` → **709 passed** (687 previos + 22 netos: `test_mu_erd_detector.py` 15 → 33 contando parametrizaciones — se retira el test de `compute_mu_power_timeseries()` y entran curva/ventanas, declinado con curva, una filtración, `MotorImageryEvent` y señal corta —; `test_mu_erd_eeg_lab_visualization.py` 10 → 14).
+
+### Regresión encontrada y corregida en la misma tanda: señal demasiado corta para filtrar
+
+El reorden (calcular la curva antes de validar las ventanas, para que viaje también en los resultados declinados) hizo que `detect_mu_erd()` dejara escapar el `ValueError` crudo de `filtfilt` con señales de ≤27 muestras, donde antes declinaba por ventana. A nivel de página el defecto ya existía antes del refactor (`compute_mu_power_timeseries()` fallaba igual y el `try` de `pages.py` sustituía TODA la Vista Clínica por un error genérico), y es alcanzable: el hardware en vivo acepta búferes desde 16 muestras, y `EegAnalyzer` declina bien desde ahí, así que el render llega al panel del ERD. Corregido:
+
+- `MIN_FILTERABLE_SAMPLES` derivado de los propios filtros (`filtfilt` exige más muestras que su `padlen` = 3·(2N+1); manda el pasa-banda mu de orden 4 → 28), no un número fijo.
+- Por debajo, `detect_mu_erd()` declina con motivo explícito ("señal de N muestras -- se necesitan al menos 28...") ANTES de filtrar. `ErdResult.power_curve` pasa a `Optional` — `None` solo en este caso, nunca una curva de relleno.
+- El panel omite el gráfico cuando no hay curva y muestra el motivo + tarjeta "no disponible" + rótulo de alcance, en vez de tumbar la Vista Clínica.
+- Tests: declina en 0/1/15/27 muestras sin curva; en 28 ya hay curva; AppTest del panel con 20 muestras (motivo visible, cero gráficos, sin excepción). Equivalencia contra `HEAD` re-verificada tras el arreglo (sigue idéntica al bit en ≥28 muestras).
+- Fuera de alcance, pre-existente: `EegAnalyzer.analyze()` sigue crasheando con <16 muestras (`preprocess_eeg`, padlen 15) — no alcanzable desde hardware (umbral de 16), sí desde un CSV diminuto.
+
+Cita Art. I: una fuente de verdad por dato — en el código como en los datos.
+
 ## 2026-09-26 — BIOCORE, Mu ERD Tanda 2 (cierre): el fenómeno visible en el EEG Lab — demostrador honesto del principio del BCI
 
 **Contexto**: Tanda 1 dejó el detector de ERD (`erd_detector.py`) probado contra ground truth (recupera 40/60/80% de profundidad con error <6pp, calibrado empíricamente) y AISLADO -- sin importarse desde ningún consumidor. Esta tanda lo conecta al EEG Neuro Lab: el fenómeno temporal de desincronización se vuelve visible, con su límite declarado con el mismo peso que la cláusula de χ. Cierra el arco Mu ERD en su versión (c) firmada por el diagnóstico de viabilidad: demostrador honesto, mono-canal, sin lateralidad.
