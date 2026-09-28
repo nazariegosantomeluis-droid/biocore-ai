@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-09-28 — BIOCORE, tanda de higiene: flaky del `hash()`, tres fantasmas metabólicos, `EegAnalyzer.analyze()` con señal corta
+
+**Contexto**: tres cabos de la familia "fallar en silencio / crashear en vez de declarar", mapeados a lo largo de la sesión. Barandillas: grep de llamadores justo antes de retirar código muerto; lectura de todos los consumidores antes de añadir un guard al analizador central.
+
+### Parte A — Flaky del `hash()` cerrado
+
+`test_all_four_base_patterns_stay_available_when_clean` (`tests/test_eeg_artifact_rejection.py`) sembraba con `hash(pattern)`, que varía por proceso con `PYTHONHASHSEED`. Ahora `np.random.seed(0)`. Verificado: 4/4 con `PYTHONHASHSEED` = 0, 1, 2, 42 y 12345.
+
+**Hallazgo al medir (no corregido, documentado en el test)**: sobre 300 semillas por patrón, `available` es `True` en las 1200 corridas — la afirmación del test ("nunca degradan") es cierta —, pero `clean_fraction` baja a 0.95 (1 de 20 ventanas rechazada por la cola del ruido gaussiano) en 5/300 alpha, 13/300 beta, 1/300 theta, 1/300 delta. Es la tasa real de falso rechazo de `ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S` sobre señal limpia, no un defecto del test; recalibrar el umbral queda como decisión aparte.
+
+### Parte B — Tres fantasmas metabólicos retirados (grep reconfirmado antes de cada corte)
+
+- **`RecoveryState.metabolic_recovery`** (`digital_twin_organism.py`): campo + la línea que copiaba `autonomic.metrics.health_score`. Cero lectores por nombre; su única salida era el `__dict__` volcado por `to_json()` (botón "📥 Exportar estado (JSON)" del twin), que ya no lleva un valor autonómico bajo un nombre metabólico.
+- **`SleepState`** (`digital_twin_organism.py`): clase, `self.sleep`, su clave en `to_json()` (el método real; el diagnóstico lo llamaba `get_full_state()`), y la entrada `PhysiologicalInteraction("autonomic", "sleep", ...)` que apuntaba al estado retirado (`self.interactions` no tiene lectores).
+- **`generate_metabolic_profile()`** (`app/utils/data_generator.py`): método, wrapper de módulo, re-export en `app/supermodules/__init__.py`, y la rama `specialty == "Metabolism"` de `generate_sample_patient()` — su único llamador, ya visto por el diagnóstico, él mismo sin llamadores vivos.
+- Grep final: cero referencias a los tres fuera de `_archive/` y de este CHANGELOG. Test de guarda (`test_retired_metabolic_ghosts_stay_retired`) para que no reaparezcan.
+- **Reportado, no tocado**: `generate_measurement_history()` tiene su propia rama `"Metabolism"` con glucosa/HbA1c por `np.random` inline (cuarto fantasma del mismo tipo, fuera del encargo); `RecoveryState.circadian_alignment` nunca se escribe (valor por defecto fijo, también exportado en `to_json()`).
+
+### Parte C — `EegAnalyzer.analyze()` declina con señal corta
+
+- **Lectura previa de consumidores**: el único llamador vivo es `eeg_neuro_lab/page_content.py`, y ya gatea TODO sobre `available` — col1 muestra `reason` y hace `continue`; col2 muestra `st.info` y deja métricas, BAR/DAR/TBR, hallazgos y "Exportar informe" dentro de la rama disponible; χ se gatea con `psd_freqs is not None`; "Guardar al gemelo" comprueba `available`. Por eso el declino reutiliza la forma degradada existente (`available=False`, `band_power={}`, ratios y PSD `None`), sin tipo nuevo.
+- `min_filtfilt_samples(order)` + `MIN_FILTERABLE_SAMPLES` (16) en `preprocessing.py`, el dueño del filtro — derivado del orden, no un 16 fijo. `erd_detector.MIN_FILTERABLE_SAMPLES` (28) ahora se deriva del mismo helper.
+- `analyze()` declina antes de filtrar ("señal EEG de N muestras -- se necesitan al menos 16..."); el constructor de la forma degradada se extrajo a `EegAnalyzer._unavailable()`, compartido con la degradación por rechazo de artefactos.
+- **Verificación**: declina con 0/1/14/15 muestras; con 16 ya filtra y declina por el camino existente (señal limpia insuficiente); el camino completo hasta DAR/TBR/BAR/χ lee "no disponible" sin excepción; AppTest del EEG Lab con 10 muestras por canal: vista en pie, motivo visible, ninguna tarjeta de resultado. Contraprueba sin el fix: la Vista Clínica entera caía al error genérico de `pages.py`. Camino normal idéntico al bit contra `HEAD` (196 análisis — 8 patrones × 6 semillas × 2 duraciones × 2 canales + 4 longitudes cortas —: mismos campos, band power y PSD).
+
+`pytest tests/ -q` → **719 passed** (709 + 10 en `tests/test_hygiene_short_signal_and_ghosts.py`).
+
+Cita Art. I: declarar en vez de fallar en silencio — en el borde como en el dato.
+
 ## 2026-09-28 — BIOCORE, Mu ERD: refactor de calidad de código (comportamiento invariante) — una fuente de verdad por dato, también en el código
 
 **Contexto**: la revisión de calidad del commit `a1d5703` (Mu ERD Tandas 1-2) encontró un bloqueo (`page_content.py` pasó de 882 a 1023 líneas) y un defecto estructural de la misma familia que las fachadas de datos que el proyecto combate: dos fuentes de una verdad que debería tener una. La temporización del evento motor vivía en 4 sitios que coincidían por casualidad (campos `motor_*` de `EegPattern`, un `7.5` mágico repetido dos veces en el sidebar, un `event_offset_s = 1.0  # = motor_transition_s por defecto` copiado a mano, y la aritmética de los `vrect` recalculada en la página), y la cadena de potencia mu estaba duplicada (`compute_mu_power_timeseries()` + `detect_mu_erd()`), filtrando la misma señal dos veces por render. Este refactor cambia dónde vive cada verdad, no qué se calcula ni qué se ve.

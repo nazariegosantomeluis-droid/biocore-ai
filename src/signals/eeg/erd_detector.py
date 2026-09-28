@@ -60,7 +60,7 @@ import numpy as np
 from scipy.signal import butter, filtfilt, hilbert
 
 from .eeg_analyzer import ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S, ARTIFACT_WINDOW_S
-from .preprocessing import FILTER_ORDER, preprocess_eeg
+from .preprocessing import MIN_FILTERABLE_SAMPLES as _MIN_PREPROCESS_SAMPLES, min_filtfilt_samples, preprocess_eeg
 
 # Banda mu -- el rango citado en toda la literatura ERD/BCI de mano
 # (Pfurtscheller & Lopes da Silva 1999). No confundir con la banda "alpha"
@@ -74,12 +74,11 @@ MU_HIGH_HZ: float = 13.0
 # banda de 5Hz de ancho de sus vecinas sin una transición demasiado ancha.
 _MU_FILTER_ORDER: int = 4
 
-# Mínimo de muestras para poder filtrar: `filtfilt` exige una señal más
-# larga que su `padlen` por defecto, 3 * (número de coeficientes), y un
-# Butterworth pasa-banda de orden N tiene 2N+1. Manda el más largo de los
-# dos filtros de `_mu_power()` (mu, orden 4 -> 27; `preprocess_eeg`, orden 2
-# -> 15). Por debajo no hay curva que calcular: se declina, no se crashea.
-MIN_FILTERABLE_SAMPLES: int = 3 * (2 * max(_MU_FILTER_ORDER, FILTER_ORDER) + 1) + 1
+# Mínimo de muestras para poder filtrar (ver `min_filtfilt_samples()`):
+# manda el más exigente de los dos filtros de `_mu_power()` (mu, orden 4 ->
+# 28; `preprocess_eeg`, orden 2 -> 16). Por debajo no hay curva que
+# calcular: se declina, no se crashea.
+MIN_FILTERABLE_SAMPLES: int = max(min_filtfilt_samples(_MU_FILTER_ORDER), _MIN_PREPROCESS_SAMPLES)
 
 # Mínimo de señal limpia (tras rechazo de artefactos) requerido en baseline
 # y en la ventana de evento, cada uno por separado -- mismo espíritu que

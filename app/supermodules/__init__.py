@@ -13,7 +13,7 @@ fabricaban diagnósticos/confianzas de IA. Ver CHANGELOG.md.
 from app.utils.data_generator import (
     generate_sample_patient, generate_measurement_history,
     generate_ecg_signal, generate_eeg_signal, generate_emg_signal,
-    generate_respiratory_signal, generate_metabolic_profile
+    generate_respiratory_signal,
 )
 
 import importlib
@@ -66,7 +66,7 @@ cache_mitbih_record_list = app_utils.cache_mitbih_record_list
 __all__ = [
     'generate_sample_patient', 'generate_measurement_history',
     'generate_ecg_signal', 'generate_eeg_signal', 'generate_emg_signal',
-    'generate_respiratory_signal', 'generate_metabolic_profile'
+    'generate_respiratory_signal',
 ]
 
 __all__.extend([

@@ -18,6 +18,19 @@ DEFAULT_HIGHCUT_HZ: float = 40.0
 FILTER_ORDER: int = 2
 
 
+def min_filtfilt_samples(bandpass_order: int) -> int:
+    """Mínimo de muestras que `filtfilt` acepta para un Butterworth
+    pasa-banda de orden N: exige una señal más larga que su `padlen` por
+    defecto, 3 * (número de coeficientes), y un pasa-banda de orden N tiene
+    2N+1. Por debajo, `filtfilt` lanza `ValueError` -- los llamadores
+    declinan con motivo antes de filtrar, en vez de dejarlo escapar."""
+    return 3 * (2 * bandpass_order + 1) + 1
+
+
+# Mínimo para `preprocess_eeg()` (orden 2 -> 16 muestras).
+MIN_FILTERABLE_SAMPLES: int = min_filtfilt_samples(FILTER_ORDER)
+
+
 def preprocess_eeg(
     signal: np.ndarray, fs: float, lowcut: float = DEFAULT_LOWCUT_HZ, highcut: float = DEFAULT_HIGHCUT_HZ
 ) -> Tuple[np.ndarray, Dict[str, float]]:

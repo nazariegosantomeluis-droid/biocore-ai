@@ -112,16 +112,7 @@ class StressState:
 class RecoveryState:
     """Capacidad de recuperación (transversal)."""
     recovery_capacity: float = 75.0  # 0-100
-    metabolic_recovery: float = 70.0  # 0-100
     circadian_alignment: float = 80.0  # 0-100
-
-
-@dataclass
-class SleepState:
-    """Estado del sueño (transversal)."""
-    sleep_stage: str = "awake"  # awake, N1, N2, N3, REM
-    sleep_quality: float = 65.0  # 0-100
-    sleep_efficiency: float = 85.0  # 0-100
 
 
 @dataclass
@@ -213,7 +204,6 @@ class DigitalTwinOrganism:
         # Ported from the legacy DigitalTwinMultisystem during engine consolidation.
         self.stress = StressState()
         self.recovery = RecoveryState()
-        self.sleep = SleepState()
         self.performance = PerformanceState()
         self.interactions: List[PhysiologicalInteraction] = self._initialize_interactions()
     
@@ -286,7 +276,6 @@ class DigitalTwinOrganism:
             PhysiologicalInteraction("lungs", "brain", "increases", 0.7, "Hipoxia reduce atención y cognición"),
             PhysiologicalInteraction("brain", "autonomic", "increases", 0.8, "Estrés cortical aumenta actividad simpática"),
             PhysiologicalInteraction("muscles", "autonomic", "decreases", 0.7, "Actividad muscular reduce capacidad de recuperación"),
-            PhysiologicalInteraction("autonomic", "sleep", "synchronizes", 0.6, "Balance parasimpático facilita el sueño"),
             PhysiologicalInteraction("recovery", "performance", "increases", 0.8, "Recuperación mejora el desempeño"),
         ]
     
@@ -544,7 +533,6 @@ class DigitalTwinOrganism:
 
         fatigue_index = muscles.metrics.signals.get("fatigue_index", 20.0)
         self.recovery.recovery_capacity = min(100.0, max(0.0, 100.0 - fatigue_index))
-        self.recovery.metabolic_recovery = autonomic.metrics.health_score
 
         self.performance.physical_capacity = min(100.0, max(0.0, 100.0 - muscles.metrics.risk_score))
         self.performance.cognitive_capacity = brain.metrics.health_score
@@ -940,7 +928,6 @@ class DigitalTwinOrganism:
             },
             'stress': self.stress.__dict__,
             'recovery': self.recovery.__dict__,
-            'sleep': self.sleep.__dict__,
             'performance': self.performance.__dict__,
         }
         return json.dumps(state, indent=2, default=str)

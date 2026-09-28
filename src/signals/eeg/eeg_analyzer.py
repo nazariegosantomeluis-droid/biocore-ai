@@ -48,7 +48,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 from scipy.signal import welch
 
-from .preprocessing import preprocess_eeg
+from .preprocessing import MIN_FILTERABLE_SAMPLES, preprocess_eeg
 
 # Ratio Beta/Alfa (BAR) -- biomarcador de arousal cortical citado, NO una
 # invención de esta app: BAR = P_beta / P_alpha del MISMO electrodo, así que
@@ -315,6 +315,16 @@ class EegAnalyzer:
         if signal.ndim != 1:
             signal = signal.flatten()
 
+        # Señal demasiado corta para el bandpass (`filtfilt` lanzaría
+        # `ValueError`): misma forma degradada que el rechazo de artefactos
+        # de abajo, que los consumidores ya leen como "no disponible".
+        if signal.shape[0] < MIN_FILTERABLE_SAMPLES:
+            return self._unavailable(
+                f"señal EEG de {signal.shape[0]} muestras -- se necesitan al menos "
+                f"{MIN_FILTERABLE_SAMPLES} para filtrar (0.5-40 Hz); no se calcula band power",
+                clean_fraction=0.0, clean_window_count=0,
+            )
+
         # Arco 2A: bandpass activado antes de cualquier otra cosa --
         # `preprocess_eeg()` ya no es un fantasma sin llamadores.
         filtered, _ = preprocess_eeg(signal, self.fs)
@@ -328,16 +338,7 @@ class EegAnalyzer:
                 f"{total_s:.1f}s totales (mínimo {MIN_CLEAN_EEG_DURATION_S:.0f}s) -- no se calcula "
                 "band power sobre el fragmento que sobró"
             )
-            return EegAnalysis(
-                dominant_band=None,
-                band_power={},
-                classification=None,
-                summary=None,
-                findings={"Estado": f"no disponible: {reason}"},
-                bar=None, dar=None, tbr=None,
-                available=False, reason=reason, clean_fraction=clean_fraction,
-                psd_freqs=None, psd_power=None, clean_window_count=clean_window_count,
-            )
+            return self._unavailable(reason, clean_fraction=clean_fraction, clean_window_count=clean_window_count)
 
         band_power = {
             'delta': self._band_power(freqs, psd, 0.5, 3.5),
@@ -382,6 +383,21 @@ class EegAnalyzer:
             psd_freqs=freqs,
             psd_power=psd,
             clean_window_count=clean_window_count,
+        )
+
+    @staticmethod
+    def _unavailable(reason: str, clean_fraction: float, clean_window_count: int) -> EegAnalysis:
+        """Degradación tipo-PLV: todo ausente (`band_power={}`, ratios y PSD
+        `None`), nunca un `0.0` fabricado."""
+        return EegAnalysis(
+            dominant_band=None,
+            band_power={},
+            classification=None,
+            summary=None,
+            findings={"Estado": f"no disponible: {reason}"},
+            bar=None, dar=None, tbr=None,
+            available=False, reason=reason, clean_fraction=clean_fraction,
+            psd_freqs=None, psd_power=None, clean_window_count=clean_window_count,
         )
 
     def _welch_with_artifact_rejection(

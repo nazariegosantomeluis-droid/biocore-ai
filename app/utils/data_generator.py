@@ -380,16 +380,6 @@ class DataGenerator:
                 'oxygen_saturation': respiratory['oxygen_saturation'],
                 'ventilation_quality': respiratory['ventilation_quality'],
             }
-        elif specialty == "Metabolism":
-            metabolic = DataGenerator.generate_metabolic_profile(condition=condition)
-            patient['latest_measurement'] = {
-                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'metabolic_profile': metabolic,
-                'blood_glucose': metabolic['blood_glucose'],
-                'hba1c': metabolic['hba1c'],
-                'insulin_sensitivity': metabolic['insulin_sensitivity'],
-                'energy_expenditure': metabolic['energy_expenditure'],
-            }
         
         return patient
     
@@ -439,45 +429,6 @@ class DataGenerator:
             'oxygen_saturation': oxygen_saturation,
             'ventilation_quality': ventilation_quality,
             'pattern': pattern
-        }
-
-    @staticmethod
-    def generate_metabolic_profile(condition="normal"):
-        """
-        Genera un perfil metabólico sintético y clínico.
-        """
-        if condition == "normal":
-            blood_glucose = np.random.uniform(80, 100)
-            hba1c = np.random.uniform(4.8, 5.6)
-            insulin_sensitivity = np.random.uniform(70, 90)
-            energy_expenditure = np.random.uniform(1800, 2200)
-            lactate = np.random.uniform(0.8, 1.2)
-        elif condition == "prediabetes":
-            blood_glucose = np.random.uniform(100, 125)
-            hba1c = np.random.uniform(5.7, 6.4)
-            insulin_sensitivity = np.random.uniform(50, 70)
-            energy_expenditure = np.random.uniform(1700, 2100)
-            lactate = np.random.uniform(1.1, 1.8)
-        elif condition == "diabetes":
-            blood_glucose = np.random.uniform(126, 180)
-            hba1c = np.random.uniform(6.5, 8.0)
-            insulin_sensitivity = np.random.uniform(30, 55)
-            energy_expenditure = np.random.uniform(1600, 2000)
-            lactate = np.random.uniform(1.5, 2.5)
-        else:
-            blood_glucose = np.random.uniform(85, 105)
-            hba1c = np.random.uniform(5.0, 5.8)
-            insulin_sensitivity = np.random.uniform(60, 85)
-            energy_expenditure = np.random.uniform(1750, 2150)
-            lactate = np.random.uniform(1.0, 1.4)
-
-        return {
-            'blood_glucose': float(blood_glucose),
-            'hba1c': float(hba1c),
-            'insulin_sensitivity': float(insulin_sensitivity),
-            'energy_expenditure': float(energy_expenditure),
-            'lactate': float(lactate),
-            'condition': condition
         }
 
     @staticmethod
@@ -555,10 +506,6 @@ def generate_emg_signal(duration=10, sampling_rate=2000, muscle_state="rest"):
 def generate_respiratory_signal(duration=60, sampling_rate=25, pattern="normal"):
     """Genera señal respiratoria. Wrapper simple."""
     return DataGenerator.generate_respiratory_signal(duration, sampling_rate, pattern)
-
-def generate_metabolic_profile(condition="normal"):
-    """Genera perfil metabólico. Wrapper simple."""
-    return DataGenerator.generate_metabolic_profile(condition)
 
 def generate_sample_patient(specialty="Cardiology", condition="normal"):
     """Genera paciente. Wrapper simple."""
