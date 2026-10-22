@@ -169,6 +169,9 @@ class BADGES:
 #   - DAR (Delta/Alfa, Claassen 2004)            -> GRAMMAR_SEVERITY
 #   - TBR (Theta/Beta, Boksem 2005)               -> GRAMMAR_SEVERITY
 #   - χ / chi_aperiodic (Gao/Voytek 2017)          -> GRAMMAR_NEUTRAL_STATE
+#   - Engagement β/(α+θ) relativo (Pope 1995)      -> GRAMMAR_NEUTRAL_STATE
+#     (firma del experto 2026-10-18: estado operativo, no diagnóstico; su
+#     classification es solo la dirección ↑/↓, ver `engagement_detector.py`)
 #   - BAR (Beta/Alfa, Schutter 2006)               -> AMBIGUO, ver nota
 #
 # BAR queda marcado AMBIGUO a propósito, no forzado: hoy se renderiza como
@@ -266,6 +269,15 @@ def render_module_header(
             f"<p style='color:{PALETTE.TEXT}; opacity:0.75; margin-top:0;'>{subtitle}</p>",
             unsafe_allow_html=True,
         )
+    render_validation_marker(validation, validation_detail)
+
+
+def render_validation_marker(validation: Optional[str], validation_detail: Optional[str] = None) -> None:
+    """La marca de validación de `render_module_header()`, sola -- para una
+    SECCIÓN dentro de un módulo mixto cuya parte validada merece su marca sin
+    que el módulo entero la lleve (p.ej. el brazo vascular del barorreflejo
+    en Digital Twin OS). No dibuja nada si `validation` no es un nivel
+    conocido."""
     marker = resolve_validation_marker(validation, validation_detail)
     if marker is not None:
         color, symbol, text = marker

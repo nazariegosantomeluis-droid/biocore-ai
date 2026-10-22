@@ -36,6 +36,7 @@ from app.engines import (
     PredictionEngine,
 )
 from app.utils.design_system import render_module_header, render_error_state, BADGES
+from app.supermodules.twin_shell.baroreflex_panel import pa_model_label, render_baroreflex_panel
 from app.utils.patient_session import (
     get_active_patient_id,
     get_active_session_factory,
@@ -808,7 +809,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                 ref_by_descriptor = {r.descriptor: r for r in references_for_pa}
                 ref_map = ref_by_descriptor.get("map")
                 st.markdown(
-                    f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                    f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                     f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                     f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                     + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")
@@ -1362,7 +1363,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
             diastolic_modelo = state.cardiovascular.get("diastolic_bp_modelo")
             ref_map = next((r for r in case_references if r.descriptor == "map"), None)
             st.markdown(
-                f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                 f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                 f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                 + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")
@@ -2039,6 +2040,7 @@ def main() -> None:
     st.markdown("### 🧭 Herramientas avanzadas")
     render_scenario_and_interventions(organism)
     render_ups_scenario_simulator(organism)
+    render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
     render_synced_digital_twin_body(organism)
     render_clinical_narrator(organism)
     render_clinical_case_mode(organism)

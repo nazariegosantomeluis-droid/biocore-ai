@@ -12,6 +12,9 @@ Generates multi-channel EEG with clinical patterns:
 - Motor imagery (Mu ERD -- Tanda 1, 2026-09-26): evento motor con
   profundidad/timing conocidos por construcción, ground truth para
   `erd_detector.py`. Ver docstring de `_motor_imagery_erd()`.
+- Engagement task (2026-10-18): reposo -> bloque de tarea con cambio de
+  engagement β/(α+θ) conocido por construcción, ground truth para
+  `engagement_detector.py`. Ver docstring de `_engagement_task()`.
 """
 
 import numpy as np
@@ -30,8 +33,10 @@ _ERD_EVENT_WINDOW_S = 2.0
 
 
 class MeasurementWindows(NamedTuple):
-    """Parámetros de ventana en la forma que `erd_detector.detect_mu_erd()`
-    recibe -- el detector sigue genérico y no conoce `MotorImageryEvent`."""
+    """Parámetros de ventana (baseline antes del instante del evento, tramo
+    medido después) en la forma que reciben `erd_detector.detect_mu_erd()` y
+    `engagement_detector.detect_engagement()` -- los detectores siguen
+    genéricos y no conocen `MotorImageryEvent`/`EngagementTaskEvent`."""
 
     baseline_duration_s: float
     event_offset_s: float
@@ -78,6 +83,57 @@ class MotorImageryEvent:
         )
 
 
+# Ventanas del Engagement (ver `EngagementTaskEvent.measurement_windows()`):
+# baseline de hasta 10s que deja 0.5s de señal antes de empezar. Ventanas
+# largas a propósito: la varianza del periodograma por ventana de 1s es la
+# fuente dominante de error (Pope 1995 promediaba ~40s). Por debajo de
+# `MIN_CLEAN_EEG_DURATION_S` (2s) el detector declina -- no se fuerza aquí un
+# mínimo que fingiría un baseline que la señal no tiene.
+_ENGAGEMENT_BASELINE_MAX_S = 10.0
+_ENGAGEMENT_BASELINE_LEAD_IN_S = 0.5
+
+
+@dataclass(frozen=True)
+class EngagementTaskEvent:
+    """Bloque de tarea del patrón `engagement_task` -- hermano de
+    `MotorImageryEvent` (misma estructura reposo -> transición -> meseta ->
+    recuperación, mismo `_event_profile()`), pero lo que cambia es el
+    Engagement Index β/(α+θ) (Pope 1995), no la potencia mu. `change_pct` es
+    el cambio de engagement en la meseta respecto al reposo: +40 -> el
+    índice es 1.4x el del baseline; -30 -> 0.7x (desatención). Defaults:
+    tarea en t=12s, transición 1s, meseta 12s, recuperación 1s -> termina en
+    26s, cabe en la duración por defecto del EEG Lab (30s)."""
+
+    t_task: float = 12.0
+    change_pct: float = 40.0
+    transition_s: float = 1.0
+    task_s: float = 12.0
+    recovery_s: float = 1.0
+
+    def __post_init__(self):
+        if self.t_task < 0.0:
+            raise ValueError(f"t_task debe ser >= 0, recibido {self.t_task}")
+        if self.change_pct <= -100.0:
+            raise ValueError(f"change_pct debe ser > -100 (engagement positivo), recibido {self.change_pct}")
+        for name in ("transition_s", "task_s", "recovery_s"):
+            value = getattr(self, name)
+            if value <= 0.0:
+                raise ValueError(f"{name} debe ser > 0, recibido {value}")
+
+    @property
+    def total_span_s(self) -> float:
+        return self.transition_s + self.task_s + self.recovery_s
+
+    def measurement_windows(self) -> MeasurementWindows:
+        """Baseline inmediatamente antes de `t_task`; tramo de tarea = la
+        meseta completa (salta la transición, mide el cambio ya asentado)."""
+        return MeasurementWindows(
+            baseline_duration_s=min(_ENGAGEMENT_BASELINE_MAX_S, max(0.0, self.t_task - _ENGAGEMENT_BASELINE_LEAD_IN_S)),
+            event_offset_s=self.transition_s,
+            event_duration_s=self.task_s,
+        )
+
+
 @dataclass
 class EegPattern:
     pattern_type: str = "alpha"
@@ -90,11 +146,32 @@ class EegPattern:
     channels: int = 4
     # Solo lo lee el patrón `motor_imagery`; `None` -> `MotorImageryEvent()` por defecto.
     motor_event: Optional[MotorImageryEvent] = None
+    # Solo lo lee el patrón `engagement_task`; `None` -> `EngagementTaskEvent()` por defecto.
+    engagement_event: Optional[EngagementTaskEvent] = None
 
 
 def _raised_cosine(frac: np.ndarray) -> np.ndarray:
     """Rampa suave 0 -> 1 para `frac` en [0, 1] (sin escalón abrupto)."""
     return (1.0 - np.cos(np.pi * frac)) / 2.0
+
+
+def _event_profile(
+    time: np.ndarray, t_start: float, transition_s: float, plateau_s: float, recovery_s: float
+) -> np.ndarray:
+    """Perfil 0 -> 1 -> 0 compartido por los eventos con baseline: 0 en
+    reposo, rampa de coseno alzado hasta 1 en `transition_s`, 1 durante
+    `plateau_s`, rampa de vuelta a 0 en `recovery_s`, 0 después."""
+    t_transition_end = t_start + transition_s
+    t_plateau_end = t_transition_end + plateau_s
+    t_recovery_end = t_plateau_end + recovery_s
+
+    profile = np.zeros_like(time)
+    ramp_up = (time >= t_start) & (time < t_transition_end)
+    profile[ramp_up] = _raised_cosine((time[ramp_up] - t_start) / transition_s)
+    profile[(time >= t_transition_end) & (time < t_plateau_end)] = 1.0
+    ramp_down = (time >= t_plateau_end) & (time < t_recovery_end)
+    profile[ramp_down] = 1.0 - _raised_cosine((time[ramp_down] - t_plateau_end) / recovery_s)
+    return profile
 
 
 class EegSignalGenerator:
@@ -133,6 +210,8 @@ class EegSignalGenerator:
             base += self._blink_artifacts(time, params.blink_rate)
         elif params.pattern_type == 'motor_imagery':
             base = self._motor_imagery_erd(time, params.amplitude, params.motor_event or MotorImageryEvent())
+        elif params.pattern_type == 'engagement_task':
+            base = self._engagement_task(time, params.amplitude, params.engagement_event or EngagementTaskEvent())
         else:
             base = self._band_signal(time, 10.0, params.amplitude * 0.8)
 
@@ -176,25 +255,48 @@ class EegSignalGenerator:
         no si "se ve razonable"."""
         event_amplitude_factor = float(np.sqrt(1.0 - event.depth_pct / 100.0))
         drop = 1.0 - event_amplitude_factor
-
-        t_transition_end = event.t_event + event.transition_s
-        t_plateau_end = t_transition_end + event.plateau_s
-        t_recovery_end = t_plateau_end + event.recovery_s
-
-        envelope = np.ones_like(time)
-
-        in_transition = (time >= event.t_event) & (time < t_transition_end)
-        envelope[in_transition] = 1.0 - drop * _raised_cosine((time[in_transition] - event.t_event) / event.transition_s)
-
-        in_plateau = (time >= t_transition_end) & (time < t_plateau_end)
-        envelope[in_plateau] = event_amplitude_factor
-
-        in_recovery = (time >= t_plateau_end) & (time < t_recovery_end)
-        envelope[in_recovery] = event_amplitude_factor + drop * _raised_cosine((time[in_recovery] - t_plateau_end) / event.recovery_s)
-        # time >= t_recovery_end ya vale 1.0 por el np.ones_like inicial.
+        profile = _event_profile(time, event.t_event, event.transition_s, event.plateau_s, event.recovery_s)
+        envelope = 1.0 - drop * profile
 
         mu_carrier = amplitude * 0.8 * np.sin(2 * np.pi * 10.0 * time)
         return mu_carrier * envelope
+
+    def _engagement_task(self, time: np.ndarray, amplitude: float, event: EngagementTaskEvent) -> np.ndarray:
+        """Engagement Index (2026-10-18) -- theta 6Hz, alfa 10Hz y beta 16Hz
+        (dentro de las bandas de `EegAnalyzer`) de amplitud constante en
+        reposo; durante la tarea, beta sube y alfa/theta bajan con el perfil
+        compartido `_event_profile()`.
+
+        Ground truth exacto por construcción: con k = 1 + change_pct/100, en
+        la meseta la amplitud de beta se multiplica por k^(1/4) y la de
+        alfa/theta por k^(-1/4) -> P_β x sqrt(k), (P_α + P_θ) / sqrt(k) ->
+        β/(α+θ) x k exactamente. Repartir el cambio entre numerador y
+        denominador ("subir β, bajar α/θ") es la forma fisiológica de la
+        firma; la razón resultante no depende del reparto.
+
+        Igual que `_motor_imagery_erd()`, NO usa `_band_signal()`: su
+        decaimiento exponencial de fondo sesgaría el ground truth.
+
+        NOTA DE HONESTIDAD (Art. IV): señal SINTÉTICA con cambio de
+        engagement PRESCRITO -- nunca un registro de un operador real. El
+        detector se valida midiendo si RECUPERA `change_pct`."""
+        k = 1.0 + event.change_pct / 100.0
+        profile = _event_profile(time, event.t_task, event.transition_s, event.task_s, event.recovery_s)
+        beta_gain = 1.0 + (k ** 0.25 - 1.0) * profile
+        slow_gain = 1.0 + (k ** -0.25 - 1.0) * profile
+
+        # Amplitudes acotadas por el rechazo de artefactos de Arco 2A: el
+        # gradiente máximo de la suma es 2π·Σ(f·A); una primera mezcla
+        # (0.6/0.8/0.6, beta a 20Hz) daba ~5900 µV/s con amplitud 40 y TODA
+        # ventana caía como "artefacto" sobre el umbral de 5500. Esta queda
+        # en ~3500, el rango de los patrones base contra los que se calibró
+        # ese umbral; beta va a 16Hz (dentro de 13-30) para darle más
+        # potencia -- menos varianza del periodograma -- con el mismo
+        # presupuesto de gradiente.
+        theta = amplitude * 0.4 * np.sin(2 * np.pi * 6.0 * time)
+        alpha = amplitude * 0.5 * np.sin(2 * np.pi * 10.0 * time)
+        beta = amplitude * 0.4 * np.sin(2 * np.pi * 16.0 * time)
+        return slow_gain * (theta + alpha) + beta_gain * beta
 
     def _seizure_spikes(self, time: np.ndarray, frequency: float) -> np.ndarray:
         spikes = np.zeros_like(time)

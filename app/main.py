@@ -50,6 +50,8 @@ from app.supermodules import (
 )
 from app.engines import DigitalTwinOrganism
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
+from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, detect_rsa, rr_spectrum
+from app.supermodules import rsa_panel
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card,
@@ -2254,8 +2256,12 @@ def render_hrv_page() -> None:
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
     st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas tiempo-frecuencia y explanation clínica.')
-    source = st.sidebar.radio('HRV Source', ['Demo (ECG-derived)','Manual RR series'], index=0)
+    # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
+    # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
+    # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
+    source = st.sidebar.radio('HRV Source', [rsa_panel.RSA_SOURCE_LABEL, 'Manual RR series'], index=0)
     rr_ms = None
+    rsa_signals, rsa_params, r_peak_times_s = None, None, None
     if source == 'Manual RR series':
         txt = st.text_area('Pega RR intervals en ms separados por comas', '800,820,790,810,805')
         try:
@@ -2263,14 +2269,27 @@ def render_hrv_page() -> None:
         except Exception:
             rr_ms = None
     else:
-        hr = st.sidebar.slider('Demo HR (bpm)', 40, 140, 72)
+        ECGAnalyzer, _, _, _, _ = safe_import_ecg_modules()
+        if ECGAnalyzer is None:
+            render_error_state('Motor ECGAnalyzer (detector TKEO) no disponible en este entorno -- sin RR que derivar.')
+            return
+        rsa_params = RsaParams(
+            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, 72)),
+            rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
+                help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
+            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
+                help='La banda HF de la Task Force cubre 9-24 rpm; fuera de ella la RSA no se lee como HF.')),
+        )
         n = st.sidebar.slider('Duración (seg)', 30, 300, 120)
-        mean_rr = 60000.0 / float(max(30, hr))
-        beats = int(max(10, (n * hr) // 60))
-        rr_ms = mean_rr + np.random.normal(0, mean_rr * 0.03, size=beats)
+        rsa_signals, r_peak_times_s = rsa_panel.simulate_rsa_rr(rsa_params, float(n), ECGAnalyzer)
+        rr_ms = np.diff(r_peak_times_s) * 1000.0
+        st.caption(
+            f"Fuente: simulación -- {len(r_peak_times_s)} picos R detectados por TKEO sobre un ECG sintético "
+            "(McSharry 2003) cuya FC modula la respiración. No es un registro de un paciente."
+        )
 
     if rr_ms is None or len(rr_ms) < 5:
-        render_error_state('RR series insuficiente -- provee más latidos o usa la fuente demo.')
+        render_error_state('RR series insuficiente -- provee más latidos o usa la fuente de simulación.')
         return
 
     diffs = np.diff(rr_ms)
@@ -2292,25 +2311,28 @@ def render_hrv_page() -> None:
                 meaning='Porcentaje de diferencias NN>50ms — indicador vagal.')
 
     st.divider()
+    # RSA: con la fuente manual no hay respiración simultánea -> declina con motivo.
+    if r_peak_times_s is None:
+        r_peak_times_s = np.concatenate([[0.0], np.cumsum(rr_ms) / 1000.0])
+    rsa_panel.render_rsa_panel(
+        detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
+        rsa_signals, rsa_params,
+    )
+
+    st.divider()
     _render_hrv_save_to_twin(sdnn, mean_nn, source)
 
     render_scientific_discovery_layer({'RR_ms': rr_ms})
 
-    freqs = None
     lf_power = None
     hf_power = None
     try:
-        t = np.cumsum(rr_ms) / 1000.0
-        t = t - t[0]
-        fs_interp = 4.0
-        ti = np.arange(0, t[-1], 1.0/fs_interp)
-        rr_interp = np.interp(ti, t, rr_ms)
-        from scipy.signal import welch
-        f, pxx = welch(rr_interp - np.mean(rr_interp), fs=fs_interp, nperseg=min(256, len(rr_interp)))
-        lf_mask = (f >= 0.04) & (f < 0.15)
-        hf_mask = (f >= 0.15) & (f <= 0.4)
-        lf_power = float(np.trapz(pxx[lf_mask], f[lf_mask])) if np.any(lf_mask) else 0.0
-        hf_power = float(np.trapz(pxx[hf_mask], f[hf_mask])) if np.any(hf_mask) else 0.0
+        # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
+        # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
+        # fallaba siempre y el `except` culpaba a scipy.
+        f, pxx = rr_spectrum(rr_ms)
+        lf_power = band_power(f, pxx, LF_BAND_HZ)
+        hf_power = band_power(f, pxx, HF_BAND_HZ)
         lf_hf = lf_power / hf_power if hf_power > 0 else None
         st.markdown('### Vista Investigación — Espectro HRV')
         if PLOTLY_OK:
@@ -2321,8 +2343,8 @@ def render_hrv_page() -> None:
         else:
             st.line_chart(pxx)
         st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — LF/HF: {lf_hf if lf_hf is not None else "n/a"}')
-    except Exception:
-        st.info('No se pudo calcular espectro HRV; faltan scipy o datos suficientes.')
+    except ValueError as exc:
+        st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
 
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Autonomic

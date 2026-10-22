@@ -23,6 +23,7 @@ import streamlit as st
 import pandas as pd
 
 from app.utils.design_system import render_module_header, render_error_state
+from app.supermodules.twin_shell.baroreflex_panel import pa_model_label
 from domain.physiology.narrator import (
     Finding,
     FindingsContext,
@@ -409,7 +410,7 @@ def render_synthetic_case_section() -> None:
             references_pa = st.session_state.get("academia_case_reference_pa") or []
             ref_map = next((r for r in references_pa if r.descriptor == "map"), None)
             st.markdown(
-                f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                 f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                 f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                 + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")

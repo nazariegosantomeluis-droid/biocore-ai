@@ -46,10 +46,11 @@ try:
         EegSignalGenerator, EegPattern, EegAnalyzer,
         classify_dar, classify_tbr, DAR_CITATION, TBR_CITATION, BAR_CITATION,
     )
-    from app.supermodules.eeg_neuro_lab import mu_erd_panel
+    from app.supermodules.eeg_neuro_lab import engagement_panel, mu_erd_panel
     Eeg_import_error = None
 except ImportError as e:
     mu_erd_panel = None
+    engagement_panel = None
     EegSignalGenerator = None
     EegPattern = None
     EegAnalyzer = None
@@ -217,6 +218,7 @@ pattern = st.sidebar.selectbox(
         "Seizure (espigas)",
         "Artifact (parpadeo)",
         mu_erd_panel.MOTOR_IMAGERY_LABEL,
+        engagement_panel.ENGAGEMENT_TASK_LABEL,
     ]
 )
 channels = st.sidebar.selectbox("Número de canales", [2, 3, 4], index=2)
@@ -231,6 +233,7 @@ fs = st.sidebar.selectbox("Frecuencia de muestreo (Hz)", [128, 256, 512], index=
 noise = st.sidebar.slider("Nivel de ruido de fondo", min_value=0.0, max_value=0.5, value=0.18, step=0.02)
 
 motor_event = mu_erd_panel.render_mu_erd_sidebar(pattern, duration)
+engagement_event = engagement_panel.render_engagement_sidebar(pattern, duration)
 
 live_mode = st.sidebar.checkbox(
     "Habilitar análisis en tiempo real",
@@ -361,6 +364,7 @@ pattern_map = {
     "Seizure (espigas)": "seizure",
     "Artifact (parpadeo)": "artifact",
     mu_erd_panel.MOTOR_IMAGERY_LABEL: "motor_imagery",
+    engagement_panel.ENGAGEMENT_TASK_LABEL: "engagement_task",
 }
 synthetic_params = EegPattern(
     pattern_type=pattern_map[pattern],
@@ -370,6 +374,7 @@ synthetic_params = EegPattern(
     noise_level=noise,
     channels=channels,
     motor_event=motor_event,
+    engagement_event=engagement_event,
 )
 
 data_source = "Sintético"
@@ -461,6 +466,8 @@ with col1:
 
         if motor_event is not None:
             mu_erd_panel.render_mu_erd_panel(eeg_data[display_leads[0]], display_leads[0], fs, time, motor_event)
+        if engagement_event is not None:
+            engagement_panel.render_engagement_panel(eeg_data[display_leads[0]], display_leads[0], fs, engagement_event)
 
 with col2:
     st.markdown("## 📊 Métricas y Clasificación")
