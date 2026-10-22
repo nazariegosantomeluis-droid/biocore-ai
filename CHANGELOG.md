@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-10-22 — Aporte externo auditado, pieza 1: lo aprobado del 3D (VCG, anatomía de referencia, pulmón, motor TC→malla), cada uno con su rótulo
+
+**Contexto**: ~12 500 líneas de una versión externa de BIOCORE quedaron aparte, en la rama `respaldo-mezcla-20261021`, sin haber pasado por el método de honestidad del proyecto. El diagnóstico 1 auditó el 3D con ground truth y midió de nuevo cada afirmación. Esta tanda trae **solo lo aprobado**, cada pieza rotulada por lo que es.
+
+### Traído
+
+- **Vectocardiograma** (`src/signals/ecg/vcg.py`, `visualization/vcg3d.py`):
+  - Reconstrucción de Kors (Kors et al. 1990) comparada con el VCG de Frank grabado a la vez en el PTB s0010_re.
+  - Reproducido en la auditoría: r = 0.982 / 0.951 / 0.728; QRS de 98 frente a 94 ms; ángulo QRS-T de 10.3° en ambos.
+  - El archivo es idéntico al original de PhysioNet (r = 1.0000).
+  - **Rótulo**: "Verificado en 1 paciente real (PTB s0010, derivaciones de Frank simultáneas)", no "validado".
+  - **Retirado**: el acimut y la elevación del "Vector QRS medio". En el caso de referencia difería 74° del real (la Z media del QRS es casi cero y cambia de signo).
+  - Las flechas de los vectores medios se quedan, porque muestran el ángulo QRS-T, que sí coincide, pero rotuladas "dirección no fiable" (`MEAN_VECTOR_NOTE`).
+- **Registro de referencia** (`src/signals/reference_recordings.py`, `data/reference_signals/ptb_s0010.npz`): recortado al PTB, que es lo único que usa algo aprobado. Se retiró una cita general de 2026 que no se pudo verificar; queda la clásica (Goldberger 2000).
+- **Anatomía de referencia** (`visualization/anatomy3d.py`, `data/anatomy3d/`):
+  - Mallas de TotalSegmentator s1397 (CC BY 4.0) y fsaverage/MNI152 (con su licencia).
+  - Rótulo: "Anatomía de referencia de un sujeto (s1397), no reactiva — ilustrativa, no un gemelo que reacciona al estado".
+  - Colores de tejido; el visor solo muestra los sistemas de órganos.
+  - Se quitaron el mapeo de órganos del gemelo y el parámetro de colores por estado.
+- **Motor TC/RM → malla** (`src/imaging/volume3d.py`): NIfTI y DICOM, marching cubes y exportación STL/OBJ/PLY.
+  - Solo queda el **preset de pulmón corregido** (mi versión: −1.9 % de volumen, 1.2-1.3 mm, malla cerrada; verificado contra TotalSegmentator en 1 sujeto, `LUNG_VALIDATION_NOTE`). La versión original medía +3.4 % e incluía 320 mL de gas digestivo.
+  - El umbral manual y Otsu quedan como herramientas, rotuladas "sin validar".
+- **Chequeo real de malla cerrada**: `mesh_quality()` en la UI; el "Volumen encerrado" solo se muestra si la malla es cerrada.
+  - **Hallazgo y corrección**: con la calidad "Rápida" de la UI (60 000 triángulos), la simplificación **abría** la malla del pulmón: 1 arista, orientación mezclada.
+  - Ahora `mesh_from_mask` reintenta con menos reducción hasta que la malla cierra, y lo declara: "simplificada a 120 000 triángulos (a 60 000 se abría la malla)".
+- **UI**: hub nuevo "Laboratorio 3D" → "🧊 Crea tu modelo 3D" (`app/supermodules/model3d/`), con 4 pestañas: TC/RM, visor de modelos, ECG en 3D y anatomía de referencia.
+  - `validation=None` explícito, con el comentario que pide el sistema de diseño.
+  - Línea visible "Módulo mixto — cada pestaña declara su nivel…".
+  - Aviso "no sirve para diagnosticar ni planear tratamientos".
+- **Generadores reproducibles** (`tools/build_anatomy3d.py`, `build_samples.py`, `build_reference_signals.py`), con un `tools/README.md` propio.
+- **Dependencias**: `scikit-image`, `nibabel`, `pydicom` y `fast-simplification` (esta última opcional).
+
+### NO traído
+
+- **El cuerpo 3D coloreado del gemelo.** Es una fachada: el color salía del `health_score` heurístico del organismo de la sesión (umbrales 80/60/40), no del UPS, aunque su documentación decía lo contrario. Conectarlo al UPS es una tanda aparte.
+- **Los presets de hueso, piel y tejido blando.** Medidos en la auditoría:
+  - Hueso: no detecta el cartílago costal y las costillas finas quedan con huecos a 2 mm (p95 de 23 mm).
+  - Piel: sin referencia independiente.
+  - Tejido blando: sin medir.
+- **El mapa EEG sobre la cabeza, el mapa de pacientes con ML, `visualization/art/`, los renders, los landmarks V1–V6** (están en los datos, pero no se usan ni se auditaron) **y la documentación externa** (su CHANGELOG y su CLAUDE.md).
+
+### Verificación
+
+`tests/test_lab3d_auditado.py` (18) y `tests/test_reconstruction3d_validation.py` (9, del pulmón):
+- **Ground truth**: Kors frente a Frank con los números exactos; volumen de una esfera dentro de ±3 %; STL/OBJ/PLY se guardan y se vuelven a leer igual; NIfTI en RAS; DICOM desordenado se reordena bien.
+- **Malla**: la simplificación nunca abre una malla cerrada.
+- **Rótulos (AppTest)**: "Verificado en 1 paciente" y sin "validado"; sin acimut en la tabla; "no reactiva"; "Módulo mixto"; "Malla cerrada ✓" con la TC de ejemplo y 3 descargas.
+- **Exclusiones**: ni código del arte, ML ni calculadoras; el gemelo sin `render_body_3d`; ni `part_colors` ni `visualization.art`; las frases falsas de la documentación externa, ausentes.
+
+Se borraron 3 carpetas que solo contenían caché `.pyc` de módulos no traídos (`visualization/art`, `src/ml`, `app/supermodules/calculators`); eran restos de la mezcla, ignorados por git.
+
+Cita Art. I (cada número mostrado se midió contra una referencia real; lo que falló se retiró en vez de rotularse "validado") y Art. IV (procedencia declarada en cada pieza: verificado n=1, sin validar o referencia no reactiva).
+
 ## 2026-10-19 — BIOCORE, cardiovascular profundo, sub-arco RSA: acoplamiento cardiopulmonar (arritmia sinusal respiratoria)
 
 **Contexto**: segundo sub-arco del cardiovascular profundo. Enseña el freno vagal latido a latido (la FC sube al inspirar y baja al espirar) y, de paso, arregla el sustrato RR: la fuente "Demo (ECG-derived)" del HRV Lab no derivaba de ningún ECG, era `mean_rr + N(0, 3 %)`, ruido blanco con una etiqueta falsa. La cadena se construye **dentro de un solo generador** (respiración → FC → ECG → picos R → RR). No se cruzan el Respiratory Lab y el ECG Lab a través del UPS: ese es el bloqueo multidominio todavía abierto, y fingirlo sería deshonesto.

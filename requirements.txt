@@ -62,6 +62,14 @@ fooof==1.1.1
 shap>=0.42.0
 lime>=0.2.0
 
+# Laboratorio 3D (2026-10-22, aporte externo auditado) -- src/imaging/volume3d.py:
+# marching cubes y Otsu (scikit-image), lectura NIfTI (nibabel) y DICOM (pydicom).
+# fast-simplification es opcional: sin ella la malla no se simplifica (más lenta).
+scikit-image>=0.21.0
+nibabel>=5.0.0
+pydicom>=2.4.0
+fast-simplification>=0.1.7
+
 # Development tools (optional)
 pytest>=7.0.0
 pytest-cov>=4.1.0

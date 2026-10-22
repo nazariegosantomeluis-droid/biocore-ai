@@ -214,6 +214,12 @@ HUBS = {
         # (app.clinical_db) sin tocar — solo se movió la entrada de menú.
         "👥 Patient Pipeline",
     ],
+    # 2026-10-22: traído del aporte externo auditado -- solo lo aprobado (motor
+    # TC/RM -> malla, pulmón verificado n=1, VCG verificado n=1, anatomía de
+    # referencia no reactiva). Ver CHANGELOG.md.
+    "Laboratorio 3D": [
+        "🧊 Crea tu modelo 3D",
+    ],
 }
 PAGE_TABS = [page for pages in HUBS.values() for page in pages]
 
@@ -359,6 +365,11 @@ def render_twin_shell_page() -> None:
     run_twin_shell()
 
 
+def render_model3d_page() -> None:
+    from app.supermodules.model3d.pages import run as run_model3d
+    run_model3d()
+
+
 def render_academia_page() -> None:
     from app.supermodules.academia.pages import run as run_academia
     run_academia()
@@ -502,6 +513,8 @@ def render_page_content(page: str) -> None:
             render_biomarkers_page()  # --- ENRUTAMIENTO A LA NUEVA PÁGINA ---
         elif "Patient Pipeline" in page:
             render_patient_pipeline_page()
+    elif page in HUBS["Laboratorio 3D"]:
+        render_model3d_page()
 
 def render_metrics_grid(metrics_data: List[Dict]):
     cols = st.columns(len(metrics_data))
