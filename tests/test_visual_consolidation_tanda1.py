@@ -111,18 +111,25 @@ def test_eeg_neuro_lab_title_renders_exactly_once():
 
 # --- Parte C: jerarquía visual de confianza, probada en los dos extremos --
 
+ECG_MARKER = "Detección QRS validada"  # fragmento de la firma del experto (ver nota abajo)
+
 def test_ecg_lab_shows_validated_confidence_marker():
     """NOTA (Tanda Final, 2026-09-22): el texto del marcador es ahora la
-    firma VERBATIM del experto -- "MIT-BIH" es el fragmento estable entre
+    firma VERBATIM del experto -- "MIT-BIH" era el fragmento estable entre
     la redacción provisional de Tanda 1 y el texto firmado (que ya no
-    dice "TKEO", dice "Detección QRS")."""
+    dice "TKEO", dice "Detección QRS").
+
+    NOTA (2026-10-21): la tira del encabezado y la lámina del complejo ECG
+    muestran ahora un registro real del MIT-BIH y lo citan, así que
+    "MIT-BIH" ya no identifica solo al marcador: se busca por
+    "Detección QRS validada", que es de la firma del experto."""
     def _script():
         import app.main as m
         m.render_ecg_lab_page()
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    markers = [md.value for md in at.main.markdown if "MIT-BIH" in md.value]
+    markers = [md.value for md in at.main.markdown if ECG_MARKER in md.value]
     assert len(markers) == 1
     assert PALETTE.STABLE in markers[0], "el marco de un módulo validado debe usar STABLE, no un color de alarma"
     assert "AHA" in markers[0]
@@ -163,7 +170,7 @@ def test_confidence_markers_are_visually_distinguishable_between_extremes():
     at_multi = AppTest.from_function(_script_multi)
     at_multi.run(timeout=30)
 
-    ecg_marker = next(md.value for md in at_ecg.main.markdown if "MIT-BIH" in md.value)
+    ecg_marker = next(md.value for md in at_ecg.main.markdown if ECG_MARKER in md.value)
     multi_marker = next(md.value for md in at_multi.main.markdown if "Health Score propietario" in md.value)
 
     assert PALETTE.STABLE in ecg_marker and PALETTE.STABLE not in multi_marker

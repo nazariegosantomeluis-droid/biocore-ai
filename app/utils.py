@@ -381,7 +381,7 @@ def plot_clinical_ecg_safe(signal: np.ndarray, fs: float, r_peaks: Optional[np.n
             from visualization.medical.plotly_clinical import create_clinical_ecg_figure
             
             fig = create_clinical_ecg_figure(signal, fs, r_peaks=r_peaks)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         except Exception as e:
             st.warning(f"⚠️ Plotly rendering failed: {e}")
             plot_signal_matplotlib(signal, fs, title="ECG Signal (Matplotlib Fallback)")

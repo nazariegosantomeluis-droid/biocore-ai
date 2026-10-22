@@ -50,7 +50,7 @@ def render_views():
     # revisión: `_assess_severity()`, `respiratory_analyzer.py:378`,
     # cita AASM en el propio código) -- `validation="VALIDATED"`.
     render_module_header(
-        "Respiratory Lab", icon="💨",
+        "Respiratory Lab", icon="💨", art="respiratory",
         validation="VALIDATED",
         validation_detail=_RESPIRATORY_VALIDATION_DETAIL,
     )
@@ -132,7 +132,7 @@ def _render_investigacion_tab():
             }
             for i, event in enumerate(analysis.apnea_events, 1)
         ])
-        st.dataframe(events_df, use_container_width=True, hide_index=True)
+        st.dataframe(events_df, width="stretch", hide_index=True)
         st.download_button(
             "⬇️ Exportar eventos de apnea (CSV)",
             events_df.to_csv(index=False).encode('utf-8'),
@@ -266,10 +266,11 @@ def _render_simulacion_tab():
 
     if PLOTLY_OK:
         fig = PLOTLY_GO.Figure()
-        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=airflow, name='Flujo de aire', line=dict(color='#8ecae6')))
-        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=chest, name='Pared torácica', line=dict(color='#7c3aed')))
-        fig.update_layout(template='plotly_dark', height=360, title='Señal respiratoria regenerada')
-        st.plotly_chart(fig, use_container_width=True)
+        # Mismos colores de flujo/esfuerzo que la lámina de patrones (2026-10-20).
+        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=airflow, name='Flujo de aire', line=dict(color='#3987e5')))
+        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=chest, name='Pared torácica', line=dict(color='#d95926')))
+        fig.update_layout(height=360, title='Señal respiratoria regenerada')
+        st.plotly_chart(fig, width="stretch")
     else:
         st.line_chart({'Flujo de aire': airflow, 'Pared torácica': chest})
 

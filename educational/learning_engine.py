@@ -124,7 +124,7 @@ def generate_quiz(topic: str = 'ecg_basics', level: str = 'basic', lesson: str =
             QuizQuestion('¿Qué signo sugiere HVI en el ECG?', ['Voltajes precordiales bajos', 'Elevación ST difusa', 'R grandes en V5-V6', 'Ondas U prominentes'], 2, category="ECG 12-derivaciones"),
             QuizQuestion('¿Cuál es una causa frecuente de bradicardia?', ['Hipertiroidismo', 'Bloqueo AV', 'Fiebre', 'Deshidratación'], 1, category="Arritmias"),
             QuizQuestion('¿Qué significa un eje eléctrico izquierdo (valor negativo en II)?', ['Posible HVI', 'Infarto lateral', 'Hiperkalemia', 'Taquicardia'], 0, category="ECG 12-derivaciones"),
-            QuizQuestion('¿Qué patrón sugiere bloqueo de rama derecha?', ['R predominant in V1', 'Deep S in V1', 'Large R in V5', 'ST depression in II'], 0, category="Arritmias"),
+            QuizQuestion('¿Qué patrón sugiere bloqueo de rama derecha?', ['R predominante en V1', 'S profunda en V1', 'R grande en V5', 'Depresión del ST en II'], 0, category="Arritmias"),
             QuizQuestion('¿Cuál es la intervención inicial para STEMI sospechado?', ['Administrar analgesia y observar', 'Activar reperfusión (PCI/Trombolisis)', 'Enviar a fisioterapia', 'Iniciar antibióticos'], 1, category="ECG Básico"),
             QuizQuestion(
                 '¿Cuál es la derivación habitual para detectar fibrilación auricular?',

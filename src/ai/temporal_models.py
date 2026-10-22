@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+import numpy as np
+
 try:
     import torch
     import torch.nn as nn

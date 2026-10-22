@@ -27,9 +27,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional
+from typing import TYPE_CHECKING, Iterator, List, Optional
 
-import anthropic
+if TYPE_CHECKING:  # pragma: no cover
+    import anthropic
 
 from .client import DEFAULT_MODEL, NarratorNotConfiguredError, is_configured
 from .context import NarrativeContext, build_context
@@ -179,12 +180,10 @@ def stream_causal_narration(
     justificación que `client.stream_narration`, ver su docstring."""
 
     if client is None:
-        if not is_configured():
-            raise NarratorNotConfiguredError(
-                "ANTHROPIC_API_KEY no está configurada. El narrador causal requiere una llamada "
-                "real a la API de Anthropic — no hay una narración de respaldo simulada."
-            )
-        client = anthropic.Anthropic()
+        from . import providers
+
+        yield from providers.stream_chat(_SYSTEM_PROMPT, _build_causal_messages(context), max_tokens=max_tokens, anthropic_model=model)
+        return
 
     with client.messages.stream(
         model=model,

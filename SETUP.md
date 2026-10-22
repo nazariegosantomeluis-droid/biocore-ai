@@ -21,12 +21,14 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-`requirements_extra.txt` and `requirements_arrhythmia.txt` are optional add-ons
-for specific subsystems; `requirements.txt` alone is enough to run the app.
+`requirements.txt` alone is enough to run the app. `requirements-dev.txt`
+adds pytest, linters and notebook tooling; `requirements_extra.txt` and
+`requirements_arrhythmia.txt` are optional add-ons for specific subsystems.
 
 ## Run the app
 
 ```bash
+python run_biocore.py        # recommended (Windows-safe event loop), or:
 streamlit run app/main.py
 ```
 
@@ -36,15 +38,25 @@ Simulation / AI / Hardware hubs). `app/streamlit_app.py` is only a thin
 wrapper that re-execs `app/main.py`.
 
 On Windows you can instead double-click `RUN_BIOCORE.bat` or run
-`./run_local.ps1` from PowerShell (creates `.venv`, installs, launches).
+`./run_local.ps1` from PowerShell (creates `.venv` on first run, reinstalls
+dependencies only when `requirements.txt` changes, launches).
 
 ## Optional: clinical AI narrator
 
-The only real AI integration (`domain/physiology/narrator/`) calls the
-Anthropic API. It is **off by default** and the app runs fully without it —
-the narrator panels show an explicit "not configured" notice instead.
+The only real AI integration (`domain/physiology/narrator/`) works with a
+**free local model** or with Claude. The app runs fully without either — the
+narrator panels show an explicit "no AI engine" notice instead.
 
-To enable it, set the API key in your environment before launching:
+**Free, no key (recommended):** install [Ollama](https://ollama.com), then run
+`ollama pull qwen2.5:7b` (about 4.7 GB; `qwen2.5:3b` for low-memory machines).
+With Ollama running, BIOCORE detects it at `http://127.0.0.1:11434`; pick the
+model in the sidebar under "Motor de IA". Any OpenAI-compatible local server
+(LM Studio, llama.cpp, vLLM, Jan) also works: set `BIOCORE_LOCAL_AI_URL`.
+
+**Claude:** copy `.env.example` to `.env` and put your key there — the app
+loads `.env` from the repo root at startup (`app/utils/env_loader.py`; a
+variable already set in the environment wins, and the example placeholder is
+ignored). Or set it in your environment before launching:
 
 ```bash
 # Windows PowerShell
@@ -53,14 +65,18 @@ $env:ANTHROPIC_API_KEY = "sk-your-key-here"
 export ANTHROPIC_API_KEY="sk-your-key-here"
 ```
 
-See `.env.example` for the full list of environment variables. The key is
-read **only** from the environment — never hard-code it.
+See `.env.example` for the full list of environment variables. `.env` is
+git-ignored — never hard-code the key in source files.
 
 ## Run the tests
 
 ```bash
+pip install -r requirements-dev.txt
 pytest tests/ -q
 ```
+
+Tests that need PhysioNet (PTB-XL) are skipped automatically when there is no
+network access.
 
 ## Command-line pipeline (no UI)
 

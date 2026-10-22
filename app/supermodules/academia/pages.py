@@ -22,7 +22,12 @@ entre ambas páginas de Academia.
 import streamlit as st
 import pandas as pd
 
-from app.utils.design_system import render_module_header, render_error_state
+from app.utils.design_system import (
+    render_module_header, render_error_state, render_ai_feedback_off_notice, render_plate,
+)
+from visualization.art import ATLAS, PLATES
+from visualization.art.plates import ATLAS_TOPICS
+from app.supermodules.twin_shell.baroreflex_panel import pa_model_label
 from domain.physiology.narrator import (
     Finding,
     FindingsContext,
@@ -33,10 +38,9 @@ from domain.physiology.narrator import is_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
     EventSeverity,
-    init_db,
-    make_engine,
     make_session_factory,
 )
+from app.utils.patient_session import get_shared_ups_engine
 
 # Banco de casos sintéticos (Paso 2, 2026-07-14): reutiliza el patrón de
 # ocultar->elegir->revelar, los distractores y la deduplicación de eventos
@@ -115,7 +119,7 @@ def render_theory_section() -> None:
             }
             for name, info in leads.items()
         ]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
         st.caption(
             f"{len(rows)} derivaciones documentadas. Esta es, hoy, la única lección de "
             "teoría con contenido real en el módulo de aprendizaje — ampliar a otros temas "
@@ -213,41 +217,44 @@ def render_lessons_quizzes_tab() -> None:
                 selected = st.radio("Opciones", q.choices, key=choice_key)
 
                 if not narrator_is_configured():
-                    st.warning(
-                        "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado "
-                        "requiere la API real de Anthropic, sin narración simulada de respaldo."
-                    )
+                    render_ai_feedback_off_notice()
 
-                if st.button("Responder", key=f"academia_quiz_submit_{current}") and narrator_is_configured():
+                # 2026-10-19: antes `... and narrator_is_configured()` -- sin
+                # clave el botón no hacía NADA y el quiz quedaba inservible,
+                # aunque la respuesta correcta la decide el banco (código),
+                # nunca el modelo. Ahora se califica siempre; solo la
+                # narración del feedback depende de la clave.
+                if st.button("Responder", key=f"academia_quiz_submit_{current}"):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
-
-                    findings = [
-                        Finding(name="Pregunta", value=q.prompt, meaning="Enunciado de la pregunta del quiz."),
-                        Finding(
-                            name="Opción elegida por el estudiante", value=q.choices[idx],
-                            meaning="Respuesta que el estudiante seleccionó — evalúala contra la correcta.",
-                        ),
-                        Finding(
-                            name="Respuesta correcta (verdad de referencia)", value=q.choices[q.answer],
-                            meaning=(
-                                q.explanation
-                                or "Respuesta correcta según el banco de preguntas — verdad de referencia "
-                                   "decidida por código, no por el modelo."
+                    quiz_state["feedback"] = None
+                    quiz_state["feedback_error"] = None
+                    if narrator_is_configured():
+                        findings = [
+                            Finding(name="Pregunta", value=q.prompt, meaning="Enunciado de la pregunta del quiz."),
+                            Finding(
+                                name="Opción elegida por el estudiante", value=q.choices[idx],
+                                meaning="Respuesta que el estudiante seleccionó — evalúala contra la correcta.",
                             ),
-                        ),
-                    ]
-                    findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
-                    try:
-                        quiz_state["feedback"] = "".join(stream_findings_narration(findings_context))
-                        quiz_state["feedback_error"] = None
-                    except NarratorNotConfiguredError as exc:
-                        quiz_state["feedback"] = None
-                        quiz_state["feedback_error"] = str(exc)
-                    except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
-                        quiz_state["feedback"] = None
-                        quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
-
+                            Finding(
+                                name="Respuesta correcta (verdad de referencia)", value=q.choices[q.answer],
+                                meaning=(
+                                    q.explanation
+                                    or "Respuesta correcta según el banco de preguntas — verdad de referencia "
+                                       "decidida por código, no por el modelo."
+                                ),
+                            ),
+                        ]
+                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
+                        try:
+                            quiz_state["feedback"] = "".join(stream_findings_narration(findings_context))
+                            quiz_state["feedback_error"] = None
+                        except NarratorNotConfiguredError as exc:
+                            quiz_state["feedback"] = None
+                            quiz_state["feedback_error"] = str(exc)
+                        except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
+                            quiz_state["feedback"] = None
+                            quiz_state["feedback_error"] = f"Error llamando al motor de IA: {exc}"
                     quiz_state["answered_current"] = True
                     st.rerun()
             else:
@@ -258,11 +265,18 @@ def render_lessons_quizzes_tab() -> None:
                 else:
                     st.error(f"❌ Elegiste **{q.choices[idx]}** — la respuesta correcta es **{q.choices[q.answer]}**")
 
+                # Solo las preguntas que YA traían explicación de origen la
+                # muestran (texto existente del banco, no redactado aquí).
+                if q.explanation:
+                    st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
+
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:
                     st.markdown(quiz_state["feedback"])
                 elif quiz_state["feedback_error"]:
                     render_error_state(quiz_state["feedback_error"])
+                elif not narrator_is_configured():
+                    render_ai_feedback_off_notice()
 
                 is_last = current + 1 >= total
                 if st.button("Finalizar quiz" if is_last else "➡️ Siguiente pregunta", key=f"academia_quiz_next_{current}"):
@@ -331,21 +345,21 @@ def render_synthetic_case_section() -> None:
             "🧪 Caso **simulado** por el banco de casos de BIOCORE — no es un paciente real. "
             "Es una variación honesta de uno de los 12 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
-            "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
-            "(Anthropic), fundamentado en los descriptores y eventos que este caso contiene."
+            "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador con IA real "
+            "(local gratis o Claude), fundamentado en los descriptores y eventos que este caso contiene."
         )
 
+        # 2026-10-19: antes `return` sin clave -- el caso ciego entero (generar,
+        # diagnosticar, revelar) quedaba inaccesible aunque generar el caso y
+        # decidir la respuesta correcta nunca dependieron del modelo. Ahora
+        # solo el feedback narrado depende de la clave.
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
-            )
-            return
+            render_ai_feedback_off_notice()
 
         if "academia_case_session_factory" not in st.session_state:
-            engine = make_engine()
-            init_db(engine)
-            st.session_state["academia_case_session_factory"] = make_session_factory(engine)
+            # Mismo engine compartido por proceso que el resto de la app
+            # (antes: un engine nuevo, nunca liberado, por sesión de navegador).
+            st.session_state["academia_case_session_factory"] = make_session_factory(get_shared_ups_engine())
         session_factory = st.session_state["academia_case_session_factory"]
 
         if st.button("🆕 Nuevo caso sintético", key="academia_case_new"):
@@ -400,7 +414,7 @@ def render_synthetic_case_section() -> None:
             for domain_state in state.all_domains().values()
             for d in domain_state.descriptors.values()
         ]
-        st.dataframe(pd.DataFrame(desc_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(desc_rows), width="stretch", hide_index=True)
 
         map_modelo = state.cardiovascular.get("map_modelo")
         if map_modelo is not None:
@@ -409,7 +423,7 @@ def render_synthetic_case_section() -> None:
             references_pa = st.session_state.get("academia_case_reference_pa") or []
             ref_map = next((r for r in references_pa if r.descriptor == "map"), None)
             st.markdown(
-                f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                 f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                 f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                 + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")
@@ -482,7 +496,12 @@ def render_synthetic_case_section() -> None:
                 findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings)
 
                 try:
-                    feedback_text = "".join(stream_findings_narration(findings_context))
+                    if not narrator_is_configured():
+                        # Sin clave: no se llama a la API ni se muestra error --
+                        # el aviso informativo ya explica qué falta.
+                        feedback_text = None
+                    else:
+                        feedback_text = "".join(stream_findings_narration(findings_context))
                     st.session_state["academia_case_feedback"] = feedback_text
                     st.session_state["academia_case_feedback_error"] = None
                 except NarratorNotConfiguredError as exc:
@@ -490,7 +509,7 @@ def render_synthetic_case_section() -> None:
                     st.session_state["academia_case_feedback_error"] = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state["academia_case_feedback"] = None
-                    st.session_state["academia_case_feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state["academia_case_feedback_error"] = f"Error llamando al motor de IA: {exc}"
 
                 st.session_state["academia_case_selected"] = choice
                 st.session_state["academia_case_answered"] = True
@@ -520,6 +539,8 @@ def render_synthetic_case_section() -> None:
                 st.markdown(st.session_state["academia_case_feedback"])
             elif st.session_state["academia_case_feedback_error"]:
                 render_error_state(st.session_state["academia_case_feedback_error"])
+            elif not narrator_is_configured():
+                render_ai_feedback_off_notice()
 
             if st.button("➡️ Otro caso", key="academia_case_next"):
                 for k in [
@@ -557,18 +578,90 @@ def render_tutor_tab() -> None:
 # dejarla vacía con un disclaimer.
 
 
+ACADEMIA_TABS = [
+    ":material/menu_book: Lecciones y Casos",
+    ":material/photo_library: Atlas visual",
+    ":material/smart_toy: Tutor IA",
+]
+
+
+ATLAS_3D_FOCUS = {
+    # nombre -> (partes resaltadas, partes de contexto, vista)
+    "Cuerpo completo": ((), (), "front"),
+    "Corazón y grandes vasos": (("heart", "artery_roots", "vein_roots"), ("ribs", "sternum", "lung_left",
+                                                                         "lung_right"), "oblique"),
+    "Pulmones y tráquea": (("lung_right", "lung_left", "trachea"), ("ribs", "heart", "spine"), "front"),
+    "Esqueleto": (("skull", "spine", "ribs", "sternum", "costal_cartilages", "shoulder_girdle", "humeri",
+                   "pelvis", "femurs"), (), "oblique"),
+    "Músculos de la espalda y la cadera": (("back_muscles", "iliopsoas", "gluteals"), ("spine", "pelvis",
+                                                                                      "femurs"), "back"),
+    "Abdomen": (("liver", "gallbladder", "stomach", "duodenum", "small_bowel", "colon", "pancreas", "spleen",
+                 "kidneys", "adrenals", "bladder"), ("spine", "pelvis", "ribs"), "front"),
+}
+
+
+def render_atlas_3d() -> None:
+    """Explorador 3D del Atlas (2026-10-21): la misma tomografía real de las
+    láminas, para girarla y ver cada estructura con su volumen medido."""
+    from visualization import anatomy3d as A3
+
+    if not A3.assets_available():
+        return
+    with st.expander("Explorar en 3D: el cuerpo de la tomografía real", expanded=False,
+                     icon=":material/view_in_ar:"):
+        c1, c2 = st.columns(2)
+        focus = c1.selectbox("Qué ver", list(ATLAS_3D_FOCUS), key="academia_atlas3d_focus")
+        parts, context, view = ATLAS_3D_FOCUS[focus]
+        view = c2.segmented_control("Vista", ["front", "oblique", "left", "back"], format_func=A3.CAMERA_LABELS.get,
+                                    default=view, key="academia_atlas3d_view") or view
+        if parts:
+            fig = A3.organ_figure(parts, context=context, camera=view, height=600)
+        else:
+            fig = A3.body_figure(systems=A3.DEFAULT_SYSTEMS + ("abdominal",), camera=view, height=640)
+        st.plotly_chart(fig, width="stretch", key="academia_atlas3d", config={"displaylogo": False,
+                                                                           "scrollZoom": True})
+        st.caption("Tomografía real de cuerpo completo (TotalSegmentator dataset v2, sujeto s1397, CC BY 4.0). "
+                   "Pasa el cursor sobre una estructura para ver su nombre y su volumen medido en esa TC.")
+
+
+def render_atlas_tab() -> None:
+    """Atlas visual (rediseño 2026-10-19; datos reales 2026-10-21): todas
+    las láminas de `visualization/art/plates.py` en un solo lugar,
+    agrupadas por sistema. Cada una dice qué es -- registro real, anatomía
+    real de una tomografía, esquema o simulación -- y lleva sus fuentes; son
+    las mismas que aparecen dentro de cada laboratorio. Contenido educativo
+    con cita, no texto generado por IA."""
+    st.markdown("### Atlas visual")
+    st.write(
+        "Anatomía real de una tomografía, registros reales de ECG y EEG, y los esquemas que explican lo "
+        "que miden los laboratorios. Todo funciona sin internet y lleva sus fuentes; dentro de cada "
+        "laboratorio se resaltan según lo que elijas."
+    )
+    render_atlas_3d()
+    options = ["Todos", *ATLAS_TOPICS]
+    topic = st.segmented_control("Sistema", options, default="Todos", key="academia_atlas_topic")
+    keys = [k for k in ATLAS if topic in (None, "Todos") or PLATES[k].topic == topic]
+    st.caption(f"{len(keys)} láminas")
+    cols = st.columns(2)
+    for i, key in enumerate(keys):
+        with cols[i % 2]:
+            render_plate(key)
+
+
 def main() -> None:
     # NOTE: st.set_page_config() is already called once by app/main.py — must
     # not be repeated here (this was the root cause of the old Academia
     # Clínica "Clínica" tab silently failing every render).
-    render_module_header("Academia BIOCORE AI", icon="🏫")
-    st.caption("Lecciones, casos clínicos y tutor IA.")
+    render_module_header("Academia BIOCORE AI", icon="🏫", art="academia")
+    st.caption("Lecciones, casos clínicos, atlas visual y tutor IA.")
 
-    tabs = st.tabs(["📝 Lecciones y Casos", "📖 Tutor IA"])
+    tabs = st.tabs(ACADEMIA_TABS)
 
     with tabs[0]:
         render_lessons_quizzes_tab()
     with tabs[1]:
+        render_atlas_tab()
+    with tabs[2]:
         render_tutor_tab()
 
 

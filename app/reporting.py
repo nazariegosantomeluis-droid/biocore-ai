@@ -1,5 +1,7 @@
 import os
 import datetime
+import logging
+import shutil
 from typing import Dict, Any, List, Optional, Tuple
 
 # Consolidación Visual Tanda 2 (2026-09-21): `app/reporting.py` es la
@@ -15,6 +17,8 @@ from typing import Dict, Any, List, Optional, Tuple
 # resolvió. Si mañana cambia un umbral o una cita, cambia en un solo
 # lugar y ambos renderizadores (Streamlit vivo, HTML exportado) lo heredan.
 from app.utils.design_system import MetricCardData, PALETTE, metric_card_to_html, resolve_validation_marker
+
+logger = logging.getLogger(__name__)
 
 _MATPLOTLIB_AVAILABLE: Optional[bool] = None
 _plt = None
@@ -282,11 +286,17 @@ def export_lab_report(
     # en ningún llamador. El logo no necesita copiarse -- ya está donde
     # tiene que estar.
     if image_paths:
+        # El HTML/PDF referencian cada imagen por basename dentro de
+        # `out_dir`, asi que hay que copiarla alli. Antes `copyfile` no
+        # estaba importado: el NameError lo tragaba el `except` y las
+        # imagenes generadas fuera de `out_dir` salian rotas en el reporte.
         for _, p in image_paths:
+            dest = os.path.join(out_dir, os.path.basename(p))
             try:
-                copyfile(p, os.path.join(out_dir, os.path.basename(p)))
-            except Exception:
-                pass
+                if os.path.abspath(p) != os.path.abspath(dest):
+                    shutil.copyfile(p, dest)
+            except OSError as exc:
+                logger.warning("No se pudo copiar la imagen %s al reporte: %s", p, exc)
 
     with open(html_path, 'w', encoding='utf-8') as fh:
         fh.write('\n'.join(html_lines))
@@ -303,7 +313,22 @@ def export_lab_report(
         except Exception:
             font_path = None
 
+        # Una sola fuente efectiva para cuerpo, encabezado y pie. Antes el
+        # encabezado/pie elegían 'DejaVu' por su cuenta y el pie pedía la
+        # variante cursiva ('I'), que nunca se registraba: FPDF lanzaba
+        # "Undefined font: dejavuI" en la primera página, el `except` general
+        # lo tragaba y NUNCA se generaba el PDF (solo quedaba el HTML).
+        fonts = {'base': 'Arial'}
+
         class PDF(FPDF):
+            def para(self_inner, h, txt):
+                # Párrafo a ancho completo desde el margen izquierdo. En fpdf2
+                # `multi_cell` deja el cursor a la DERECHA: el siguiente
+                # `multi_cell(0, ...)` fallaba con "Not enough horizontal space".
+                self_inner.set_x(self_inner.l_margin)
+                self_inner.multi_cell(0, h, txt)
+                self_inner.set_x(self_inner.l_margin)
+
             def header(self_inner):
                 logo_file = os.path.join(out_dir, os.path.basename(logo_path))
                 if os.path.exists(logo_file):
@@ -311,12 +336,13 @@ def export_lab_report(
                         self_inner.image(logo_file, x=10, y=8, w=36)
                     except Exception:
                         pass
-                self_inner.set_font('DejaVu' if font_path else 'Arial', 'B', 14)
+                self_inner.set_font(fonts['base'], 'B', 14)
                 self_inner.cell(0, 10, f"{lab_name}", ln=1, align='R')
+                self_inner.ln(6)  # aire bajo el logo: el título no se le encima
 
             def footer(self_inner):
                 self_inner.set_y(-15)
-                self_inner.set_font('DejaVu' if font_path else 'Arial', 'I', 8)
+                self_inner.set_font(fonts['base'], 'I', 8)
                 self_inner.cell(0, 6, f"Generated: {timestamp}", align='L')
                 self_inner.cell(0, 6, f"Page {self_inner.page_no()}", align='R')
 
@@ -324,14 +350,18 @@ def export_lab_report(
         pdf = PDF('P', 'mm', 'A4')
         pdf.set_auto_page_break(auto=True, margin=15)
 
-        base_font = 'DejaVu' if font_path and os.path.exists(font_path) else 'Arial'
+        base_font = 'Arial'
         if font_path and os.path.exists(font_path):
             try:
-                pdf.add_font('DejaVu', '', font_path, uni=True)
-                pdf.add_font('DejaVu', 'B', font_path, uni=True)
+                # Las 4 variantes que usa el reporte (regular, negrita, cursiva
+                # del pie). Con un único TTF, FPDF las dibuja con el mismo trazo.
+                for style in ('', 'B', 'I', 'BI'):
+                    pdf.add_font('DejaVu', style, font_path)
                 base_font = 'DejaVu'
-            except Exception:
+            except Exception as exc:
+                logger.warning("No se pudo registrar DejaVu en el PDF, uso Arial: %s", exc)
                 base_font = 'Arial'
+        fonts['base'] = base_font
 
         pdf.add_page()
         pdf.set_font(base_font, 'B', 12)
@@ -340,7 +370,7 @@ def export_lab_report(
         pdf.cell(0, 6, f"Generated: {timestamp}", ln=1)
         if marker is not None:
             _, v_symbol, v_text = marker
-            pdf.multi_cell(0, 6, f"{v_symbol} {v_text}")
+            pdf.para(6, f"{v_symbol} {v_text}")
         pdf.ln(4)
 
         pdf.set_font(base_font, 'B', 11)
@@ -348,7 +378,7 @@ def export_lab_report(
         pdf.ln(2)
         pdf.set_font(base_font, size=10)
         for k, v in metrics.items():
-            pdf.multi_cell(0, 6, f"{k}: {v}")
+            pdf.para(6, f"{k}: {v}")
 
         # Consolidación Visual Tanda 2: misma sección de honestidad que el
         # HTML (`honesty_cards`), en texto plano -- el PDF no pierde la
@@ -362,11 +392,11 @@ def export_lab_report(
             pdf.set_font(base_font, size=10)
             for card in honesty_cards:
                 if not card.available:
-                    pdf.multi_cell(0, 6, f"{card.label}: no disponible — {card.reason}")
+                    pdf.para(6, f"{card.label}: no disponible — {card.reason}")
                 else:
                     detail = " — ".join(card.detail_parts)
                     line = f"{card.label}: {card.value}" + (f" — {detail}" if detail else "")
-                    pdf.multi_cell(0, 6, line)
+                    pdf.para(6, line)
 
         if findings:
             pdf.add_page()
@@ -375,7 +405,7 @@ def export_lab_report(
             pdf.ln(4)
             pdf.set_font(base_font, size=10)
             for k, v in findings.items():
-                pdf.multi_cell(0, 6, f"{k}: {v}")
+                pdf.para(6, f"{k}: {v}")
             pdf.ln(4)
 
         if image_paths:
@@ -384,7 +414,7 @@ def export_lab_report(
                 if os.path.exists(img_path):
                     pdf.add_page()
                     pdf.set_font(base_font, 'B', 11)
-                    pdf.multi_cell(0, 6, caption)
+                    pdf.para(6, caption)
                     page_w = pdf.w - 2 * pdf.l_margin
                     try:
                         pdf.image(img_path, w=page_w)
@@ -397,10 +427,13 @@ def export_lab_report(
             pdf.cell(0, 6, 'Notes', ln=1)
             pdf.ln(2)
             pdf.set_font(base_font, size=10)
-            pdf.multi_cell(0, 6, notes)
+            pdf.para(6, notes)
 
         pdf.output(pdf_path)
-    except Exception:
+    except ImportError:
+        pdf_path = None  # fpdf no instalado: el HTML es el reporte
+    except Exception as exc:
+        logger.warning("No se pudo generar el PDF de %s, se entrega el HTML: %s", lab_name, exc)
         pdf_path = None
 
     return pdf_path if pdf_path else html_path

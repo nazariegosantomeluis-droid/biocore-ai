@@ -45,7 +45,7 @@ clínicamente validado".
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from scipy.signal import welch
 
 from .preprocessing import MIN_FILTERABLE_SAMPLES, preprocess_eeg
@@ -157,6 +157,26 @@ ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S: float = 5500.0
 # requisito de fase citado -- solo que el promedio de Welch tenga más de 1
 # ventana para no ser un solo periodograma disfrazado de PSD.
 MIN_CLEAN_EEG_DURATION_S: float = 2.0
+
+# Límites (Hz) en los que `analyze()` integra la potencia de cada banda, y
+# la etiqueta de estado de `_classify_pattern()`. Expuestos como constantes
+# (2026-10-19) para que la lámina "Bandas del EEG" (`visualization/art/
+# plates.py`) muestre EXACTAMENTE lo que este analizador mide, sin copiar
+# los números a mano. Mismos valores que antes, solo nombrados.
+BAND_LIMITS_HZ: Dict[str, Tuple[float, float]] = {
+    'delta': (0.5, 3.5),
+    'theta': (4.0, 7.5),
+    'alpha': (8.0, 12.0),
+    'beta': (13.0, 30.0),
+    'gamma': (30.0, 45.0),
+}
+BAND_CLASSIFICATION: Dict[str, str] = {
+    'alpha': 'Despierto relajado',
+    'beta': 'Alerta / Enfocado',
+    'theta': 'Sueño ligero / Somnolencia',
+    'delta': 'Sueño profundo / Ritmo lento',
+    'gamma': 'Actividad cortical alta / Activación cognitiva',
+}
 
 
 def beta_alpha_ratio(beta_power: float, alpha_power: float) -> Optional[float]:
@@ -340,13 +360,7 @@ class EegAnalyzer:
             )
             return self._unavailable(reason, clean_fraction=clean_fraction, clean_window_count=clean_window_count)
 
-        band_power = {
-            'delta': self._band_power(freqs, psd, 0.5, 3.5),
-            'theta': self._band_power(freqs, psd, 4.0, 7.5),
-            'alpha': self._band_power(freqs, psd, 8.0, 12.0),
-            'beta': self._band_power(freqs, psd, 13.0, 30.0),
-            'gamma': self._band_power(freqs, psd, 30.0, 45.0),
-        }
+        band_power = self._band_powers(freqs, psd)
         dominant_band = max(band_power, key=band_power.get)
         # DAR/TBR reusan los mismos band power ya calculados arriba para el
         # BAR -- no se recalcula el PSD, solo se toman otros dos cocientes
@@ -424,28 +438,12 @@ class EegAnalyzer:
         propio del χ (`spectral_model.MIN_CHI_CLEAN_WINDOWS`) necesita y
         que `clean_fraction` por sí solo no puede dar (una fracción de 1.0
         sobre 3 ventanas totales sigue siendo muy poca evidencia)."""
-        n_total = filtered.shape[0]
-        if n_total == 0:
+        if filtered.shape[0] == 0:
             return None, None, 0.0, 0
 
-        window_samples = max(1, int(round(ARTIFACT_WINDOW_S * self.fs)))
-        if n_total < window_samples:
-            # Señal más corta que una ventana -- se trata como una sola
-            # ventana (mismo espíritu que el `nperseg = min(512, N)`
-            # anterior a esta tanda para señales cortas de test).
-            window_samples = n_total
-        n_windows = n_total // window_samples
-
-        clean_psds = []
-        freqs = None
-        for i in range(n_windows):
-            segment = filtered[i * window_samples:(i + 1) * window_samples]
-            gradient = float(np.max(np.abs(np.diff(segment))) * self.fs) if segment.shape[0] > 1 else 0.0
-            if gradient > ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S:
-                continue
-            f, psd = welch(segment, fs=self.fs, nperseg=segment.shape[0])
-            freqs = f
-            clean_psds.append(psd)
+        freqs, window_psds, window_samples = self._windowed_welch(filtered)
+        n_windows = len(window_psds)
+        clean_psds = [psd for psd in window_psds if psd is not None]
 
         clean_fraction = len(clean_psds) / n_windows if n_windows > 0 else 0.0
         clean_window_count = len(clean_psds)
@@ -455,22 +453,60 @@ class EegAnalyzer:
 
         return freqs, np.mean(clean_psds, axis=0), clean_fraction, clean_window_count
 
+    def _windowed_welch(
+        self, filtered: np.ndarray
+    ) -> Tuple[Optional[np.ndarray], List[Optional[np.ndarray]], int]:
+        """La cadena por ventana del rechazo de Arco 2A, sin promediar:
+        segmenta la señal YA filtrada en ventanas de `ARTIFACT_WINDOW_S`,
+        descarta (None) las que exceden `ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S`
+        y calcula el Welch de las limpias. Devuelve `(freqs, psd_por_ventana,
+        muestras_por_ventana)`; `freqs=None` si ninguna ventana quedó limpia.
+        `_welch_with_artifact_rejection()` promedia esta lista;
+        `windowed_band_power()` la expone ventana a ventana."""
+        n_total = filtered.shape[0]
+        window_samples = max(1, int(round(ARTIFACT_WINDOW_S * self.fs)))
+        if n_total < window_samples:
+            # Señal más corta que una ventana -- se trata como una sola
+            # ventana (mismo espíritu que el `nperseg = min(512, N)`
+            # anterior a esta tanda para señales cortas de test).
+            window_samples = n_total
+        n_windows = n_total // window_samples if window_samples > 0 else 0
+
+        freqs = None
+        window_psds: List[Optional[np.ndarray]] = []
+        for i in range(n_windows):
+            segment = filtered[i * window_samples:(i + 1) * window_samples]
+            gradient = float(np.max(np.abs(np.diff(segment))) * self.fs) if segment.shape[0] > 1 else 0.0
+            if gradient > ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S:
+                window_psds.append(None)
+                continue
+            freqs, psd = welch(segment, fs=self.fs, nperseg=segment.shape[0])
+            window_psds.append(psd)
+        return freqs, window_psds, window_samples
+
+    def windowed_band_power(self, signal: np.ndarray) -> Tuple[List[Optional[Dict[str, float]]], float]:
+        """Band power ventana a ventana sobre la señal COMPLETA (Engagement
+        Index, 2026-10-18): la misma cadena que `analyze()` -- un solo
+        `preprocess_eeg()` + `_windowed_welch()` + `_band_powers()` -- sin
+        el promedio global que colapsaría el tiempo. Devuelve
+        `(band_power_por_ventana, duración_de_ventana_s)`; `None` en las
+        ventanas rechazadas como artefacto. El llamador declina antes si la
+        señal es más corta que `MIN_FILTERABLE_SAMPLES`."""
+        filtered, _ = preprocess_eeg(np.asarray(signal, dtype=float).flatten(), self.fs)
+        freqs, window_psds, window_samples = self._windowed_welch(filtered)
+        per_window = [None if psd is None else self._band_powers(freqs, psd) for psd in window_psds]
+        return per_window, window_samples / self.fs
+
+    def _band_powers(self, freqs: np.ndarray, psd: np.ndarray) -> Dict[str, float]:
+        """Las 5 bandas estándar, con los bordes de `BAND_LIMITS_HZ`."""
+        return {band: self._band_power(freqs, psd, low, high) for band, (low, high) in BAND_LIMITS_HZ.items()}
+
     def _band_power(self, freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> float:
         mask = (freqs >= low) & (freqs <= high)
         return float(_trapz(psd[mask], freqs[mask])) if np.any(mask) else 0.0
 
     def _classify_pattern(self, dominant_band: str, band_power: Dict[str, float]) -> str:
-        if dominant_band == 'alpha':
-            return 'Despierto relajado'
-        if dominant_band == 'beta':
-            return 'Alerta / Enfocado'
-        if dominant_band == 'theta':
-            return 'Sueño ligero / Somnolencia'
-        if dominant_band == 'delta':
-            return 'Sueño profundo / Ritmo lento'
-        if dominant_band == 'gamma':
-            return 'Actividad cortical alta / Activación cognitiva'
-        return 'Patrón no determinado'
+        return BAND_CLASSIFICATION.get(dominant_band, 'Patrón no determinado')
 
     def _interpretation_text(self, dominant_band: str) -> str:
         mapping = {

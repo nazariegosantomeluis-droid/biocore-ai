@@ -1,0 +1,276 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{"imports": {"three": "./node_modules/three/build/three.module.js",
+             "three/addons/": "./node_modules/three/examples/jsm/"}}
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+window.__error = null;
+window.addEventListener('error', e => { window.__error = String(e.message || e); });
+
+const MAT = {
+  bone:      { color: '#e8dcc2', roughness: 0.52, clearcoat: 0.18, clearcoatRoughness: 0.5 },
+  bone_dim:  { color: '#d8ccb3', roughness: 0.6, opacity: 0.35 },
+  cartilage: { color: '#b9d0d8', roughness: 0.32, clearcoat: 0.55, clearcoatRoughness: 0.25 },
+  heart:     { color: '#a1263a', roughness: 0.4, clearcoat: 0.65, clearcoatRoughness: 0.3, sheen: 0.35, sheenColor: '#ff9aa8' },
+  artery:    { color: '#c8323f', roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.3 },
+  vein:      { color: '#3b55ad', roughness: 0.38, clearcoat: 0.55, clearcoatRoughness: 0.3 },
+  pulmvein:  { color: '#d04a5c', roughness: 0.36, clearcoat: 0.6 },
+  lung:      { color: '#e39b97', roughness: 0.72, sheen: 0.7, sheenColor: '#ffe1dc', sheenRoughness: 0.6 },
+  lung_glass:{ color: '#f2b8b2', roughness: 0.6, opacity: 0.38, sheen: 0.5, sheenColor: '#ffe1dc' },
+  trachea:   { color: '#e8c9b4', roughness: 0.45, clearcoat: 0.4 },
+  brain:     { color: '#e3b2a6', roughness: 0.55, sheen: 0.45, sheenColor: '#ffe3dc', clearcoat: 0.25, clearcoatRoughness: 0.5 },
+  cord:      { color: '#efd27e', roughness: 0.42, clearcoat: 0.45 },
+  muscle:    { color: '#9c3b33', roughness: 0.48, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.35, sheenColor: '#ff9f8f' },
+  liver:     { color: '#7e2d26', roughness: 0.42, clearcoat: 0.55 },
+  gall:      { color: '#6e8d3a', roughness: 0.4, clearcoat: 0.5 },
+  stomach:   { color: '#d49a88', roughness: 0.5, clearcoat: 0.4 },
+  bowel:     { color: '#daa48f', roughness: 0.5, clearcoat: 0.4 },
+  colon:     { color: '#c58e76', roughness: 0.52, clearcoat: 0.35 },
+  pancreas:  { color: '#e0b678', roughness: 0.55, clearcoat: 0.3 },
+  spleen:    { color: '#7b2f46', roughness: 0.42, clearcoat: 0.5 },
+  kidney:    { color: '#8e3a2e', roughness: 0.42, clearcoat: 0.5 },
+  adrenal:   { color: '#d6a24f', roughness: 0.45 },
+  bladder:   { color: '#d9b98b', roughness: 0.45, clearcoat: 0.4 },
+  prostate:  { color: '#b76f5e', roughness: 0.45 },
+  thyroid:   { color: '#a64438', roughness: 0.42, clearcoat: 0.45 },
+  esophagus: { color: '#c97f72', roughness: 0.45, clearcoat: 0.4 },
+  mannequin: { color: '#c3cddd', roughness: 0.48, clearcoat: 0.3, clearcoatRoughness: 0.4 },
+  skin:      { color: '#d6a688', roughness: 0.55, sheen: 0.5, sheenColor: '#ffd8c0' },
+};
+
+const params = new URLSearchParams(location.search);
+const spec = await (await fetch(params.get('spec'))).json();
+const W = spec.size[0], H = spec.size[1];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.toneMapping = spec.tone === 'agx' ? THREE.AgXToneMapping : (spec.tone === 'neutral' ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping);
+renderer.localClippingEnabled = true;
+renderer.toneMappingExposure = spec.exposure ?? 1.0;
+renderer.shadowMap.enabled = spec.shadows !== false;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.setClearColor(spec.background ? new THREE.Color(spec.background) : 0x000000, spec.background ? 1 : 0);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = spec.envIntensity ?? 0.55;
+
+const cache = {};
+async function loadMesh(asset, key) {
+  const idxUrl = `meshes/${asset}/index.json`;
+  cache[idxUrl] = cache[idxUrl] || await (await fetch(idxUrl)).json();
+  const info = cache[idxUrl].meshes[key];
+  if (!info) throw new Error(`no existe ${asset}/${key}`);
+  const buf = await (await fetch(`meshes/${asset}/${key}.bin`)).arrayBuffer();
+  const pos = new Float32Array(buf, 0, info.n_vertices * 3);
+  const idx = new Uint32Array(buf, info.n_vertices * 12, info.n_indices);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
+function glassMaterial(o) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color(o.color || '#bfe9f5') },
+      power: { value: o.power ?? 2.2 },
+      strength: { value: o.strength ?? 0.55 },
+      base: { value: o.base ?? 0.025 },
+    },
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform vec3 color; uniform float power; uniform float strength; uniform float base;
+      varying vec3 vN; varying vec3 vV;
+      void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), power);
+        gl_FragColor = vec4(color, clamp(base + strength * f, 0.0, 1.0)); }`,
+    transparent: true, depthWrite: false, side: THREE.FrontSide,
+  });
+}
+
+function makeMaterial(name, override) {
+  if (name === 'glass') return glassMaterial(override || {});
+  const p = Object.assign({}, MAT[name] || {}, override || {});
+  const m = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(p.color || '#cccccc'), roughness: p.roughness ?? 0.5, metalness: 0,
+    clearcoat: p.clearcoat ?? 0, clearcoatRoughness: p.clearcoatRoughness ?? 0.4,
+    sheen: p.sheen ?? 0, sheenRoughness: p.sheenRoughness ?? 0.5,
+    sheenColor: new THREE.Color(p.sheenColor || '#ffffff'),
+    emissive: new THREE.Color(p.emissive || '#000000'), emissiveIntensity: p.emissiveIntensity ?? 0,
+  });
+  if (p.opacity !== undefined && p.opacity < 1) {
+    m.transparent = true; m.opacity = p.opacity; m.depthWrite = false;
+  }
+  return m;
+}
+
+const bbox = new THREE.Box3();
+const opaque = [];
+for (const obj of spec.objects) {
+  const g = await loadMesh(obj.asset, obj.key);
+  const mat = makeMaterial(obj.material, obj.override);
+  const clip = obj.clip || spec.clip;
+  if (clip) {
+    mat.clippingPlanes = [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), -clip[0]), new THREE.Plane(new THREE.Vector3(-1, 0, 0), clip[3]),
+      new THREE.Plane(new THREE.Vector3(0, 1, 0), -clip[1]), new THREE.Plane(new THREE.Vector3(0, -1, 0), clip[4]),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), -clip[2]), new THREE.Plane(new THREE.Vector3(0, 0, -1), clip[5])];
+    mat.side = THREE.DoubleSide;
+  }
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.renderOrder = obj.renderOrder ?? (mesh.material.transparent ? 10 : 0);
+  if (!mesh.material.transparent) { mesh.castShadow = true; mesh.receiveShadow = true; opaque.push(mesh); }
+  scene.add(mesh);
+  if (obj.frame !== false) { g.computeBoundingBox(); bbox.union(g.boundingBox); }
+}
+
+function addPad(pos, normal, { radius = 9, color = '#f4f6fb', snap = '#9aa7bd', ring = null } = {}) {
+  const g = new THREE.Group();
+  const foam = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1.6, 48),
+    makeMaterial('mannequin', { color, roughness: 0.62, clearcoat: 0.1 }));
+  foam.position.y = 0.8; foam.castShadow = true; foam.receiveShadow = true; g.add(foam);
+  const gel = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.42, radius * 0.42, 2.2, 32),
+    makeMaterial('mannequin', { color: snap, roughness: 0.25, clearcoat: 0.9 }));
+  gel.position.y = 1.7; gel.castShadow = true; g.add(gel);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.22, 24, 12),
+    new THREE.MeshPhysicalMaterial({ color: new THREE.Color('#c9d2e0'), metalness: 0.9, roughness: 0.25 }));
+  knob.position.y = 3.0; g.add(knob);
+  if (ring) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.08, 0.9, 12, 64),
+      makeMaterial('mannequin', { color: ring, emissive: ring, emissiveIntensity: 0.6, roughness: 0.3 }));
+    r.rotation.x = Math.PI / 2; r.position.y = 1.0; g.add(r);
+  }
+  g.position.copy(pos);
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal.clone().normalize());
+  scene.add(g);
+}
+
+// Electrodos (esferas) y anclas para rótulos.
+const anchors = [];
+if (spec.electrodes) {
+  const idx = await (await fetch(`meshes/${spec.electrodes.asset}/index.json`)).json();
+  const el = idx.electrodes;
+  const geo = new THREE.SphereGeometry(spec.electrodes.radius ?? 4.2, 32, 16);
+  const center = new THREE.Vector3(...(spec.electrodes.center || [0, 12, -18]));
+  for (let i = 0; i < el.names.length; i++) {
+    const name = el.names[i];
+    if (spec.electrodes.only && !spec.electrodes.only.includes(name)) continue;
+    const p = new THREE.Vector3(...el.xyz[i]);
+    const out = p.clone().sub(center).normalize();
+    p.addScaledVector(out, spec.electrodes.lift ?? 1.5);
+    const hot = (spec.electrodes.highlight || []).includes(name);
+    if (spec.electrodes.pad) {
+      addPad(p, out, { radius: spec.electrodes.pad, ring: hot ? (spec.electrodes.hotColor || '#22d3ee') : null });
+      anchors.push({ id: name, pos: p.clone().addScaledVector(out, 3), normal: out.clone() });
+      continue;
+    }
+    const m = makeMaterial('mannequin', { color: hot ? (spec.electrodes.hotColor || '#22d3ee') : (spec.electrodes.color || '#f1f5f9'),
+      roughness: 0.3, clearcoat: 0.8, emissive: hot ? (spec.electrodes.hotColor || '#22d3ee') : '#000000', emissiveIntensity: hot ? 0.35 : 0 });
+    const s = new THREE.Mesh(geo, m); s.position.copy(p); s.castShadow = true; scene.add(s);
+    anchors.push({ id: name, pos: p.clone(), normal: out.clone() });
+  }
+}
+for (const a of (spec.anchors || [])) {
+  const p = new THREE.Vector3(...a.pos);
+  const n = new THREE.Vector3(...(a.normal || [0, 0, 1])).normalize();
+  if (a.pad) {
+    addPad(p, n, { radius: a.pad, ring: a.ring || null });
+  } else if (a.sphere) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(a.sphere, 32, 16),
+      makeMaterial('mannequin', { color: a.color || '#f1f5f9', roughness: 0.3, clearcoat: 0.8,
+        emissive: a.color || '#000000', emissiveIntensity: a.glow ?? 0 }));
+    s.position.copy(p); s.castShadow = true; scene.add(s);
+  }
+  anchors.push({ id: a.id, pos: p, normal: n });
+}
+
+// Cámara: acimut/elevación alrededor del centro de la caja.
+const cam = spec.camera || {};
+const size = bbox.getSize(new THREE.Vector3());
+const target = cam.target ? new THREE.Vector3(...cam.target) : bbox.getCenter(new THREE.Vector3());
+const fov = cam.fov ?? 26;
+const camera = new THREE.PerspectiveCamera(fov, W / H, 1, 20000);
+const az = THREE.MathUtils.degToRad(cam.azimuth ?? 0), el = THREE.MathUtils.degToRad(cam.elevation ?? 0);
+const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+// Distancia que encuadra la esfera que envuelve la caja (con margen).
+const radius = size.length() / 2;
+const vfov = THREE.MathUtils.degToRad(fov);
+const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (W / H));
+const fit = radius / Math.sin(Math.min(vfov, hfov) / 2);
+const dist = (cam.distance ?? fit) * (cam.margin ?? 0.9);
+camera.position.copy(target).addScaledVector(dir, dist);
+camera.up.set(...(cam.up || [0, 1, 0]));
+camera.lookAt(target);
+if (cam.offset) { // desplaza el encuadre en el plano de la imagen (px relativos)
+  camera.setViewOffset(W, H, cam.offset[0] * W, cam.offset[1] * H, W, H);
+}
+camera.updateMatrixWorld();
+
+// Luces: principal cálida (con sombras), relleno frío, contraluz teal.
+const L = spec.lights || {};
+const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize().negate();
+const key = new THREE.DirectionalLight('#fff4e8', L.key ?? 2.4);
+key.position.copy(target).addScaledVector(dir, dist).addScaledVector(right, -dist * 0.7).addScaledVector(camera.up, dist * 0.8);
+key.target.position.copy(target);
+key.castShadow = spec.shadows !== false;
+key.shadow.mapSize.set(2048, 2048);
+const sc = key.shadow.camera; const r = radius * 1.2;
+sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r; sc.near = 1; sc.far = dist * 4;
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.6; key.shadow.radius = 4;
+scene.add(key, key.target);
+const fill = new THREE.DirectionalLight('#dbe8ff', L.fill ?? 0.7);
+fill.position.copy(target).addScaledVector(dir, dist).addScaledVector(right, dist * 0.9);
+scene.add(fill);
+const rim = new THREE.DirectionalLight(L.rimColor || '#7fe7ff', L.rim ?? 1.3);
+rim.position.copy(target).addScaledVector(dir, -dist).addScaledVector(camera.up, dist * 0.4);
+scene.add(rim);
+scene.add(new THREE.HemisphereLight('#e8f0ff', '#2a1a1a', L.hemi ?? 0.35));
+
+// Render con oclusión ambiental (GTAO) y salida tonemapeada.
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(window.devicePixelRatio);
+composer.setSize(W, H);
+composer.addPass(new RenderPass(scene, camera));
+if (spec.ao !== false) {
+  const ao = new GTAOPass(scene, camera, W, H);
+  ao.output = GTAOPass.OUTPUT.Default;
+  ao.blendIntensity = spec.aoIntensity ?? 0.9;
+  ao.updateGtaoMaterial({ radius: spec.aoRadius ?? Math.max(6, radius * 0.06), distanceExponent: 1.5, thickness: 2, scale: 1.0, samples: 16 });
+  ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+  composer.addPass(ao);
+}
+composer.addPass(new OutputPass());
+composer.render();
+
+// Anclas proyectadas a píxeles de la imagen final (W×H) + visibilidad.
+const out = [];
+for (const a of anchors) {
+  const ndc = a.pos.clone().project(camera);
+  const toCam = camera.position.clone().sub(a.pos).normalize();
+  out.push({ id: a.id, x: (ndc.x + 1) / 2 * W, y: (1 - ndc.y) / 2 * H,
+             facing: a.normal.dot(toCam), depth: ndc.z });
+}
+window.__anchors = out;
+window.__done = true;
+</script>
+</body>
+</html>

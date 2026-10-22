@@ -40,7 +40,7 @@ def render_views():
     # vivo desde Tanda 3) hacen el trabajo fino que un `validation=`
     # único no puede.
     render_module_header(
-        "EEG Neuro Lab", icon="🧠",
+        "EEG Neuro Lab", icon="🧠", art="eeg",
         subtitle="Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales",
         validation=None,
     )

@@ -1,0 +1,26 @@
+# BIOCORE AI — desarrollo: pruebas, calidad de código y notebooks.
+-r requirements.txt
+
+# Pruebas
+pytest>=7.0.0
+pytest-cov>=4.1.0
+
+# Calidad de código
+mypy>=1.5.0
+pylint>=2.17.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Notebooks (notebooks/ecg_visualizer.ipynb)
+jupyter>=1.0.0
+seaborn>=0.12.0
+
+# AI Explainability (Phase 2, planeado — ningún módulo los importa todavía)
+shap>=0.42.0
+lime>=0.2.0
+
+# Regenerar los datos 3D y los renders (solo desarrolladores; ver tools/README.md):
+#   tools/build_anatomy3d.py necesita mne (lee fsaverage-head.fif);
+#   tools/render_anatomy/ necesita Node.js (npm install) y Playwright con Chromium.
+mne>=1.6
+playwright>=1.40

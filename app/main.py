@@ -28,6 +28,11 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+# `.env` en la raíz (ver .env.example): antes nadie lo leía. No pisa variables
+# ya definidas en el entorno ni carga el valor de ejemplo.
+from app.utils.env_loader import load_dotenv_file
+load_dotenv_file(Path(ROOT_DIR) / ".env")
+
 from app.supermodules import (
     generate_demo_bp_signal,
     generate_demo_ppg_signal,
@@ -50,9 +55,13 @@ from app.supermodules import (
 )
 from app.engines import DigitalTwinOrganism
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
+from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, detect_rsa, rr_spectrum
+from app.supermodules import rsa_panel
+from src.signals.hrv_tools import POINCARE_CITATION, RR_PLAUSIBLE_MS, parse_rr_file, poincare_sd1_sd2
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
-    inject_global_theme, resolve_metric_card, render_metric_card,
+    inject_global_theme, resolve_metric_card, render_metric_card, render_plate,
+    brand_block_html, session_status_html, ai_engine_caption, ai_engine_status, render_ai_engine_off_notice,
 )
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -153,7 +162,9 @@ st.set_page_config(
     page_title="BIOCORE AI — Plataforma Integrada",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    # Rediseño visual (2026-10-19): "auto" = abierta en computadora, cerrada
+    # en el teléfono (con "expanded" tapaba toda la pantalla al entrar).
+    initial_sidebar_state="auto",
     menu_items={
         # "Get Help"/"Report a bug"/"About" son claves reservadas de la API de
         # Streamlit (st.set_page_config) -- Streamlit solo reconoce estos 3
@@ -205,12 +216,22 @@ HUBS = {
         "🦾 EMG Muscle Lab",
         "📈 HRV Analysis",
         "🧬 Biomarkers Lab",
+        # 2026-10-19: Calculadoras Clínicas -- fórmulas/escalas publicadas con
+        # su cita (QTc, eje, PAM, índice de choque, IC, IMC/ASC, A–a con
+        # altitud, P/F, NEWS2, qSOFA, Glasgow). Ver CHANGELOG.md.
+        "🧮 Calculadoras Clínicas",
         # Fusión de navegación, Research Hub (2026-07-14): Patient Pipeline
         # reubicado aquí — único contenido real de Research Hub, que se
         # eliminó del menú (su otra entrada, AI Analysis, era un cartel sin
         # lógica; ver render_ai_analysis_page(), eliminada). Persistencia
         # (app.clinical_db) sin tocar — solo se movió la entrada de menú.
         "👥 Patient Pipeline",
+    ],
+    # 2026-10-21: modelos 3D con datos reales y con los datos de la persona
+    # (tomografía/resonancia -> STL, VCG, EEG sobre la cabeza, tabla de
+    # pacientes -> mapa 3D con aprendizaje automático). Ver CHANGELOG.md.
+    "Laboratorio 3D": [
+        "🧊 Crea tu modelo 3D",
     ],
 }
 PAGE_TABS = [page for pages in HUBS.values() for page in pages]
@@ -314,13 +335,10 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
     )
 
     if not is_configured():
-        st.warning(
-            "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
-            "Anthropic con streaming — no existe una narración simulada de respaldo."
-        )
+        render_ai_engine_off_notice()
         return
 
-    st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
+    st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos. " + ai_engine_caption())
     if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
         context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings])
         try:
@@ -333,8 +351,8 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
             # 4. Antes exponía `{exc}` crudo (puede incluir detalle interno
             # de la respuesta HTTP de la API).
             render_error_state(
-                "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                "(red o cuota). Intenta de nuevo en unos segundos.",
+                "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto Ollama? "
+                "¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                 exception=exc,
             )
 
@@ -439,7 +457,7 @@ def render_ecg_lab_page() -> None:
     Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
     la firma del experto (antes, texto provisional de Tanda 1)."""
     render_module_header(
-        "ECG Lab", icon="🫀",
+        "ECG Lab", icon="🫀", art="ecg",
         validation="VALIDATED",
         validation_detail=_ECG_VALIDATION_DETAIL,
     )
@@ -470,6 +488,16 @@ def render_respiratory_lab_page() -> None:
     run_respiratory_lab()
 
 
+def render_calculators_page() -> None:
+    from app.supermodules.calculators.pages import run as run_calculators
+    run_calculators()
+
+
+def render_model3d_page() -> None:
+    from app.supermodules.model3d.pages import run as run_model3d
+    run_model3d()
+
+
 def render_page_content(page: str) -> None:
     # Bloque 1 (2026-08-09, ver CHANGELOG.md): el "else" que llamaba a
     # render_home_page() se retiró -- `page` siempre viene de
@@ -498,8 +526,12 @@ def render_page_content(page: str) -> None:
             render_hrv_page()
         elif "Biomarkers" in page:
             render_biomarkers_page()  # --- ENRUTAMIENTO A LA NUEVA PÁGINA ---
+        elif "Calculadoras" in page:
+            render_calculators_page()
         elif "Patient Pipeline" in page:
             render_patient_pipeline_page()
+    elif page in HUBS["Laboratorio 3D"]:
+        render_model3d_page()
 
 def render_metrics_grid(metrics_data: List[Dict]):
     cols = st.columns(len(metrics_data))
@@ -632,7 +664,7 @@ def render_biomarkers_page() -> None:
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
     render_module_header(
-        "Biomarkers Lab", icon="🧬",
+        "Biomarkers Lab", icon="🧬", art="biomarkers",
         validation="HEURISTIC",
         validation_detail=_BIOMARKERS_VALIDATION_DETAIL,
     )
@@ -922,7 +954,7 @@ def render_emg_page() -> None:
     # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
     # dos partes del lab en la propia cita.
     render_module_header(
-        "EMG Muscle Lab", icon="🦾",
+        "EMG Muscle Lab", icon="🦾", art="emg",
         validation="HEURISTIC",
         validation_detail=_EMG_VALIDATION_DETAIL,
     )
@@ -1034,8 +1066,11 @@ def render_emg_page() -> None:
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
         st.write('Visualiza activación, rectificación y aprende sobre fatiga muscular.')
+        # Rediseño visual (2026-10-19): de dónde sale la señal -- la unidad
+        # motora y por qué la amplitud crece con la fuerza.
+        render_plate('motor_unit')
         st.line_chart(signal)
-        st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='Raw EMG')), use_container_width=True)
+        st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='Raw EMG')), width="stretch")
 
     elif view == 'Investigación':
         st.markdown('### Vista Investigación')
@@ -1749,7 +1784,10 @@ def render_ecg_monitor_page() -> None:
             'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
             'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
         }
-        st.markdown(f"**{part}**: {explanations.get(part, '')}")
+        # Rediseño visual (2026-10-19): sin la clave en inglés ("AV Node")
+        # delante del texto, que ya empieza con el nombre en español.
+        name, _, rest = explanations.get(part, '').partition(': ')
+        st.markdown(f"**{name}**: {rest}" if rest else name)
 
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
@@ -1799,8 +1837,8 @@ def render_ecg_monitor_page() -> None:
             try:
                 fig = PLOTLY_GO.Figure()
                 fig.add_trace(PLOTLY_GO.Scatter(x=vm, y=signal, name='ECG', mode='lines'))
-                fig.update_layout(template='plotly_dark', height=360, title='ECG — Señal')
-                st.plotly_chart(fig, use_container_width=True)
+                fig.update_layout(height=360, title='ECG — Señal')
+                st.plotly_chart(fig, width="stretch")
             except Exception:
                 st.line_chart(signal)
         else:
@@ -1808,17 +1846,23 @@ def render_ecg_monitor_page() -> None:
 
         st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
         seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
-        if seg == 'P':
-            st.write('- Evento eléctrico: despolarización atrial (onda P).')
-            st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
-            st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
-        elif seg == 'QRS':
-            st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
-            st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
-            st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
-        else:
-            st.write('- Evento eléctrico: repolarización ventricular (onda T).')
-            st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
+        # Rediseño visual (2026-10-19): la lámina del complejo ECG resalta el
+        # segmento elegido -- la explicación queda al lado de su dibujo.
+        col_plate, col_text = st.columns([3, 2])
+        with col_plate:
+            render_plate('ecg_complex', highlight=seg)
+        with col_text:
+            if seg == 'P':
+                st.write('- Evento eléctrico: despolarización atrial (onda P).')
+                st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
+                st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
+            elif seg == 'QRS':
+                st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
+                st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
+                st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
+            else:
+                st.write('- Evento eléctrico: repolarización ventricular (onda T).')
+                st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
 
         st.markdown('#### Diagnóstico diferencial (ejemplo)')
         st.write('Si observa elevación persistente de ST en derivaciones contiguas:')
@@ -1828,15 +1872,18 @@ def render_ecg_monitor_page() -> None:
 
     elif view == 'Educativa':
         st.markdown('### Vista Educativa — Anatomía interactiva')
+        # Rediseño visual (2026-10-19): cada botón resalta su estructura en la
+        # lámina del sistema de conducción (y la elección se mantiene entre
+        # clics, en vez de desaparecer en el siguiente rerun).
         cols = st.columns(4)
-        if cols[0].button('Nodo SA'):
-            show_anatomy('SA Node')
-        if cols[1].button('Nodo AV'):
-            show_anatomy('AV Node')
-        if cols[2].button('Haz de His'):
-            show_anatomy('His Bundle')
-        if cols[3].button('Fibras Purkinje'):
-            show_anatomy('Purkinje')
+        for col, (label, part) in zip(cols, (('Nodo SA', 'SA Node'), ('Nodo AV', 'AV Node'),
+                                             ('Haz de His', 'His Bundle'), ('Fibras Purkinje', 'Purkinje'))):
+            if col.button(label):
+                st.session_state['ecg_anatomy_part'] = part
+        anatomy_part = st.session_state.get('ecg_anatomy_part')
+        if anatomy_part:
+            show_anatomy(anatomy_part)
+        render_plate('conduction', highlight=anatomy_part)
 
         st.markdown('### Timeline fisiológica')
         st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
@@ -2003,7 +2050,7 @@ def render_multisensor_page() -> None:
     # "heuristico") y texto actualizado al verbatim de la firma del
     # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
     render_module_header(
-        "Multisensor Fusion Lab", icon="🔗",
+        "Multisensor Fusion Lab", icon="🔗", art="multisensor",
         validation="HEURISTIC",
         validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
     )
@@ -2244,33 +2291,144 @@ def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
         )
 
 
+HRV_FILE_SOURCE = 'Archivo CSV/TXT de RR'
+
+
+def render_hrv_poincare(rr_ms: np.ndarray) -> None:
+    """Gráfico de Poincaré (RRₙ vs RRₙ₊₁) + SD1/SD2 (2026-10-19). Medidas
+    no lineales estándar y descriptivas: se muestran con su cita, sin
+    inventar umbrales clínicos que la referencia no establece."""
+    result = poincare_sd1_sd2(rr_ms)
+    st.markdown('#### Poincaré (no lineal)')
+    if result is None:
+        render_metric_card('SD1 / SD2', None, unavailable_reason='se necesitan al menos 3 intervalos RR')
+        return
+    sd1, sd2 = result
+    c1, c2 = st.columns([2, 3])
+    with c1:
+        render_metric_card('SD1 (variabilidad corto plazo)', f'{sd1:.1f} ms', citation='≈ RMSSD/√2')
+        render_metric_card('SD2 (variabilidad largo plazo)', f'{sd2:.1f} ms')
+        render_metric_card('SD1/SD2', f'{(sd1 / sd2):.2f}' if sd2 > 0 else 'n/a')
+        st.caption(f'Fuente: {POINCARE_CITATION}.')
+    with c2:
+        x, y = rr_ms[:-1], rr_ms[1:]
+        if PLOTLY_OK:
+            # Rediseño visual (2026-10-19): la elipse SD1/SD2 se dibuja SOBRE
+            # los puntos reales, centrada en su media y girada 45° (SD2 a lo
+            # largo de la identidad, SD1 perpendicular, Brennan 2001) -- la
+            # geometría que miden SD1/SD2 queda a la vista. Colores: paleta
+            # categórica validada (`chartCategoricalColors`), texto en tinta.
+            series_pts, series_ell = '#3987e5', '#d95926'
+            cx, cy = float(np.mean(x)), float(np.mean(y))
+            theta = np.linspace(0, 2 * np.pi, 120)
+            u, w = sd2 * np.cos(theta), sd1 * np.sin(theta)
+            ex, ey = cx + (u - w) / np.sqrt(2), cy + (u + w) / np.sqrt(2)
+            fig = PLOTLY_GO.Figure()
+            lo, hi = float(min(x.min(), y.min())), float(max(x.max(), y.max()))
+            fig.add_trace(PLOTLY_GO.Scatter(x=[lo, hi], y=[lo, hi], mode='lines', name='identidad',
+                                            line=dict(color='#5d6b92', width=1), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_trace(PLOTLY_GO.Scatter(x=x, y=y, mode='markers', name='RRₙ → RRₙ₊₁',
+                                            marker=dict(size=8, color=series_pts, opacity=0.75,
+                                                        line=dict(width=2, color='#0f172a')),
+                                            hovertemplate='RRₙ %{x:.0f} ms<br>RRₙ₊₁ %{y:.0f} ms<extra></extra>'))
+            fig.add_trace(PLOTLY_GO.Scatter(x=ex, y=ey, mode='lines', name='elipse SD1/SD2',
+                                            line=dict(color=series_ell, width=2), hoverinfo='skip'))
+            d2 = sd2 / np.sqrt(2)
+            d1 = sd1 / np.sqrt(2)
+            fig.add_trace(PLOTLY_GO.Scatter(x=[cx - d2, cx + d2], y=[cy - d2, cy + d2], mode='lines',
+                                            line=dict(color=series_ell, width=1.5), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_trace(PLOTLY_GO.Scatter(x=[cx + d1, cx - d1], y=[cy - d1, cy + d1], mode='lines',
+                                            line=dict(color=series_ell, width=1.5), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_annotation(x=cx + d2, y=cy + d2, text=f'SD2 {sd2:.0f} ms', showarrow=False,
+                               xanchor='left', yanchor='bottom', font=dict(color='#e0e7ff', size=12))
+            fig.add_annotation(x=cx - d1, y=cy + d1, text=f'SD1 {sd1:.0f} ms', showarrow=False,
+                               xanchor='right', yanchor='bottom', font=dict(color='#e0e7ff', size=12))
+            fig.update_layout(height=340, xaxis_title='RRₙ (ms)', yaxis_title='RRₙ₊₁ (ms)',
+                              legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
+                              margin=dict(l=40, r=10, t=30, b=40))
+            fig.update_yaxes(scaleanchor='x', scaleratio=1)
+            st.plotly_chart(fig, width="stretch")
+        else:
+            import pandas as pd
+            st.scatter_chart(pd.DataFrame({'RR_n': x, 'RR_n1': y}), x='RR_n', y='RR_n1')
+
+
 def render_hrv_page() -> None:
     # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
     # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
     # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
     render_module_header(
-        "HRV Analysis", icon="📈",
+        "HRV Analysis", icon="📈", art="hrv",
         validation="VALIDATED",
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
     st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas tiempo-frecuencia y explanation clínica.')
-    source = st.sidebar.radio('HRV Source', ['Demo (ECG-derived)','Manual RR series'], index=0)
+    # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
+    # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
+    # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
+    source = st.sidebar.radio('HRV Source', [rsa_panel.RSA_SOURCE_LABEL, 'Manual RR series', HRV_FILE_SOURCE], index=0)
     rr_ms = None
+    rsa_signals, rsa_params, r_peak_times_s = None, None, None
     if source == 'Manual RR series':
         txt = st.text_area('Pega RR intervals en ms separados por comas', '800,820,790,810,805')
         try:
             rr_ms = np.array([float(x.strip()) for x in txt.split(',') if x.strip()])
         except Exception:
             rr_ms = None
+    elif source == HRV_FILE_SOURCE:
+        # 2026-10-19: series RR reales exportadas de un monitor/app (Polar,
+        # Kubios, Elite HRV, un CSV propio...). El parser DECLARA lo que hizo.
+        uploaded = st.file_uploader(
+            'Archivo con intervalos RR (.csv o .txt, en ms o en segundos)', type=['csv', 'txt'],
+            key='hrv_rr_file',
+        )
+        exclude = st.checkbox(
+            f'Excluir RR fuera de {RR_PLAUSIBLE_MS[0]:.0f}–{RR_PLAUSIBLE_MS[1]:.0f} ms (artefactos/ectópicos)',
+            value=False, key='hrv_rr_exclude',
+        )
+        if uploaded is None:
+            render_empty_state('Sube un archivo con un intervalo RR por línea (o un CSV con la columna RR al final).')
+            return
+        parsed = parse_rr_file(uploaded.getvalue(), exclude_out_of_range=exclude)
+        rr_ms = parsed.rr_ms
+        notes = [f'{len(rr_ms)} intervalos leídos']
+        if parsed.unit_detected == 's':
+            notes.append('venían en segundos y se convirtieron a ms')
+        if parsed.column_used:
+            notes.append(f'se usó la última columna ({parsed.column_used}) del CSV')
+        if parsed.lines_skipped:
+            notes.append(f'{parsed.lines_skipped} línea(s) sin números ignoradas (encabezados/vacías)')
+        if parsed.n_out_of_range:
+            notes.append(
+                f'{parsed.n_out_of_range} valor(es) fuera de {RR_PLAUSIBLE_MS[0]:.0f}–{RR_PLAUSIBLE_MS[1]:.0f} ms '
+                + ('excluidos' if exclude else 'INCLUIDOS en el análisis')
+            )
+        st.caption('📄 ' + ' · '.join(notes) + '.')
     else:
-        hr = st.sidebar.slider('Demo HR (bpm)', 40, 140, 72)
+        ECGAnalyzer, _, _, _, _ = safe_import_ecg_modules()
+        if ECGAnalyzer is None:
+            render_error_state('Motor ECGAnalyzer (detector TKEO) no disponible en este entorno -- sin RR que derivar.')
+            return
+        rsa_params = RsaParams(
+            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, 72)),
+            rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
+                help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
+            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
+                help='La banda HF de la Task Force cubre 9-24 rpm; fuera de ella la RSA no se lee como HF.')),
+        )
         n = st.sidebar.slider('Duración (seg)', 30, 300, 120)
-        mean_rr = 60000.0 / float(max(30, hr))
-        beats = int(max(10, (n * hr) // 60))
-        rr_ms = mean_rr + np.random.normal(0, mean_rr * 0.03, size=beats)
+        rsa_signals, r_peak_times_s = rsa_panel.simulate_rsa_rr(rsa_params, float(n), ECGAnalyzer)
+        rr_ms = np.diff(r_peak_times_s) * 1000.0
+        st.caption(
+            f"Fuente: simulación -- {len(r_peak_times_s)} picos R detectados por TKEO sobre un ECG sintético "
+            "(McSharry 2003) cuya FC modula la respiración. No es un registro de un paciente."
+        )
 
     if rr_ms is None or len(rr_ms) < 5:
-        render_error_state('RR series insuficiente -- provee más latidos o usa la fuente demo.')
+        render_error_state('RR series insuficiente -- provee más latidos o usa la fuente de simulación.')
         return
 
     diffs = np.diff(rr_ms)
@@ -2291,38 +2449,43 @@ def render_hrv_page() -> None:
     render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%',
                 meaning='Porcentaje de diferencias NN>50ms — indicador vagal.')
 
+    render_hrv_poincare(rr_ms)
+
+    st.divider()
+    # RSA: con la fuente manual no hay respiración simultánea -> declina con motivo.
+    if r_peak_times_s is None:
+        r_peak_times_s = np.concatenate([[0.0], np.cumsum(rr_ms) / 1000.0])
+    rsa_panel.render_rsa_panel(
+        detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
+        rsa_signals, rsa_params,
+    )
+
     st.divider()
     _render_hrv_save_to_twin(sdnn, mean_nn, source)
 
     render_scientific_discovery_layer({'RR_ms': rr_ms})
 
-    freqs = None
     lf_power = None
     hf_power = None
     try:
-        t = np.cumsum(rr_ms) / 1000.0
-        t = t - t[0]
-        fs_interp = 4.0
-        ti = np.arange(0, t[-1], 1.0/fs_interp)
-        rr_interp = np.interp(ti, t, rr_ms)
-        from scipy.signal import welch
-        f, pxx = welch(rr_interp - np.mean(rr_interp), fs=fs_interp, nperseg=min(256, len(rr_interp)))
-        lf_mask = (f >= 0.04) & (f < 0.15)
-        hf_mask = (f >= 0.15) & (f <= 0.4)
-        lf_power = float(np.trapz(pxx[lf_mask], f[lf_mask])) if np.any(lf_mask) else 0.0
-        hf_power = float(np.trapz(pxx[hf_mask], f[hf_mask])) if np.any(hf_mask) else 0.0
+        # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
+        # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
+        # fallaba siempre y el `except` culpaba a scipy.
+        f, pxx = rr_spectrum(rr_ms)
+        lf_power = band_power(f, pxx, LF_BAND_HZ)
+        hf_power = band_power(f, pxx, HF_BAND_HZ)
         lf_hf = lf_power / hf_power if hf_power > 0 else None
         st.markdown('### Vista Investigación — Espectro HRV')
         if PLOTLY_OK:
             fig = PLOTLY_GO.Figure()
             fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
-            fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Power')
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(height=320, xaxis_title='Hz', yaxis_title='Power')
+            st.plotly_chart(fig, width="stretch")
         else:
             st.line_chart(pxx)
         st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — LF/HF: {lf_hf if lf_hf is not None else "n/a"}')
-    except Exception:
-        st.info('No se pudo calcular espectro HRV; faltan scipy o datos suficientes.')
+    except ValueError as exc:
+        st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
 
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Autonomic
@@ -2330,8 +2493,10 @@ def render_hrv_page() -> None:
     view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
     if view == 'Educativa':
         st.markdown('### Vista Educativa — ¿Qué afecta la HRV?')
-        st.write('- Vagal tone increments raise RMSSD and pNN50.')
-        st.write('- Chronic disease and age tend to lower SDNN.')
+        st.write('- Un tono vagal mayor eleva RMSSD y pNN50.')
+        st.write('- La edad y las enfermedades crónicas tienden a bajar SDNN.')
+        # Rediseño visual (2026-10-19): cómo se pasa del ECG al tacograma.
+        render_plate('tachogram')
         st.line_chart(rr_ms)
     elif view == 'IA':
         st.markdown('### Vista IA — Narrador clínico')
@@ -2426,7 +2591,7 @@ def render_patient_pipeline_page() -> None:
     # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
     # ninguna inferencia propia que "validar" o "no validar". El concepto
     # de nivel de confianza clínico no aplica a este módulo.
-    render_module_header("Patient Pipeline", icon="👥", validation=None)
+    render_module_header("Patient Pipeline", icon="👥", art="pipeline", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 
     # Fase 3 (paciente único de sesión, 2026-08-30): Patient Pipeline ya NO
@@ -2502,7 +2667,7 @@ def render_patient_pipeline_page() -> None:
                 for domain_state in latest_state.all_domains().values()
                 for d in domain_state.descriptors.values()
             ]
-            st.dataframe(pd.DataFrame(desc_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(desc_rows), width="stretch", hide_index=True)
 
             if latest_state.events:
                 st.markdown('**Eventos detectados:**')
@@ -2615,32 +2780,101 @@ def render_patient_pipeline_page() -> None:
 # "🩺 Narrador clínico (IA real)".
 
 
-def main() -> None:
-    init_state()
-    inject_global_theme()
-    
-    st.sidebar.markdown("## ECOSISTEMA BIOCORE AI")
-    selected_hub = st.sidebar.radio('Selecciona un hub', list(HUBS.keys()), index=list(HUBS.keys()).index(st.session_state.selected_hub), label_visibility='hidden')
+HUB_ICONS = {
+    # Material Symbols (incluidos en Streamlit, funcionan sin internet) en
+    # vez de emoji: mismo dibujo en todos los sistemas operativos.
+    "Digital Twin OS": ":material/accessibility_new:",
+    "Learning Hub": ":material/school:",
+    "Clinical Hub": ":material/stethoscope:",
+    "Laboratorio 3D": ":material/view_in_ar:",
+}
+
+
+def _narrator_ready() -> bool:
+    eng = ai_engine_status()
+    return bool(eng is not None and eng.ready)
+
+
+def render_ai_engine_settings() -> None:
+    """Motor de IA (2026-10-21): local gratis (Ollama/compatible) o Claude.
+    La elección se guarda en la sesión y se aplica con `providers.configure()`."""
+    try:
+        from domain.physiology.narrator import providers
+    except Exception:
+        return
+    pref = st.session_state.get("ai_provider", providers.provider_preference())
+    with st.sidebar.expander("Motor de IA", icon=":material/smart_toy:"):
+        pref = st.segmented_control("Motor", list(providers.PROVIDERS), format_func=providers.PROVIDER_LABELS.get,
+                                    default=pref, key="ai_provider_choice", label_visibility="collapsed") or "auto"
+        st.session_state["ai_provider"] = pref
+        api, models = providers.probe_local()
+        model = st.session_state.get("ai_local_model")
+        if models:
+            model = st.selectbox("Modelo local", list(models),
+                                 index=list(models).index(model) if model in models else 0, key="ai_local_model_box")
+            st.session_state["ai_local_model"] = model
+        providers.configure(provider=pref, model=model if models else None)
+        eng = providers.resolve()
+        st.caption(eng.detail)
+        if not models:
+            st.caption("IA gratis sin claves: instala Ollama (ollama.com), abre una terminal y ejecuta "
+                       "`ollama pull qwen2.5:7b`. Con Ollama abierto, BIOCORE lo detecta solo.")
+
+
+def render_sidebar():
+    """Barra lateral (rediseño visual 2026-10-19): marca, hub, módulo y el
+    estado real de la sesión -- en lugar de los textos fijos "Control
+    universal"/"Modo plataforma" que no informaban nada."""
+    st.sidebar.markdown(brand_block_html(), unsafe_allow_html=True)
+    hubs = list(HUBS.keys())
+    selected_hub = st.sidebar.radio(
+        'Selecciona un hub', hubs, index=hubs.index(st.session_state.selected_hub),
+        format_func=lambda h: f"{HUB_ICONS.get(h, '')} {h}".strip(), label_visibility='collapsed',
+    )
     if selected_hub != st.session_state.selected_hub:
         st.session_state.selected_hub = selected_hub
         st.session_state.selected_page = HUBS[selected_hub][0]
-    
-    st.sidebar.caption(f"📂 Módulo dentro de **{st.session_state.selected_hub}**:")
-    selected_page = st.sidebar.selectbox('Selecciona un módulo', HUBS[st.session_state.selected_hub], index=HUBS[st.session_state.selected_hub].index(st.session_state.selected_page), label_visibility='collapsed')
-    st.session_state.selected_page = selected_page
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Control universal:**")
-    # Consolidación, Tanda 3 (2026-07-13): antes este bullet no decía dónde
-    # vivía el Narrador Clínico (implícitamente, el ahora eliminado AI Hub).
-    # Se deja explícito para no perder capacidad de descubrimiento.
-    st.sidebar.markdown("- 🩺 Narrador Clínico → Digital Twin OS")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Modo plataforma:** \nLaboratorio biomédico, clínica, investigación y simulación.")
+    st.sidebar.caption(f"Módulo dentro de **{st.session_state.selected_hub}**:")
+    pages = HUBS[st.session_state.selected_hub]
+    selected_page = st.sidebar.selectbox(
+        'Selecciona un módulo', pages, index=pages.index(st.session_state.selected_page),
+        label_visibility='collapsed',
+    )
+    st.session_state.selected_page = selected_page
+
+    st.sidebar.divider()
+    render_ai_engine_settings()
+    # El estado se escribe DESPUÉS de dibujar la página (ver main()): así ya
+    # refleja el gemelo/paciente que la página acaba de crear, y sigue
+    # apareciendo aquí arriba, antes de los controles propios de cada lab.
+    slot = st.sidebar.empty()
+    st.sidebar.divider()
+    return slot
+
+
+def render_session_status(slot) -> None:
+    twin_active = 'twin_shell_organism' in st.session_state
+    patient = get_active_patient_display_name() if 'twin_shell_ups_patient_id' in st.session_state else None
+    eng = ai_engine_status()
+    engine_text = ""
+    if eng is not None and eng.ready:
+        engine_text = (f"Conectado: {eng.label}, gratis en tu computadora." if eng.provider == "local"
+                       else f"Conectado: {eng.label}.")
+    slot.markdown(
+        session_status_html(twin_active, _narrator_ready(), patient_name=patient, engine_text=engine_text),
+        unsafe_allow_html=True,
+    )
+
+
+def main() -> None:
+    init_state()
+    inject_global_theme()
+    status_slot = render_sidebar()
 
     if st.session_state.selected_page:
         render_page_content(st.session_state.selected_page)
+    render_session_status(status_slot)
 
 if __name__ == '__main__':
     main()

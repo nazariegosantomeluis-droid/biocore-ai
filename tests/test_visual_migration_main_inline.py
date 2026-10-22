@@ -222,7 +222,7 @@ def test_ecg_lab_still_shows_validated_marker_and_multisensor_heuristic_marker()
     at_ecg = AppTest.from_function(_script_ecg)
     at_ecg.run(timeout=30)
     assert at_ecg.exception == []
-    ecg_marker = next(md.value for md in at_ecg.main.markdown if "MIT-BIH" in md.value)
+    ecg_marker = next(md.value for md in at_ecg.main.markdown if "Detección QRS validada" in md.value)
     assert PALETTE.STABLE in ecg_marker and "✓" in ecg_marker
 
     at_multi = AppTest.from_function(_script_multi)

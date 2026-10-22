@@ -98,7 +98,7 @@ def build_erd_figure(result, time: np.ndarray, lead: str) -> go.Figure:
             annotation_text="ERD", annotation_position="top",
         )
     fig.update_layout(
-        template='plotly_dark', height=320,
+        height=320,
         paper_bgcolor=PALETTE.BACKGROUND, plot_bgcolor=PALETTE.BACKGROUND, font=dict(color=PALETTE.TEXT),
         xaxis_title="Tiempo (s)", yaxis_title="Potencia instantánea banda mu (µV²)",
     )
@@ -137,7 +137,7 @@ def render_mu_erd_panel(signal: np.ndarray, lead: str, fs: float, time: np.ndarr
     # Sin curva (señal demasiado corta para filtrar) no hay gráfico que
     # dibujar -- solo el motivo de abajo, nunca una curva de relleno.
     if result.power_curve is not None:
-        st.plotly_chart(build_erd_figure(result, time, lead), use_container_width=True)
+        st.plotly_chart(build_erd_figure(result, time, lead), width="stretch")
         st.caption(f"Canal mostrado: {lead} -- demostración MONO-CANAL (ver rótulo de alcance arriba).")
 
     # Degradación honesta: el motivo, nunca un ERD% fabricado.

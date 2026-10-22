@@ -35,7 +35,13 @@ from app.engines import (
     SimulationScenario,
     PredictionEngine,
 )
-from app.utils.design_system import render_module_header, render_error_state, BADGES
+from app.utils.design_system import (
+    render_module_header, render_error_state, render_ai_feedback_off_notice, render_plate, BADGES, PALETTE,
+    render_ai_engine_off_notice, ai_engine_caption,
+)
+from visualization.art import get_plate, organ_glyph_svg
+from visualization.art import renders as anatomy_renders
+from app.supermodules.twin_shell.baroreflex_panel import pa_model_label, render_baroreflex_panel
 from app.utils.patient_session import (
     get_active_patient_id,
     get_active_session_factory,
@@ -130,6 +136,33 @@ ORGAN_STATUS_LABELS = {
     OrganHealthStatus.CRITICAL: "Crítico",
 }
 
+# Rediseño visual (2026-10-19): el color de cada tarjeta de órgano sale de
+# la paleta de estado compartida (`PALETTE`), no de los verdes/rojos neón
+# propios del engine (`OrganSystem.color`, que no se toca). El color nunca
+# va solo: la tarjeta escribe además el número o la banda ("Alerta").
+RISK_LEVEL_COLOR = {
+    "BAJO": PALETTE.STABLE,
+    "MODERADO": PALETTE.WARNING,
+    "ALTO": PALETTE.CRITICAL,
+    "CRÍTICO": PALETTE.CRITICAL,
+}
+
+ORGAN_STATUS_COLOR = {
+    OrganHealthStatus.OPTIMAL: PALETTE.STABLE,
+    OrganHealthStatus.NORMAL: PALETTE.STABLE,
+    OrganHealthStatus.ALERT: PALETTE.WARNING,
+    OrganHealthStatus.CRITICAL: PALETTE.CRITICAL,
+}
+
+# Lámina del Atlas visual que explica cada sistema (visualization/art/plates.py).
+ORGAN_PLATE = {
+    "heart": "conduction",
+    "brain": "eeg_bands",
+    "lungs": "respiratory_patterns",
+    "muscles": "motor_unit",
+    "autonomic": "tachogram",
+}
+
 # Fase 2 (honestidad de presentación, 2026-08-30): Corazón y Pulmones citan
 # un punto de referencia clínico real (PROVENANCE_SOURCE_HEALTHY_ADULT) para
 # su health score, aunque los pesos de la fórmula sean heurísticos -- se
@@ -146,11 +179,13 @@ def _qualitative_band(value: float, labels: tuple, high: float = 70.0, low: floa
     cortes 70/40 que `render_ambient_header()` ya usaba para colorear el
     número de Estado Fisiológico Global -- no se inventa un tercer par de
     umbrales para lo mismo. `labels` = (bajo, medio, alto)."""
+    # Rediseño visual (2026-10-19): colores de la paleta de estado
+    # compartida (`PALETTE`) en vez de los neón propios de esta página.
     if value >= high:
-        return labels[2], "#39ffbe"
+        return labels[2], PALETTE.STABLE
     if value >= low:
-        return labels[1], "#ffd700"
-    return labels[0], "#ff3333"
+        return labels[1], PALETTE.WARNING
+    return labels[0], PALETTE.CRITICAL
 
 
 def _coupling_band(value: float) -> tuple:
@@ -235,33 +270,38 @@ def render_ambient_header(organism: DigitalTwinOrganism) -> None:
     risk = state.get("risk_level", "BAJO")
     coherence = state.get("system_coherence", 0.0)
     resilience = state.get("resilience_index", 0.0)
-    color = "#39ffbe" if health >= 70 else ("#ffd700" if health >= 40 else "#ff3333")
-
     # Fase 2 (honestidad de presentación, 2026-08-30): estos 3 números
     # (health/coherence/resilience) son heurística pura sin ancla clínica
     # citada (ver PROVENANCE_HEURISTIC_LABEL más abajo) -- mostrarlos como
     # "64/100"/"74%" en letra grande finge una precisión de medición que no
     # tienen. El CÁLCULO no cambia (sigue siendo el mismo número, usado aquí
     # solo para decidir la banda) -- ver CHANGELOG.md.
-    global_label, _ = _qualitative_band(health, ("Crítico", "En observación", "Estable"))
+    global_label, color = _qualitative_band(health, ("Crítico", "En observación", "Estable"))
     coherence_label, coherence_color = _qualitative_band(coherence, ("Baja", "Media", "Alta"))
     resilience_label, resilience_color = _qualitative_band(resilience, ("Baja", "Media", "Alta"))
+    # Rediseño visual (2026-10-19): el riesgo se colorea por SU propio nivel
+    # (antes tomaba el color del estado global: "BAJO" salía en amarillo).
+    risk_color = RISK_LEVEL_COLOR.get(str(risk).upper(), PALETTE.NEUTRAL)
+
+    # Rediseño visual (2026-10-19): etiqueta en minúsculas (sin el
+    # "ESTADO FISIOLÓGICO GLOBAL" espaciado en mayúsculas) y los tres
+    # indicadores como columnas legibles en lugar de una línea con puntos.
+    def _kpi(label: str, value: str, value_color: str) -> str:
+        return (
+            f"<div><div style='font-size:.8125rem;color:#94a3c8'>{label}</div>"
+            f"<div style='font-weight:700;font-size:1.05rem;color:{value_color}'>{value}</div></div>"
+        )
 
     st.markdown(
-        f"""
-        <div style='text-align:center; padding: 20px; border-radius: 22px;
-                    border: 1px solid {color}55; background: rgba(255,255,255,0.03); margin-bottom: 20px;'>
-            <div style='font-size: 12px; letter-spacing: 3px; color: #9fb4c9;'>ESTADO FISIOLÓGICO GLOBAL</div>
-            <div style='font-size: 34px; font-weight: 700; color: {color}; line-height: 1.2;'>
-                {global_label}
-            </div>
-            <div style='font-size: 13px; color: #9fb4c9;'>
-                Riesgo: <b style='color:{color};'>{risk}</b>
-                &nbsp;·&nbsp; Coherencia sistémica: <b style='color:{coherence_color};'>{coherence_label}</b>
-                &nbsp;·&nbsp; Resiliencia: <b style='color:{resilience_color};'>{resilience_label}</b>
-            </div>
-        </div>
-        """,
+        f"<div style='display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding:18px 22px;"
+        f"border-radius:18px;border:1px solid {color}55;background:rgba(255,255,255,0.03);margin-bottom:16px'>"
+        f"<div style='flex:1 1 220px'><div style='font-size:.875rem;color:#94a3c8'>Estado fisiológico global</div>"
+        f"<div style='font-family:Figtree,Noto Sans,sans-serif;font-size:2rem;font-weight:700;color:{color};"
+        f"line-height:1.15'>{global_label}</div></div>"
+        f"{_kpi('Riesgo', risk, risk_color)}"
+        f"{_kpi('Coherencia sistémica', coherence_label, coherence_color)}"
+        f"{_kpi('Resiliencia', resilience_label, resilience_color)}"
+        f"</div>",
         unsafe_allow_html=True,
     )
     st.caption(
@@ -275,6 +315,17 @@ def render_ambient_header(organism: DigitalTwinOrganism) -> None:
         st.warning(alert)
 
 
+ORGAN_RENDER = {"heart": "organ_heart", "brain": "organ_brain", "lungs": "organ_lungs",
+                 "muscles": "organ_muscles", "autonomic": "organ_autonomic"}
+
+
+def _organ_image_html(organ_id: str, name: str, cls: str = "bc-organ-img") -> str:
+    key = ORGAN_RENDER.get(organ_id)
+    if not key or not anatomy_renders.available(key):
+        return ""
+    return anatomy_renders.image_html(key, cls=cls, alt=f"{name}: {anatomy_renders.entry(key)['alt']}")
+
+
 def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     """Organ-click is the primary verb — this replaces the menu."""
     st.markdown("#### Toca un órgano para explorar su fisiología")
@@ -283,7 +334,13 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     for col, organ_id in zip(cols, ORGAN_ORDER):
         organ = organism.organs[organ_id]
         selected = st.session_state.twin_shell_selected_organ == organ_id
-        border = f"3px solid {organ.color}" if selected else "1px solid rgba(255,255,255,0.14)"
+        color = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+        # 2026-10-19: borde SIEMPRE de 1px + anillo interior (box-shadow) para
+        # la selección. Antes la tarjeta seleccionada usaba un borde de 3px y
+        # las tarjetas con número vs. banda cualitativa tenían alto distinto:
+        # los botones "Explorar" quedaban desalineados en la fila.
+        border = "1px solid " + (color if selected else "rgba(255,255,255,0.14)")
+        ring = f"box-shadow: inset 0 0 0 2px {color};" if selected else ""
 
         # Fase 2 (honestidad de presentación, 2026-08-30): Corazón/Pulmones
         # citan un punto de referencia clínico real -- se quedan como
@@ -295,31 +352,29 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
         # calculándose igual en ambos casos -- solo cambia qué se muestra.
         if organ_id in ORGANS_WITH_CITED_HEALTH_SCORE:
             value_html = (
-                f"<div style='font-size: 22px; color: {organ.color}; font-weight: 700;'>"
-                f"{organ.metrics.health_score:.0f}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🟢🔵 con ancla</div>"
+                f"<div style='font-size: 22px; color: {color}; font-weight: 700; "
+                f"font-variant-numeric: tabular-nums;'>{organ.metrics.health_score:.0f}</div>"
+                f"<div class='bc-organ-note'>{PROVENANCE_CLINICAL_BADGE}{PROVENANCE_HEURISTIC_BADGE} con ancla</div>"
             )
         else:
             status_label = ORGAN_STATUS_LABELS[organ.status]
             value_html = (
-                f"<div style='font-size: 15px; color: {organ.color}; font-weight: 700; margin-top: 6px;'>"
+                f"<div style='font-size: 15px; color: {color}; font-weight: 700; margin-top: 4px;'>"
                 f"{status_label}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🔵 heurística</div>"
+                f"<div class='bc-organ-note'>{PROVENANCE_HEURISTIC_BADGE} heurística</div>"
             )
 
+        # 2026-10-21: el órgano es un render de anatomía real (tomografía /
+        # plantilla MNI) en vez del dibujo plano; el estado se sigue leyendo
+        # en el borde y en el valor. Si faltara el render, queda el dibujo.
+        glyph = _organ_image_html(organ_id, organ.name) or organ_glyph_svg(organ_id, color, size=46)
         with col:
             st.markdown(
-                f"""
-                <div style='text-align:center; padding: 16px 8px; border-radius: 18px; border: {border};
-                            background: rgba(255,255,255,0.03);'>
-                    <div style='font-size: 34px;'>{organ.icon}</div>
-                    <div style='font-weight: 600; font-size: 12px; margin-top: 4px;'>{organ.name}</div>
-                    {value_html}
-                </div>
-                """,
+                f"<div class='bc-organ' style='border: {border}; {ring} height: 196px; border-radius: 18px;'>"
+                f"{glyph}<div class='bc-organ-name'>{organ.name}</div>{value_html}</div>",
                 unsafe_allow_html=True,
             )
-            if st.button("Explorar", key=f"twin_shell_select_{organ_id}", use_container_width=True):
+            if st.button("Explorar", key=f"twin_shell_select_{organ_id}", width="stretch"):
                 st.session_state.twin_shell_selected_organ = organ_id
                 st.rerun()
 
@@ -330,6 +385,59 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
         "Cerebro/Músculos/Autonómico no citan ninguna referencia -- se muestran como banda cualitativa, "
         "no como número, para no fingir precisión.)"
     )
+
+
+BODY_LAYER_DEFAULT = ("skeleton", "circulatory", "respiratory", "nervous", "muscular", "skin")
+
+
+def render_body_3d(organism: DigitalTwinOrganism) -> None:
+    """Cuerpo 3D de una persona real (TC del TotalSegmentator) con los
+    órganos del gemelo coloreados por su estado (2026-10-21). La anatomía
+    es real; los colores son el estado SIMULADO del gemelo."""
+    from visualization import anatomy3d as A3
+
+    if not A3.assets_available():
+        return
+    with st.expander("Cuerpo 3D: anatomía real con el estado del gemelo", expanded=True,
+                     icon=":material/accessibility_new:"):
+        layers = st.pills("Capas", list(A3.SYSTEM_LABELS), format_func=A3.SYSTEM_LABELS.get,
+                          selection_mode="multi", default=list(BODY_LAYER_DEFAULT), key="twin_body3d_layers")
+        c2, c3 = st.columns([3, 2], vertical_alignment="bottom")
+        view = c2.segmented_control("Vista", ["front", "oblique", "left", "back"],
+                                    format_func=A3.CAMERA_LABELS.get, default="front",
+                                    key="twin_body3d_view") or "front"
+        with c3:
+            by_status = st.toggle("Colorear órganos por su estado", value=True, key="twin_body3d_status")
+            focus = st.toggle("Enfocar el órgano elegido", value=False, key="twin_body3d_focus")
+        part_colors, notes = {}, {}
+        for organ_id, parts in A3.TWIN_ORGAN_PARTS.items():
+            organ = organism.organs.get(organ_id)
+            if organ is None:
+                continue
+            label = ORGAN_STATUS_LABELS.get(organ.status, "")
+            for part in parts:
+                if by_status:
+                    part_colors[part] = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+                notes[part] = f"{organ.name} del gemelo: {label}"
+        selected = st.session_state.get("twin_shell_selected_organ")
+        highlight = A3.TWIN_ORGAN_PARTS.get(selected, ()) if focus else ()
+        fig = A3.body_figure(systems=tuple(layers or ()), highlight=highlight, part_colors=part_colors,
+                             part_notes=notes, camera=view, height=640)
+        st.plotly_chart(fig, width="stretch", key="twin_body3d", config={"displaylogo": False, "scrollZoom": True})
+        legend = "".join(
+            f"<span><i style='background:{c}'></i>{t}</span>" for c, t in (
+                (PALETTE.STABLE, "Óptimo / normal"), (PALETTE.WARNING, "Alerta"), (PALETTE.CRITICAL, "Crítico"))
+        ) if by_status else ""
+        if legend:
+            st.markdown(f"<div class='bc-legend'>{legend}</div>", unsafe_allow_html=True)
+        n_surf, n_seg = A3.body_counts()
+        st.caption(
+            "La anatomía es de una persona real: tomografía de cuerpo completo del TotalSegmentator dataset "
+            f"(sujeto s1397, CC BY 4.0); {n_seg} de sus segmentaciones forman {n_surf} superficies 3D. Los "
+            "colores son el estado simulado del gemelo. El sistema autónomo no se ve en una tomografía: se marca "
+            "la médula espinal, de donde sale la vía simpática. Gira, acerca y pasa el cursor para ver cada "
+            "estructura."
+        )
 
 
 def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
@@ -422,7 +530,13 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
     organ_id = st.session_state.twin_shell_selected_organ
     organ = organism.organs[organ_id]
 
-    st.markdown(f"## {organ.icon} {organ.name}")
+    color = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+    icon = _organ_image_html(organ_id, organ.name, cls="bc-organ-icon") or organ_glyph_svg(organ_id, color, size=34)
+    st.markdown(
+        f"<div class='bc-title-row'><span class='bc-glyph' aria-hidden='true'>"
+        f"{icon}</span><h2 style='margin:0;padding:0'>{organ.name}</h2></div>",
+        unsafe_allow_html=True,
+    )
     render_mode_toggle()
     mode = st.session_state.twin_shell_mode
 
@@ -463,6 +577,13 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
             st.json(organ.metrics.signals)
         if organ.pathologies:
             st.caption("Patologías relacionadas: " + ", ".join(organ.pathologies))
+
+    # Rediseño visual (2026-10-19): la lámina del Atlas que explica este
+    # sistema, abierta de entrada en modo Estudiante.
+    plate_key = ORGAN_PLATE.get(organ_id)
+    if plate_key:
+        with st.expander(f"Lámina: {get_plate(plate_key).title}", expanded=(mode == "Student")):
+            render_plate(plate_key)
 
     # AI explanation surfaces directly on the organ, not in a separate chat panel.
     findings = _organ_related_findings(organism, organ_id)
@@ -588,7 +709,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         cols = st.columns(len(scenarios))
         for col, (key, label) in zip(cols, scenarios.items()):
             with col:
-                if st.button(label, key=f"twin_shell_scenario_{key}", use_container_width=True):
+                if st.button(label, key=f"twin_shell_scenario_{key}", width="stretch"):
                     organism.create_patient_scenario(key)
                     st.rerun()
 
@@ -600,7 +721,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         cols2 = st.columns(len(interventions))
         for col, (label, key, intensity) in zip(cols2, interventions):
             with col:
-                if st.button(label, key=f"twin_shell_int_{key}", use_container_width=True):
+                if st.button(label, key=f"twin_shell_int_{key}", width="stretch"):
                     organism.simulate_intervention(key, intensity)
                     st.rerun()
 
@@ -738,7 +859,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                     progress_bar.progress((step.index + 1) / step.total_steps)
                     chart_placeholder.line_chart(
                         pd.DataFrame({"FC (bpm)": hr_trajectory, "SpO₂ (%)": spo2_trajectory}),
-                        use_container_width=True,
+                        width="stretch",
                     )
                     # Fase 1.4: el cuerpo se actualiza con el mismo `step.state` que se
                     # acaba de persistir — no relee el organismo ni el texto del narrador.
@@ -808,7 +929,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                 ref_by_descriptor = {r.descriptor: r for r in references_for_pa}
                 ref_map = ref_by_descriptor.get("map")
                 st.markdown(
-                    f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                    f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                     f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                     f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                     + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")
@@ -831,7 +952,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                     "FC (bpm)": hr_values,
                     "SpO₂ (%)": spo2_values,
                 })
-                st.line_chart(df.set_index("Momento"), use_container_width=True)
+                st.line_chart(df.set_index("Momento"), width="stretch")
                 st.caption(f"{len(moments)} snapshots consultados desde el UPS (SQLite) — no desde session_state.")
                 if _tail_is_plateaued(hr_values) or _tail_is_plateaued(spo2_values):
                     st.info(
@@ -850,7 +971,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                     "Momento": [ts.strftime("%H:%M:%S") for ts, _ in series],
                     label: series_values,
                 })
-                st.line_chart(df.set_index("Momento"), use_container_width=True)
+                st.line_chart(df.set_index("Momento"), width="stretch")
                 if _tail_is_plateaued(series_values):
                     st.info(
                         "📐 **Los últimos horizontes de esta trayectoria son idénticos.** El "
@@ -929,11 +1050,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
 
     with st.expander("🩺 Narrador clínico (IA real) — Fase 1.3", expanded=False):
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada en el entorno. El narrador llama a la "
-                "API real de Anthropic con streaming — no existe una narración simulada de "
-                "respaldo. Define la variable de entorno para activarlo."
-            )
+            render_ai_engine_off_notice()
             return
 
         st.caption(
@@ -941,6 +1058,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
             "comparación antes/ahora) y genera una explicación en streaming fundamentada en "
             "esos datos — no es un chat de propósito general."
         )
+        st.caption(ai_engine_caption())
 
         depth = st.radio(
             "Profundidad",
@@ -972,8 +1090,8 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
                 # `{exc}` crudo (puede incluir detalle interno de la
                 # respuesta HTTP de la API).
                 render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
+                    "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto "
+                    "Ollama? ¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                     exception=exc,
                 )
 
@@ -1275,16 +1393,16 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
     with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=False):
         st.caption(
             "Se carga uno de los 12 escenarios reales sin revelar cuál. Diagnostica eligiendo "
-            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic), fundamentado "
+            "entre 4 opciones; el feedback lo genera el narrador con IA real (local gratis o Claude), fundamentado "
             "únicamente en los descriptores y eventos que el UPS realmente persistió."
         )
 
+        # 2026-10-19: antes `return` sin clave -- el modo caso clínico entero
+        # quedaba inaccesible, aunque el caso y su respuesta correcta los
+        # decide el simulador, no el modelo. Solo el feedback narrado
+        # depende de la clave.
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
-            )
-            return
+            render_ai_feedback_off_notice()
 
         if st.button("🆕 Nuevo caso clínico", key="clinical_case_new"):
             session_factory = get_active_session_factory()
@@ -1354,7 +1472,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
             for domain_state in state.all_domains().values()
             for d in domain_state.descriptors.values()
         ]
-        st.dataframe(pd.DataFrame(desc_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(desc_rows), width="stretch", hide_index=True)
 
         map_modelo = state.cardiovascular.get("map_modelo")
         if map_modelo is not None:
@@ -1362,7 +1480,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
             diastolic_modelo = state.cardiovascular.get("diastolic_bp_modelo")
             ref_map = next((r for r in case_references if r.descriptor == "map"), None)
             st.markdown(
-                f"**🧮 PA calculada por el modelo hemodinámico (lazo cerrado, validado):** "
+                f"**🧮 PA calculada por el modelo hemodinámico ({pa_model_label()}):** "
                 f"{systolic_modelo.value:.0f}/{diastolic_modelo.value:.0f} mmHg "
                 f"(PAM {map_modelo.value:.0f} mmHg, confianza {map_modelo.confidence:.0%})"
                 + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else "")
@@ -1428,7 +1546,10 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 findings_context = FindingsContext(lab_name="Caso Clínico Interactivo", findings=findings)
 
                 try:
-                    feedback_text = "".join(stream_findings_narration(findings_context))
+                    feedback_text = (
+                        "".join(stream_findings_narration(findings_context))
+                        if narrator_is_configured() else None  # sin clave: aviso, no error
+                    )
                     st.session_state.clinical_case_feedback = feedback_text
                     st.session_state.clinical_case_feedback_error = None
                 except NarratorNotConfiguredError as exc:
@@ -1436,7 +1557,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                     st.session_state.clinical_case_feedback_error = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state.clinical_case_feedback = None
-                    st.session_state.clinical_case_feedback_error = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state.clinical_case_feedback_error = f"Error llamando al motor de IA: {exc}"
 
                 st.session_state.clinical_case_selected = choice
                 st.session_state.clinical_case_answered = True
@@ -1459,6 +1580,8 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 st.markdown(st.session_state.clinical_case_feedback)
             elif st.session_state.clinical_case_feedback_error:
                 st.error(st.session_state.clinical_case_feedback_error)
+            elif not narrator_is_configured():
+                render_ai_feedback_off_notice()
 
             if st.button("➡️ Otro caso", key="clinical_case_next"):
                 for k in [
@@ -1501,10 +1624,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
             return
 
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el razonamiento causal requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
-            )
+            render_ai_engine_off_notice()
             return
 
         st.caption(
@@ -1512,6 +1632,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
             "fundamentado en la trayectoria real del UPS (antes→ahora) y el orden temporal de "
             "sus eventos — no en reglas fijas ni en texto genérico."
         )
+        st.caption(ai_engine_caption())
 
         if st.button("Explicar origen", key="twin_shell_explain_cause"):
             session_factory = get_active_session_factory()
@@ -1533,8 +1654,8 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
                 render_error_state(str(exc))
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                 render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
+                    "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto "
+                    "Ollama? ¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                     exception=exc,
                 )
 
@@ -1886,7 +2007,7 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                     {"Importancia (%)": [item["percent"] for item in importance]},
                     index=[item["label"] for item in importance],
                 )
-                st.bar_chart(importance_df, use_container_width=True)
+                st.bar_chart(importance_df, width="stretch")
         else:
             st.caption(result.explainability_note or "Explicabilidad no disponible.")
 
@@ -2010,7 +2131,7 @@ def render_timeline(organism: DigitalTwinOrganism) -> None:
         "Salud Global": [h["global_state"]["global_health_score"] for h in recent],
         "Coherencia": [h["global_state"]["system_coherence"] for h in recent],
     })
-    st.line_chart(df.set_index("Momento"), use_container_width=True)
+    st.line_chart(df.set_index("Momento"), width="stretch")
 
 
 def main() -> None:
@@ -2025,11 +2146,12 @@ def main() -> None:
     # mano, ni st.header()/st.title()) pese a ser el módulo de la demo. Gana
     # identidad por primera vez, con el sistema de diseño compartido en vez
     # de un estilo ad-hoc.
-    render_module_header("Digital Twin OS", icon="🧬", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
+    render_module_header("Digital Twin OS", icon="🧬", art="twin", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
 
     render_sensor_controls(organism)
     render_ambient_header(organism)
     render_organ_grid(organism)
+    render_body_3d(organism)
     render_couplings(organism)
     render_neuro_cardiac_composer()
     st.divider()
@@ -2039,6 +2161,7 @@ def main() -> None:
     st.markdown("### 🧭 Herramientas avanzadas")
     render_scenario_and_interventions(organism)
     render_ups_scenario_simulator(organism)
+    render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
     render_synced_digital_twin_body(organism)
     render_clinical_narrator(organism)
     render_clinical_case_mode(organism)

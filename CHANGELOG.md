@@ -1,5 +1,407 @@
 # Changelog
 
+## 2026-10-21 (b) — Reconstrucción 3D: lo mejor de Medical3DReconstruction, validado contra TotalSegmentator
+
+**Contexto**: el repo propio `Medical3DReconstruction` (MIT; pipelines clásicos por órgano con SimpleITK, validación con Dice/Hausdorff y calidad de malla) frente a "Crea tu modelo 3D". No se trajo el repo entero: SimpleITK, trimesh y pymeshfix serían dependencias pesadas, y sus pipelines de hígado y riñón solo están validados con fantomas sintéticos. Se trajeron las dos ideas que **medían** una mejora sobre BIOCORE.
+
+### Medición antes de cambiar nada
+
+Referencia: las superficies de TotalSegmentator del **mismo sujeto** (s1397) que la TC de ejemplo. Viven en `data/anatomy3d/body_ts_s1397.npz`, con los vértices relativos a `meta["origin_mm"]`; sin aplicar ese origen, la distancia daba 208 mm falsos.
+
+| Preset "Pulmones y vía aérea" | Volumen (ref. 5056 mL) | Distancia media BIOCORE→ref / ref→BIOCORE | p95 | Malla cerrada |
+|---|---|---|---|---|
+| Antes ("las 3 bolsas de aire mayores") | 5228 mL (+3.4 %) | 7.8 / 1.24 mm | 60 / 2.7 mm | ✗ (1 arista abierta tras simplificar) |
+| **Ahora** | **4962 mL (−1.9 %)** | **1.23 / 1.30 mm** | **3.9 / 3.6 mm** | **✓** |
+
+- **Hallazgo**: el preset metía **320 mL de gas digestivo** (estómago e intestino) en "Pulmones". La regla de Medical3D ("las 2 mayores") tampoco servía aquí, porque pulmones y tráquea forman una sola bolsa y la segunda mayor es el gas del estómago.
+
+### Cambios (`src/imaging/volume3d.py`)
+
+- **Postproceso pulmonar** (`_clean_lungs`, `LUNG_SEGMENTATION_CITATION`):
+  - Se conservan las bolsas de aire de al menos el 20 % de la mayor (`LUNG_MIN_FRACTION_OF_LARGEST`, heurística propia y declarada como tal; con dos pulmones separados, ambos pasan).
+  - Después, el postproceso de Hu, Hoffman & Reinhardt 2001 que usa Medical3D: relleno de huecos y cierre de 2 mm.
+- **`mesh_quality(faces)` → `MeshQuality`**: malla estanca, orientación consistente, número de piezas, aristas abiertas y característica de Euler. Son los criterios de `assess_mesh_quality` de Medical3D, en numpy y scipy, sin `trimesh`.
+- **UI** (`app/supermodules/model3d/pages.py`):
+  - "Crea tu modelo 3D" y "Ver un modelo 3D" muestran la línea de calidad.
+  - En el visor, el "Volumen encerrado" pasa a "no fiable" si la malla no es cerrada. Antes el texto de ayuda decía "válido si la malla es cerrada", pero nunca se comprobaba.
+- **Sin dependencias nuevas.**
+
+### Verificación
+
+`tests/test_reconstruction3d_validation.py` (9):
+- volumen dentro de ±5 % de TotalSegmentator;
+- distancia media < 2 mm y p95 < 6 mm en ambos sentidos;
+- malla estanca;
+- gas descartado sin perder un segundo pulmón;
+- cubo cerrado (Euler 2), cubo sin una cara (3 aristas abiertas), cara volteada (orientación rota) y dos cubos (2 piezas);
+- AppTest del rótulo de malla abierta.
+
+Los 28 tests 3D existentes siguen en verde.
+
+`pytest tests/` → **1035 passed** (1026 + 9).
+
+**Límite declarado**: la validación es sobre un solo sujeto (s1397). El umbral del 20 % es una heurística medida en esa TC, no un criterio publicado.
+
+## 2026-10-21 — Integración: el trabajo de la copia BIOCORE-AI (19-21 oct) traído a este repo
+
+**Contexto**: `Downloads\BIOCORE-AI` (un zip sin historial de git) resultó ser una rama paralela de este repo: misma base (`fc43fc5`, higiene del 2026-09-28) y luego divergió. Allá se hicieron las 4 tandas del 19 al 21 de octubre (calculadoras, reportes PDF, rediseño visual, anatomía 3D, IA local, ML); aquí, las 4 del 18-19 (Engagement ×2, barorreflejo, RSA). Por decisión del usuario, **este repo es la base** (conserva el historial) y el trabajo de allá se trae por piezas.
+
+### Cómo se hizo
+
+- Respaldo previo del trabajo sin commitear (parche + archivos nuevos).
+- **Copiados tal cual**: 84 archivos nuevos y 28 modificados que solo tocó la otra rama. Quedaron fuera los `.venv`, las cachés y la BD local `data/biocore_ups.db*`, que no venía en el zip y se creó al abrir la app.
+- **Fusión de 3 vías** (`git merge-file`, base `fc43fc5`) en los 7 archivos que tocaron ambas ramas:
+  - `eeg_neuro_lab/page_content.py`: fusión sin conflictos.
+  - `academia/pages.py` y `twin_shell/pages.py`: se suman las importaciones de ambos lados.
+  - `design_system.py`: su encabezado nuevo (`module_header_html`) más nuestra `render_validation_marker()`, cuyo HTML no cambió.
+  - `eeg_analyzer.py`: nuestro `_band_powers()`, ahora recorriendo su `BAND_LIMITS_HZ`. Una sola definición de los bordes de banda.
+  - `main.py`, HRV Lab:
+    - Fuentes: **Simulación con RSA** (ECG → TKEO), *Manual* y su **Archivo CSV/TXT de RR**. La de ellos seguía rotulada "Demo (ECG-derived)" sobre ruido blanco (solo le habían agregado semilla y una nota) y se retira, sustituida por la de RSA.
+    - Su Poincaré se conserva y ahora se dibuja sobre RR con estructura real.
+    - Los dos habíamos arreglado el mismo `np.trapz`: queda `rr_spectrum()` (spline cúbico) y su `_trapezoid`, ya sin uso, se retira.
+  - `CHANGELOG.md`: las 8 entradas en orden cronológico sobre la historia común, que era idéntica byte a byte en ambas copias.
+- **Nuestros 3 paneles** (Engagement, barorreflejo, RSA) adoptan sus convenciones de Streamlit 1.66: `width="stretch"` y sin `template='plotly_dark'`.
+- **3 tests nuestros ajustados**, sin cambiar lo que verifican:
+  - Streamlit 1.66 escapa los acentos en el JSON del gráfico, así que el rótulo del eje del barorreflejo se lee del JSON.
+  - El EEG Lab ahora tiene sus 2 mapas 3D de la cabeza, así que el gráfico del engagement se identifica por su contenido y no por el total de gráficos de la página.
+
+### Decisiones que vienen con la otra rama (a confirmar por el usuario)
+
+- **`CLAUDE.md`, regla 3**: la IA real puede ser local (Ollama o compatible con OpenAI) además de Claude, y en modo "auto" **prefiere la local**. Venía pedido por el usuario en esa rama.
+- **`BIOCORE_LOCAL_AI_URL` no se limita a `127.0.0.1`**: si se apunta a otra máquina, el contexto del UPS viaja por HTTP sin cifrar.
+- **Dependencias nuevas** (`requirements.txt`): `nibabel`, `pydicom`, `fast-simplification` (Laboratorio 3D), `scikit-image`, `openpyxl` y `fpdf2`. La app requiere Streamlit ≥ 1.50 y las pruebas se corrieron con 1.66.
+
+### Verificación
+
+`pytest tests/` (con el entorno de BIOCORE-AI: Streamlit 1.66 y todas las dependencias) → **1026 passed**, 0 fallos, 0 saltados. Suma las dos ramas: 804 de aquí y los tests nuevos de allá (calculadoras, ilustraciones, 3D y datos reales, HRV desde archivo, reportes, `.env`, lanzador).
+
+## 2026-10-21 — Anatomía 3D real, registros reales en lugar de dibujos, "Crea tu modelo 3D", IA local gratis y aprendizaje automático
+
+**Contexto**: pedido del usuario: cambiar las imágenes planas o dibujadas por algo más profesional, meter modelos 3D de bases reales, poder crear un modelo 3D con los datos propios, y no depender tanto de claves de API (usar una IA gratis o aprendizaje automático). Regla aplicada en todo: cada imagen dice de dónde sale (registro real, anatomía real, esquema o simulación) y cita su fuente y licencia.
+
+### Anatomía 3D de datos reales (`data/anatomy3d/`, `visualization/anatomy3d.py`)
+- **Cuerpo**: 38 superficies reconstruidas de una tomografía real de cuerpo completo (TotalSegmentator v2, sujeto s1397, CC BY 4.0): esqueleto, corazón con raíz aórtica y cavas, arterias, venas, venas pulmonares, pulmones, tráquea, encéfalo, médula, músculos (erectores, iliopsoas, glúteos), tiroides, esófago, los órganos del abdomen y la pelvis (hígado, vesícula, estómago, duodeno, intestino delgado, colon, páncreas, bazo, riñones, suprarrenales, vejiga, próstata) y piel. Marching cubes sobre máscaras suavizadas, decimación cuádrica, suavizado de Taubin y normales hacia afuera; 153 mil triángulos en 1.0 MB (`npz` sin pickle, vértices int16 a 0.05 mm). Volumen de cada estructura medido sobre la segmentación (se muestra al pasar el cursor).
+- **V1–V6 calculadas sobre esa tomografía**: se cuentan los cartílagos costales en el borde esternal (4.º y 5.º espacio), la línea medioclavicular sale del punto medio de la clavícula y V5/V6 de las normales del contorno axial; cada punto se proyecta a la piel (> −350 HU).
+- **Cabeza**: superficie de fsaverage (FreeSurfer, vía MNE-Python) subdividida a dos resoluciones, con los 21 electrodos 10-20 de MNE; **cerebro** de la plantilla MNI152 2009a (nilearn). Licencias en `data/anatomy3d/README.md` y `LICENSE-FreeSurfer.txt`.
+- **Digital Twin OS**: "Cuerpo 3D" con capas por sistema, vistas, foco en el órgano elegido y los órganos coloreados por su estado del UPS. **Academia**: explorador 3D del Atlas.
+
+### Imágenes profesionales en lugar de dibujos
+- **Renders** (`app/static/anatomy/`, 10 WebP, 390 KB): las mismas mallas renderizadas con three.js (materiales físicos, iluminación de estudio, oclusión ambiental, piel translúcida tipo vidrio) — corazón, pulmones, cerebro, músculos, médula, cuerpo completo, tórax con V1–V6, cabeza 10-20 (arriba e izquierda) y corazón para el sistema de conducción. Los rótulos van encima en SVG, en las posiciones que calculó el propio renderizador, así siguen nítidos, accesibles y en español. Las tarjetas de órganos del Twin usan estas imágenes.
+- **Registros reales de PhysioNet** (`data/reference_signals/`, ODC-By, 400 KB): MIT-BIH 100, PTB s0010_re (12 derivaciones + Frank), CAP Sleep n16 (EEG), Challenge 2015 a103l (PPG) y MIMIC 037 (ECG, presión arterial, respiración). Las tiras de los encabezados son ahora estos registros, con su cita en pantalla (EMG, gemelo y pipeline siguen siendo esquemas y lo dicen).
+- **Láminas con datos reales** (`visualization/art/plates_real.py`): complejo ECG = latido mediano de 300 latidos normales del MIT-BIH 100 con PR, QRS y QT medidos por el código (`src/signals/ecg/beat_delineation.py`); tacograma con los RR anotados por cardiólogos; bandas EEG de un EEG real (alfa dominante en P4-O2, 61 %); sistema de conducción sobre el corazón real; precordiales y 10-20 sobre la anatomía real. Cada lámina lleva un rótulo: "Registro real", "Anatomía real (TC)", "Cabeza 3D (plantilla)", "Esquema ilustrativo" o "Simulación del laboratorio".
+- **El latido real tiene el QT largo y se dice**: en el MIT-BIH 100 (MLII) la onda T es baja, ancha y tardía (sin onda U, según la anotación de Elgendi et al., Sensors 2015): QT 527 ms, QTc 586 ms (Bazett, la misma fórmula de Calculadoras). La lámina lo explica en vez de usar un latido idealizado.
+- **Fin de T robusto**: la pendiente se mide sobre el latido suavizado (Savitzky-Golay) y la T se busca desde el nivel del ST; antes el escalón de cuantización (0.005 mV) decidía "la pendiente más pronunciada" y el fin de T salía 50 ms antes, y con un poco de ruido la T saltaba a la muesca del ST. Prueba nueva con ruido.
+
+### Nuevo hub "Laboratorio 3D" → 🧊 Crea tu modelo 3D (`app/supermodules/model3d/`)
+- **Tu tomografía o resonancia** (`src/imaging/volume3d.py`): NIfTI o serie DICOM (varios archivos o un .zip; ordena los cortes por posición y pasa de LPS a RAS); detecta TC (Hounsfield), RM, mapa de etiquetas u otro; presets de TC (hueso, piel, pulmones, tejido blando), umbral libre (Otsu sugerido) o etiquetas; malla con volumen en mL y descarga **STL, OBJ y PLY**; calidad rápida o detallada. Incluye una TC de ejemplo (tórax del mismo sujeto remuestreado a 2 mm con antialias y sin la cabeza, 5.2 MB).
+- **Ver un modelo 3D**: abre STL (ASCII o binario), OBJ o PLY y mide volumen y superficie.
+- **ECG en 3D — vectocardiograma** (`src/signals/ecg/vcg.py`): matriz de Kors desde 8 derivaciones independientes, latido mediano, bucles P/QRS/T, vectores medios, ángulo QRS-T espacial. **Validado con datos reales**: en el PTB s0010_re, el VCG reconstruido se correlaciona con las derivaciones de Frank reales del mismo paciente (r = 0.98 / 0.95 / 0.73 en X/Y/Z; QRS 98 vs. 94 ms; ángulo QRS-T 10° en ambos). También en la nueva pestaña "Vectocardiograma 3D" del ECG Lab; acepta un CSV propio (la frecuencia de muestreo sale de la columna de tiempo: «tiempo_ms», «Time (s)», «t»…).
+- **EEG en 3D**: potencia relativa por banda de cada canal sobre la cabeza, interpolada con splines esféricos (Perrin et al. 1989); donde no hay un electrodo a menos de 45 mm queda en gris (no se inventa). También en el EEG Neuro Lab, con un EEG real de comparación.
+- **Tu base de pacientes → aprendizaje automático** (`src/ml/cohort_map.py`): CSV o Excel; PCA a 3 ejes, grupos con k-means (k por silueta), atípicos con Isolation Forest y, si eliges una columna objetivo, un bosque aleatorio evaluado con validación cruzada estratificada (exactitud, exactitud balanceada, AUC, importancia por permutación). Ejemplo real: WDBC (569 pacientes): exactitud 96.0 %, AUC 0.990. Si la tabla tiene signos vitales, cada paciente se ve sobre el cuerpo 3D con el puntaje NEWS2 de cada parámetro.
+
+### IA gratis, sin claves (`domain/physiology/narrator/providers.py`)
+- El narrador y el feedback usan, en este orden: una **IA local gratuita** (Ollama, o cualquier servidor compatible con la API de OpenAI: LM Studio, llama.cpp, vLLM, Jan), detectada sola en `127.0.0.1:11434`; o Claude con `ANTHROPIC_API_KEY`. Streaming por HTTP con la biblioteca estándar (sin paquetes nuevos). Selector "Motor de IA" en la barra lateral con el modelo local a usar.
+- Sigue siendo IA real (Art. I): mismo prompt anclado al UPS/métricas, más una guarda para que los modelos locales respondan en español y sin inventar. Sin ningún motor, `NarratorNotConfiguredError` con la guía de instalación; nunca texto de respaldo.
+- Los avisos "Sin `ANTHROPIC_API_KEY`" pasan a "Sin motor de IA" con la opción gratuita.
+
+### Dependencias
+`requirements.txt`: scikit-image, nibabel, pydicom, fast-simplification, pillow y openpyxl. `requirements-dev.txt`: mne y playwright (solo para regenerar los datos; ver `tools/README.md`).
+
+### Pruebas
+`tests/test_real_data_3d_2026_10_21.py` (29): mallas, V1–V6 y electrodos; figuras 3D; spline esférico exacto; renders y su manifiesto; registros y licencias; VCG de Kors contra Frank real; lector de CSV de derivaciones; volumen de una esfera, ida y vuelta STL/OBJ/PLY, NIfTI, serie DICOM sintética desordenada; presets sobre la TC de ejemplo; mapa de pacientes evaluado fuera de la muestra; Excel; NEWS2 por parámetro; IA local con servidores Ollama y OpenAI simulados, sin motor y con clave; y AppTest de "Crea tu modelo 3D" (TC de ejemplo → malla → 3 descargas; cohorte), ECG Lab (VCG), EEG Lab (cabeza 3D), Atlas 3D y barra lateral. `tests/conftest.py` apunta la IA local a un puerto vacío para que la suite dé lo mismo con o sin Ollama abierto. `tests/test_illustrations.py` actualizado a los datos reales.
+
+## 2026-10-20 — Rediseño visual: imágenes (Atlas visual) y UI/UX con la guía UI UX Pro Max
+
+**Contexto**: pedido del usuario: "mejora la parte de las imágenes, agrega más imágenes y UI/UX con UI UX Pro Max". Se generó el sistema de diseño con el buscador de UI UX Pro Max para un producto de salud (estilo *Accessible & Ethical*, paleta teal médica, Figtree + Noto Sans, foco visible, movimiento reducido, objetivos de 44 px, sin emoji como íconos) y se aplicó con dos reglas propias del repo: una ilustración no es un dato del paciente, y los colores de estado clínico no se usan como adorno. Ningún cálculo clínico cambió.
+
+### Nuevo: `visualization/art/` — ilustraciones SVG originales, generadas por código
+- **Tira de monitor en cada encabezado** (`strips.py`): cada módulo abre con SU señal sobre la retícula milimétrica del papel de registro, a escala real donde aplica (ECG 25 mm/s, EEG 30 mm/s, respiración 5 mm/s): ECG, EEG alfa, respiración, EMG con ráfagas, tacograma, onda de pulso, tres carriles de monitor (Multisensor), ECG + respiración (gemelo), ECG con el compás midiendo QT y RR (Calculadoras), ondas rotuladas (Academia), estados guardados en el tiempo (Patient Pipeline). Una sola animación de "trazado" al cargar; se apaga con `prefers-reduced-motion`.
+- **Íconos dibujados** (`glyphs.py`) en lugar de emoji: 11 de módulo (24×24) y 5 órganos (corazón anatómico, cerebro, pulmones con árbol bronquial, bíceps, sistema autónomo) para las tarjetas de Digital Twin OS, coloreados por su estado.
+- **9 láminas educativas** (`plates.py`), cada una con "Esquema ilustrativo", explicación en HTML (se lee igual en teléfono) y fuentes: anatomía del complejo ECG, sistema de conducción, derivaciones precordiales V1–V6, sistema hexaxial + triángulo de Einthoven, del ECG al tacograma, sistema 10-20, bandas del EEG, 7 patrones respiratorios y unidad motora/EMG.
+- **Honestidad de los números rotulados**: los intervalos del ECG (PR 177, QRS 96, QT 403 ms) se MIDEN sobre el latido dibujado (`waves.beat_intervals()`); las bandas del EEG usan los límites exactos del analizador (`BAND_LIMITS_HZ`, nueva constante en `src/signals/eeg/eeg_analyzer.py`, mismo cálculo); los patrones respiratorios se dibujan con el mismo `RespiratorySignalGenerator` del laboratorio (sembrado y restaurando el RNG global); SDNN/RMSSD del ejemplo con las mismas fórmulas de `render_hrv_page()`.
+- **Láminas que responden**: la onda P/QRS/T elegida en ECG Lab, la estructura del botón Nodo SA/AV/His/Purkinje (la elección ahora persiste entre clics), los canales EEG en uso, la banda dominante calculada, el patrón respiratorio de la barra lateral y el eje calculado en Calculadoras.
+- `meters.py`: medidor NEWS2 (aquí los colores de estado sí significan riesgo, siempre con rótulo).
+- Ligeras: los trazos se simplifican con Ramer-Douglas-Peucker por debajo de un píxel (la tira de ECG pasa de 34 KB a 7 KB; la galería respiratoria, de 111 KB a 37 KB) y cada dibujo se calcula una vez por proceso (`lru_cache`; son deterministas).
+- Los gráficos del Respiratory Lab usan los mismos colores de flujo/tórax/abdomen que la lámina (antes el tórax iba en `#1d4ed8`, 2.66:1 sobre el fondo); las líneas de referencia de SpO₂ usan la paleta de estado.
+
+### Dónde aparecen
+- **Academia → nueva pestaña "Atlas visual"** con las 9 láminas, filtrables por sistema.
+- ECG Lab (Clínica y Educativa), ECG-12 (la pestaña Educativa, antes solo un aviso, ahora con precordiales + hexaxial), EEG (bandas + 10-20 en lugar de la lista de texto), Respiratory Lab (la galería reemplaza la tarjeta decorativa que repetía el título), HRV (tacograma; la elipse SD1/SD2 se dibuja sobre los puntos reales de Poincaré), EMG (unidad motora), Digital Twin OS (órganos dibujados y la lámina de cada sistema en su panel), Calculadoras (QT, eje sobre el hexaxial en lugar del dial polar, curva PAO₂ vs. altitud con las ciudades y TU FiO₂/PaCO₂, medidor NEWS2).
+
+### Interfaz (UI UX Pro Max + verificación propia)
+- **Tipografía**: Figtree (títulos) y Noto Sans (texto, incluye griego para α β θ δ γ) empaquetadas en `app/static/fonts/` (OFL, ~130 KB): se ven igual sin internet. Escala 36/24/21/18/16/14 px.
+- **Paleta**: primario teal `#099fbd` (el `#0891B2` de UI UX Pro Max ajustado por cálculo para modo oscuro): 5.70:1 como texto sobre el fondo y 4.55:1 en la barra lateral (el azul anterior daba 2.66:1: la pestaña activa y el valor de los sliders no se leían), 3.13:1 con la palomita blanca, texto oscuro sobre el botón primario. Bordes de controles a 3.38:1 (WCAG 1.4.11). Fondo plano, sin el degradado decorativo.
+- **Gráficos**: paleta categórica validada con el validador de la skill de dataviz (daltonismo ΔE ≥ 8.4) en `chartCategoricalColors`; con 10 entradas, porque Plotly en Streamlit 1.66 ignora la lista si no son exactamente 10 (verificado con capturas). Se retiró `template='plotly_dark'` (7 usos) para que todos los gráficos tomen el tema de la app.
+- **Encabezado de módulo**: migas de pan (hub › módulo), ícono, el único `<h1>` y la tira. El marcador de validación no cambió.
+- **Barra lateral**: marca BIOCORE, hubs con íconos Material, y el estado real de la sesión (gemelo/paciente, narrador IA con o sin clave) en lugar de "Control universal"/"Modo plataforma". En el teléfono empieza cerrada (`initial_sidebar_state="auto"`). Sin el botón "Deploy" (`toolbarMode = "minimal"`).
+- **Accesibilidad**: foco visible de 3 px en todo control, objetivos de 44 px, transiciones de 150 ms, `prefers-reduced-motion`, cada SVG con `role="img"` + `<title>`/`<desc>`, color de estado siempre acompañado de texto.
+- **Digital Twin OS**: estado global sin el rótulo en mayúsculas espaciadas; "Riesgo" coloreado por su propio nivel (antes "BAJO" salía amarillo); colores de la paleta compartida en vez de neón.
+- Pestañas de Calculadoras y Academia con íconos Material en vez de emoji.
+
+### Pruebas
+`tests/test_illustrations.py` (70): SVG válido y accesible, determinismo, seguridad para Markdown (sin líneas en blanco ni signos de pesos), sin colores de estado en el arte, números rotulados = números calculados, RNG global intacto, contraste WCAG de los tokens, fuentes del `config.toml` presentes, e integración AppTest en cada página. `tests/test_ecg_hr_detector_consolidation.py`: las aserciones "no aparece 220" ahora ignoran el contenido de los SVG (las coordenadas de la lámina contienen "220.2"); así también son más estrictas con el HR correcto.
+
+## 2026-10-19 — BIOCORE, cardiovascular profundo, sub-arco RSA: acoplamiento cardiopulmonar (arritmia sinusal respiratoria)
+
+**Contexto**: segundo sub-arco del cardiovascular profundo. Enseña el freno vagal latido a latido (la FC sube al inspirar y baja al espirar) y, de paso, arregla el sustrato RR: la fuente "Demo (ECG-derived)" del HRV Lab no derivaba de ningún ECG, era `mean_rr + N(0, 3 %)`, ruido blanco con una etiqueta falsa. La cadena se construye **dentro de un solo generador** (respiración → FC → ECG → picos R → RR). No se cruzan el Respiratory Lab y el ECG Lab a través del UPS: ese es el bloqueo multidominio todavía abierto, y fingirlo sería deshonesto.
+
+### Parte A — Generador (`src/signals/ecg/rsa.py`, módulo puro: no importa `clinical/` ni el UPS)
+
+- `RsaParams(hr_base_bpm, rsa_amplitude_bpm, respiratory_rate_rpm)` valida sus valores.
+- `generate_rsa_signals()`:
+  - Volumen pulmonar V = −cos(2π·f_resp·t), con la inspiración en el tramo ascendente.
+  - FC(t) = FC_base + A·V, en fase con el volumen.
+  - Esa FC muestra a muestra alimenta `DynamicECGGenerator.generate(hr=array)` (McSharry 2003), el gancho que existía y nadie usaba.
+- **Ground truth por construcción**: A, f_resp y fase 0°.
+
+### Parte B — Detector `detect_rsa(r_peak_times_s, respiration, resp_fs) → RSAResult`
+
+- Se alimenta con los picos R que detecta el **TKEO consolidado** (`ECGAnalyzer.detect_r_peaks_tkeo`) sobre el ECG generado, no con picos leídos del generador.
+- Mide:
+  - la frecuencia respiratoria (pico del espectro respiratorio);
+  - la potencia HF de la serie RR (0.15-0.40 Hz, Task Force);
+  - la amplitud de la RSA en lpm, con A = √(2·∫PSD) de la FC instantánea alrededor de f_resp;
+  - la fracción de la variabilidad RR que cae en f_resp;
+  - la fase FC↔respiración (densidad espectral cruzada).
+- `RSAResult` es el espejo de `ErdResult`/`EngagementResult`, con `scope_note`.
+- **Declina con motivo** cuando:
+  - falta la respiración o es plana;
+  - hay menos de 3 latidos;
+  - hay menos de 67 s (10 periodos de 0.15 Hz, Task Force);
+  - la respiración cae fuera de la banda HF;
+  - hay menos de 3 latidos por respiración.
+- **Gramática neutra**: es una demostración del fenómeno, sin umbrales clínicos de tono vagal firmados.
+- Cita: Task Force ESC/NASPE, *Circulation* 1996;93(5):1043-65 (verificada en PubMed, PMID 8598068).
+
+**Hallazgos al medir (210 combinaciones de FC 50-130 × A 2-10 × 9-24 rpm):**
+
+- **Fase espuria de −17° a −62°**: fechar cada RR al final de su intervalo retrasa la serie RR/2. Ahora se fecha en el punto medio; |fase| ≤ 4.3°.
+- **Amplitud atenuada por la interpolación lineal** a 4 Hz, que actúa como sinc²(f/f_latido) (~14 % a 15 rpm y 72 lpm). Se reemplazó por spline cúbico, el remuestreo habitual en HRV.
+- **Límite físico, no corregido con un modelo**: la serie RR contiene la FC *promediada en cada latido*, que para una sinusoide vale A·sinc(f_resp·RR̄) (~7 % menos a 15 rpm y 72 lpm). El detector reporta lo que la RR contiene. Los tests comparan contra ese ground truth exacto y la UI lo explica.
+- **Por debajo de 3 latidos por respiración** (Nyquist del muestreo latido a latido = FC/2), la amplitud cae entre −20 % y −37 %: el detector declina. Entre 3 y 3.5 latidos el sesgo es ≤ 10 %. Con A = 2 lpm a FC alta, la cuantización de los picos a 250 Hz pesa (≤ 15 %).
+- **Resultado** (≥ 3.5 latidos por respiración, A ≥ 3, 136 casos): error de amplitud ≤ 4.2 %, frecuencia respiratoria exacta, ≥ 95.5 % de la varianza RR en f_resp. El ruido blanco del antiguo demo pone ~6 % en esa misma ventana.
+
+### Parte C — Sustrato RR corregido (la etiqueta falsa ya no existe)
+
+- La fuente demo del HRV Lab pasa a ser **"Simulación: acoplamiento cardiopulmonar (ECG con RSA → picos R por TKEO)"**. SDNN/RMSSD/pNN50/LF-HF se calculan sobre RR que salen de verdad de un ECG. La procedencia al guardar al gemelo sigue siendo `SIMULACION`.
+- **Bug encontrado y corregido**: el espectro del HRV Lab usaba `np.trapz`, que numpy 2.x ya no tiene. El espectro fallaba siempre, y el `except Exception` mostraba "faltan scipy o datos suficientes", un motivo falso. El cálculo se movió a `rr_spectrum()`/`band_power()` (compartido con la RSA, con `np.trapezoid`). El `except` ahora captura `ValueError` y muestra el motivo real. Los valores de LF/HF cambian respecto de los de antes del bug, porque ahora se interpola con spline cúbico.
+- **Pendiente, no tocado**: la vista "Simulación" del HRV Lab sigue generando RR con ruido blanco, rotulada "sterile demo". No dice venir de un ECG, pero tampoco enseña estructura autonómica.
+
+### Parte D — UI (`app/supermodules/rsa_panel.py`, en el HRV Lab)
+
+- Controles: FC base, amplitud de la RSA, frecuencia respiratoria (6-30 rpm, con fuera de banda visible) y duración.
+- Curva: FC latido a latido (60/RR) sobre el volumen pulmonar; el ritmo acelera en inspiración y frena en espiración.
+- Tarjetas: amplitud medida frente a la inyectada, potencia HF con la cita de la Task Force, frecuencia respiratoria con la fracción de varianza, y fase.
+- Cláusula de alcance en `st.warning`.
+- Con la fuente manual no hay respiración: el panel declina "sin señal respiratoria" y no dibuja la curva.
+
+### Verificación
+
+- **Recuperación** en 7 combinaciones: error < 8 % frente a A·sinc, f_resp ± 0.01 Hz, |fase| < 10°. La amplitud escala con lo inyectado (3 → 9 lpm da ×3). La potencia HF ≈ A_RR²/2.
+- **Estructura**: más del 95 % de la varianza RR está en f_resp, frente a < 20 % del ruido blanco. Sin RSA, el ECG es un metrónomo.
+- **Degradación**: sin respiración, con 40 s, con 2 latidos, a 6 rpm (fuera de HF) y a 2.5 latidos por respiración, siempre con motivo.
+- **AppTest del HRV Lab**: la fuente dice "ECG con RSA … TKEO"; el panel se ve con la amplitud cerca de los 5 lpm inyectados; el valor sigue al slider; con la fuente manual declina; el espectro LF/HF vuelve a calcularse.
+- **No cruza labs**: los imports de `rsa.py`/`rsa_panel.py` no tocan `domain.physiology`, `respiratory_lab` ni el UPS.
+- **Motor intacto**: `git diff HEAD -- domain/physiology/hemodynamics/` vacío y nada modificado bajo `domain/`.
+
+`pytest tests/ -q` → **804 passed** (781 + 23 en `tests/test_rsa_cardiopulmonary.py`).
+
+Cita Art. I (los RR salen de un ECG de verdad; el espectro roto deja de culpar a scipy) y Art. IV (la etiqueta "ECG-derived" sobre ruido blanco ya no existe; simulación rotulada como tal).
+
+## 2026-10-19 — BIOCORE, cardiovascular profundo, sub-arco A: el barorreflejo (brazo vascular) hecho visible
+
+**Contexto**: el diagnóstico del 2026-10-19 encontró que el barorreflejo ya está modelado en el motor: brazo vascular, controlador proporcional sobre Rd (Guyton & Hall, Cap. 18), validado por el experto en las Rondas 1-2, con lazo cerrado completo y variantes patológicas. Pero la UI solo guardaba la PA final. Este sub-arco hace visible lo que el motor ya calcula: la traza del lazo, la saturación del efector y la convergencia. Es una **capa de lectura, con cero cambio de física**. Enseña regulación de circuito cerrado.
+
+### Medido antes de construir (corrige una premisa)
+
+- **Sepsis no "deja de converger"; converge a un equilibrio de shock.** Con `run_closed_loop("sepsis", FC)`, en todo el rango de 40 a 220 lpm, el resultado es `converged=True` y `oscillated=False`. El candidato del controlador queda clavado en el techo séptico (Rd 1.468 = 0.5× el máximo sano) desde la iteración 2, y la PAM se estabiliza en 24-43 mmHg frente a un objetivo de 93.3. La lección es *equilibrio con el efector saturado y error persistente*: la vista muestra eso, no un "sin equilibrio" que el motor no produce.
+- **Ningún escenario oscila** en 40-220 lpm. Sano e hipertensión nunca saturan. La vista igual describe honestamente `converged=False`/`oscillated` si llegaran a ocurrir.
+- **Reflejo aislado vs. lazo completo**, los dos números salen del motor: el reflejo solo (`run_pathological_baroreflex`, volumen sistólico fijo de 70 mL) *compensa* la sepsis (PAM 93.4, incluso vasodilata). Con el retorno venoso y Frank-Starling del lazo completo, el mismo paciente cae a PAM 34 (a 130 lpm). El shock nace al cerrar el lazo, no del reflejo.
+- **Alcance del PENDING de la compliancia**: con C ×0.5 y ×2, la PAM y la Rd quedan idénticas y la S/D se mueve ±15 mmHg. En un Windkessel periódico, la presión media depende de las resistencias, no de C. El PENDING afecta a la S/D mostrada, no a la traza (Rd, PAM, gasto). Hay un test que lo verifica.
+
+### Parte A — La capa (`app/supermodules/twin_shell/baroreflex_panel.py`)
+
+- Llama a `run_closed_loop()` y a `run_pathological_baroreflex()` sin modificarlas. Los límites de Rd salen de `PATHOLOGICAL_TONE_OVERRIDES` o de los del Módulo 2 (`rd_limits()`); la PAM objetivo, del resultado del reflejo. No hay números copiados.
+- Figura de 3 paneles sobre el eje *"Iteración hacia el equilibrio (no segundos)"*:
+  - Rd con sus límites de vasodilatación máxima y de techo de vasoconstricción, y una marca en las iteraciones donde el reflejo comanda el límite.
+  - PAM con su objetivo.
+  - Gasto cardíaco = VS × FC.
+- Tarjetas con la Rd final (y si está saturada), la convergencia y la PA final. `describe_loop_outcome()` resume el comportamiento del lazo en una frase, como hallazgo y no como error.
+- Selector de los 3 escenarios habilitados (`HEMODYNAMIC_MODEL_ENABLED_SCENARIOS`) y slider de FC de 40 a 220 lpm. El valor inicial es el punto fijo validado de cada escenario (72/85/150). Hace falta el slider porque en sano a 72 lpm el lazo ya está en su punto de anclaje y converge en una iteración, así que no se vería el lazo trabajar.
+- **No se reusó `closed_loop_comparison.py`**: vuelve a correr el escenario completo y escribe un paciente efímero en la BD. Además, su `pending_validation` es la bandera del retorno venoso (ya `False`), no la de la compliancia (`True`), así que la vista habría mentido por omisión.
+- Vive en Digital Twin OS, después del simulador de escenarios, donde ya se muestra la PA del lazo cerrado.
+- Sin colores de semáforo: es el comportamiento de un lazo, no un nivel de riesgo.
+
+### Parte B — Los dos rótulos de honestidad
+
+- **Las iteraciones no son segundos**: `st.info` explícito y título del eje. El motor no tiene dinámica latido a latido; eso pertenece al sub-arco B.
+- **Compliancia C pendiente**: `st.warning` mientras `PHYSIOLOGICAL_PARAMETERS_PENDING_VALIDATION` siga en `True` (se lee la bandera, no hay texto fijo). La tarjeta de PA indica que la S/D hereda el PENDING.
+- **Dos niveles en la misma vista**: el brazo vascular lleva la marca VALIDATED (Guyton Cap. 18, Rondas 1-2) mediante el nuevo `render_validation_marker()`, extraído sin cambio de comportamiento de `render_module_header()` en `design_system.py`. La PA lleva el PENDING.
+- **Contradicción corregida**: tres sitios mostraban "PA … (lazo cerrado, validado)" (Digital Twin OS ×2 y Academia) con la compliancia aún pendiente. Ahora usan `pa_model_label()`, que lee la bandera.
+- **Brazo cardíaco declarado ausente**: la FC es entrada y el reflejo no la modifica. FC ← PAM es el sub-arco B: cambia la física del motor y requiere la firma del experto. No se construye aquí.
+
+### Verificación
+
+- AppTest de la traza en los 3 escenarios, sin excepción. AppTest de Digital Twin OS completo hasta el final del render con el panel.
+- **Dibujo = medición**: los puntos son los ticks del motor y las líneas de referencia son los límites del escenario y el objetivo del reflejo.
+- **Sepsis**: el resultado converge, sin oscilar, saturado en el máximo y con PAM < 65. La vista muestra "efector saturado … descompensación", "saturada en el techo" y las marcas de saturación.
+- **Sano a 110 lpm**: "Equilibrio alcanzado … el reflejo cerró el error", dentro de sus límites.
+- **Rótulos visibles**: "iteración (no segundos)" en la vista y en el eje; "Compliancia C pendiente de validación"; "S/D hereda el PENDING"; marca ✓ con Guyton Cap. 18; brazo cardíaco declarado como sub-arco B.
+- **Motor intacto**: `git diff HEAD -- domain/physiology/hemodynamics/` está vacío. Un test compara contra `fc43fc5` `baroreflex.py`, `r_rcr.py`, `closed_loop.py`, `pathological_tone.py` y `physiological_flow.py`. Un grep confirma que el panel no escribe al UPS.
+
+`pytest tests/ -q` → **781 passed** (764 + 17 en `tests/test_baroreflex_visible.py`). El neuro entero intacto.
+
+Cita Art. I (lo mostrado es lo que el motor calcula; el error persistente de sepsis no se maquilla como "no converge") y Art. IV (simulación etiquetada: iteraciones, no tiempo; compliancia pendiente). Mecanismo: Guyton & Hall, Tratado de Fisiología Médica, Cap. 18.
+
+## 2026-10-19 (b) — Calculadoras Clínicas, Academia usable sin clave de IA, Modo Rural, HRV desde archivo + Poincaré
+
+**Contexto**: segunda tanda del día. Recorrido de todos los módulos con AppTest y lectura de los caminos que un `except` silenciaba. Dos módulos estaban rotos de forma invisible para la suite (Academia, espectro HRV) y uno era inutilizable sin `ANTHROPIC_API_KEY` (quiz y casos ciegos).
+
+### Arreglos
+- **Academia — lecciones caídas por un archivo faltante.** `educational/learning_engine.py` importa `educational.rural_mode`, que no existía en el repo: el `ImportError` dejaba `LESSONS_AVAILABLE = False` y el Learning Hub mostraba solo "El módulo de lecciones no está disponible" — quiz, progreso y casos clínicos inaccesibles. Se crea `educational/rural_mode.py` con el contrato que ya esperaba `LearningEngine` (`save_progress`/`load_progress`): JSON por estudiante en `data/local/progress/` (git-ignorado), escritura atómica, id saneado para que no escape del directorio.
+- **Quiz y casos ciegos sin clave.** El botón "Responder" del quiz era `st.button(...) and narrator_is_configured()`, y las dos secciones de caso ciego (Academia y modo caso de Twin OS) hacían `return` sin clave: sin `ANTHROPIC_API_KEY` no se podía practicar nada, aunque la respuesta correcta la decide el banco/simulador (código), nunca el modelo. Ahora se califica siempre; sin clave no se llama a la API y se muestra `render_ai_feedback_off_notice()` (nuevo en `design_system.py`, aviso informativo, no error). Art. I intacto: sin clave no aparece ningún texto "como si" fuera IA. Las preguntas que ya traían explicación de origen la muestran tras responder. El narrador clínico y el razonamiento causal (100 % IA) conservan su aviso y `return`.
+- **Espectro HRV nunca se calculaba con NumPy ≥ 2.4**: `np.trapz` fue retirado; el `AttributeError` caía en el `except` y la página decía "No se pudo calcular espectro HRV". Ahora `_trapezoid` (`np.trapezoid` con respaldo a `np.trapz`).
+- **HRV demo estable**: la serie sintética usaba `np.random` sin semilla y cambiaba en cada clic (SDNN/RMSSD "saltaban"). Semilla derivada de los parámetros + etiqueta de simulación.
+- **Quiz**: 4 opciones que estaban en inglés ("R predominant in V1"…) pasan a español; misma respuesta correcta.
+- **Digital Twin OS**: tarjetas de órganos de altura fija y selección con anillo interior (antes borde de 3 px): los botones "Explorar" quedan alineados.
+- **Servidor que dejaba de responder en Windows (visto en una PC real)**: Streamlit 1.66 sirve con Uvicorn sobre el ProactorEventLoop de Windows; si un cliente aborta una conexión a medio aceptar (WinError 64), `asyncio.proactor_events._start_serving` CIERRA el socket de escucha y `localhost:8501` muere con el proceso vivo. El detonante era el propio abridor del navegador (`Invoke-WebRequest -TimeoutSec 1` mientras la app arrancaba). Arreglo doble: `run_biocore.py` instala `WindowsSelectorEventLoopPolicy` antes de iniciar Streamlit (los lanzadores lo usan; `streamlit run app/main.py` sigue funcionando), y el abridor espera hasta 60 s por respuesta en vez de abortar. Además `server.address = "127.0.0.1"`: sin aviso del Firewall y sin exponer la app en la red local. `tests/test_run_biocore.py` cubre la política, el argv y que ningún lanzador vuelva a usar `-TimeoutSec 1`.
+- **Lanzadores**: `.streamlit/config.toml` con `server.headless = true` (la primera ejecución de Streamlit en una PC nueva pedía un email en la consola y no arrancaba hasta presionar Enter) y `browser.gatherUsageStats = false`; `RUN_BIOCORE.bat`/`run_local.ps1` abren el navegador en cuanto `/_stcore/health` responde.
+
+### Nuevo: 🧮 Calculadoras Clínicas (Clinical Hub)
+- `clinical/calculators.py`: funciones puras con su cita (`*_CITATION`) y clasificación `(nivel, etiqueta, badge)` para `resolve_metric_card()`. QTc (Bazett, Fridericia, Framingham, Hodges; umbrales AHA/ACCF/HRS 2009 y >500 ms de Drew 2010), FC desde papel (300/n, 1500/n, 6 s, RR), eje QRS con dial hexaxial (misma convención −30°..+90° que `twelve_lead_analyzer.py`), PAM (corte 65 mmHg de SSC 2021), presión de pulso, índice de choque (Allgöwer & Burri), GC e IC (Forrester), IMC (OMS), ASC (Mosteller, Du Bois), presión barométrica por altitud (ISA) con ciudades de México, PAO₂ y gradiente A–a (valor esperado edad/4+4 marcado como heurística), PaO₂/FiO₂ con rangos de Berlín (con la advertencia de que es solo el criterio de oxigenación), NEWS2 (escalas 1 y 2 de SpO₂, banda bajo-medio por parámetro en 3), qSOFA (con la advertencia de SSC 2021 contra usarlo como tamizaje único) y Glasgow.
+- Ningún umbral inventado: donde la referencia no fija un corte (presión de pulso, GC), no se clasifica.
+- `app/supermodules/calculators/pages.py`: 6 pestañas; importa FC/FR/SpO₂ del gemelo de la sesión (etiquetadas como simulación; PA, temperatura y conciencia siempre las captura el usuario); pestaña Informe que exporta PDF/HTML vía `export_lab_report(honesty_cards=...)` con la misma resolución de honestidad que la app viva.
+
+### Nuevo: HRV
+- Fuente "Archivo CSV/TXT de RR" (`src/signals/hrv_tools.parse_rr_file`): un RR por línea, CSV con encabezado (usa la última columna), coma decimal europea, segundos → ms. Declara lo que hizo (líneas ignoradas, unidad, valores fuera de 300–2000 ms) y solo excluye fuera de rango si el usuario lo marca.
+- Gráfico de Poincaré con SD1/SD2 (Brennan et al. 2001), sin umbrales clínicos inventados.
+
+Pruebas nuevas: `tests/test_clinical_calculators.py` (89), `tests/test_hrv_tools.py` (8), `tests/test_new_features_2026_10.py` (13, AppTest con BD temporal del UPS), `tests/test_run_biocore.py` (5).
+
+## 2026-10-19 — Tanda de funcionalidad y arranque: reportes PDF/imágenes, `.env`, fuga de engines, lanzadores
+
+**Contexto**: auditoría completa de la app (AppTest de las 10 páginas de los 3 hubs, pulsando cada botón en cada vista: 0 excepciones) + `pyflakes` sobre todo el repo + instalación limpia. Todo lo de abajo eran fallos silenciosos o de arranque; ningún cálculo clínico cambió.
+
+### Reportes (`app/reporting.py`) — dos fallos que se tragaba un `except`
+- **Imágenes**: `copyfile` nunca se importó; el `NameError` lo tragaba el `except` y el HTML/PDF apuntaba a imágenes que no estaban en `out_dir`. Ahora `shutil.copyfile` (omite si ya está en `out_dir`) y registra un warning si falla.
+- **PDF nunca se generaba**: el pie pedía DejaVu cursiva (`'I'`) sin registrarla (`Undefined font: dejavuI`) y en fpdf2 `multi_cell` deja el cursor a la derecha (`Not enough horizontal space`). Se registran las 4 variantes, encabezado/pie usan la misma fuente efectiva, párrafos vía `PDF.para()` desde el margen izquierdo. Fallos ahora se registran en el log en vez de desaparecer.
+- `fpdf2` pasa a `requirements.txt` (antes solo en `requirements_extra.txt`, así que la exportación PDF nunca funcionaba con la instalación estándar).
+
+### `.env` por fin se lee (`app/utils/env_loader.py`)
+`.env.example`/SETUP.md decían "copia a `.env`", pero nada lo cargaba. `app/main.py` lo carga al arrancar, sin pisar variables del entorno y **ignorando el placeholder** `sk-your-key-here` (Art. I: una copia sin editar no se presenta como clave real). `BIOCORE_CLAUDE_MODEL` permite cambiar el modelo del narrador (default `claude-opus-4-8`, activo según la tabla oficial de deprecaciones).
+
+### Un engine SQLAlchemy por proceso, no por sesión (`app/utils/patient_session.py`)
+Cada sesión de navegador creaba su propio engine sobre `data/biocore_ups.db` y nunca lo liberaba (`ResourceWarning: unclosed database` acumulándose). `get_shared_ups_engine()` (`st.cache_resource`) lo comparten `get_active_session_factory()` y el banco de casos de Academia. La inyección de `session_factory` por `session_state` que usan los tests no cambia.
+
+### Arranque e instalación
+- `requirements.txt` solo con lo que la app importa; pytest/linters/jupyter/seaborn y `shap`/`lime` (Phase 2, cero imports) a `requirements-dev.txt` — primera instalación mucho más ligera.
+- `use_container_width=True` (30 usos, retirado por Streamlit) → `width="stretch"`; `streamlit>=1.50`.
+- `RUN_BIOCORE.bat` / `run_local.ps1`: `.venv` propio, reinstalan solo si cambió `requirements.txt`, `python -m streamlit`, fallback al lanzador `py`, consola UTF-8. `.gitattributes` fuerza CRLF en `.bat`/`.ps1`.
+- README: los bloques de código tenían las comillas invertidas escapadas con barra invertida, y GitHub las mostraba literal en vez de renderizar el bloque.
+
+### Menores
+- `src/ai/temporal_models.py`: `np` sin importar en `predict()`.
+- `test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: `skip` explícito sin PhysioNet, mismo patrón que `test_bbb_detector_validation` (antes falso FAILED offline).
+- `.gitignore`: `data/biocore_ups.db-*` (archivos WAL/SHM de SQLite).
+
+Pruebas nuevas: `tests/test_reporting_images.py` (3), `tests/test_env_loader.py` (3).
+
+## 2026-10-18 — BIOCORE, Engagement Index: gráfico temporal (paridad visual con el ERD)
+
+**Contexto**: el panel del Engagement solo tenía tarjeta y caption. Esta tanda añade la curva β/(α+θ) en el tiempo, con el baseline y la tarea marcados. Aplica la barandilla del refactor del ERD: el gráfico dibuja las ventanas y el nivel que reporta `EngagementResult`, no los recalcula.
+
+### Parte A — Una sola cadena espectral; la curva viaja en el resultado
+
+- **Antes**: `detect_engagement()` corría `EegAnalyzer.analyze()` dos veces, una por tramo. Producir además una curva habría sido una tercera cadena.
+- **Ahora**: `EegAnalyzer.windowed_band_power(signal)` hace un `preprocess_eeg()` sobre la señal completa y calcula el band power de cada ventana de 1 s, con el rechazo de Arco 2A (`None` en las ventanas rechazadas).
+  - Se extrajeron `_windowed_welch()` (Welch por ventana, sin promediar) y `_band_powers()` (la única definición de los bordes de banda). `_welch_with_artifact_rejection()` promedia la misma lista.
+  - **`analyze()` es idéntico al bit a `HEAD`** sobre las mismas señales: 112 análisis (9 patrones × 3 semillas × 2 duraciones × 2 canales + 4 señales cortas) dan los mismos campos, band power, PSD, hallazgos y resumen.
+- `EngagementResult.engagement_curve` + `curve_time`: β/(α+θ) por ventana, con `NaN` en las ventanas rechazadas o con α+θ ≈ 0. Son huecos honestos y no se interpolan. **Si el resultado declina, la curva es `None`**: nunca una curva de ceros ni plana.
+- **El baseline y la tarea son la media de esa misma curva** sobre las ventanas limpias contenidas en cada tramo. Es el estimador de Pope (índice por ventana + promedio móvil). La curva, la línea de baseline y el % salen del mismo cálculo y no pueden desviarse. Cada tramo sigue exigiendo `MIN_CLEAN_EEG_DURATION_S` de ventanas limpias.
+- **Recalibrado tras el cambio de estimador** (30 semillas por cambio):
+  - Sin ruido, el error es < 4e-7 pp. Es mejor que antes porque desaparecieron los bordes del filtrado por tramo.
+  - Con ruido 0.1: sesgo ≤ 1.2 pp, ≤ 6.1 % por semilla.
+  - Con ruido 0.18: sesgo ≤ 3.2 pp, ≤ 11.5 %.
+  - Las tolerancias de la tanda anterior se mantienen sin tocarlas.
+
+### Parte B — `build_engagement_figure(result, lead)` (`engagement_panel.py`)
+
+- Curva por ventana en `PALETTE.ACCENT_ON_DARK`, con `connectgaps=False`.
+- Tramos sombreados: baseline en `NEUTRAL` y tarea en `PRIMARY`, leídos de `result.baseline_window`/`result.task_window`.
+- Línea punteada en `result.baseline_value`: es la referencia que comunica el cambio relativo.
+- Todo con tokens de `PALETTE` y sin colores de semáforo. Hay una sola llamada al detector por render, y la tarjeta sigue junto al gráfico.
+
+### Parte C — Alcance y degradación, intactos
+
+- La cláusula sigue en `st.warning`, siempre visible. Si el detector declina, se muestra el motivo y la tarjeta "no disponible", sin gráfico.
+- **Bug encontrado por el test de degradación (tanda anterior)**: con la duración mínima del slider (10 s), el slider "Inicio de la tarea" quedaba con `min == max` (3.0) y Streamlit tumbaba la página entera. Se corrigió con `_LATEST_TASK_FLOOR_S = 4.0`, el mismo patrón que `_LATEST_EVENT_FLOOR_S` del ERD. Ahora el bloque no cabe, el detector declina con motivo y la vista sigue en pie.
+
+### Verificación
+
+- **Dibujo = medición**: los rectángulos son exactamente `[baseline_window, task_window]`; la línea está en `baseline_value`; los datos de la traza son `curve_time`/`engagement_curve`; la media de la curva dentro de cada tramo es igual a `baseline_value`/`task_value` con diferencia < 1e-12.
+- **La curva sube en la tarea**: con +30 y +60 % inyectados, la razón tarea/baseline de la curva está dentro del 12 % de 1.3/1.6.
+- **Una sola cadena**: en el detector se cuenta 1 `_windowed_welch`, 1 `preprocess_eeg` y 0 `analyze()`. En la página (AppTest), `_windowed_welch` corre exactamente una vez más que los `analyze()` del EEG Lab.
+- **Degradación**: sin baseline, con α+θ ≈ 0 o con una señal corta, `engagement_curve`/`curve_time` son `None`. En AppTest con una señal de 10 s queda solo el gráfico de señales, se ve el motivo y no hay excepción. Una ventana con parpadeo es un hueco `NaN` en la curva.
+- **Gramática**: el spec del gráfico lleva `ACCENT_ON_DARK` y ninguno de STABLE/WARNING/CRITICAL; la cláusula de alcance se ve.
+
+`pytest tests/ -q` → **764 passed** (753 + 11 nuevos en `tests/test_engagement_index.py`; un test existente actualizado a su nuevo motivo de declino). ERD/DAR/TBR/χ/BAR intactos.
+
+Cita Art. I: el gráfico muestra la medición, no una ilustración de ella. Cuando no hay medición, no hay curva.
+
+## 2026-10-18 — BIOCORE, biomarcador: Engagement Index β/(α+θ) relativo al baseline (Pope 1995), firmado por el experto
+
+**Contexto**: Luis (experto) firmó el Engagement Index como índice de **estado operativo** (no patología), en gramática neutra y **relativo al baseline** de reposo del propio sujeto, que es el uso original del sistema biocibernético de Pope: el valor absoluto varía entre sujetos y no admite un corte universal. Con él queda completo el tridente cognitivo: **BAR** arousal / **TBR** fatiga / **Engagement** enganche. A diferencia de DAR/TBR/χ, que son valores absolutos del espectro, tiene capa de baseline como el Mu ERD, y aplica la misma barandilla: sin baseline suficiente declina con motivo y no reporta un engagement de relleno. Se construye y se firma en una sola tanda.
+
+### Firma del experto (transcrita)
+
+- **Fórmula**: Engagement = P_β / (P_α + P_θ).
+- **Relativo**: se reporta como cambio respecto al baseline de reposo del propio sujeto ("+40.0% respecto al reposo"), no como valor absoluto con corte universal.
+- **Dirección**: ↑ = mayor enganche atencional / concentración activa; ↓ = desatención / somnolencia.
+- **Gramática**: `GRAMMAR_NEUTRAL_STATE`, con marco accent y sin semáforo. Es una métrica de rendimiento operativo de sesión, no un diagnóstico.
+- **Cita**: Pope, A. T., Bogart, E. H., & Bartolome, D. S. (1995). *Biocybernetic system evaluates indices of operator engagement in automated task.* **Corrección de la revista al verificarla en PubMed** (PMID 7647180, doi:10.1016/0301-0511(95)05116-3): el artículo es de *Biological Psychology*, 40(1-2), 187-195, no de *IEEE Transactions on Systems, Man, and Cybernetics*. Autores, año y título van verbatim. El abstract confirma que β/(α+θ) fue el índice que mejor reflejó el engagement. Se sigue el mismo criterio que la corrección de cita del TBR. **Pendiente de visto bueno del experto.**
+
+### Parte A — Detector hermano `src/signals/eeg/engagement_detector.py`
+
+- `engagement_index(β, α, θ)` calcula el engagement absoluto de una ventana. `detect_engagement(signal, fs, t_task, ...)` devuelve el % de cambio `(E_tarea − E_baseline) / E_baseline · 100`. `EngagementResult(available, baseline_window, task_window, engagement_relative_pct, baseline_value, task_value, reason, scope_note)` es el espejo de `ErdResult`.
+- **No hay una segunda cadena espectral**: cada ventana pasa entera por `EegAnalyzer.analyze()` (bandpass, rechazo de artefactos de Arco 2A, Welch y bandas estándar). Así salen los mismos band power que alimentan BAR/DAR/TBR, con la misma barandilla de motor Welch y el mismo mínimo de 2 s limpios por ventana. Cada ventana se analiza por separado: nunca un PSD que mezcle reposo y tarea.
+- **Declina con motivo** si la señal es demasiado corta (`MIN_FILTERABLE_SAMPLES` de `preprocessing.py`), si el baseline empieza antes de la señal o la tarea termina después de ella, si una ventana queda sin señal limpia suficiente, si α+θ ≈ 0 o si el engagement de baseline ≈ 0.
+- **Hallazgo, piso relativo y no absoluto**: el piso de 1e-9 µV² de BAR/DAR/TBR no sirve aquí, porque la fuga del Welch lo supera.
+  - Con β pura, α+θ ≈ 3e-6·β, lo que daba engagement ≈ 370 000.
+  - Con un reposo solo de alfa, β/(α+θ) ≈ 3e-9, lo que daba un cambio relativo de ≈ 1e10 %.
+  - `_ENGAGEMENT_RELATIVE_FLOOR = 1e-3`: una banda con menos de una milésima de la potencia de la otra se trata como "sin ritmo medible". Es un default de ingeniería, no un umbral clínico.
+- `classify_engagement_change(pct)` usa **solo el signo** (↑/↓/→). La firma define una dirección, no zonas, así que no se inventa una banda muerta.
+
+### Parte B — Patrón hermano `engagement_task` (`eeg_generator.py`)
+
+- `EngagementTaskEvent(t_task=12, change_pct=40, transition_s=1, task_s=12, recovery_s=1)` es hermano de `MotorImageryEvent`: tiene la misma estructura reposo → transición → meseta → recuperación, valida sus parámetros con `ValueError` y reusa `MeasurementWindows` (baseline de hasta 10 s; la tarea es la meseta completa).
+- **Estructura compartida, no duplicada**: la rampa 0→1→0 se extrajo a `_event_profile()`, que ahora usan los dos patrones. El ERD queda invariante: `motor_imagery` comparado contra `HEAD` (3 eventos × 3 fs) da una diferencia máxima de 7e-15 µV, que es solo redondeo.
+- **Ground truth exacto**: θ 6 Hz + α 10 Hz + β 16 Hz. En la meseta, β se multiplica por k^¼ y α/θ por k^-¼, con k = 1 + cambio/100. El resultado es que β/(α+θ) se multiplica exactamente por k.
+- **Hallazgo, presupuesto de gradiente**: la primera mezcla (θ 24, α 32 y β 24 µV a 20 Hz) tiene un gradiente máximo 2π·Σ(f·A) ≈ 5900 µV/s, por encima del umbral de artefactos de 5500. El detector declinó correctamente, porque toda ventana "era artefacto". No se tocó el umbral: se bajaron las amplitudes hasta ≈ 3500 µV/s, el rango de los patrones base con los que se calibró. β pasó a 16 Hz para tener más potencia con el mismo presupuesto.
+
+### Parte C — Aislado del UPS (decisión declarada) y UI en gramática neutra
+
+- **Aislado, como el ERD**: el engagement relativo es una propiedad de una *sesión* (reposo vs. tarea), no un valor puntual de estado que un snapshot pueda llevar. No se importa desde `builder.py`, `schema.py`, `repository.py`, `twin_shell/pages.py` ni `digital_twin_organism.py`, y no se reexporta desde `src/signals/eeg/__init__.py`. Un test grep lo vigila.
+- `app/supermodules/eeg_neuro_lab/engagement_panel.py` es un panel hermano de `mu_erd_panel.py`.
+  - Controles: el patrón "Engagement (reposo → tarea)" y dos sliders, cambio (−50..150 %) e inicio de la tarea.
+  - Tarjeta: `GRAMMAR_NEUTRAL_STATE` con la dirección como `classification`. Sin `classification` el marco sería NEUTRAL (gris); con ella es `ACCENT_ON_DARK` y nunca STABLE/WARNING/CRITICAL. Lleva la cita de Pope completa.
+  - Cláusula de alcance siempre visible en `st.warning`.
+  - Si el detector declina se muestra el motivo, nunca un número. El import va guardado.
+- `page_content.py` recibe 6 líneas y se queda en 889 (< 900). El mapa biomarcador → gramática de `design_system.py` suma la línea del Engagement.
+
+### Verificación
+
+- **Recuperación del cambio conocido**:
+  - Sin ruido, el error es < 1e-4 pp para −30/+30/+60/+100 %: generador y fórmula son inversas exactas.
+  - Con `noise_level=0.1` (calibrado con 30 semillas por cambio), el sesgo medio es ≤ 1.4 pp, porque el ruido blanco diluye la razón hacia 0. El error relativo de la razón por semilla es ≤ 6.2 % y se debe a la varianza del periodograma por ventana de 1 s, no a un sesgo. Tolerancias en el test, ~2x lo medido: sesgo < 2.5 pp y < 12 % por semilla.
+  - Con el ruido por defecto de la UI (0.18): sesgo ≤ 3.6 pp y ≤ 12 %. Es el límite real de un solo canal a esta SNR. Pope promediaba ~40 s.
+  - +30 y +60 dan números distintos en la proporción correcta. Apuntado a reposo, el detector mide ~0.
+- **Declina**: sin baseline, con baseline de 1.5 s, con la tarea fuera de la señal, con α+θ ≈ 0, con baseline ≈ 0 y con 0/1/15 muestras. Un parpadeo en el baseline se excluye sin distorsionar el resultado.
+- **UI (AppTest)**: el panel aparece solo con su patrón; marco accent sin colores de semáforo; ↑/↓ según el signo; cláusula de alcance verbatim; el valor sigue al slider (−40 → negativo, +120 → > 80); con el detector forzado a declinar se ve el motivo y ningún porcentaje.
+
+`pytest tests/ -q` → **753 passed** (719 + 34 en `tests/test_engagement_index.py`). DAR/TBR/χ/BAR/ERD intactos.
+
+Cita Art. I (IA y datos reales, no fingidos: declina en vez de rellenar, y la cita se verificó contra la fuente) y Art. IV (simulación etiquetada: el ground truth es sintético y prescrito por construcción; no hay validación sobre un operador real).
+
 ## 2026-09-28 — BIOCORE, tanda de higiene: flaky del `hash()`, tres fantasmas metabólicos, `EegAnalyzer.analyze()` con señal corta
 
 **Contexto**: tres cabos de la familia "fallar en silencio / crashear en vez de declarar", mapeados a lo largo de la sesión. Barandillas: grep de llamadores justo antes de retirar código muerto; lectura de todos los consumidores antes de añadir un guard al analizador central.

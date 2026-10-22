@@ -23,6 +23,22 @@ from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
 from clinical.ecg_analyzer import ECGAnalyzer
 from app.main import _measure_ecg_heart_rate_tkeo
 
+import re as _re
+
+_SVG_BLOCK = _re.compile(r"<svg\b.*?</svg>", _re.S)
+
+
+def _page_text(at) -> str:
+    """Texto del área principal SIN el contenido de los dibujos SVG.
+
+    Rediseño visual (2026-10-19): la vista Clínica ahora incluye la lámina
+    del complejo ECG, cuyas coordenadas (`L220.2 262...`) contienen
+    cifras como "220" o "115". Estas pruebas buscan el HR que se MUESTRA
+    como texto; quitar los SVG las hace más precisas, no más laxas (antes
+    un "115" en una coordenada habría bastado para pasar la aserción del HR
+    correcto)."""
+    return " ".join(_SVG_BLOCK.sub("", md.value) for md in at.main.markdown)
+
 
 # --- Parte C: el banco de regresión, formalizado -----------------------
 
@@ -114,7 +130,7 @@ def test_ecg_monitor_demo_source_shows_measured_hr_not_saturated():
     slider.set_value(130)
     at.run(timeout=30)
     assert at.exception == []
-    metrics_text = " ".join(md.value for md in at.main.markdown)
+    metrics_text = _page_text(at)
     assert "**Heart Rate**" in metrics_text
     assert "220" not in metrics_text, "el 220 fijo no debe reaparecer"
 
@@ -143,7 +159,7 @@ def test_ecg_monitor_real_source_mitbih_shows_correct_hr_not_220():
     at.run(timeout=30)
     assert at.exception == []
 
-    metrics_text = " ".join(md.value for md in at.main.markdown)
+    metrics_text = _page_text(at)
     assert "**Heart Rate**" in metrics_text
     assert "220" not in metrics_text, "el detector roto ya no debe medir señal real tampoco"
     assert f"{known_hr:.0f}" in metrics_text, "el HR mostrado debe ser el real medido, no un valor inventado"
@@ -169,7 +185,7 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
     at.run(timeout=30)
     assert at.exception == []
 
-    metrics_text = " ".join(md.value for md in at.main.markdown)
+    metrics_text = _page_text(at)
     assert "No disponible" in metrics_text
     assert "220" not in metrics_text
 
@@ -177,6 +193,16 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
 def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     """PTB-XL pasa por el mismo camino que MIT-BIH (misma rama `else`
     retirada) -- confirmado con su propia caché de sesión."""
+    # La página carga el catálogo PTB-XL (CSV de PhysioNet) antes de leer la
+    # caché de señal: sin red, degrada a su estado de error y nunca llega a
+    # las métricas. Mismo patrón que test_bbb_detector_validation: skip
+    # explícito si PTB-XL no es accesible, en vez de un falso FAILED.
+    from clinical.ptbxl_metadata import PtbxlUnavailableError, ensure_ptbxl_database_csv
+    try:
+        ensure_ptbxl_database_csv()
+    except PtbxlUnavailableError as exc:
+        pytest.skip(f"PTB-XL no accesible en este entorno: {exc}")
+
     gen = DynamicECGGenerator(fs=500.0)
     known_hr = 88.0
     real_like_signal = gen.generate(duration=20, hr=known_hr)
@@ -195,7 +221,7 @@ def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     at.run(timeout=30)
     assert at.exception == []
 
-    metrics_text = " ".join(md.value for md in at.main.markdown)
+    metrics_text = _page_text(at)
     assert "**Heart Rate**" in metrics_text
     assert "220" not in metrics_text
     assert f"{known_hr:.0f}" in metrics_text

@@ -304,7 +304,7 @@ with col1:
             "V1-V6 (precordiales, septal → lateral)"
         )
 
-    if st.button("🔄 Generar ECG de 12 derivaciones", type="primary", use_container_width=True):
+    if st.button("🔄 Generar ECG de 12 derivaciones", type="primary", width="stretch"):
         st.session_state.generate_ecg = True
 
 # Generate and display ECG
@@ -418,7 +418,7 @@ if "ecg_data" in st.session_state:
 
     fig2 = plot_ecg_12_leads(signals, fs=500, title='ECG de 12 Derivaciones')
     if hasattr(fig2, 'to_dict'):
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
     else:
         st.pyplot(fig2)
 

@@ -1,0 +1,366 @@
+{
+ "organ_heart": {
+  "file": "organ_heart.webp",
+  "width": 480,
+  "height": 480,
+  "alt": "Corazón real reconstruido de una tomografía, con la raíz de la aorta y las venas cavas",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {}
+ },
+ "organ_lungs": {
+  "file": "organ_lungs.webp",
+  "width": 480,
+  "height": 480,
+  "alt": "Pulmones y tráquea reales reconstruidos de una tomografía",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {}
+ },
+ "organ_brain": {
+  "file": "organ_brain.webp",
+  "width": 480,
+  "height": 480,
+  "alt": "Cerebro de la plantilla MNI152, vista lateral izquierda, con sus circunvoluciones",
+  "source": "Cerebro: plantilla MNI ICBM 152 2009a (Fonov et al., NeuroImage 2009/2011; © McConnell Brain Imaging Centre, MNI)",
+  "anchors": {}
+ },
+ "organ_muscles": {
+  "file": "organ_muscles.webp",
+  "width": 480,
+  "height": 480,
+  "alt": "Músculos erectores de la columna, glúteos e iliopsoas reales, vista posterior",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {}
+ },
+ "organ_autonomic": {
+  "file": "organ_autonomic.webp",
+  "width": 480,
+  "height": 480,
+  "alt": "Médula espinal real con el tramo T1-L2, de donde sale la vía simpática, resaltado",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {}
+ },
+ "atlas_body": {
+  "file": "atlas_body.webp",
+  "width": 720,
+  "height": 1100,
+  "alt": "Cuerpo reconstruido de una tomografía real: esqueleto, corazón, vasos, pulmones, encéfalo y órganos abdominales bajo la piel translúcida",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {}
+ },
+ "atlas_precordial": {
+  "file": "atlas_precordial.webp",
+  "width": 900,
+  "height": 760,
+  "alt": "Tórax real (costillas, cartílagos, esternón, corazón y pulmones) con los electrodos V1 a V6 en las posiciones calculadas sobre esa tomografía",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {
+   "V1": [
+    215.7,
+    367.4,
+    0.738
+   ],
+   "V2": [
+    280.3,
+    382.8,
+    0.76
+   ],
+   "V3": [
+    306.9,
+    424.5,
+    0.765
+   ],
+   "V4": [
+    342.7,
+    465.6,
+    0.774
+   ],
+   "V5": [
+    470.9,
+    469.2,
+    0.955
+   ],
+   "V6": [
+    661.6,
+    441.0,
+    0.446
+   ]
+  }
+ },
+ "atlas_1020_top": {
+  "file": "atlas_1020_top.webp",
+  "width": 760,
+  "height": 760,
+  "alt": "Cabeza vista desde arriba con los 21 electrodos del sistema 10-20",
+  "source": "Cabeza: superficie de fsaverage (FreeSurfer, Fischl et al. 1999) distribuida por MNE-Python; posiciones 10-20 de MNE-Python (BSD-3)",
+  "anchors": {
+   "Fp1": [
+    298.1,
+    94.8,
+    -0.288
+   ],
+   "Fpz": [
+    384.9,
+    81.4,
+    -0.272
+   ],
+   "Fp2": [
+    466.8,
+    96.1,
+    -0.282
+   ],
+   "F7": [
+    177.2,
+    211.5,
+    -0.283
+   ],
+   "F3": [
+    229.6,
+    168.3,
+    0.271
+   ],
+   "Fz": [
+    378.0,
+    155.6,
+    0.535
+   ],
+   "F4": [
+    532.4,
+    172.7,
+    0.264
+   ],
+   "F8": [
+    584.2,
+    212.0,
+    -0.28
+   ],
+   "T7": [
+    137.1,
+    405.0,
+    -0.323
+   ],
+   "C3": [
+    165.2,
+    414.3,
+    0.555
+   ],
+   "Cz": [
+    374.5,
+    418.7,
+    0.995
+   ],
+   "C4": [
+    595.4,
+    409.6,
+    0.558
+   ],
+   "T8": [
+    626.6,
+    391.4,
+    -0.325
+   ],
+   "P7": [
+    178.4,
+    569.1,
+    -0.338
+   ],
+   "P3": [
+    220.9,
+    624.3,
+    0.246
+   ],
+   "Pz": [
+    385.2,
+    645.2,
+    0.489
+   ],
+   "P4": [
+    551.6,
+    617.7,
+    0.274
+   ],
+   "P8": [
+    591.7,
+    568.9,
+    -0.32
+   ],
+   "O1": [
+    310.3,
+    680.9,
+    -0.326
+   ],
+   "Oz": [
+    393.0,
+    696.5,
+    -0.319
+   ],
+   "O2": [
+    470.5,
+    680.0,
+    -0.331
+   ]
+  }
+ },
+ "atlas_1020_left": {
+  "file": "atlas_1020_left.webp",
+  "width": 760,
+  "height": 760,
+  "alt": "Cabeza vista desde la izquierda con los electrodos del sistema 10-20",
+  "source": "Cabeza: superficie de fsaverage (FreeSurfer, Fischl et al. 1999) distribuida por MNE-Python; posiciones 10-20 de MNE-Python (BSD-3)",
+  "anchors": {
+   "Fp1": [
+    131.6,
+    402.3,
+    0.113
+   ],
+   "Fpz": [
+    131.2,
+    389.1,
+    -0.164
+   ],
+   "Fp2": [
+    152.1,
+    384.5,
+    -0.409
+   ],
+   "F7": [
+    226.2,
+    414.6,
+    0.659
+   ],
+   "F3": [
+    206.5,
+    271.6,
+    0.451
+   ],
+   "Fz": [
+    214.0,
+    212.3,
+    -0.058
+   ],
+   "F4": [
+    231.1,
+    264.3,
+    -0.567
+   ],
+   "F8": [
+    253.8,
+    374.7,
+    -0.798
+   ],
+   "T7": [
+    409.7,
+    428.5,
+    0.945
+   ],
+   "C3": [
+    414.3,
+    222.1,
+    0.764
+   ],
+   "Cz": [
+    413.0,
+    138.8,
+    -0.013
+   ],
+   "C4": [
+    405.2,
+    216.1,
+    -0.746
+   ],
+   "T8": [
+    393.1,
+    379.7,
+    -0.996
+   ],
+   "P7": [
+    565.3,
+    427.9,
+    0.634
+   ],
+   "P3": [
+    592.1,
+    270.0,
+    0.443
+   ],
+   "Pz": [
+    586.3,
+    212.6,
+    -0.099
+   ],
+   "P4": [
+    557.9,
+    252.1,
+    -0.603
+   ],
+   "P8": [
+    531.5,
+    381.6,
+    -0.82
+   ],
+   "O1": [
+    652.1,
+    409.1,
+    0.063
+   ],
+   "Oz": [
+    654.4,
+    398.4,
+    -0.208
+   ],
+   "O2": [
+    631.6,
+    394.6,
+    -0.44
+   ]
+  }
+ },
+ "atlas_heart": {
+  "file": "atlas_heart.webp",
+  "width": 720,
+  "height": 720,
+  "alt": "Corazón real reconstruido de una tomografía, vista anterior",
+  "source": "Tomografía real de cuerpo completo: TotalSegmentator dataset v2, sujeto s1397 (Wasserthal et al., Radiology: AI 2023; CC BY 4.0)",
+  "anchors": {
+   "SA": [
+    191.0,
+    326.8,
+    0.994
+   ],
+   "AV": [
+    276.0,
+    445.6,
+    0.992
+   ],
+   "His": [
+    335.7,
+    470.9,
+    0.991
+   ],
+   "Apex": [
+    570.4,
+    570.3,
+    0.974
+   ],
+   "LV": [
+    581.0,
+    404.5,
+    0.987
+   ],
+   "RV": [
+    375.0,
+    449.9,
+    0.992
+   ],
+   "LA": [
+    527.2,
+    369.5,
+    0.992
+   ],
+   "Center": [
+    334.4,
+    364.9,
+    0.997
+   ]
+  }
+ }
+}

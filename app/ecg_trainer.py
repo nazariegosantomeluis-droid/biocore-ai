@@ -85,8 +85,8 @@ def render_live_esp32_mode() -> None:
         simulate = st.checkbox('Simular si no detecta hardware', value=st.session_state.esp32_simulate)
         refresh_ms = st.number_input('Refrescar cada (ms)', min_value=200, max_value=2000, value=st.session_state.esp32_refresh_ms, step=100)
         st.markdown('---')
-        start_button = st.button('Iniciar transmisión', use_container_width=True)
-        stop_button = st.button('Detener transmisión', use_container_width=True)
+        start_button = st.button('Iniciar transmisión', width="stretch")
+        stop_button = st.button('Detener transmisión', width="stretch")
         st.markdown('### Notas')
         st.write('El sensor AD8232 típicamente envía valores ADC que se normalizan a mV para visualización.')
         st.write('Si no hay hardware conectado, el modo de simulación crea un ECG realista de referencia.')
@@ -146,7 +146,7 @@ def render_live_esp32_mode() -> None:
                 xaxis=dict(title='Tiempo (s)', gridcolor='#333333'),
                 yaxis=dict(title='mV', gridcolor='#333333')
             )
-            st.plotly_chart(fig, use_container_width=True, theme='streamlit')
+            st.plotly_chart(fig, width="stretch", theme='streamlit')
         else:
             st.line_chart(ecg)
     else:
@@ -214,7 +214,7 @@ def main():
     with col2:
         st.subheader("📊 Tu Progreso")
         st.metric("Puntuación", f"{st.session_state.score}/{st.session_state.total}")
-        if st.button("Siguiente Caso ➡️", use_container_width=True):
+        if st.button("Siguiente Caso ➡️", width="stretch"):
             generate_new_case()
             st.rerun()
             
@@ -246,7 +246,7 @@ def main():
             show_annotations=True,
             teaching_overlay=True,
         )
-        st.plotly_chart(clinical_fig, use_container_width=True, theme='streamlit')
+        st.plotly_chart(clinical_fig, width="stretch", theme='streamlit')
         
     st.divider()
     st.subheader("❓ Evaluación de Interpretación")

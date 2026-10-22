@@ -25,7 +25,9 @@ import shutil
 # profundidad, así que el cálculo de la raíz del repo necesita un salto más.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
+from app.utils.design_system import (
+    BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, render_plate, resolve_metric_card,
+)
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -46,10 +48,11 @@ try:
         EegSignalGenerator, EegPattern, EegAnalyzer,
         classify_dar, classify_tbr, DAR_CITATION, TBR_CITATION, BAR_CITATION,
     )
-    from app.supermodules.eeg_neuro_lab import mu_erd_panel
+    from app.supermodules.eeg_neuro_lab import engagement_panel, mu_erd_panel
     Eeg_import_error = None
 except ImportError as e:
     mu_erd_panel = None
+    engagement_panel = None
     EegSignalGenerator = None
     EegPattern = None
     EegAnalyzer = None
@@ -217,6 +220,7 @@ pattern = st.sidebar.selectbox(
         "Seizure (espigas)",
         "Artifact (parpadeo)",
         mu_erd_panel.MOTOR_IMAGERY_LABEL,
+        engagement_panel.ENGAGEMENT_TASK_LABEL,
     ]
 )
 channels = st.sidebar.selectbox("Número de canales", [2, 3, 4], index=2)
@@ -231,6 +235,7 @@ fs = st.sidebar.selectbox("Frecuencia de muestreo (Hz)", [128, 256, 512], index=
 noise = st.sidebar.slider("Nivel de ruido de fondo", min_value=0.0, max_value=0.5, value=0.18, step=0.02)
 
 motor_event = mu_erd_panel.render_mu_erd_sidebar(pattern, duration)
+engagement_event = engagement_panel.render_engagement_sidebar(pattern, duration)
 
 live_mode = st.sidebar.checkbox(
     "Habilitar análisis en tiempo real",
@@ -361,6 +366,7 @@ pattern_map = {
     "Seizure (espigas)": "seizure",
     "Artifact (parpadeo)": "artifact",
     mu_erd_panel.MOTOR_IMAGERY_LABEL: "motor_imagery",
+    engagement_panel.ENGAGEMENT_TASK_LABEL: "engagement_task",
 }
 synthetic_params = EegPattern(
     pattern_type=pattern_map[pattern],
@@ -370,6 +376,7 @@ synthetic_params = EegPattern(
     noise_level=noise,
     channels=channels,
     motor_event=motor_event,
+    engagement_event=engagement_event,
 )
 
 data_source = "Sintético"
@@ -434,8 +441,8 @@ with col1:
             fig.update_yaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=idx, col=1)
         fig.update_xaxes(title_text='Tiempo (s)', row=display_rows, col=1)
         fig.update_xaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=display_rows, col=1)
-        fig.update_layout(height=250 * display_rows, template='plotly_dark', paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'))
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(height=250 * display_rows, paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'))
+        st.plotly_chart(fig, width="stretch")
 
         st.markdown("## 🧠 Análisis de Potencia de Banda")
         analysis_cards = []
@@ -461,6 +468,13 @@ with col1:
 
         if motor_event is not None:
             mu_erd_panel.render_mu_erd_panel(eeg_data[display_leads[0]], display_leads[0], fs, time, motor_event)
+        if engagement_event is not None:
+            engagement_panel.render_engagement_panel(eeg_data[display_leads[0]], display_leads[0], fs, engagement_event)
+
+        # 2026-10-21: la potencia de cada canal sobre una cabeza 3D (10-20).
+        from app.supermodules.model3d.panels import render_eeg_lab_head_map
+
+        render_eeg_lab_head_map(analysis_cards, data_source)
 
 with col2:
     st.markdown("## 📊 Métricas y Clasificación")
@@ -823,11 +837,14 @@ with col2:
 
     st.markdown("---")
     st.markdown("## 📚 Referencias EEG")
-    st.write("**Banda Delta:** sueño profundo, 0.5-4 Hz")
-    st.write("**Banda Theta:** somnolencia, 4-8 Hz")
-    st.write("**Banda Alpha:** relajación con ojos cerrados, 8-12 Hz")
-    st.write("**Banda Beta:** alerta y concentración, 13-30 Hz")
-    st.write("**Banda Gamma:** procesamiento cognitivo integrado, 30-45 Hz")
+    # Rediseño visual (2026-10-19): dos láminas del Atlas en lugar de la lista
+    # de texto. El mapa 10-20 resalta los canales que se están dibujando; la
+    # de bandas resalta la banda dominante YA calculada arriba por
+    # `EegAnalyzer` y usa sus mismos límites (`BAND_LIMITS_HZ`), no los
+    # redondeados que decía la lista anterior.
+    _dominant = overall.dominant_band if (overall is not None and overall.available) else None
+    render_plate("eeg_bands", dominant=_dominant)
+    render_plate("eeg_1020", active=tuple(display_leads))
 
     with st.expander("🧪 Quiz interactivo EEG"):
         quiz_questions = [

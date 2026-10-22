@@ -40,7 +40,7 @@ from src.signals.respiration import (
 # de tarjeta de métrica (`app/utils/design_system.py`), reemplaza el
 # `<style>` propio de este archivo (retirado más abajo) y los ~24
 # `st.metric()` a mano repartidos por las pestañas.
-from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_section_header
+from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_plate, render_section_header
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE CONFIGURATION
@@ -52,25 +52,11 @@ from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_
 # `app/main.py` (vía `runpy.run_path()` desde `respiratory_lab/pages.py`),
 # que ya configuró la página una sola vez al inicio. Ver CHANGELOG.md.
 
-# Consolidación Visual Tanda 3 (2026-09-21): background/color de esta
-# tarjeta decorativa migrados de hex propios a `PALETTE.BACKGROUND`/
-# `PALETTE.ACCENT_ON_DARK` -- coinciden exactamente con los valores viejos
-# (#0f172a/#8ecae6), ahora referenciando la fuente única en vez de
-# repetirla. El borde (#1f2937) no corresponde a ningún token de
-# `PALETTE` -- se deja igual, no se inventa una correspondencia.
-st.markdown(f"""
-    <div style='padding: 16px; border-radius: 16px; background: {PALETTE.BACKGROUND}; border: 1px solid #1f2937; margin-bottom: 24px;'>
-        <h2 id="panel-respiratorio" style='color: {PALETTE.ACCENT_ON_DARK};'>💨 Laboratorio Respiratorio</h2>
-        <p>Experimenta con patrones de respiración, monitorea SpO2 y aprende a reconocer señales de apnea y respiración irregular.</p>
-        <ul>
-            <li><strong>Normal:</strong> respiración estable y oxigenación saludable.</li>
-            <li><strong>Apnea:</strong> pausas en el flujo de aire y desaturaciones.</li>
-            <li><strong>Taquipnea:</strong> ritmo respiratorio acelerado.</li>
-        </ul>
-    </div>
-""",
-    unsafe_allow_html=True,
-)
+# Rediseño visual (2026-10-19): la tarjeta decorativa de bienvenida (un
+# `<h2>` "Laboratorio Respiratorio" que repetía el título del módulo + 3
+# viñetas) se retiró; su lugar lo ocupa, más abajo, la lámina con los 7
+# patrones dibujados por el mismo generador de este laboratorio (necesita el
+# patrón elegido en la barra lateral, por eso se dibuja después de ella).
 
 # Consolidación Visual Tanda 3 (2026-09-21): `<style>` propio retirado --
 # `inject_global_theme()` (`app/main.py`) ya cubre fondo/texto globales con
@@ -86,7 +72,7 @@ st.markdown(f"""
 # SIDEBAR CONFIGURATION
 # ═══════════════════════════════════════════════════════════════
 
-st.sidebar.markdown("# 💨 LABORATORIO RESPIRATORIO")
+st.sidebar.markdown("# Respiratory Lab")  # 2026-10-20: sin mayúsculas sostenidas, como "# EEG Neuro Lab"
 st.sidebar.markdown("---")
 
 # Pattern selection
@@ -260,6 +246,15 @@ st.session_state['_respiratory_lab_analysis'] = {
 # Neuro Lab, Tandas 1-2). "Patrón: X" sí es información genuina de
 # sub-sección (cambia con la selección del sidebar) -- se conserva como
 # `render_section_header()`, no un segundo título de módulo.
+# Rediseño visual (2026-10-19): galería de los 7 patrones (flujo y esfuerzo
+# torácico, misma escala), con el patrón elegido resaltado.
+st.markdown(
+    "Experimenta con patrones de respiración, monitorea SpO2 y aprende a reconocer señales de apnea "
+    "y respiración irregular. Elige el patrón en la barra lateral."
+)
+with st.expander("Lámina: los 7 patrones respiratorios", expanded=True):
+    render_plate("respiratory_patterns", selected=selected_pattern)
+
 render_section_header(f"Patrón: {selected_pattern_display}")
 
 # ═══════════════════════════════════════════════════════════════
@@ -345,15 +340,19 @@ with tab1:
         vertical_spacing=0.1
     )
     
+    # Rediseño visual (2026-10-20): flujo/tórax/abdomen con los slots 1-3 de
+    # la paleta validada (`chartCategoricalColors`) -- los mismos colores de
+    # flujo y esfuerzo de la lámina "Patrones respiratorios". Antes, el tórax
+    # iba en #1d4ed8 (2.66:1 sobre el fondo, casi invisible).
     # Airflow
     fig.add_trace(
         go.Scatter(
             x=time_array,
             y=airflow,
             name="Flujo de Aire",
-            line=dict(color="#8ecae6", width=2),
+            line=dict(color="#3987e5", width=2),
             fill="tozeroy",
-            fillcolor="rgba(142, 202, 230, 0.2)"
+            fillcolor="rgba(57, 135, 229, 0.12)"
         ),
         row=1, col=1
     )
@@ -365,9 +364,9 @@ with tab1:
             x=time_array,
             y=chest,
             name="Pared Torácica",
-            line=dict(color="#1d4ed8", width=2),
+            line=dict(color="#d95926", width=2),
             fill="tozeroy",
-            fillcolor="rgba(29, 78, 216, 0.2)"
+            fillcolor="rgba(217, 89, 38, 0.12)"
         ),
         row=2, col=1
     )
@@ -378,9 +377,9 @@ with tab1:
             x=time_array,
             y=abdomen,
             name="Abdomen",
-            line=dict(color="#7c3aed", width=2),
+            line=dict(color="#199e70", width=2),
             fill="tozeroy",
-            fillcolor="rgba(124, 58, 237, 0.2)"
+            fillcolor="rgba(25, 158, 112, 0.12)"
         ),
         row=3, col=1
     )
@@ -392,7 +391,6 @@ with tab1:
     
     fig.update_layout(
         height=700,
-        template="plotly_dark",
         paper_bgcolor="#0f172a",
         plot_bgcolor="#1a2a4a",
         font=dict(color="#e0e7ff"),
@@ -400,7 +398,7 @@ with tab1:
         hovermode="x unified"
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     
     # Detected breaths summary
     st.markdown("#### 📊 Resumen de Respiraciones Detectadas")
@@ -463,19 +461,19 @@ with tab2:
             x=time_array,
             y=spo2,
             name="SpO2",
-            line=dict(color="#8ecae6", width=3),
+            line=dict(color="#3987e5", width=2.5),
             fill="tozeroy",
-            fillcolor="rgba(142, 202, 230, 0.3)"
+            fillcolor="rgba(57, 135, 229, 0.12)"
         ),
         row=1, col=1
     )
     
     # Reference lines
-    fig_spo2.add_hline(y=95, line_dash="dash", line_color="#51cf66", row=1, col=1, 
+    fig_spo2.add_hline(y=95, line_dash="dash", line_color=PALETTE.STABLE, row=1, col=1, 
                        annotation_text="Normal")
-    fig_spo2.add_hline(y=90, line_dash="dash", line_color="#ffa500", row=1, col=1,
+    fig_spo2.add_hline(y=90, line_dash="dash", line_color=PALETTE.WARNING, row=1, col=1,
                        annotation_text="Hipoxemia leve")
-    fig_spo2.add_hline(y=85, line_dash="dash", line_color="#ff6b6b", row=1, col=1,
+    fig_spo2.add_hline(y=85, line_dash="dash", line_color=PALETTE.CRITICAL, row=1, col=1,
                        annotation_text="Hipoxemia grave")
     
     # Airflow reference
@@ -484,8 +482,8 @@ with tab2:
             x=time_array,
             y=airflow / np.max(np.abs(airflow)) * 20 + 60 if np.max(np.abs(airflow)) > 0 else np.zeros_like(airflow),
             name="Flujo (normalizado)",
-            line=dict(color="#666", width=1),
-            opacity=0.5
+            line=dict(color="#5d6b92", width=1),
+            opacity=0.8
         ),
         row=2, col=1
     )
@@ -496,7 +494,6 @@ with tab2:
     
     fig_spo2.update_layout(
         height=600,
-        template="plotly_dark",
         paper_bgcolor="#0f172a",
         plot_bgcolor="#1a2a4a",
         font=dict(color="#e0e7ff"),
@@ -504,7 +501,7 @@ with tab2:
         hovermode="x unified"
     )
     
-    st.plotly_chart(fig_spo2, use_container_width=True)
+    st.plotly_chart(fig_spo2, width="stretch")
     
     # SpO2 Statistics
     st.markdown("#### 📊 Estadísticas de Oxigenación")
@@ -546,7 +543,7 @@ with tab3:
         if apnea_df_data:
             import pandas as pd
             apnea_df = pd.DataFrame(apnea_df_data)
-            st.dataframe(apnea_df, use_container_width=True, hide_index=True)
+            st.dataframe(apnea_df, width="stretch", hide_index=True)
         
         # Severity classification
         ahi = analysis.apnea_hypopnea_index
@@ -814,7 +811,7 @@ st.write(
 
 with st.sidebar:
     st.markdown("---")
-    st.markdown("### 📚 INFORMACIÓN EDUCATIVA")
+    st.markdown("### 📚 Información educativa")
     
     edu_section = st.radio("Seleccionar Tema:", [
         "Introducción",

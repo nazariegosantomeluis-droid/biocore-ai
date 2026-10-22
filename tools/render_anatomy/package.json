@@ -1,0 +1,8 @@
+{
+  "name": "biocore-render-anatomy",
+  "private": true,
+  "description": "Renders estáticos de la anatomía real (solo para regenerar app/static/anatomy/)",
+  "dependencies": {
+    "three": "0.186.1"
+  }
+}

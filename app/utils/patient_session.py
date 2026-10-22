@@ -36,15 +36,30 @@ _DISPLAY_NAME_KEY = "twin_shell_ups_patient_display_name"
 DEFAULT_PATIENT_DISPLAY_NAME = "Paciente Demo (Twin Shell)"
 
 
+@st.cache_resource(show_spinner=False)
+def get_shared_ups_engine():
+    """Engine SQLAlchemy del UPS por defecto, UNO por proceso.
+
+    Antes cada sesión de navegador (cada pestaña/recarga) llamaba a
+    `make_engine()` y guardaba su propio engine en `session_state`: un pool
+    de conexiones nuevo sobre el mismo `data/biocore_ups.db` que nunca se
+    liberaba (ResourceWarning "unclosed database" acumulándose). SQLAlchemy 2
+    usa QueuePool con `check_same_thread=False` para SQLite en archivo, así
+    que un engine compartido entre los hilos de Streamlit es seguro. Las
+    sesiones ORM siguen siendo por sesión de navegador.
+    """
+    engine = make_engine()
+    init_db(engine)
+    return engine
+
+
 def get_active_session_factory():
     """Sessionmaker del UPS compartido por toda la sesión de navegador.
     Se crea una única vez (idempotente, igual que `get_active_patient_id()`
     de abajo) y la reutilizan tanto esta función como cualquier módulo que
     necesite abrir su propia sesión sobre el paciente activo."""
     if _SESSION_FACTORY_KEY not in st.session_state:
-        engine = make_engine()
-        init_db(engine)
-        st.session_state[_SESSION_FACTORY_KEY] = make_session_factory(engine)
+        st.session_state[_SESSION_FACTORY_KEY] = make_session_factory(get_shared_ups_engine())
     return st.session_state[_SESSION_FACTORY_KEY]
 
 
