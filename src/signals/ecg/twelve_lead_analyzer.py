@@ -19,7 +19,7 @@ from dataclasses import dataclass
 class QrsAxis:
     """QRS axis determination result"""
     axis_degrees: float
-    category: str  # "Normal", "LAD" (Left Axis Deviation), "RAD" (Right Axis Deviation)
+    category: str  # "Normal", "LAD", "RAD", "Extreme" (-90 a ±180, eje indeterminado), "Unknown"
     description: str
 
 
@@ -156,44 +156,41 @@ class TwelveLeadEcgAnalyzer:
     
     def _determine_qrs_axis(self, lead_i: np.ndarray, aVF: np.ndarray, lead_ii: np.ndarray) -> QrsAxis:
         """
-        Determine QRS axis using simplified lead analysis
-        
-        Rules:
-        - Predominant positive: axis in that direction
-        - Equiphasic (equal +/-): perpendicular direction
-        - Most negative: opposite direction
+        Eje eléctrico medio en el plano frontal, desde el área neta de I y aVF.
+
+        Corregido 2026-10-22: antes `atan2(aVF, I)`, ahora `atan2(2·aVF, √3·I)`.
+        Con un vector cardíaco de módulo E y ángulo θ (0° = I, +90° = aVF),
+        Einthoven da I = E·cos θ, II = E·cos(θ − 60°), III = E·cos(θ − 120°),
+        y Goldberger aVF = (II + III)/2 = (√3/2)·E·sen θ. I y aVF son
+        perpendiculares pero NO tienen la misma escala: aVF mide √3/2 de lo
+        que mediría una derivación como I a 90°. Por eso tan θ = 2·aVF/(√3·I).
+        La fórmula vieja comprimía el ángulo hacia 0°/±180°: un eje real entre
+        −30° y −33.7° (desviación izquierda) salía "normal".
+
+        Zonas: normal −30° a +90°; desviación izquierda −30° a −90°; derecha
+        +90° a +180°; −90° a ±180°, desviación extrema (eje indeterminado).
         """
         if lead_i is None or aVF is None:
             return QrsAxis(axis_degrees=0, category="Unknown", description="Insufficient data")
-        
-        # Calculate QRS amplitudes (simplified: peak-to-peak)
-        amp_i = np.max(lead_i) - np.min(lead_i)
-        amp_aVF = np.max(aVF) - np.min(aVF)
-        
-        # Determine net direction
+
+        # Área neta de cada derivación = proyección del vector medio
         lead_i_net = np.mean(lead_i)
         aVF_net = np.mean(aVF)
-        
-        # Calculate approximate axis angle
-        axis_rad = np.arctan2(aVF_net, lead_i_net)
-        axis_deg = np.degrees(axis_rad)
-        if axis_deg < 0:
-            axis_deg += 360
-        
-        # Normalize to -180 to +180
-        if axis_deg > 180:
-            axis_deg -= 360
-        
-        # Categorize
+
+        axis_deg = float(np.degrees(np.arctan2(2.0 * aVF_net, np.sqrt(3.0) * lead_i_net)))  # [-180, 180]
+
         if -30 <= axis_deg <= 90:
             category = "Normal"
             description = f"Normal axis: {axis_deg:.0f}°"
-        elif axis_deg < -30:
+        elif -90 <= axis_deg < -30:
             category = "LAD"
             description = f"Left Axis Deviation: {axis_deg:.0f}°"
-        else:  # axis_deg > 90
+        elif axis_deg > 90:
             category = "RAD"
             description = f"Right Axis Deviation: {axis_deg:.0f}°"
+        else:  # -180 a -90: antes salía "LAD", pero no es desviación izquierda
+            category = "Extreme"
+            description = f"Extreme axis deviation (indeterminate axis): {axis_deg:.0f}°"
         
         return QrsAxis(
             axis_degrees=axis_deg,

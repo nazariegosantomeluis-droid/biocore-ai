@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-10-22 — Fachada en main: el eje QRS con la fórmula de Einthoven (`atan2(2·aVF, √3·I)`)
+
+**Contexto**: la auditoría del aporte externo (Diagnóstico 2) encontró que sus calculadoras de eje usaban `atan2(aVF, I)`. El mismo defecto estaba activo en main, en `TwelveLeadEcgAnalyzer._determine_qrs_axis` (ECG-12, "Interpretación Clínica Automática"): un eje real entre −30° y −33.7° (desviación izquierda leve) se mostraba como **normal**. Esta tanda corrige solo eso; las calculadoras del aporte entran en la tanda 2C.
+
+### Corrección (`src/signals/ecg/twelve_lead_analyzer.py`)
+
+- **Por qué**: con un vector cardíaco de módulo E y ángulo θ, Einthoven da I = E·cos θ y Goldberger aVF = (II + III)/2 = (√3/2)·E·sen θ. I y aVF son perpendiculares pero no tienen la misma escala, así que θ = atan2(2·aVF, √3·I). La fórmula vieja comprimía el ángulo hacia 0°/±180°: el clásico "aVL isoeléctrica → +60°" salía 56°.
+- **grep**: era la única instancia en todo el repo, `_archive/` incluido. `vcg.py` calcula su ángulo desde derivaciones ortogonales y no tiene este defecto.
+- **Zona −90° a ±180°**: antes salía "LAD", lo que contradecía la pregunta del propio quiz de ECG-12 ("entre −30° y −90° = desviación izquierda", con la opción "Indeterminado"). Ahora es la categoría `Extreme` (desviación extrema, eje indeterminado) y ya no recibe los diferenciales de la desviación izquierda.
+- Se quitaron dos variables sin uso (`amp_i`, `amp_aVF`) y la normalización ±360°, que era redundante con `arctan2`.
+
+### Tests: verdad de referencia independiente (`tests/test_qrs_axis_einthoven.py`, 30 tests)
+
+En main **no había ningún test del eje**: los tests circulares estaban en el aporte. Ningún test existente asumía el valor viejo, así que no hubo nada que actualizar. Ningún esperado sale de `_determine_qrs_axis` ni de una arcotangente sobre I/aVF. Las tres fuentes de verdad son:
+
+1. **Vector de ángulo conocido**. El QRS es un lazo que gira, no una sola forma escalada, y su vector medio apunta a θ. I y II se calculan como proyecciones sobre sus ejes (0° y +60°), y aVF = II − I/2, como lo deriva un electrocardiógrafo. El esperado es θ.
+2. **Regla de la derivación isoeléctrica**: II isoeléctrica → −30°, aVF → 0°, III → +30°, aVL → +60°, I → ±90°, aVR → +120°.
+3. **Regla de los signos de I, II y aVF**, sin ángulos. Se barre cada medio grado de −179.5° a +179.5°.
+
+**El caso del bug**: θ = −30.5°, −31°, −32°, −33° y −33.5°. La fórmula vieja da más de −30° ("normal") y la nueva da desviación izquierda, con II negativa por definición. El análisis completo a −32° muestra "Left Axis Deviation: -32°" y el diferencial "Left anterior fascicular block".
+
+**Los tests discriminan**: contra el analizador de HEAD fallan 20 de 30. Los 10 que pasan son los casos en que ambas fórmulas coinciden (0°, ±90°, ±180° y datos faltantes).
+
+### Efecto visible
+
+En los ECG de ejemplo, el eje mostrado pasa de 59.9° a 63.3° (normal), de 53.0° a 56.9° (HVI) y de 64.8° a 67.8° (IAM inferior). Los tres siguen en "Normal".
+
+### Pendiente (medido, no tocado en esta tanda)
+
+- **El generador de 12 derivaciones construye mal las aumentadas**:
+  - aVF = (II + III/2)·1.5, cuando debería ser (II + III)/2.
+  - aVL = (I − III/2)·1.5, cuando debería ser (I − III)/2.
+  - aVR lleva un ×1.5 extra.
+
+  En el ECG normal de ejemplo, aVF/I vale 1.725 cuando por Goldberger debería valer 0.600. Por eso el analizador, ya corregido, muestra 63° cuando las propias I y II del generador implican 34.7°. Es la siguiente fachada.
+- El eje sale del área neta de **todo** el registro (P y T incluidas), no solo del QRS.
+- Si I y aVF tienen área neta ≈ 0 (complejos equifásicos), el resultado es 0° "normal" en vez de indeterminado.
+
+Cita Art. I: el eje que muestra ECG-12 es el que dicta la geometría de Einthoven, y lo verifican esperados que no salen de la fórmula probada (la circularidad era lo que ocultaba el error).
+
 ## 2026-10-22 — Pieza 2: el cuerpo 3D del gemelo conectado al UPS (una fuente de color, dos renderizadores)
 
 **Contexto**: el diagnóstico de la Pieza 2 midió que el cuerpo 3D del aporte externo y el cuerpo SVG se **contradecían con el mismo organismo**. El 3D coloreaba con `organism.organs[id].status`, el `health_score` heurístico cortado en 80/60/40:
