@@ -388,7 +388,7 @@ def render_synthetic_case_section() -> None:
         events = st.session_state["academia_case_events"]
 
         st.markdown("#### Estado del paciente — diagnóstico oculto")
-        render_ups_body(state)
+        render_ups_body(state, with_3d=True, key="academia_caso")
 
         desc_rows = [
             {

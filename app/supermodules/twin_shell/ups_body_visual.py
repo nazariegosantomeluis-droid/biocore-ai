@@ -43,7 +43,7 @@ que `before_value=None` en el narrador).
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import streamlit as st
 
@@ -136,6 +136,60 @@ _BRAIN_PATH = (
 )
 
 
+class OrganVisual(NamedTuple):
+    """Estado visual de un órgano modelado, decidido UNA vez desde el UPS.
+    Se desempaca como `(color, etiqueta, ...)`. `severity` es la severidad
+    máxima de los eventos del dominio aunque no haya dato (el halo del SVG
+    la usa así desde la Fase 1.4)."""
+
+    color: str
+    label: str
+    has_data: bool
+    severity: Optional[EventSeverity]
+
+
+# Órgano modelado -> dominio del UPS. Solo estos tres tienen estado; el resto
+# de la anatomía (vasos, médula, abdomen) no tiene dominio y nunca se colorea.
+ORGAN_DOMAINS: Dict[str, str] = {"heart": "cardiovascular", "lungs": "respiratory", "brain": "neurological"}
+_STATE_LABEL: Dict[Optional[EventSeverity], str] = {
+    None: "sin evento",
+    EventSeverity.INFO: "evento informativo",
+    EventSeverity.WARNING: "aviso",
+    EventSeverity.CRITICAL: "crítico",
+}
+
+
+def _organ_has_data(state: Optional[UnifiedPhysiologicalState], organ: str) -> bool:
+    """El descriptor clave de cada órgano: FC para el corazón; FR o SpO₂ para
+    los pulmones; cualquier descriptor neurológico para el cerebro (el gate
+    anti-órgano-fantasma deja el dominio vacío si no hubo escritor neuro)."""
+    if state is None:
+        return False
+    domain = state.all_domains()[ORGAN_DOMAINS[organ]]
+    if organ == "heart":
+        return domain.get("heart_rate") is not None
+    if organ == "lungs":
+        return domain.get("respiratory_rate") is not None or domain.get("spo2") is not None
+    return bool(domain.descriptors)
+
+
+def organ_visual_state(state: Optional[UnifiedPhysiologicalState]) -> Dict[str, OrganVisual]:
+    """LA fuente de color de los órganos: la consumen el cuerpo SVG y el cuerpo
+    3D, así que no pueden contradecirse (Art. IV). Sin el descriptor clave ->
+    gris "sin dato", nunca un color que finja una medición; con dato -> verde
+    sin evento o el color de la severidad máxima del dominio (`SEVERITY_COLOR`,
+    el único mapeo severidad->color)."""
+    out: Dict[str, OrganVisual] = {}
+    for organ, domain in ORGAN_DOMAINS.items():
+        severity = _severity_for_domain(state, domain)
+        if not _organ_has_data(state, organ):
+            out[organ] = OrganVisual(NEUTRAL_COLOR, "sin dato", False, severity)
+        else:
+            color = STABLE_COLOR if severity is None else SEVERITY_COLOR[severity]
+            out[organ] = OrganVisual(color, _STATE_LABEL[severity], True, severity)
+    return out
+
+
 def _severity_for_domain(state: Optional[UnifiedPhysiologicalState], domain: str) -> Optional[EventSeverity]:
     if state is None:
         return None
@@ -162,11 +216,11 @@ def _event_labels_for_organ(events: List[PhysiologicalEvent], organ_id: str) -> 
 
 def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
     hr = state.all_domains()["cardiovascular"].get("heart_rate") if state else None
-    severity = _severity_for_domain(state, "cardiovascular")
+    visual = organ_visual_state(state)["heart"]
+    color, severity = visual.color, visual.severity
     events = _domain_events(state, "cardiovascular")
 
-    if hr is None:
-        color = NEUTRAL_COLOR
+    if not visual.has_data:
         animation_css = ""
         # Fase 5.1: sin "en el UPS" -- `state` puede venir de get_latest_state()
         # (persistido) o get_current_physiological_state() (actual, sin
@@ -174,7 +228,6 @@ def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         # rr_label/spo2_label en _render_lungs_card() más abajo.
         metric_label = "FC: sin dato"
     else:
-        color = STABLE_COLOR if severity is None else SEVERITY_COLOR[severity]
         # Un ciclo cardíaco por latido — taquicardia se ve/pulsa más rápido que bradicardia,
         # la animación transmite el dato en vez de ser decorativa.
         beat_duration = max(0.35, min(2.2, 60.0 / max(hr.value, 1.0)))
@@ -214,14 +267,13 @@ def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
 def _render_lungs_card(state: Optional[UnifiedPhysiologicalState]) -> str:
     rr = state.all_domains()["respiratory"].get("respiratory_rate") if state else None
     spo2 = state.all_domains()["respiratory"].get("spo2") if state else None
-    severity = _severity_for_domain(state, "respiratory")
+    visual = organ_visual_state(state)["lungs"]
+    color, severity = visual.color, visual.severity
     events = _domain_events(state, "respiratory")
 
-    if rr is None and spo2 is None:
-        color = NEUTRAL_COLOR
+    if not visual.has_data:
         animation_css = ""
     else:
-        color = STABLE_COLOR if severity is None else SEVERITY_COLOR[severity]
         if rr is not None:
             # Un ciclo respiratorio (inhalar/exhalar) por respiración.
             breath_duration = max(0.8, min(4.0, 60.0 / max(rr.value, 1.0)))
@@ -286,19 +338,17 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
       que finge permanencia)."""
     neuro = state.all_domains()["neurological"] if state else None
     descriptors = dict(neuro.descriptors) if neuro is not None else {}
-    severity = _severity_for_domain(state, "neurological")
+    visual = organ_visual_state(state)["brain"]
+    color, severity = visual.color, visual.severity
     events = _domain_events(state, "neurological")
 
-    if not descriptors:
+    if not visual.has_data:
         # Gate visual: el dominio neuro vacío (escritor no-neuro) se dibuja
         # "sin dato" en gris — nunca un color que implique una medición.
         # Espejo exacto del `hr is None` del corazón.
-        color = NEUTRAL_COLOR
         animation_css = ""
         metric_label = "Estado: sin dato neurológico"
     else:
-        color = STABLE_COLOR if severity is None else SEVERITY_COLOR[severity]
-
         workload = descriptors.get("mental_workload")
         if workload is not None:
             # workload 0 → 3.0s (pulso lento), workload 100 → ~0.9s (rápido).
@@ -395,7 +445,8 @@ def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> No
             st.caption(f"{chi_badge} χ = {chi_descriptor.value:.2f} ({chi_label}) — {CHI_CITATION}")
 
 
-def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:
+def render_ups_body(state: Optional[UnifiedPhysiologicalState], *, with_3d: bool = False,
+                    key: str = "ups_body") -> None:
     """Fase 1.4: corazón y pulmones coloreados/animados desde un
     `UnifiedPhysiologicalState` real — nunca de texto del narrador.
     Capa 5A, Sub-fase 2 (2026-08-31): + el cerebro, tercer órgano, misma
@@ -412,7 +463,10 @@ def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:
     Si `state` es `None` (paciente sin ningún snapshot persistido
     todavía — solo posible con `get_latest_state()`, `get_current_
     physiological_state()` nunca devuelve `None`), los tres órganos se
-    muestran en gris neutro."""
+    muestran en gris neutro.
+
+    Pieza 2 (2026-10-22): `with_3d=True` añade el cuerpo 3D (`ups_body_3d.py`)
+    coloreado con el mismo `state`; `key` distingue cada uso en una página."""
     st.markdown(_STYLE, unsafe_allow_html=True)
     if state is None:
         st.caption("Sin snapshot del UPS todavía para este paciente — cuerpo en estado neutro.")
@@ -430,3 +484,10 @@ def render_ups_body(state: Optional[UnifiedPhysiologicalState]) -> None:
         st.markdown(_render_heart_card(state), unsafe_allow_html=True)
     with col2:
         st.markdown(_render_lungs_card(state), unsafe_allow_html=True)
+
+    # Pieza 2 (2026-10-22): el cuerpo 3D se dibuja con ESTE MISMO `state` y la
+    # misma `organ_visual_state()` -- imposible que contradiga al SVG.
+    if with_3d:
+        from .ups_body_3d import render_ups_body_3d
+
+        render_ups_body_3d(state, key)

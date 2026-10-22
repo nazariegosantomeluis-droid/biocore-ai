@@ -900,7 +900,8 @@ def render_synced_digital_twin_body(organism: DigitalTwinOrganism) -> None:
             persist_current_state(session, organism, patient_id, source_detail="twin_visual:checkpoint_manual")
         st.success("Momento guardado en la trayectoria del paciente.")
 
-    render_ups_body(get_current_physiological_state(organism, patient_id))
+    # Pieza 2 (2026-10-22): un solo `state` alimenta el cuerpo SVG y el 3D.
+    render_ups_body(get_current_physiological_state(organism, patient_id), with_3d=True, key="twin_actual")
     st.caption(
         "Color y animación se derivan de tu estado fisiológico ACTUAL (severidad de eventos por "
         "dominio + heart_rate/respiratory_rate/spo2 en memoria ahora mismo) — nunca del texto del "
@@ -1342,7 +1343,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
             )
 
         st.markdown("#### Estado del paciente — diagnóstico oculto")
-        render_ups_body(state)
+        render_ups_body(state, with_3d=True, key="twin_caso")
 
         desc_rows = [
             {

@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026-10-22 — Pieza 2: el cuerpo 3D del gemelo conectado al UPS (una fuente de color, dos renderizadores)
+
+**Contexto**: el diagnóstico de la Pieza 2 midió que el cuerpo 3D del aporte externo y el cuerpo SVG se **contradecían con el mismo organismo**. El 3D coloreaba con `organism.organs[id].status`, el `health_score` heurístico cortado en 80/60/40:
+
+| Entrada | 3D anterior | SVG (UPS) |
+|---|---|---|
+| FC 130 | verde | ámbar |
+| FC 60 / HRV 10 | verde | ámbar |
+| FC 118 / HRV 15 | verde | ámbar |
+| Sin ningún sensor | **ámbar**, fabricado desde el puntaje por defecto 50 | gris "sin dato" |
+
+Esta tanda reconecta el 3D replicando la lógica honesta del SVG. No toca el UPS, el builder, el esquema ni el motor.
+
+### Parte A — `organ_visual_state(state)` (`ups_body_visual.py`)
+
+- Función pura: `{órgano: OrganVisual(color, etiqueta, has_data, severity)}`, que se desempaca como `(color, etiqueta, …)`.
+- Lógica, la misma de antes:
+  - **Corazón**: hay dato si existe `heart_rate`.
+  - **Pulmones**: hay dato si existe `respiratory_rate` o `spo2`.
+  - **Cerebro**: hay dato si el dominio neurológico no está vacío.
+  - **Color**: severidad máxima de los eventos del dominio (`SEVERITY_COLOR`, el único mapeo); gris "sin dato" si no hay dato.
+- Las 3 tarjetas SVG pasan a usarla. **No-regresión medida**: el HTML de las 3 tarjetas es **idéntico byte a byte** antes y después en 16 estados (gris, verde, ámbar y rojo de cada órgano, más el caso "evento sin dato", con halo y color gris).
+
+### Parte B — El 3D consume la misma función
+
+- `body_figure(..., organ_colors, organ_notes)` colorea **solo** las mallas de `UPS_ORGAN_PARTS`: corazón (`heart`), pulmones (`lung_left`, `lung_right`, `trachea`) y cerebro (`brain`).
+- No existen `TWIN_ORGAN_PARTS`, `ORGAN_STATUS_COLOR` ni la lectura de `organism.organs[].status`.
+- `render_ups_body(state, with_3d=True, key=…)` dibuja SVG y 3D **con el mismo `state`**:
+  - **Twin OS**: una sola llamada a `get_current_physiological_state(organism)`.
+  - **Modos caso** (Twin OS y Academia): el estado guardado del caso.
+  - **Bucle del simulador de escenarios**: queda solo con el SVG, porque redibuja cada 0.12 s y un 3D por paso lo volvería lento.
+- El Laboratorio 3D no cambia: anatomía de referencia estática.
+
+### Parte C — Los dos neutros
+
+- **Gris** (`NEUTRAL_COLOR`) = órgano modelado sin dato ahora.
+- **Tejido atenuado** = anatomía sin dominio en el UPS (vasos, médula, abdomen): el color de tejido mezclado al 60 % hacia gris azulado, con opacidad 0.22. Nunca toma un color de estado.
+- Las arterias (`#d9475a`, casi el rojo crítico) quedan lejos de `#ff4d4d`.
+- **Leyenda de 5 entradas** (`legend_entries()`): sin evento, aviso, crítico, sin dato (órgano modelado) y tejido atenuado (sin dominio).
+
+### Parte D — Degradación y rótulos
+
+- **Sin estado**: los 3 órganos en gris, con aviso. **Dominio vacío**: gris "sin dato". **Lo no modelado**: tejido atenuado.
+- El ámbar fabricado desde el puntaje por defecto **ya no puede ocurrir**: el color solo sale de descriptores y eventos del UPS.
+- **Rótulo en el gemelo**: "Color según el estado del UPS; geometría de un sujeto de referencia, sin animación (el latido y la respiración se ven en el cuerpo SVG)".
+- `CLAUDE.md` documenta la fuente compartida y prohíbe volver a colorear desde `organism.status`.
+
+### Verificación
+
+`tests/test_ups_body_3d_paridad.py` (28):
+- **Paridad SVG = `organ_visual_state` = malla 3D** en 12 estados, incluidas las 4 filas que divergían y el caso "evento sin dato".
+- Las 4 filas, ahora iguales al UPS.
+- **Sin sensor**: gris "sin dato". El test documenta que el organismo sigue marcando "alerta" por defecto, y que esa salida ya no se usa.
+- **Nada sin dominio toma color de estado**, ni en crítico ni sin estado; las arterias, lejos del rojo crítico.
+- El Laboratorio 3D sigue estático.
+- **AppTest**: estado `None` con los 3 órganos en gris y aviso; leyenda de 5 entradas y rótulo; Twin OS dibuja SVG y 3D con un solo `state`.
+- **Grep**: el 3D no lee `organism`, `.status` ni `ORGAN_STATUS_COLOR`.
+- `git diff HEAD -- domain/` vacío.
+
+Cita Art. I (el color de un órgano es un evento real del UPS o un "sin dato" declarado, nunca un valor por defecto pintado como alerta) y Art. IV (una sola fuente de verdad: dos renderizadores leen la misma función y el mismo estado).
+
 ## 2026-10-22 — Aporte externo auditado, pieza 1: lo aprobado del 3D (VCG, anatomía de referencia, pulmón, motor TC→malla), cada uno con su rótulo
 
 **Contexto**: ~12 500 líneas de una versión externa de BIOCORE quedaron aparte, en la rama `respaldo-mezcla-20261021`, sin haber pasado por el método de honestidad del proyecto. El diagnóstico 1 auditó el 3D con ground truth y midió de nuevo cada afirmación. Esta tanda trae **solo lo aprobado**, cada pieza rotulada por lo que es.

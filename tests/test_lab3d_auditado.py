@@ -276,7 +276,9 @@ def test_rejected_pieces_are_absent():
     for path in ("visualization/cohort3d.py", "src/ml/cohort_map.py"):
         assert not (ROOT / path).exists(), path
     twin = (ROOT / "app/supermodules/twin_shell/pages.py").read_text(encoding="utf-8")
-    assert "render_body_3d" not in twin and "anatomy3d" not in twin, "el cuerpo 3D coloreado no entra al gemelo"
+    # El 3D heurístico del aporte (`render_body_3d`) no entra; el cuerpo 3D del gemelo
+    # vive en `ups_body_3d.py` y colorea con `organ_visual_state()` (Pieza 2).
+    assert "render_body_3d" not in twin and "anatomy3d" not in twin, "el 3D heurístico del aporte no entra"
     for doc in ("CHANGELOG.md", "CLAUDE.md"):
         text = (ROOT / doc).read_text(encoding="utf-8")
         assert "coloreados por su estado del UPS" not in text

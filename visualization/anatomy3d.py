@@ -8,12 +8,14 @@ Mallas reales y con licencia, para UBICAR Y ENSEÑAR -- no un gemelo:
   posiciones estándar del sistema 10-20.
 - `mesh_figure()`: cualquier malla (la que el usuario reconstruye o abre).
 
-ESTÁTICA POR DISEÑO (`REFERENCE_ANATOMY_NOTE`): las mallas son las de una
-persona y una plantilla, y no cambian con el estado del paciente ni del
-gemelo. En la versión original el cuerpo se coloreaba con el puntaje
-heurístico del organismo de la sesión y su documentación decía "estado del
-UPS", lo que era falso; ese coloreado no se trajo. Conectarlo al UPS es una
-tanda aparte.
+La GEOMETRÍA es siempre de referencia (una persona y una plantilla): no
+cambia con el estado. En el Laboratorio 3D el cuerpo es estático
+(`REFERENCE_ANATOMY_NOTE`). En el gemelo (Pieza 2, 2026-10-22), `body_figure`
+puede recibir `organ_colors` para los TRES órganos que el UPS modela
+(`UPS_ORGAN_PARTS`), y esos colores los decide `organ_visual_state()` -- la
+misma función que usa el cuerpo SVG. La versión original coloreaba con el
+puntaje heurístico del organismo de la sesión (y fabricaba "alerta" desde un
+valor por defecto); ese coloreado no existe aquí.
 
 Coordenadas: RAS+ en mm (x hacia la derecha del paciente, y hacia anterior,
 z hacia arriba). Sin Streamlit aquí; las páginas llaman a estas funciones.
@@ -186,17 +188,58 @@ def part_hover(mesh: Mesh) -> str:
     return f"<b>{mesh.label}</b>{vol}<br>Anatomía de referencia (sujeto s1397)<extra></extra>"
 
 
-def body_figure(*, systems: Iterable[str] = DEFAULT_SYSTEMS, camera: str = "front", height: int = 640):
-    """Órganos de la TC real, siempre con su color de tejido: no reflejan
-    ningún estado (ver `REFERENCE_ANATOMY_NOTE`)."""
+# Órgano modelado por el UPS -> mallas que lo representan. Solo estos tres: los
+# vasos (los eventos cardiovasculares son de ritmo/autonómicos, no vasculares),
+# la médula (el UPS no tiene dominio autonómico) y el abdomen no tienen dominio.
+UPS_ORGAN_PARTS: Dict[str, Tuple[str, ...]] = {
+    "heart": ("heart",),
+    "lungs": ("lung_left", "lung_right", "trachea"),
+    "brain": ("brain",),
+}
+# Anatomía sin dominio, en modo "por estado": atenuada hacia gris azulado para que
+# un tejido rojizo (arterias #d9475a) no se lea como el rojo crítico.
+UNMODELED_BLEND = 0.6
+UNMODELED_TOWARD = "#8090b0"
+UNMODELED_OPACITY = 0.22
+
+
+def _blend(hex_color: str, toward: str, amount: float) -> str:
+    a = np.array([int(hex_color[i:i + 2], 16) for i in (1, 3, 5)], dtype=float)
+    b = np.array([int(toward[i:i + 2], 16) for i in (1, 3, 5)], dtype=float)
+    c = np.clip(np.round(a + (b - a) * amount), 0, 255).astype(int)
+    return "#" + "".join(f"{x:02x}" for x in c)
+
+
+def body_figure(*, systems: Iterable[str] = DEFAULT_SYSTEMS, camera: str = "front", height: int = 640,
+                organ_colors: Optional[Mapping[str, str]] = None,
+                organ_notes: Optional[Mapping[str, str]] = None):
+    """Órganos de la TC real. Sin `organ_colors`: todo en color de tejido
+    (referencia estática). Con `organ_colors` ({"heart"|"lungs"|"brain": color},
+    calculados por `organ_visual_state()`): solo las mallas de
+    `UPS_ORGAN_PARTS` toman ese color; el resto queda en tejido atenuado y
+    nunca toma un color de estado."""
     import plotly.graph_objects as go
 
     anat = load_body()
     systems = set(systems) & set(SYSTEM_LABELS)
+    part_organ = {part: organ for organ, parts in UPS_ORGAN_PARTS.items() for part in parts}
+    by_state = organ_colors is not None
     fig = go.Figure()
     for mesh in anat.meshes.values():
-        if mesh.system in systems:
-            fig.add_trace(_mesh_trace(mesh, color=TISSUE_COLOR.get(mesh.key, "#c8cfdc"), hover=part_hover(mesh)))
+        if mesh.system not in systems:
+            continue
+        tissue = TISSUE_COLOR.get(mesh.key, "#c8cfdc")
+        organ = part_organ.get(mesh.key)
+        if not by_state:
+            fig.add_trace(_mesh_trace(mesh, color=tissue, hover=part_hover(mesh)))
+        elif organ is not None and organ in organ_colors:
+            note = (organ_notes or {}).get(organ, "")
+            fig.add_trace(_mesh_trace(mesh, color=organ_colors[organ],
+                                      hover=f"<b>{mesh.label}</b><br>{note}<extra></extra>"))
+        else:
+            fig.add_trace(_mesh_trace(mesh, color=_blend(tissue, UNMODELED_TOWARD, UNMODELED_BLEND),
+                                      opacity=UNMODELED_OPACITY,
+                                      hover=f"<b>{mesh.label}</b><br>Anatomía sin dominio en el UPS<extra></extra>"))
     fig.update_layout(**_scene_layout(camera, height, uirevision="body3d"))
     return fig
 
