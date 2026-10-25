@@ -70,6 +70,13 @@ nibabel>=5.0.0
 pydicom>=2.4.0
 fast-simplification>=0.1.7
 
+# Exportación de reportes a PDF (app/reporting.py; sin él solo se genera HTML).
+# fpdf2, NO PyFPDF (`fpdf` 1.7.2, abandonado): ambos instalan el módulo `fpdf`
+# y chocan. Tanda 2B (2026-10-24) desinstaló PyFPDF tras comprobar que todo
+# consumidor de main (reporting, rural_health, hojas de docs/validation)
+# funciona con fpdf2.
+fpdf2>=2.7.0
+
 # Development tools (optional)
 pytest>=7.0.0
 pytest-cov>=4.1.0

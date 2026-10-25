@@ -15,12 +15,14 @@ Un monolito Python + Streamlit ("Biomedical Signal Visualizer") que está en pro
 5. Preguntar antes de decisiones grandes (borrar módulos, cambiar framework, elegir BD).
 6. Todo elemento nuevo debe justificar su existencia contra el UPS/Digital Twin/valor educativo — si no, fusionar/rediseñar/eliminar.
 7. Documentar en `PLAN.md` y marcar lo pendiente como `// TODO: integración real pendiente`.
+8. Commits SOLO a nombre de Luis Nazariego Santome. Nunca añadir una línea `Co-Authored-By: Claude` (ni ninguna otra atribución) a un commit.
 
 ## Stack real
 
 - **Lenguaje/Framework**: Python + Streamlit (sin frontend JS separado, sin build step).
 - **Paquetes**: `pip` + `requirements.txt` plano. No hay `pyproject.toml` propio.
-- **Run**: `streamlit run app/main.py` (ver `run_local.ps1` / `RUN_BIOCORE.bat`). `app/streamlit_app.py` es solo un wrapper que reejecuta `main.py`.
+- **Run**: `streamlit run app/main.py`, o en Windows `RUN_BIOCORE.bat` / `run_local.ps1` (crean `.venv`, reinstalan solo si cambia `requirements.txt` y arrancan vía `run_biocore.py`, que mitiga el cierre del socket de escucha de asyncio en Windows; la mitigación solo aplica con el lanzador y caduca en Python 3.16). `app/streamlit_app.py` es solo un wrapper que reejecuta `main.py`.
+- **PDF**: `fpdf2` (no PyFPDF: ambos son el módulo `fpdf` y chocan). Ver Tanda 2B en `CHANGELOG.md`.
 - **Visualización**: matplotlib + Plotly. **No hay librería 3D real** para el Digital Twin — hoy es HTML/CSS cards (`app/supermodules/twin_shell/pages.py`).
 - **IA**: `anthropic` SDK. Única integración real: `domain/physiology/narrator/` (Fase 1.3) — narrador clínico con streaming, modelo `claude-opus-4-8`, prompt construido desde datos estructurados del UPS (`build_context()`), nunca desde texto libre. Expuesto en la UI vía `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y el hub "AI Hub" de `app/main.py`. `app/ai_copilot.py` (JARVIS, código muerto) y `app/biomedical_tutor.py` (`BiomedicalTutor`, dict de keywords) fueron eliminados el 2026-07-02 — no reintroducir ese patrón. Antes de asumir que algo llama a Claude, verificar que pase por este paquete.
 - **Persistencia**: dos capas que coexisten sin fusionar todavía. (1) El UPS (`domain/physiology/state/`) usa SQLite + SQLAlchemy en `data/biocore_ups.db` — implementado en Fase 1.1. (2) El resto de la app sigue con SQLite crudo (`sqlite3`, sin ORM) en dos esquemas incompatibles (`app/clinical_db.py` y `src/rural_health/offline_support.py`) — no tocado todavía, fusión diferida a una fase posterior de consolidación.

@@ -62,7 +62,7 @@ class LocalPatientDatabase:
 
 def generate_pdf_report(patient: Dict[str, str], summary: str, path: str = 'rural_health/report.pdf') -> str:
     if FPDF is None:
-        raise ImportError('FPDF no está instalado. Instala fpdf para generar reportes PDF.')
+        raise ImportError('FPDF no está instalado. Instala fpdf2 para generar reportes PDF.')
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     pdf = FPDF()

@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-10-24 — Tanda 2B del aporte auditado: el reporte genera PDF de verdad (fpdf2) y lanzadores de Windows
+
+**Contexto**: el Diagnóstico 2 verificó dos arreglos más del aporte, ambos de bugs reales de main. Se traen desde `respaldo-mezcla-20261021` con tres ajustes: el aviso educativo en el reporte, el rótulo de caducidad de `run_biocore.py` y `--server.headless true` en los lanzadores.
+
+### Parte A — El choque fpdf2 / PyFPDF, resuelto
+
+- **El choque**: PyFPDF 1.7.2 (`fpdf`, abandonado) y fpdf2 instalan el mismo módulo `fpdf`. El arreglo del reporte necesita fpdf2.
+- **grep antes de desinstalar**: en main, cinco archivos usan `fpdf`:
+  - `app/reporting.py`
+  - `src/rural_health/offline_support.py` (`generate_pdf_report`: se exporta en `safe_import_src_modules()`, pero nadie lo llama)
+  - las tres `docs/validation/ecg_hr_detector_bank/**/build_decision_sheet*.py`. Los PDF versionados de esas hojas dicen `/Producer (PyFPDF 1.7.2)`, así que eran consumidores reales de PyFPDF.
+- **Verificado antes de tocar el entorno**: con fpdf2 instalado aparte (en un directorio temporal), los cuatro consumidores que no son el reporte generan PDF sin cambios, con el mismo número de páginas que con PyFPDF. Por eso no hubo nada que migrar.
+- **Hecho**: `pip uninstall fpdf` (1.7.2) y `pip install fpdf2` (2.8.9). `from fpdf import FPDF` resuelve a fpdf2.
+- **Declarado**: `fpdf2>=2.7.0` en `requirements.txt`. PyFPDF no estaba declarado ahí, pero `requirements_extra.txt` decía `fpdf` y ahora dice `fpdf2`. También cambia a `fpdf2` la sugerencia "Recommended installs" del HTML exportado y el mensaje de error de `rural_health`.
+
+### Parte B — `app/reporting.py`: el PDF se genera
+
+- **Bug 1, la figura**: `copyfile` no estaba importado. El `NameError` se lo tragaba un `except`, y las figuras generadas fuera de `out_dir` no se copiaban. EEG Neuro Lab las genera en un directorio temporal que borra justo después de exportar, así que su reporte apuntaba a imágenes que no existían.
+- **Bug 2, el PDF**: en main nunca se generó un PDF. Con PyFPDF morían todos en `Undefined font: dejavu B` (el encabezado pedía DejaVu aunque no se hubiera registrado), y tras ese faltaba la cursiva del pie. El `except Exception` general devolvía el HTML en silencio.
+- **Traído del aporte**:
+  - `shutil.copyfile`, que no se copia sobre sí misma.
+  - Una sola fuente efectiva con sus cuatro variantes registradas.
+  - `para()`, porque en fpdf2 `multi_cell` deja el cursor a la derecha.
+  - Los fallos se registran con `logger.warning` en vez de tragarse. Solo un `ImportError` (fpdf2 no instalado) cae al HTML sin aviso.
+- **Aviso educativo, añadido**: el encargo pedía conservar el aviso "modelo educativo, no para planear tratamientos", pero el reporte nunca lo tuvo (ni en main ni en el aporte). Esa frase vive en las descargas STL/OBJ/PLY del laboratorio 3D (`model3d/pages.py`), que no se tocan. Ahora el reporte lleva `EDUCATIONAL_NOTICE` en el HTML y en el PDF: "BIOCORE es una plataforma educativa: este reporte no sirve para diagnosticar ni planear tratamientos."
+- **Honestidad del PDF, confirmada**: el PDF hereda lo mismo que el HTML de la Consolidación Visual: la jerarquía de validación, el badge de procedencia, la clasificación, la cita y el motivo exacto de "no disponible". Un test lo comprueba espiando el texto que se escribe.
+
+### Parte C — Lanzadores de Windows
+
+- **`run_biocore.py`**: instala `WindowsSelectorEventLoopPolicy` antes de arrancar Streamlit.
+  - **El problema**: con el ProactorEventLoop, un `OSError` al aceptar una conexión hace que asyncio cierre el socket de escucha. La app sigue viva pero deja de responder. Verificado en el código de CPython 3.13 (`proactor_events._start_serving`).
+  - **Docstring corregido**: decía "Streamlit ≥ 1.66", pero la 1.58 instalada ya sirve con Uvicorn, así que la mitigación también aplica aquí.
+  - **Rótulo honesto**: es una mitigación, no un arreglo. Solo aplica si se arranca con el lanzador (con `streamlit run` directo no aplica), y la API está deprecada en Python 3.14 y se retira en 3.16. En ese caso ahora avisa por consola en vez de no aplicarse en silencio.
+- **`RUN_BIOCORE.bat` / `run_local.ps1`**: traídos tal cual (crean `.venv` y reinstalan solo si cambia `requirements.txt`), con un ajuste: pasan `--server.headless true`. El aporte lo fijaba en `.streamlit/config.toml`, pero ese archivo va junto con su rediseño visual, que no se trae. Sin ese flag, Streamlit abriría una segunda pestaña aparte de la que abren los lanzadores. Así, `streamlit run` directo queda igual que antes.
+- **`.gitattributes`**: `*.bat`, `*.cmd` y `*.ps1` se sacan con CRLF, como espera cmd.exe. En el repo se guardan con LF.
+
+### Verificación
+
+- `tests/test_tanda2b_reporting_pdf.py` (9 tests, propios):
+  - `fpdf` es fpdf2, y los dos requirements declaran fpdf2 y no `fpdf`.
+  - Se genera un PDF real (`%PDF`) que lleva la figura (`/Subtype /Image`) aunque su directorio temporal ya se haya borrado.
+  - La honestidad llega al PDF.
+  - El HTML lleva el aviso educativo.
+  - `rural_health` y las tres hojas de docs se regeneran con fpdf2. Se corren copias en `tmp_path` para no pisar los PDF versionados.
+- Del aporte: `tests/test_reporting_images.py` (3) y `tests/test_run_biocore.py`:
+  - De `test_run_biocore.py` se quitó el test que exigía el `config.toml` del aporte.
+  - Se añadieron 3 tests: que los lanzadores pasan headless; que, sin fakes, `asyncio.run` corre sobre un `SelectorEventLoop` tras la mitigación (solo en Windows); y que el docstring declara mitigación y caducidad.
+- **Los tests discriminan**: con fpdf2 instalado, contra el `reporting.py` de HEAD fallan 5. Los 7 que pasan son los del entorno y los de los otros consumidores.
+- **grep**: no entró nada de la IA local, las calculadoras, el ML de pacientes, los presets ni el arte.
+- **Suite**: 925 pasan con `-k "not ptbxl"` (906 + 19 nuevos).
+
+### Pendiente (visto, no tocado)
+
+- DejaVu Sans no tiene glifos de emoji: en el PDF, los badges 🔴/🟢 salen en blanco (fpdf2 lo avisa en el log). La palabra que los acompaña ("validado clínicamente", "excitación cortical"), la cita y el motivo sí salen.
+- `reporting.py` y `rural_health` usan `ln=`, deprecado en fpdf2 desde la 2.5.2 pero vigente en la 2.8.9. Si una versión futura lo retira, el test del PDF fallará.
+
+Cita Art. I: el PDF ya no promete lo que no entrega (antes, "PDF" devolvía HTML en silencio) y sale de la app diciendo qué es (educativo), de dónde viene cada valor y qué falta. La mitigación de Windows dice dónde aplica y cuándo caduca.
+
 ## 2026-10-22 — Tanda 2A del aporte auditado: el Learning Hub revive (rural_mode, quiz sin clave, `.env`, engine compartido)
 
 **Contexto**: el Diagnóstico 2 verificó cuatro arreglos de arranque del aporte externo, todos de bugs reales de main. Se traen tal cual desde `respaldo-mezcla-20261021`, solo los trozos auditados, con dos correcciones de honestidad: el docstring de rural_mode y el texto del aviso sin IA.
