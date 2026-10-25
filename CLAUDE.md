@@ -73,6 +73,10 @@ Expuesto en `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y
 
 `clinical/calculators.py` (funciones puras, cada fórmula con su `*_CITATION`) + `app/supermodules/calculators/pages.py` (Clinical Hub → "🧮 Calculadoras Clínicas"). Tanda 2C, 2026-10-24. El eje QRS **no tiene fórmula propia**: usa `qrs_axis_from_net()` de `src/signals/ecg/twelve_lead_analyzer.py` (Einthoven, `atan2(2·aVF, √3·I)`), la misma que ECG-12 — no copies otra. Los tests (`tests/test_clinical_calculators.py`) usan verdad independiente (tabla del estándar, caso canónico o literal calculado a mano); nunca recalcules el esperado con la fórmula bajo prueba.
 
+## Dónde viven el mapa EEG 3D y el ML de pacientes (Tanda 2D, 2026-10-24)
+
+Ambos en "Crea tu modelo 3D". El mapa: `spherical_spline()`/`head_figure(values=...)` en `visualization/anatomy3d.py` (Perrin 1989; gris >45 mm; la sobreoscilación recortada se declara con su % en `fig.layout.meta["clipped_fraction"]`) y `render_head_map()` en `model3d/panels.py`. El EEG de ejemplo (`data/reference_signals/cap_n16.npz`) se eligió **por su alfa en P4-O2, no por el hipnograma**: no lo presentes como "persona despierta y relajada" ni la alfa como hallazgo (la vigilia se comprobó después contra el hipnograma; "relajada" no consta — ver `meta.hypnogram_check`). El ML: `src/ml/cohort_map.py`, exploratorio, con guardia anti-fuga (`id_like_columns()` excluye identificadores y `CohortMap.warnings` siempre se muestra). El cuerpo 3D coloreado por NEWS2 del aporte **no entró**: usaba lo que se quitó en la Pieza 2.
+
 ## Antes de tocar código
 
 1. Lee `PLAN.md` para saber en qué fase está el proyecto y qué está aprobado para ejecutarse.

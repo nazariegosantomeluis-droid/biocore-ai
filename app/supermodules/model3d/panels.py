@@ -1,12 +1,16 @@
-"""Panel 3D del vectocardiograma (traído del aporte externo auditado, 2026-10-22).
+"""Paneles 3D (traídos del aporte externo auditado): vectocardiograma (2026-10-22)
+y mapa EEG sobre la cabeza (Tanda 2D, 2026-10-24).
 
-Todo el cálculo vive en `src/signals/ecg/vcg.py` y la figura en
-`visualization/vcg3d.py`; aquí solo está la interfaz. Rótulos de la
-auditoría: "verificado en 1 paciente" (no "validado") y el acimut del vector
-QRS medio retirado (difería 74° del real en el caso de referencia).
+Todo el cálculo vive en `src/` y las figuras en `visualization/`; aquí solo
+está la interfaz. Rótulos de la auditoría: VCG "verificado en 1 paciente" (no
+"validado"), acimut del vector QRS medio retirado (difería 74° del real); mapa
+EEG con el tramo de referencia rotulado por cómo se eligió (por su alfa, no por
+el hipnograma) y la sobreoscilación del spline declarada con su porcentaje.
 """
 
 from __future__ import annotations
+
+from typing import Dict, Mapping
 
 import numpy as np
 import streamlit as st
@@ -102,3 +106,77 @@ def render_vcg_panel(key: str = "vcg") -> None:
         "sagital. Gira con el ratón o el dedo. Medición automática educativa; no es un diagnóstico."
     )
     st.caption(MEAN_VECTOR_NOTE)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# EEG: mapa sobre la cabeza (Tanda 2D, 2026-10-24)
+# ─────────────────────────────────────────────────────────────────────────
+
+BAND_LABELS = {"delta": "Delta", "theta": "Theta", "alpha": "Alfa", "beta": "Beta", "gamma": "Gamma"}
+# El tramo de referencia se eligió por su alfa: abrirlo en alfa presentaría el
+# criterio de selección como si fuera un hallazgo. Se abre en la primera banda.
+REFERENCE_DEFAULT_BAND = "delta"
+OVERSHOOT_EXTRAPOLATION_NOTE_FROM = 0.10
+
+
+def relative_band_power(signals: Mapping[str, np.ndarray], fs: float) -> Dict[str, Dict[str, float]]:
+    """{canal: {banda: % de la potencia}} con el `EegAnalyzer` del laboratorio."""
+    from src.signals.eeg.eeg_analyzer import EegAnalyzer
+
+    out = {}
+    an = EegAnalyzer(fs=fs)
+    for name, x in signals.items():
+        res = an.analyze(np.asarray(x, float))
+        if res.available:
+            tot = sum(res.band_power.values()) or 1.0
+            out[name] = {b: 100.0 * p / tot for b, p in res.band_power.items()}
+    return out
+
+
+def render_head_map(rel: Mapping[str, Mapping[str, float]], key: str, *, default_band: str = "alpha",
+                    note: str = "") -> None:
+    from visualization import anatomy3d as A3
+
+    band = st.segmented_control("Banda", list(BAND_LABELS), format_func=BAND_LABELS.get, default=default_band,
+                                key=f"{key}_band") or default_band
+    values = {ch: v[band] for ch, v in rel.items() if band in v}
+    show_brain = st.toggle("Ver el cerebro por dentro", value=False, key=f"{key}_brain")
+    fig = A3.head_figure(values=values, value_label=f"{BAND_LABELS[band]} (% de la potencia)",
+                         value_format=".0f", show_brain=show_brain, camera="auto", height=560)
+    meta = fig.layout.meta or {}
+    plotly_3d(fig, key=f"{key}_fig")
+    known = int(meta.get("points", 0))
+    if known == 0:
+        st.info("Ningún canal tiene nombre del sistema 10-20 (p. ej., Fp1, C3, O2 o derivaciones como P4-O2): "
+                "no se pueden ubicar en la cabeza.")
+        return
+    if not meta.get("mapped"):
+        st.caption(f"{known} canales ubicados: con menos de {A3.MAP_MIN_POINTS} no se interpola un mapa; se "
+                   "muestran los valores medidos en cada punto.")
+        return
+    st.caption(f"Mapa interpolado con splines esféricos (Perrin et al., 1989; m = 4, 50 términos, λ = 1e-5) a "
+               f"partir de {known} puntos medidos; donde no hay ningún electrodo a menos de "
+               f"{A3.MAP_REACH_MM:.0f} mm queda en gris: ahí no hay datos. " + note)
+    clipped = float(meta.get("clipped_fraction", 0.0))
+    text = (f"Sobreoscilación: el spline se pasa del rango medido en el {clipped:.0%} de la zona coloreada; ahí "
+            "el color se recorta al mínimo o al máximo medido.")
+    if clipped >= OVERSHOOT_EXTRAPOLATION_NOTE_FROM:
+        text += (" Con tan pocos puntos, buena parte del color es extrapolación: lee el mapa como la ubicación de "
+                 "los valores medidos, no como una topografía.")
+    st.caption(text)
+
+
+def render_reference_eeg_map(key: str = "eeg3d_ref") -> None:
+    """EEG real de referencia (CAP Sleep n16): 5 derivaciones del lado derecho,
+    con el rótulo de cómo se eligió el tramo (meta del archivo, sin reescribir)."""
+    from src.signals.reference_recordings import cap_n16, source_line
+
+    d = cap_n16()
+    a, b = d["segment_s"]
+    st.caption(f"{source_line('cap_n16')} — 30 s ({a:.0f}–{b:.0f} s del registro).")
+    st.info(f"**Cómo se eligió este tramo.** {d['detail']} Por eso que la alfa domine aquí es el criterio de "
+            f"selección, no un hallazgo. {d['hypnogram_check'] or 'No se comprobó contra el hipnograma.'}")
+    render_head_map(relative_band_power(d["leads"], d["fs"]), key, default_band=REFERENCE_DEFAULT_BAND,
+                    note="Derivaciones bipolares: cada punto se dibuja en el centro entre sus dos electrodos "
+                         "(convención de dibujo, no un registro ahí); C4-A1 va en C4 porque A1 (oreja) no está "
+                         "en el modelo. Solo hay canales del lado derecho: el izquierdo queda en gris.")

@@ -5,7 +5,8 @@ Mallas reales y con licencia, para UBICAR Y ENSEÑAR -- no un gemelo:
 - `body_figure()`: órganos de una tomografía real de cuerpo completo
   (TotalSegmentator, sujeto s1397, CC BY 4.0).
 - `head_figure()`: cuero cabelludo fsaverage, cerebro MNI ICBM 152 y las
-  posiciones estándar del sistema 10-20.
+  posiciones estándar del sistema 10-20; si recibe valores por electrodo,
+  un mapa topográfico por splines esféricos (Perrin 1989; Tanda 2D).
 - `mesh_figure()`: cualquier malla (la que el usuario reconstruye o abre).
 
 La GEOMETRÍA es siempre de referencia (una persona y una plantilla): no
@@ -171,15 +172,19 @@ def _scene_layout(camera, height: int, *, aspect: str = "data", uirevision: str 
     )
 
 
-def _mesh_trace(mesh: Mesh, *, color: str, opacity: float = 1.0, hover: Optional[str] = None):
+def _mesh_trace(mesh: Mesh, *, color: str, opacity: float = 1.0, hover: Optional[str] = None,
+                name: Optional[str] = None, intensity: Optional[np.ndarray] = None, colorscale=None):
     import plotly.graph_objects as go
 
     v, f = mesh.vertices, mesh.faces
+    paint = dict(color=color) if intensity is None else dict(
+        intensity=intensity, intensitymode="vertex", colorscale=colorscale, cmin=0.0, cmax=1.0)
     return go.Mesh3d(
         x=v[:, 0], y=v[:, 1], z=v[:, 2], i=f[:, 0], j=f[:, 1], k=f[:, 2],
-        name=mesh.label, color=color, opacity=opacity, flatshading=False,
+        name=name or mesh.label, opacity=opacity, flatshading=False,
         lighting=LIGHTING, lightposition=LIGHT_POSITION, showscale=False,
         hovertemplate=hover if hover is not None else f"<b>{mesh.label}</b><extra></extra>",
+        **paint,
     )
 
 
@@ -258,16 +263,97 @@ def mesh_figure(vertices: np.ndarray, faces: np.ndarray, *, color: str = "#e9dec
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Cabeza de referencia: posiciones estándar 10-20 (sin mapa de valores)
+# Cabeza: posiciones 10-20 y, si recibe valores, mapa por splines esféricos
 # ─────────────────────────────────────────────────────────────────────────
 
 HEAD_CENTER = np.array([0.0, -18.0, 12.0], dtype=np.float64)  # centro de la bóveda (MNI, mm)
 SCALP_COLOR = "#b3bfd2"
 
+# Mapa topográfico (Tanda 2D, 2026-10-24, del aporte auditado).
+MAP_MIN_POINTS = 4
+MAP_REACH_MM = 45.0   # más lejos de cualquier electrodo el mapa queda gris: ahí no hay datos, solo extrapolación
+# Rampa secuencial de un solo tono (azul): oscuro = poco, claro = mucho.
+SEQUENTIAL_BLUE = [
+    [0.0, "#104281"], [0.17, "#184f95"], [0.33, "#256abf"], [0.5, "#3987e5"],
+    [0.67, "#6da7ec"], [0.83, "#9ec5f4"], [1.0, "#cde2fb"],
+]
 
-def head_figure(*, show_brain: bool = True, show_labels: bool = True, camera: str = "oblique", height: int = 560):
+
+def _legendre_g(cos_angle: np.ndarray, m: int = 4, n_terms: int = 50) -> np.ndarray:
+    from numpy.polynomial import legendre
+
+    n = np.arange(1, n_terms + 1, dtype=float)
+    coeffs = np.concatenate([[0.0], (2 * n + 1) / (n ** m * (n + 1) ** m)]) / (4 * np.pi)
+    return legendre.legval(np.clip(cos_angle, -1.0, 1.0), coeffs)
+
+
+def spherical_spline(src_xyz: np.ndarray, values: np.ndarray, dst_xyz: np.ndarray, *,
+                     center: np.ndarray = HEAD_CENTER, m: int = 4, n_terms: int = 50,
+                     smoothing: float = 1e-5) -> np.ndarray:
+    """Splines esféricos (Perrin F, Pernier J, Bertrand O, Echallier JF.
+    Electroencephalogr Clin Neurophysiol 1989;72:184-187), m = 4, 50 términos
+    de Legendre, λ = 1e-5: proyecta electrodos y puntos destino a la esfera
+    unitaria y resuelve [G + λI 1; 1ᵀ 0][c; c0] = [v; 0]."""
+    def unit(p):
+        d = np.asarray(p, dtype=float) - center
+        return d / np.linalg.norm(d, axis=1, keepdims=True)
+
+    s, d = unit(src_xyz), unit(dst_xyz)
+    n = s.shape[0]
+    a = np.zeros((n + 1, n + 1))
+    a[:n, :n] = _legendre_g(s @ s.T, m, n_terms) + smoothing * np.eye(n)
+    a[:n, n] = 1.0
+    a[n, :n] = 1.0
+    coef = np.linalg.solve(a, np.concatenate([np.asarray(values, dtype=float), [0.0]]))
+    return _legendre_g(d @ s.T, m, n_terms) @ coef[:n] + coef[n]
+
+
+_ALIASES = {"T3": "T7", "T4": "T8", "T5": "P7", "T6": "P8"}  # nomenclatura 10-20 revisada (ACNS 2006)
+_CASE = {"FP1": "Fp1", "FP2": "Fp2", "FPZ": "Fpz", "FZ": "Fz", "CZ": "Cz", "PZ": "Pz", "OZ": "Oz"}
+
+
+def canonical_electrode(name: str) -> str:
+    """'fp1' -> 'Fp1', 'T3' -> 'T7'."""
+    raw = str(name).strip().replace(" ", "").upper()
+    raw = _ALIASES.get(raw, raw)
+    return _CASE.get(raw, raw[:1] + raw[1:].lower() if raw[:1].isalpha() else raw)
+
+
+def electrode_point(name: str) -> Optional[Tuple[str, np.ndarray]]:
+    """(rótulo, posición en mm) de un electrodo ("C3") o de una derivación
+    bipolar ("P4-O2": el punto medio de ambos, llevado al cuero cabelludo).
+    Ubicar una bipolar en su punto medio es una convención de dibujo: la
+    señal es la diferencia entre los dos electrodos, no un registro ahí.
+    Si la referencia no está en el 10-20 del modelo ("C4-A1": oreja), se ubica
+    en el electrodo activo y el rótulo la conserva (el aporte la llamaba "C4")."""
+    head = load_head()
+    pos = {n: np.asarray(head.electrode_xyz[i], dtype=np.float64) for i, n in enumerate(head.electrode_names)}
+    parts = [p for p in str(name).strip().replace(" ", "").replace("–", "-").split("-") if p]
+    if len(parts) == 2:
+        a, b = canonical_electrode(parts[0]), canonical_electrode(parts[1])
+        if a in pos and b in pos:
+            mid = (pos[a] + pos[b]) / 2.0 - HEAD_CENTER
+            r = (np.linalg.norm(pos[a] - HEAD_CENTER) + np.linalg.norm(pos[b] - HEAD_CENTER)) / 2.0
+            return f"{a}-{b}", HEAD_CENTER + mid / np.linalg.norm(mid) * r
+        if a in pos:
+            return f"{a}-{b}", pos[a]
+    c = canonical_electrode(parts[0]) if parts else ""
+    return (c, pos[c]) if c in pos else None
+
+
+def head_figure(*, values: Optional[Mapping[str, float]] = None, value_label: str = "Valor",
+                value_format: str = ".2f", show_brain: bool = True, show_labels: bool = True,
+                camera: str = "oblique", height: int = 560):
     """Cuero cabelludo fsaverage, cerebro MNI152 y las posiciones estándar de
-    los electrodos 10-20 (MNE). Referencia estática: no dibuja ningún EEG."""
+    los electrodos 10-20 (MNE). Sin `values`: referencia estática, sin EEG.
+
+    Con `values` ({electrodo o bipolar: valor}) y al menos `MAP_MIN_POINTS`
+    puntos, colorea el cuero cabelludo con `spherical_spline`. Más allá de
+    `MAP_REACH_MM` de todo electrodo queda gris. El spline puede pasarse del
+    rango medido entre electrodos (sobreoscilación): se recorta al mínimo y
+    máximo medidos y la fracción recortada de la zona coloreada va en
+    `fig.layout.meta["clipped_fraction"]` para que la interfaz la declare.
+    `camera="auto"`: de lado si todos los puntos caen en un hemisferio."""
     import plotly.graph_objects as go
 
     head = load_head()
@@ -276,8 +362,36 @@ def head_figure(*, show_brain: bool = True, show_labels: bool = True, camera: st
     if show_brain:
         brain = head["brain"]
         fig.add_trace(_mesh_trace(brain, color=TISSUE_COLOR["brain"], hover=f"<b>{brain.label}</b><extra></extra>"))
-    fig.add_trace(_mesh_trace(scalp, color=SCALP_COLOR, opacity=0.28 if show_brain else 1.0,
-                              hover="<b>Cabeza (plantilla)</b><extra></extra>"))
+    points: Dict[str, Tuple[np.ndarray, float]] = {}
+    for name, v in (values or {}).items():
+        hit = electrode_point(name) if v is not None and np.isfinite(v) else None
+        if hit is not None:
+            points[hit[0]] = (hit[1], float(v))
+    mapped, clipped = len(points) >= MAP_MIN_POINTS, 0.0
+    if mapped:
+        src = np.stack([p for p, _ in points.values()])
+        vals = np.array([v for _, v in points.values()])
+        lo, hi = float(vals.min()), float(vals.max())
+        raw = spherical_spline(src, vals, scalp.vertices)
+        near = np.min(np.linalg.norm(scalp.vertices[:, None, :] - src[None, :, :], axis=2), axis=1) <= MAP_REACH_MM
+        clipped = float(np.mean((raw[near] < lo) | (raw[near] > hi))) if near.any() else 0.0
+        level = np.where(near, 0.1 + 0.9 * (np.clip(raw, lo, hi) - lo) / ((hi - lo) or 1.0), 0.0)
+        scale = [[0.0, SCALP_COLOR], [0.08, SCALP_COLOR]] + [[0.1 + 0.9 * s, c] for s, c in SEQUENTIAL_BLUE]
+        fig.add_trace(_mesh_trace(scalp, color=SCALP_COLOR, opacity=0.55 if show_brain else 1.0, intensity=level,
+                                  colorscale=scale, name="Mapa sobre el cuero cabelludo",
+                                  hover="<b>Cabeza (plantilla)</b><extra></extra>"))
+        # Barra de color con los valores reales (traza auxiliar invisible).
+        fig.add_trace(go.Scatter3d(
+            x=[float(src[0, 0])], y=[float(src[0, 1])], z=[float(src[0, 2])], mode="markers", hoverinfo="skip",
+            showlegend=False, name="Escala",
+            marker=dict(size=0.1, opacity=0, color=[lo], cmin=lo, cmax=hi, colorscale=SEQUENTIAL_BLUE,
+                        showscale=True, colorbar=dict(title=dict(text=value_label, side="right",
+                                                                 font=dict(color=INK_2, size=12)),
+                                                      tickfont=dict(color=INK_2, size=11), thickness=12,
+                                                      len=0.6, outlinewidth=0, x=1.0))))
+    else:
+        fig.add_trace(_mesh_trace(scalp, color=SCALP_COLOR, opacity=0.28 if show_brain else 1.0,
+                                  hover="<b>Cabeza (plantilla)</b><extra></extra>"))
     names = list(head.electrode_names)
     xyz = np.asarray(head.electrode_xyz, dtype=np.float64)
     out = (xyz - HEAD_CENTER) / np.linalg.norm(xyz - HEAD_CENTER, axis=1, keepdims=True)
@@ -288,5 +402,19 @@ def head_figure(*, show_brain: bool = True, show_labels: bool = True, camera: st
     if show_labels:
         fig.add_trace(go.Scatter3d(x=lab[:, 0], y=lab[:, 1], z=lab[:, 2], mode="text", text=names,
                                    textfont=dict(color=INK_2, size=12), hoverinfo="skip", name="Nombres"))
-    fig.update_layout(**_scene_layout(camera, height, uirevision="head3d"))
+    if points:
+        labels = list(points)
+        p = np.stack([points[n][0] for n in labels])
+        p = p + (p - HEAD_CENTER) / np.linalg.norm(p - HEAD_CENTER, axis=1, keepdims=True) * 5.0
+        vals = [points[n][1] for n in labels]
+        fig.add_trace(go.Scatter3d(
+            x=p[:, 0], y=p[:, 1], z=p[:, 2], mode="markers", name="Medido", text=labels, customdata=vals,
+            marker=dict(size=9, color=vals, colorscale=SEQUENTIAL_BLUE, cmin=min(vals), cmax=max(vals),
+                        line=dict(color=INK, width=2)),
+            hovertemplate=f"<b>%{{text}}</b><br>{value_label}: %{{customdata:{value_format}}}<extra></extra>"))
+    if camera == "auto":
+        cx = float(np.mean([pt[0][0] for pt in points.values()]) - HEAD_CENTER[0]) if points else 0.0
+        camera = "oblique" if abs(cx) <= 15.0 else ("right" if cx > 0 else "left")
+    fig.update_layout(**_scene_layout(camera, height, uirevision=f"head3d-{camera}"))
+    fig.layout.meta = {"mapped": mapped, "points": len(points), "clipped_fraction": clipped}
     return fig

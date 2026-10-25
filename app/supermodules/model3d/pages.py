@@ -1,6 +1,6 @@
 """Crea tu modelo 3D (traído del aporte externo auditado, 2026-10-22).
 
-Cuatro pestañas, cada una con su nivel declarado:
+Seis pestañas, cada una con su nivel declarado:
 - tomografía o resonancia (NIfTI/DICOM, también mapas de segmentación) ->
   malla descargable (STL/OBJ/PLY). El preset de pulmón está verificado contra
   TotalSegmentator en 1 sujeto; el umbral manual y Otsu, sin validar;
@@ -8,24 +8,30 @@ Cuatro pestañas, cada una con su nivel declarado:
   cerrada (el volumen encerrado solo se muestra si lo es);
 - ECG de 12 derivaciones -> vectocardiograma 3D, verificado en 1 paciente
   real (PTB s0010, Frank simultáneo);
+- EEG -> mapa por splines esféricos sobre una cabeza de plantilla (Tanda 2D);
+  el EEG real de ejemplo se rotula por cómo se eligió (por su alfa);
+- tabla de pacientes -> mapa 3D y modelo con ML exploratorio, con guardia
+  anti-fuga por ID (Tanda 2D);
 - anatomía de referencia de un sujeto, no reactiva.
 
-No se trajeron (auditoría 2026-10-22): el cuerpo 3D coloreado por estado
-(no leía el UPS), los presets de hueso/piel/tejido blando, el mapa EEG sobre
-la cabeza y el mapa de pacientes con ML. Todo se procesa en la computadora de
-la persona.
+No se trajeron (auditorías 2026-10-22 y Tanda 2D): el cuerpo 3D coloreado por
+estado (no leía el UPS), los presets de hueso/piel/tejido blando y el cuerpo
+3D coloreado por NEWS2 del mapa de pacientes. Todo se procesa en la
+computadora de la persona.
 """
 
 from __future__ import annotations
 
 import hashlib
+import io
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 import streamlit as st
 
-from app.supermodules.model3d.panels import plotly_3d, render_vcg_panel
+from app.supermodules.model3d.panels import (plotly_3d, relative_band_power, render_head_map,
+                                             render_reference_eeg_map, render_vcg_panel)
 from app.utils.design_system import render_error_state, render_module_header, render_section_header
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -37,6 +43,8 @@ TABS = [
     ":material/view_in_ar: Tu tomografía o resonancia",
     ":material/deployed_code: Ver un modelo 3D",
     ":material/ecg_heart: ECG en 3D",
+    ":material/neurology: EEG en 3D",
+    ":material/scatter_plot: Tu base de pacientes",
     ":material/accessibility_new: Anatomía de referencia",
 ]
 QUALITY = {"rapida": ("Rápida", 60_000, 9_000_000), "detallada": ("Detallada", 220_000, 24_000_000)}
@@ -44,8 +52,9 @@ LABEL_COLORS = ("#e9dec7", "#c0394c", "#eeb0ab", "#5872c9", "#f1d78b", "#b4493f"
                 "#e6c086", "#93405a", "#a54a3c", "#ddb05f")
 MODULE_VALIDATION_LINE = (
     "Módulo mixto — cada pestaña declara su nivel: preset de pulmón verificado contra TotalSegmentator en "
-    "1 sujeto; umbrales manuales sin validar; VCG verificado en 1 paciente real; anatomía de referencia no "
-    "reactiva. Es un laboratorio educativo: no sirve para diagnosticar ni planear tratamientos."
+    "1 sujeto; umbrales manuales sin validar; VCG verificado en 1 paciente real; mapa EEG interpolado sobre "
+    "una cabeza de plantilla; ML de pacientes exploratorio, no validado; anatomía de referencia no reactiva. "
+    "Es un laboratorio educativo: no sirve para diagnosticar ni planear tratamientos."
 )
 
 
@@ -373,14 +382,200 @@ def render_reference_anatomy_tab() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# 5. EEG -> mapa sobre la cabeza (Tanda 2D, 2026-10-24)
+# ─────────────────────────────────────────────────────────────────────────
+
+def render_eeg_tab() -> None:
+    st.markdown("La potencia de cada banda del EEG, medida canal por canal con el mismo analizador de EEG "
+                "Neuro Lab, dibujada sobre una cabeza de plantilla con el sistema 10-20.")
+    source = st.segmented_control("Fuente del EEG", ["ref", "upload"],
+                                  format_func={"ref": "EEG real de ejemplo", "upload": "Subir mi EEG (CSV)"}.get,
+                                  default="ref", key="m3d_eeg_source") or "ref"
+    if source == "ref":
+        render_reference_eeg_map("m3d_eeg_ref")
+        return
+    up = st.file_uploader("CSV: una columna por canal con nombre 10-20 (Fp1, C3, O2… o bipolares P4-O2)",
+                          type=["csv", "txt"], key="m3d_eeg_csv")
+    fs = st.number_input("Frecuencia de muestreo (Hz)", 50, 5000, 256, key="m3d_eeg_fs")
+    if up is None:
+        return
+    import pandas as pd
+
+    try:
+        df = pd.read_csv(io.BytesIO(up.getvalue()), sep=None, engine="python")
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"No se pudo leer el CSV: {exc}")
+        return
+    sig = {}
+    for c in df.columns:
+        if str(c).strip().lower() in ("time", "t", "tiempo"):
+            continue
+        s = pd.to_numeric(df[c], errors="coerce")
+        if s.notna().mean() > 0.9:
+            sig[str(c).strip()] = s.interpolate(limit_direction="both").to_numpy(float)
+    if not sig:
+        st.error("No se encontraron columnas numéricas.")
+        return
+    with st.spinner("Calculando la potencia por banda…"):
+        rel = relative_band_power(sig, float(fs))
+    if not rel:
+        st.warning("Ningún canal tuvo señal limpia suficiente para el análisis (mínimo unos segundos).")
+        return
+    render_head_map(rel, "m3d_eeg_up", note="Señal: tu archivo.")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# 6. Tabla de pacientes -> ML exploratorio (Tanda 2D, 2026-10-24)
+# ─────────────────────────────────────────────────────────────────────────
+
+def _read_table(raw: bytes, name: str, nrows: Optional[int] = None):
+    """CSV/TXT (separador detectado solo) o Excel .xlsx (la primera hoja)."""
+    import pandas as pd
+
+    if str(name).lower().endswith((".xlsx", ".xlsm")):
+        return pd.read_excel(io.BytesIO(raw), nrows=nrows)
+    return pd.read_csv(io.BytesIO(raw), sep=None, engine="python", nrows=nrows)
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _cohort(raw: bytes, name: str, target: Optional[str], id_col: Optional[str]):
+    from src.ml.cohort_map import build_cohort_map
+
+    df = _read_table(raw, name)
+    return df, build_cohort_map(df, target=target, id_col=id_col)
+
+
+def _example_csv() -> bytes:
+    from src.ml.cohort_map import example_wdbc
+
+    df, _ = example_wdbc()
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def render_cohort_tab() -> None:
+    from src.ml.cohort_map import (EXPLORATORY_NOTE, KMEANS_CITATION, PCA_CITATION, RF_CITATION, WDBC_CITATION,
+                                   CohortError, top_loadings)
+    from visualization.cohort3d import cohort_figure, importance_figure
+
+    st.markdown("Sube tu tabla de pacientes (una fila por paciente, una columna por variable) y el aprendizaje "
+                "automático la convierte en un mapa 3D: pacientes parecidos quedan cerca. Sin IA externa ni "
+                "claves: todo corre en tu computadora con scikit-learn.")
+    st.caption(EXPLORATORY_NOTE)
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        up = st.file_uploader("Tabla CSV o Excel (.xlsx)", type=["csv", "txt", "xlsx"], key="m3d_cohort_csv",
+                              help="Excel: se lee la primera hoja, con los nombres de columna en la primera fila.")
+    with c2:
+        st.caption("¿Sin datos a mano?")
+        if st.button("Usar un ejemplo real: 569 pacientes (WDBC)", key="m3d_cohort_example", width="stretch"):
+            st.session_state["m3d_cohort_raw"] = _example_csv()
+            st.session_state["m3d_cohort_name"] = "ejemplo"
+    if up is not None:
+        st.session_state["m3d_cohort_raw"] = up.getvalue()
+        st.session_state["m3d_cohort_name"] = up.name
+    raw = st.session_state.get("m3d_cohort_raw")
+    if not raw:
+        st.caption("Ejemplo: Wisconsin Diagnostic Breast Cancer, base clínica real con 30 medidas de núcleos "
+                   "celulares y el diagnóstico confirmado de cada paciente.")
+        return
+    name = st.session_state.get("m3d_cohort_name", "")
+    try:
+        head = _read_table(raw, name, nrows=200)
+    except ImportError:
+        st.error("Para leer Excel falta el paquete openpyxl (pip install openpyxl). También puedes guardar la "
+                 "hoja como CSV.")
+        return
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"No se pudo leer la tabla: {exc}")
+        return
+    cols = list(head.columns)
+    c1, c2 = st.columns(2)
+    id_default = cols.index("paciente") + 1 if "paciente" in cols else 0
+    id_col = c1.selectbox("Columna que identifica al paciente (opcional)", ["(ninguna)"] + cols,
+                          index=id_default, key="m3d_cohort_id",
+                          help="Las columnas que parecen un identificador se excluyen solas aunque no las marques.")
+    tgt_default = cols.index("diagnóstico") + 1 if "diagnóstico" in cols else 0
+    target = c2.selectbox("Columna objetivo para entrenar un modelo (opcional)", ["(ninguna)"] + cols,
+                          index=tgt_default, key="m3d_cohort_target",
+                          help="Una categoría por paciente (diagnóstico, desenlace...). Se evalúa con validación "
+                               "cruzada: los números son FUERA de la muestra de entrenamiento.")
+    id_col = None if id_col == "(ninguna)" else id_col
+    target = None if target == "(ninguna)" else target
+    with st.spinner("Entrenando (PCA, K-means, Isolation Forest y bosque aleatorio)…"):
+        try:
+            df, cm = _cohort(raw, name, target, id_col)
+        except CohortError as exc:
+            st.error(str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001
+            render_error_state("No se pudo analizar la tabla.", exception=exc)
+            return
+    for w in cm.warnings:  # avisos de fuga: siempre visibles, nunca recortados
+        st.warning(w)
+    color_opts = ["cluster", "outlier"] + (["target"] if target else [])
+    color_by = st.segmented_control(
+        "Colorear por", color_opts, default="target" if target else "cluster", key="m3d_cohort_color",
+        format_func={"cluster": "Grupos (K-means)", "outlier": "Atípicos", "target": f"«{target}»"}.get)
+    pick = st.selectbox("Paciente a resaltar", ["(ninguno)"] + cm.row_ids, key="m3d_cohort_pick")
+    hl = None if pick == "(ninguno)" else cm.row_ids.index(pick)
+    fig = cohort_figure(cm, color_by=color_by or "cluster", labels=df[target].tolist() if target else None,
+                        highlight=hl, height=600)
+    plotly_3d(fig, key="m3d_cohort_fig")
+    m = st.columns(4)
+    m[0].metric("Pacientes", f"{len(cm.row_ids)}")
+    m[1].metric("Variables usadas", f"{len(cm.features)}")
+    m[2].metric("Varianza en los 3 ejes", f"{cm.explained.sum():.0%}")
+    m[3].metric("Grupos", f"{cm.k}", help=f"El k con mejor silueta ({cm.silhouette:.2f})." if cm.silhouette
+                else None)
+    with st.expander("Qué significa cada eje", expanded=False):
+        for ax in range(3):
+            if cm.explained[ax] <= 0:
+                continue
+            parts = ", ".join(f"{n} ({'+' if w > 0 else '−'})" for n, w in top_loadings(cm, ax))
+            st.markdown(f"**CP{ax + 1}** ({cm.explained[ax]:.0%} de la varianza): sobre todo {parts}.")
+        st.caption(PCA_CITATION)
+    if cm.model_skipped:
+        st.info(cm.model_skipped)
+    if cm.model is not None:
+        mr = cm.model
+        st.markdown(f"#### Modelo para predecir «{mr.target}»")
+        k = st.columns(3)
+        k[0].metric("Exactitud (validación cruzada)", f"{mr.accuracy:.1%}",
+                    help=f"{mr.n_splits} pliegues estratificados. Si siempre dijera la clase más común: "
+                         f"{mr.baseline_accuracy:.1%}.")
+        k[1].metric("Exactitud balanceada", f"{mr.balanced_accuracy:.1%}")
+        k[2].metric("AUC", f"{mr.auc:.3f}" if mr.auc is not None else "—")
+        if mr.importances:
+            plotly_3d(importance_figure(mr.importances, height=60 + 26 * len(mr.importances)),
+                      key="m3d_cohort_importance")
+        st.caption("Importancia por permutación en los datos de prueba de cada pliegue: cuánto AUC pierde el "
+                   "modelo si se baraja esa variable. Cuando varias variables dicen lo mismo (están "
+                   f"correlacionadas), la importancia se reparte entre ellas y cada una parece pequeña. {RF_CITATION} "
+                   + EXPLORATORY_NOTE)
+    if int(cm.outlier.sum()):
+        with st.expander(f"Pacientes atípicos para revisar ({int(cm.outlier.sum())})"):
+            st.write(", ".join(cm.row_ids[i] for i in np.nonzero(cm.outlier)[0][:200]))
+            st.caption("Isolation Forest: pueden ser errores de captura o casos realmente raros.")
+    with st.expander("Perfil de cada grupo (valores z: 0 = promedio de la tabla)"):
+        st.dataframe(cm.cluster_profiles.round(2).T, width="stretch")
+        st.caption(KMEANS_CITATION)
+    for n in cm.notes:
+        st.caption(n)
+    if name == "ejemplo":
+        st.caption("Ejemplo real: " + WDBC_CITATION)
+
+
+# ─────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     # `validation=None` explícito: módulo mixto (pulmón verificado n=1, umbrales sin
-    # validar, VCG verificado n=1, anatomía de referencia). Una etiqueta única
-    # mentiría sobre alguna parte; cada pestaña declara la suya (MODULE_VALIDATION_LINE).
+    # validar, VCG verificado n=1, mapa EEG interpolado, ML exploratorio, anatomía de
+    # referencia). Una etiqueta única mentiría sobre alguna parte; cada pestaña declara
+    # la suya (MODULE_VALIDATION_LINE).
     render_module_header(
         "Crea tu modelo 3D", icon="🧊", validation=None,
-        subtitle="Tus estudios y ECG en 3D, más anatomía de referencia. Todo se procesa en tu computadora.",
+        subtitle="Tus estudios, ECG, EEG y tablas de pacientes en 3D, más anatomía de referencia. Todo se "
+                 "procesa en tu computadora.",
     )
     st.caption(MODULE_VALIDATION_LINE)
     tabs = st.tabs(TABS)
@@ -394,6 +589,12 @@ def main() -> None:
         render_section_header("Vectocardiograma 3D")
         render_vcg_panel("m3d_vcg")
     with tabs[3]:
+        render_section_header("Mapa del EEG sobre la cabeza")
+        render_eeg_tab()
+    with tabs[4]:
+        render_section_header("Tu base de pacientes en 3D")
+        render_cohort_tab()
+    with tabs[5]:
         render_section_header("Anatomía de referencia")
         render_reference_anatomy_tab()
 

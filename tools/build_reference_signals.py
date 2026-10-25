@@ -40,8 +40,10 @@ SOURCES: Dict[str, dict] = {
     },
     "cap_n16": {
         "title": "CAP Sleep Database, registro n16 (control sano)",
-        "detail": "EEG bipolar a 100 Hz; tramo de vigilia tranquila elegido por la mayor potencia alfa relativa "
-                  "en P4-O2.",
+        # Tanda 2D (2026-10-24): decía "tramo de vigilia tranquila", pero el tramo se elige por alfa,
+        # no por el hipnograma. La vigilia se comprobó aparte (CAP_N16_HYPNOGRAM_CHECK).
+        "detail": "EEG bipolar a 100 Hz; tramo de 30 s seleccionado por su contenido de alfa (la mayor potencia "
+                  "alfa relativa en P4-O2 de los primeros 40 min), no por el hipnograma.",
         "citation": "Terzano MG, et al. Atlas, rules, and recording techniques for the scoring of cyclic "
                     "alternating pattern (CAP) in human sleep. Sleep Med. 2001;2(6):537-553.",
         "license": "ODC-By 1.0",
@@ -70,6 +72,13 @@ def _q(x: np.ndarray, step: float) -> np.ndarray:
     if np.nanmax(np.abs(q)) >= 32767:
         raise ValueError("fuera de rango int16; aumenta el paso")
     return np.nan_to_num(q).astype(np.int16)
+
+
+CAP_N16_HYPNOGRAM_CHECK = (
+    "Comprobado después de elegir el tramo (2026-10-24) contra el hipnograma de la base (n16.txt; inicio del "
+    "EDF 22:34:47): 660-690 s coincide con una época puntuada W (vigilia); la primera época de sueño empieza a "
+    "los 870 s. Que la persona estuviera relajada o con los ojos cerrados no consta."
+)
 
 
 def _save(out_dir: str, key: str, arrays: dict, meta: dict) -> None:
@@ -119,9 +128,11 @@ def build(raw: str, out_dir: str) -> None:
         if np.ptp(seg) < 200 and (best is None or rel > best[0]):
             best = (rel, w0)
     w0 = best[1]
+    # La comprobación contra el hipnograma vale solo para el tramo en que se hizo.
+    check = {"hypnogram_check": CAP_N16_HYPNOGRAM_CHECK} if w0 / fs == 660.0 else {}
     _save(out_dir, "cap_n16", {"signals": _q(x[w0:w0 + int(30 * fs)], 0.05)},
           {"fs": fs, "units": "uV", "step": 0.05, "leads": list(rec.sig_name),
-           "segment_s": [w0 / fs, w0 / fs + 30], "alpha_relative_p4o2": round(float(best[0]), 3)})
+           "segment_s": [w0 / fs, w0 / fs + 30], "alpha_relative_p4o2": round(float(best[0]), 3), **check})
 
     # Challenge 2015 a103l: 30 s sin artefacto (13-43 s) de PPG y ECG II.
     rec = wfdb.rdrecord(os.path.join(raw, "a103l"), sampfrom=250 * 13, sampto=250 * 43)

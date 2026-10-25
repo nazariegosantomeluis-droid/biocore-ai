@@ -3,7 +3,8 @@
 Traído del aporte externo auditado (2026-10-22), recortado a lo que usa algo
 aprobado: el registro PTB s0010_re, ground truth del vectocardiograma (12
 derivaciones + Frank grabadas a la vez). Verificado en la auditoría: los
-canales son idénticos al original de PhysioNet (r = 1.0000).
+canales son idénticos al original de PhysioNet (r = 1.0000). Desde la Tanda 2D
+(2026-10-24), también CAP n16, el EEG real del mapa sobre la cabeza.
 
 Siempre se muestran con su fuente (`source_line()`): es un registro real de
 otra persona, no datos del usuario ni del gemelo.
@@ -80,3 +81,14 @@ def ptb_s0010() -> dict:
     rec = load("ptb_s0010")
     sig = rec.arrays["signals"]
     return {"fs": float(rec.meta["fs"]), "leads": {n: sig[:, i] for i, n in enumerate(rec.meta["leads"])}}
+
+
+def cap_n16() -> dict:
+    """EEG bipolar (µV, 100 Hz, 30 s) del CAP n16. El tramo se eligió por su
+    alfa en P4-O2, no por el hipnograma: ver `meta["detail"]` y
+    `meta["hypnogram_check"]`, que la interfaz muestra tal cual."""
+    rec = load("cap_n16")
+    sig = rec.arrays["signals"]
+    return {"fs": float(rec.meta["fs"]), "leads": {n: sig[:, i] for i, n in enumerate(rec.meta["leads"])},
+            "segment_s": tuple(rec.meta["segment_s"]), "detail": rec.meta["detail"],
+            "hypnogram_check": rec.meta.get("hypnogram_check")}

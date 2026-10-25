@@ -51,13 +51,14 @@ def test_reference_viewer_is_static_tissue_colored_and_organ_systems_only():
 
 
 def test_reference_head_shows_standard_1020_positions_without_any_eeg_map():
+    """Sin valores, la cabeza de referencia sigue sin mapa. (El spline existe desde
+    la Tanda 2D, con su propio test en tests/test_tanda2d_eeg_map_cohort.py.)"""
     from visualization import anatomy3d as A3
 
     fig = A3.head_figure()
     electrodes = next(t for t in fig.data if t.name == "Electrodos 10-20")
     assert len(electrodes.x) >= 19
     assert not any(getattr(t, "intensity", None) is not None for t in fig.data)
-    assert not hasattr(A3, "spherical_spline")
 
 
 # --- VCG (Kors frente a Frank, verificado en 1 paciente) ----------------------
@@ -108,11 +109,14 @@ def test_vcg_csv_reader_derives_fs_from_a_time_column():
     assert res.n_beats >= 8 and 60 < res.heart_rate_bpm < 110
 
 
-def test_reference_recordings_only_ship_the_ptb_ground_truth():
+def test_reference_recordings_ship_only_audited_files():
+    """PTB (Pieza 1) y CAP n16 (Tanda 2D, con el rótulo corregido). El resto de
+    los registros del aporte no entró."""
     from src.signals import reference_recordings as R
 
-    assert "ODC-By" in R.source_line("ptb_s0010")
-    assert sorted(p.name for p in (ROOT / "data" / "reference_signals").glob("*.npz")) == ["ptb_s0010.npz"]
+    assert "ODC-By" in R.source_line("ptb_s0010") and "ODC-By" in R.source_line("cap_n16")
+    assert sorted(p.name for p in (ROOT / "data" / "reference_signals").glob("*.npz")) == [
+        "cap_n16.npz", "ptb_s0010.npz"]
 
 
 # --- Motor TC/RM -> malla ------------------------------------------------------
@@ -224,9 +228,11 @@ def _text(at) -> str:
 
 def test_page_has_only_the_approved_tabs_and_declares_mixed_validation():
     at = _run_page()
+    # EEG en 3D y Tu base de pacientes: aprobadas en la Tanda 2D (2026-10-24).
     assert [t.label for t in at.tabs] == [
         ":material/view_in_ar: Tu tomografía o resonancia", ":material/deployed_code: Ver un modelo 3D",
-        ":material/ecg_heart: ECG en 3D", ":material/accessibility_new: Anatomía de referencia"]
+        ":material/ecg_heart: ECG en 3D", ":material/neurology: EEG en 3D",
+        ":material/scatter_plot: Tu base de pacientes", ":material/accessibility_new: Anatomía de referencia"]
     text = _text(at)
     assert "Módulo mixto" in text and "no sirve para diagnosticar ni planear tratamientos" in text
 
@@ -273,11 +279,11 @@ def test_rejected_pieces_are_absent():
     # Código fuente, no carpetas: una caché `__pycache__` huérfana no es código traído.
     # Las calculadoras salieron de esta lista en la Tanda 2C (2026-10-24): entraron
     # auditadas, sin arte. Que no traigan `visualization.art` lo comprueba
-    # tests/test_clinical_calculators.py.
-    for path in ("visualization/art", "src/ml", "app/static/anatomy"):
+    # tests/test_clinical_calculators.py. `src/ml` y `visualization/cohort3d.py`
+    # salieron en la Tanda 2D: entraron con la guardia anti-fuga por ID y sin el
+    # cuerpo NEWS2 (tests/test_tanda2d_eeg_map_cohort.py).
+    for path in ("visualization/art", "app/static/anatomy"):
         assert not [f for f in (ROOT / path).rglob("*") if f.is_file() and f.suffix != ".pyc"], path
-    for path in ("visualization/cohort3d.py", "src/ml/cohort_map.py"):
-        assert not (ROOT / path).exists(), path
     twin = (ROOT / "app/supermodules/twin_shell/pages.py").read_text(encoding="utf-8")
     # El 3D heurístico del aporte (`render_body_3d`) no entra; el cuerpo 3D del gemelo
     # vive en `ups_body_3d.py` y colorea con `organ_visual_state()` (Pieza 2).

@@ -1,5 +1,89 @@
 # Changelog
 
+## 2026-10-24 — Tanda 2D del aporte auditado: mapa EEG 3D con el rótulo corregido y ML de pacientes con guardia anti-fuga por ID
+
+**Contexto**: es la última pieza traíble del aporte (`respaldo-mezcla-20261021`). El diagnóstico había encontrado dos problemas. El tramo de EEG de ejemplo tenía un rótulo circular: se eligió por tener alfa y luego se presentaba la alfa como hallazgo. Y el ML de pacientes tenía una fuga por ID: un número de paciente daba AUC 1.000 sin ningún aviso. Las dos piezas viven en "Crea tu modelo 3D".
+
+### Parte A — Mapa EEG 3D (spline de Perrin) y `cap_n16.npz`
+
+- **Traído**:
+  - `spherical_spline()` (Perrin 1989: m = 4, 50 términos de Legendre, λ = 1e-5).
+  - `head_figure(values=...)`: gris a más de 45 mm de cualquier electrodo; las derivaciones bipolares van en su punto medio, rotulado como convención de dibujo.
+  - `render_head_map()`, la pestaña "EEG en 3D" (EEG de ejemplo o CSV propio) y `data/reference_signals/cap_n16.npz`.
+- **Solo las funciones del mapa**:
+  - Se portaron al `anatomy3d.py` de main; el del aporte es una versión anterior que trae `TWIN_ORGAN_PARTS`, el coloreado por parte de la Pieza 2 y los presets de hueso/músculo/piel, y no se copió.
+  - Lo mismo con `panels.py`: el del aporte quitaba los rótulos de auditoría del VCG.
+  - Sin `values`, la cabeza de referencia sigue estática, como antes.
+- **Rótulo corregido** en cuatro sitios: `meta.detail` del `.npz`, la herramienta `tools/build_reference_signals.py`, `data/reference_signals/README.md` y la interfaz.
+  - Antes decía "tramo de vigilia tranquila…" y, en la interfaz, "persona sana despierta y relajada".
+  - Ahora dice: "tramo de 30 s seleccionado por su contenido de alfa (la mayor potencia alfa relativa en P4-O2 de los primeros 40 min), no por el hipnograma", y que la alfa domine ahí es "el criterio de selección, no un hallazgo".
+  - El mapa de referencia abre en la primera banda (delta), no en alfa.
+  - La señal es idéntica bit a bit a la del aporte (sha256 comprobado en un test); solo cambió `meta`.
+- **Sobreoscilación**, declarada con su número real en cada mapa (`meta["clipped_fraction"]`). Si pasa del 10 %, la leyenda añade que buena parte del color es extrapolación.
+- **No traído**:
+  - El gancho del mapa en EEG Neuro Lab: venía mezclado con arte (`render_plate`, `art="eeg"`) y repetía "Comparar con un EEG real (persona sana, relajada)".
+  - El test del aporte `test_reference_eeg_is_alpha_dominant_posteriorly`: codificaba el hallazgo circular como verdad.
+
+### Parte B — ML de pacientes (`src/ml/cohort_map.py`) con guardia anti-fuga por ID
+
+- **Bug reproducido**: una tabla de ruido puro, con un ID numérico ("codigo", sin declarar) y ordenada por diagnóstico, daba en el aporte AUC 1.000, con «codigo» como variable más importante y cero avisos.
+- **Guardia** (`id_like_columns()`): excluye y avisa ("posible fuga por ID") las columnas que parecen un identificador:
+  - por su nombre: id, *_id, paciente, folio, NHC, MRN, `Unnamed: 0`…
+  - o por su forma: enteras, únicas por fila y con ρ de Spearman ≥ 0.99 respecto al número de fila.
+  - Con la misma tabla, ahora da AUC 0.495, el del ruido.
+- **Segunda red, después de entrenar**: avisa si la variable principal sigue el orden de una tabla ordenada por el objetivo (|ρ| ≥ 0.9), lo que atrapa columnas decimales ordenadas como una hora de registro, y si el AUC es ≥ 0.995 (umbral heurístico, rotulado como tal).
+- **Avisos siempre visibles** (`st.warning`). En el aporte las notas se recortaban a 6.
+- **Explicado cuando no se entrena**: más de 10 clases, una sola clase, o una categoría con un solo paciente. En el aporte estos casos devolvían `None` en silencio.
+- **Conservado**: el rótulo "exploratorio, no validado" (`EXPLORATORY_NOTE`, visible en la pestaña), la validación cruzada estratificada fuera de muestra y la importancia por permutación en el pliegue de prueba.
+- **WDBC**: 96.0 % de exactitud, exactitud balanceada 95.7 %, AUC 0.990, idéntico al aporte, sin ningún ID excluido ni aviso.
+
+### Parte C — El cuerpo NEWS2 del ML, fuera
+
+Se eligió la opción (a). El aporte coloreaba un cuerpo 3D por NEWS2 con `TWIN_ORGAN_PARTS` y el coloreado por parte que se quitaron en la Pieza 2, además de los presets de esqueleto y piel. Rediseñarlo sobre `organ_visual_state()` no tiene sentido: el UPS describe al gemelo de la sesión, no a un paciente de una tabla. También se quitaron de `cohort_map.py` `news2_parameter_scores()` y `vital_columns()`, que solo servían a ese cuerpo. El grep sobre `app/`, `src/`, `visualization/`, `clinical/` y `domain/` confirma que no volvieron los nombres que vigilan los tests de la Pieza 2 (`TWIN_ORGAN_PARTS`, el coloreado por parte, `ORGAN_STATUS_COLOR`), ni la IA local ni el arte.
+
+### Lo que la verificación encontró y el diagnóstico no vio
+
+- **La vigilia era cierta, aunque nadie lo había comprobado.** Se descargó de PhysioNet el hipnograma de la base (`n16.txt`) y la cabecera del EDF (inicio a las 22:34:47). El tramo 660–690 s coincide exactamente con una época puntuada W, y la primera época de sueño empieza a los 870 s. "Relajada" u "ojos cerrados" no consta. El rótulo lo dice así (`meta.hypnogram_check`, solo para ese tramo).
+- **La sobreoscilación no es 7 %.** Con las 5 derivaciones derechas del CAP, el spline se sale del rango medido en el 30–43 % de la zona coloreada, según la banda (37 % en alfa); con el montaje 10-20 completo, 0–0.4 %. El spline en sí está bien: reproduce un armónico esférico de grado 1 conocido con un error <0.5 % del rango. El problema es el montaje de un solo lado.
+- **`C4-A1` se dibujaba y rotulaba "C4"**: A1, la oreja, no está en el modelo de cabeza y el código caía al primer electrodo. Ahora se rotula `C4-A1`, ubicado en C4 (la convención del montaje referencial).
+- **El preprocesado no iba dentro de cada pliegue.** El aporte ajustaba la imputación y la escala con toda la tabla antes de la validación cruzada. Ahora la imputación va en un `Pipeline` dentro de cada pliegue, y el bosque aleatorio no necesita escala. En WDBC los números no cambian (no tiene faltantes y el bosque es invariante a la escala).
+
+### Tests
+
+`tests/test_tanda2d_eeg_map_cohort.py` (27):
+
+- **Spline**: los parámetros de Perrin; que interpola los valores en los electrodos; que un campo constante sigue constante; y un armónico esférico de grado 1, conocido en todo el cuero cabelludo.
+- **Mapa**: gris más allá de 45 mm, con las distancias recalculadas desde la geometría; el punto medio bipolar sobre el arco y al radio medio; `C4-A1`; la sobreoscilación según el montaje.
+- **`.npz`**: sha256 de la señal, rótulo honesto, la alfa relativa recalculada con Welch, y que la herramienta no pueda volver a escribir el rótulo viejo.
+- **Interfaz (AppTest)**: el rótulo honesto está y las frases circulares no; abre en delta.
+- **ML**:
+  - el ID ordenado ya no da un AUC 1.000 silencioso;
+  - IDs por nombre en una tabla barajada;
+  - la segunda red;
+  - WDBC con 96 %;
+  - imputación dentro del pliegue;
+  - las tres explicaciones de "no se entrenó";
+  - el aviso visible en la pestaña.
+- **Parte C**: el grep de nombres retirados.
+- **Los tests discriminan**: contra el `cohort_map.py` y el `.npz` del aporte fallan los 15 tests clave.
+
+Se actualizaron cuatro tests de `test_lab3d_auditado.py` que fijaban decisiones de la Pieza 1:
+
+- el spline ahora existe (la cabeza sin valores sigue sin mapa);
+- `cap_n16.npz` está en la lista de registros;
+- la lista de pestañas;
+- `src/ml` y `cohort3d.py` salieron de la lista de "lo rechazado".
+
+**Suite**: 1055 pasan con `-k "not ptbxl"` (1028 + 27 nuevos).
+
+### Pendiente (visto, no tocado)
+
+- Mostrar el mapa en EEG Neuro Lab: son 3 líneas, pero sin el arte ni la frase "persona sana, relajada".
+- Pintar de gris también la zona donde el spline se sale del rango, en vez de recortarla: sería más honesto visualmente que solo declararlo.
+- La guardia por forma excluiría (con aviso) una variable legítima entera, única por fila y ordenada en una tabla pequeña. El umbral de AUC 0.995 es heurístico.
+
+Cita Art. I: el tramo de ejemplo dice cómo se eligió y qué se comprobó después, y no presenta su criterio de selección como hallazgo. Cada mapa declara cuánto recorta. Un identificador ya no puede producir un modelo "perfecto" sin aviso.
+
 ## 2026-10-24 — Tanda 2C del aporte auditado: calculadoras clínicas, con el eje de main y tests de referencia independiente
 
 **Contexto**: el diagnóstico de `clinical/calculators.py` y `app/supermodules/calculators/` encontró que casi todas las calculadoras eran correctas y citadas. Las excepciones eran el eje QRS (el mismo bug `atan2(aVF, I)` ya corregido en ECG-12) y tres matices de presentación o de cita. Además, los tests del aporte eran en parte circulares. Se traen desde `respaldo-mezcla-20261021` con esas correcciones.
