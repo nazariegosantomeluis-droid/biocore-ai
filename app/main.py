@@ -28,6 +28,9 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from app.utils.env_loader import load_dotenv_file
+load_dotenv_file(Path(ROOT_DIR) / ".env")
+
 from app.supermodules import (
     generate_demo_bp_signal,
     generate_demo_ppg_signal,

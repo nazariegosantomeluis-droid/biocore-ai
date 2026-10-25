@@ -330,6 +330,26 @@ def render_error_state(message: str, exception: Optional[BaseException] = None) 
     )
 
 
+AI_FEEDBACK_OFF_MESSAGE = (
+    "Sin clave de IA: la calificación funciona igual (la decide el código, no la IA); solo el "
+    "feedback narrado queda apagado. Para activarlo, pon tu <code>ANTHROPIC_API_KEY</code> en "
+    "<code>.env</code>."
+)
+
+
+def render_ai_feedback_off_notice() -> None:
+    """Aviso informativo (no de error) para flujos donde la IA es un EXTRA
+    sobre un resultado determinista, como el quiz. Antes ese flujo no hacía
+    nada sin clave aunque la respuesta correcta nunca dependió del modelo.
+    Art. I intacto: sin clave no se muestra ningún texto "como si" fuera IA,
+    solo este aviso."""
+    st.markdown(
+        f"<div style='border-left:3px solid {PALETTE.NEUTRAL}; padding:6px 12px; margin:4px 0 10px 0; "
+        f"color:{PALETTE.TEXT}; opacity:0.9; font-size:0.92rem;'>{AI_FEEDBACK_OFF_MESSAGE}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 @dataclass(frozen=True)
 class MetricCardData:
     """Resultado YA RESUELTO de aplicar las reglas de honestidad a una

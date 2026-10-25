@@ -22,7 +22,7 @@ entre ambas páginas de Academia.
 import streamlit as st
 import pandas as pd
 
-from app.utils.design_system import render_module_header, render_error_state
+from app.utils.design_system import render_module_header, render_error_state, render_ai_feedback_off_notice
 from app.supermodules.twin_shell.baroreflex_panel import pa_model_label
 from domain.physiology.narrator import (
     Finding,
@@ -34,10 +34,9 @@ from domain.physiology.narrator import is_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
     EventSeverity,
-    init_db,
-    make_engine,
     make_session_factory,
 )
+from app.utils.patient_session import get_shared_ups_engine
 
 # Banco de casos sintéticos (Paso 2, 2026-07-14): reutiliza el patrón de
 # ocultar->elegir->revelar, los distractores y la deduplicación de eventos
@@ -214,41 +213,44 @@ def render_lessons_quizzes_tab() -> None:
                 selected = st.radio("Opciones", q.choices, key=choice_key)
 
                 if not narrator_is_configured():
-                    st.warning(
-                        "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado "
-                        "requiere la API real de Anthropic, sin narración simulada de respaldo."
-                    )
+                    render_ai_feedback_off_notice()
 
-                if st.button("Responder", key=f"academia_quiz_submit_{current}") and narrator_is_configured():
+                # 2026-10-19: antes `... and narrator_is_configured()` -- sin
+                # clave el botón no hacía NADA y el quiz quedaba inservible,
+                # aunque la respuesta correcta la decide el banco (código),
+                # nunca el modelo. Ahora se califica siempre; solo la
+                # narración del feedback depende de la clave.
+                if st.button("Responder", key=f"academia_quiz_submit_{current}"):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
-
-                    findings = [
-                        Finding(name="Pregunta", value=q.prompt, meaning="Enunciado de la pregunta del quiz."),
-                        Finding(
-                            name="Opción elegida por el estudiante", value=q.choices[idx],
-                            meaning="Respuesta que el estudiante seleccionó — evalúala contra la correcta.",
-                        ),
-                        Finding(
-                            name="Respuesta correcta (verdad de referencia)", value=q.choices[q.answer],
-                            meaning=(
-                                q.explanation
-                                or "Respuesta correcta según el banco de preguntas — verdad de referencia "
-                                   "decidida por código, no por el modelo."
+                    quiz_state["feedback"] = None
+                    quiz_state["feedback_error"] = None
+                    if narrator_is_configured():
+                        findings = [
+                            Finding(name="Pregunta", value=q.prompt, meaning="Enunciado de la pregunta del quiz."),
+                            Finding(
+                                name="Opción elegida por el estudiante", value=q.choices[idx],
+                                meaning="Respuesta que el estudiante seleccionó — evalúala contra la correcta.",
                             ),
-                        ),
-                    ]
-                    findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
-                    try:
-                        quiz_state["feedback"] = "".join(stream_findings_narration(findings_context))
-                        quiz_state["feedback_error"] = None
-                    except NarratorNotConfiguredError as exc:
-                        quiz_state["feedback"] = None
-                        quiz_state["feedback_error"] = str(exc)
-                    except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
-                        quiz_state["feedback"] = None
-                        quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
-
+                            Finding(
+                                name="Respuesta correcta (verdad de referencia)", value=q.choices[q.answer],
+                                meaning=(
+                                    q.explanation
+                                    or "Respuesta correcta según el banco de preguntas — verdad de referencia "
+                                       "decidida por código, no por el modelo."
+                                ),
+                            ),
+                        ]
+                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
+                        try:
+                            quiz_state["feedback"] = "".join(stream_findings_narration(findings_context))
+                            quiz_state["feedback_error"] = None
+                        except NarratorNotConfiguredError as exc:
+                            quiz_state["feedback"] = None
+                            quiz_state["feedback_error"] = str(exc)
+                        except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
+                            quiz_state["feedback"] = None
+                            quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
                     quiz_state["answered_current"] = True
                     st.rerun()
             else:
@@ -259,11 +261,18 @@ def render_lessons_quizzes_tab() -> None:
                 else:
                     st.error(f"❌ Elegiste **{q.choices[idx]}** — la respuesta correcta es **{q.choices[q.answer]}**")
 
+                # Solo las preguntas que YA traían explicación de origen la
+                # muestran (texto existente del banco, no redactado aquí).
+                if q.explanation:
+                    st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
+
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:
                     st.markdown(quiz_state["feedback"])
                 elif quiz_state["feedback_error"]:
                     render_error_state(quiz_state["feedback_error"])
+                elif not narrator_is_configured():
+                    render_ai_feedback_off_notice()
 
                 is_last = current + 1 >= total
                 if st.button("Finalizar quiz" if is_last else "➡️ Siguiente pregunta", key=f"academia_quiz_next_{current}"):
@@ -344,9 +353,9 @@ def render_synthetic_case_section() -> None:
             return
 
         if "academia_case_session_factory" not in st.session_state:
-            engine = make_engine()
-            init_db(engine)
-            st.session_state["academia_case_session_factory"] = make_session_factory(engine)
+            # Mismo engine compartido por proceso que el resto de la app
+            # (antes: un engine nuevo, nunca liberado, por sesión de navegador).
+            st.session_state["academia_case_session_factory"] = make_session_factory(get_shared_ups_engine())
         session_factory = st.session_state["academia_case_session_factory"]
 
         if st.button("🆕 Nuevo caso sintético", key="academia_case_new"):

@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-10-22 — Tanda 2A del aporte auditado: el Learning Hub revive (rural_mode, quiz sin clave, `.env`, engine compartido)
+
+**Contexto**: el Diagnóstico 2 verificó cuatro arreglos de arranque del aporte externo, todos de bugs reales de main. Se traen tal cual desde `respaldo-mezcla-20261021`, solo los trozos auditados, con dos correcciones de honestidad: el docstring de rural_mode y el texto del aviso sin IA.
+
+### Parte A — `educational/rural_mode.py`: el Learning Hub vuelve
+
+- **Bug**: la limpieza de huérfanos `f2d88e4` (2026-09-05, "retire 26 orphan modules") borró `rural_mode.py` sin ver que `learning_engine` lo importa desde el commit inicial. Eso provocaba un `ImportError`, `LESSONS_AVAILABLE = False`, y el Learning Hub mostraba solo "El módulo de lecciones no está disponible": quiz y Modo Rural, inaccesibles.
+- **Traído**: mismo contrato que espera `LearningEngine` (`save_progress`/`load_progress`), escritura atómica (temporal + `os.replace`) e id saneado (`../`, separadores y `..` no salen del directorio).
+- **Docstring corregido**: decía "el archivo no existía en el repo", y es falso. Ahora dice que se reintrodujo tras el borrado en `f2d88e4` y que la versión borrada ya saneaba el id.
+
+### Parte B — El quiz califica sin clave
+
+- **Bug**: `st.button("Responder") and narrator_is_configured()`. Sin clave, el botón no hacía nada, aunque la respuesta correcta la decide el banco de preguntas (código), nunca el modelo.
+- **Traído**: siempre califica (correcto/incorrecto) y muestra la explicación del banco cuando existe. Solo el feedback narrado depende de la clave; sin ella no se llama al narrador y se muestra un aviso informativo.
+- **Aviso corregido**: el del aporte recomendaba instalar Ollama, y main no tiene IA local, así que en main sería falso. `AI_FEEDBACK_OFF_MESSAGE` dice: "Sin clave de IA: la calificación funciona igual (la decide el código, no la IA); solo el feedback narrado queda apagado. Para activarlo, pon tu `ANTHROPIC_API_KEY` en `.env`."
+- **No traído** (sin auditar o fuera de esta tanda): el arreglo equivalente del caso clínico ciego (sin clave sigue en `return`), Atlas visual, `visualization.art`, Atlas 3D, el texto "local gratis o Claude" y el retiro de `with_3d` que deshacía la Pieza 2.
+
+### Parte C — `app/utils/env_loader.py`
+
+- **Bug**: SETUP.md y `.env.example` dicen "copia `.env`", pero nada lo leía.
+- **Traído**: `app/main.py` carga `.env` al arrancar; las variables que ya existen en el entorno tienen prioridad y se ignora el placeholder `sk-your-key-here`. No usa dependencias: el parser es propio.
+- **`python-dotenv` no se añade a `requirements.txt`**: nada en main lo importa (ni `env_loader`, que no tiene dependencias), así que declararlo anunciaría una dependencia que no existe.
+
+### Parte D — Un engine de BD por proceso
+
+- **Bug**: cada sesión de navegador creaba con `make_engine()` un pool nuevo sobre `data/biocore_ups.db` que nunca se liberaba. Pasaba en `patient_session` y en el caso sintético de Academia.
+- **Traído**: `get_shared_ups_engine()` con `st.cache_resource`, usado por los dos. Las fábricas de sesión ORM siguen siendo por sesión de navegador.
+- **Verificado**: SQLAlchemy 2.0.51 usa `QueuePool` con `check_same_thread=False`, y 6 hilos consultan el mismo engine sin error.
+
+### Verificación (`tests/test_tanda2a_learning_hub.py` + `tests/test_env_loader.py` del aporte, 22 tests)
+
+- **Learning Hub**: AppTest de Academia sin clave renderiza lecciones, Modo Rural e "Iniciar Quiz", sin el aviso de módulo no disponible.
+- **Quiz sin clave**:
+  - Una respuesta errónea muestra "la respuesta correcta es …".
+  - Un quiz completo respondido bien llega a "Puntuación: 100.0%" y guarda el progreso en Modo Rural.
+  - El narrador nunca se llama: el test lo hace fallar si se invoca.
+- **`.env`**: el placeholder no enciende el narrador y una clave real sí. `main.py` carga `.env` antes de importar la app.
+- **Engine**: 3 sesiones de navegador (AppTest) crean 1 engine y 3 fábricas ORM.
+- **Los tests discriminan**: contra la academia de HEAD fallan los dos tests del quiz.
+- **grep**: no entró nada de la IA local, las calculadoras, el ML de pacientes ni el arte.
+
+### Pendiente (visto, no tocado)
+
+- Caso clínico ciego sin clave: mismo patrón que el quiz (generar y calificar no dependen del modelo). El aporte lo arregla, pero no estaba en esta tanda.
+- `LearningEngine.save_progress_local()` traga cualquier excepción, así que Academia puede decir "Progreso guardado localmente" aunque haya fallado.
+
+Cita Art. I: la calificación es código y se muestra siempre; sin clave no aparece ningún texto "como si" fuera IA, solo un aviso que dice qué falta y cómo activarlo. El docstring de rural_mode y el aviso dicen la verdad sobre la historia y sobre lo que main tiene.
+
 ## 2026-10-22 — Fachada en main: el eje QRS con la fórmula de Einthoven (`atan2(2·aVF, √3·I)`)
 
 **Contexto**: la auditoría del aporte externo (Diagnóstico 2) encontró que sus calculadoras de eje usaban `atan2(aVF, I)`. El mismo defecto estaba activo en main, en `TwelveLeadEcgAnalyzer._determine_qrs_axis` (ECG-12, "Interpretación Clínica Automática"): un eje real entre −30° y −33.7° (desviación izquierda leve) se mostraba como **normal**. Esta tanda corrige solo eso; las calculadoras del aporte entran en la tanda 2C.
