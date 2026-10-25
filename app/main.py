@@ -210,6 +210,9 @@ HUBS = {
         "🦾 EMG Muscle Lab",
         "📈 HRV Analysis",
         "🧬 Biomarkers Lab",
+        # Tanda 2C (2026-10-24, aporte auditado): fórmulas y escalas publicadas,
+        # cada una con su cita; el eje QRS usa la fórmula de ECG-12. Ver CHANGELOG.md.
+        "🧮 Calculadoras Clínicas",
         # Fusión de navegación, Research Hub (2026-07-14): Patient Pipeline
         # reubicado aquí — único contenido real de Research Hub, que se
         # eliminó del menú (su otra entrada, AI Analysis, era un cartel sin
@@ -373,6 +376,11 @@ def render_model3d_page() -> None:
     run_model3d()
 
 
+def render_calculators_page() -> None:
+    from app.supermodules.calculators.pages import run as run_calculators
+    run_calculators()
+
+
 def render_academia_page() -> None:
     from app.supermodules.academia.pages import run as run_academia
     run_academia()
@@ -514,6 +522,8 @@ def render_page_content(page: str) -> None:
             render_hrv_page()
         elif "Biomarkers" in page:
             render_biomarkers_page()  # --- ENRUTAMIENTO A LA NUEVA PÁGINA ---
+        elif "Calculadoras" in page:
+            render_calculators_page()
         elif "Patient Pipeline" in page:
             render_patient_pipeline_page()
     elif page in HUBS["Laboratorio 3D"]:

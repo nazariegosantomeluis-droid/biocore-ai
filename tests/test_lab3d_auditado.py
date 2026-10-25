@@ -271,7 +271,10 @@ def test_lab3d_is_in_the_navigation():
 
 def test_rejected_pieces_are_absent():
     # Código fuente, no carpetas: una caché `__pycache__` huérfana no es código traído.
-    for path in ("visualization/art", "src/ml", "app/supermodules/calculators", "app/static/anatomy"):
+    # Las calculadoras salieron de esta lista en la Tanda 2C (2026-10-24): entraron
+    # auditadas, sin arte. Que no traigan `visualization.art` lo comprueba
+    # tests/test_clinical_calculators.py.
+    for path in ("visualization/art", "src/ml", "app/static/anatomy"):
         assert not [f for f in (ROOT / path).rglob("*") if f.is_file() and f.suffix != ".pyc"], path
     for path in ("visualization/cohort3d.py", "src/ml/cohort_map.py"):
         assert not (ROOT / path).exists(), path

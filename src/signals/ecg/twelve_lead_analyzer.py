@@ -23,6 +23,43 @@ class QrsAxis:
     description: str
 
 
+def qrs_axis_from_net(lead_i_net: float, avf_net: float) -> QrsAxis:
+    """
+    Eje eléctrico medio en el plano frontal, desde la amplitud/área NETA de I y aVF.
+
+    Fuente única (Tanda 2C, 2026-10-24): la usan `_determine_qrs_axis` (ECG-12)
+    y la calculadora de eje (`clinical/calculators.py`). No dupliques la fórmula.
+
+    Corregido 2026-10-22: antes `atan2(aVF, I)`, ahora `atan2(2·aVF, √3·I)`.
+    Con un vector cardíaco de módulo E y ángulo θ (0° = I, +90° = aVF),
+    Einthoven da I = E·cos θ, II = E·cos(θ − 60°), III = E·cos(θ − 120°),
+    y Goldberger aVF = (II + III)/2 = (√3/2)·E·sen θ. I y aVF son
+    perpendiculares pero NO tienen la misma escala: aVF mide √3/2 de lo
+    que mediría una derivación como I a 90°. Por eso tan θ = 2·aVF/(√3·I).
+    La fórmula vieja comprimía el ángulo hacia 0°/±180°: un eje real entre
+    −30° y −33.7° (desviación izquierda) salía "normal".
+
+    Zonas: normal −30° a +90°; desviación izquierda −30° a −90°; derecha
+    +90° a +180°; −90° a ±180°, desviación extrema (eje indeterminado).
+    """
+    axis_deg = float(np.degrees(np.arctan2(2.0 * avf_net, np.sqrt(3.0) * lead_i_net)))  # [-180, 180]
+
+    if -30 <= axis_deg <= 90:
+        category = "Normal"
+        description = f"Normal axis: {axis_deg:.0f}°"
+    elif -90 <= axis_deg < -30:
+        category = "LAD"
+        description = f"Left Axis Deviation: {axis_deg:.0f}°"
+    elif axis_deg > 90:
+        category = "RAD"
+        description = f"Right Axis Deviation: {axis_deg:.0f}°"
+    else:  # -180 a -90: antes salía "LAD", pero no es desviación izquierda
+        category = "Extreme"
+        description = f"Extreme axis deviation (indeterminate axis): {axis_deg:.0f}°"
+
+    return QrsAxis(axis_degrees=axis_deg, category=category, description=description)
+
+
 @dataclass
 class StSegmentFinding:
     """ST segment abnormality"""
@@ -155,49 +192,13 @@ class TwelveLeadEcgAnalyzer:
         )
     
     def _determine_qrs_axis(self, lead_i: np.ndarray, aVF: np.ndarray, lead_ii: np.ndarray) -> QrsAxis:
-        """
-        Eje eléctrico medio en el plano frontal, desde el área neta de I y aVF.
-
-        Corregido 2026-10-22: antes `atan2(aVF, I)`, ahora `atan2(2·aVF, √3·I)`.
-        Con un vector cardíaco de módulo E y ángulo θ (0° = I, +90° = aVF),
-        Einthoven da I = E·cos θ, II = E·cos(θ − 60°), III = E·cos(θ − 120°),
-        y Goldberger aVF = (II + III)/2 = (√3/2)·E·sen θ. I y aVF son
-        perpendiculares pero NO tienen la misma escala: aVF mide √3/2 de lo
-        que mediría una derivación como I a 90°. Por eso tan θ = 2·aVF/(√3·I).
-        La fórmula vieja comprimía el ángulo hacia 0°/±180°: un eje real entre
-        −30° y −33.7° (desviación izquierda) salía "normal".
-
-        Zonas: normal −30° a +90°; desviación izquierda −30° a −90°; derecha
-        +90° a +180°; −90° a ±180°, desviación extrema (eje indeterminado).
-        """
+        """Eje desde el área neta de I y aVF; la fórmula vive en `qrs_axis_from_net()`."""
         if lead_i is None or aVF is None:
             return QrsAxis(axis_degrees=0, category="Unknown", description="Insufficient data")
 
         # Área neta de cada derivación = proyección del vector medio
-        lead_i_net = np.mean(lead_i)
-        aVF_net = np.mean(aVF)
+        return qrs_axis_from_net(float(np.mean(lead_i)), float(np.mean(aVF)))
 
-        axis_deg = float(np.degrees(np.arctan2(2.0 * aVF_net, np.sqrt(3.0) * lead_i_net)))  # [-180, 180]
-
-        if -30 <= axis_deg <= 90:
-            category = "Normal"
-            description = f"Normal axis: {axis_deg:.0f}°"
-        elif -90 <= axis_deg < -30:
-            category = "LAD"
-            description = f"Left Axis Deviation: {axis_deg:.0f}°"
-        elif axis_deg > 90:
-            category = "RAD"
-            description = f"Right Axis Deviation: {axis_deg:.0f}°"
-        else:  # -180 a -90: antes salía "LAD", pero no es desviación izquierda
-            category = "Extreme"
-            description = f"Extreme axis deviation (indeterminate axis): {axis_deg:.0f}°"
-        
-        return QrsAxis(
-            axis_degrees=axis_deg,
-            category=category,
-            description=description
-        )
-    
     def _detect_st_abnormalities(self, ecg_signals: Dict[str, np.ndarray]) -> List[StSegmentFinding]:
         """Detect ST segment elevation/depression"""
         findings = []

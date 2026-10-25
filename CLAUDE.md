@@ -69,6 +69,10 @@ Estas decisiones aplican a todo trabajo nuevo. El resto de las copias no se ha e
 
 Expuesto en `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y reutilizado (misma sesión/organismo) desde el hub "AI Hub" de `app/main.py`; `findings.py` se expone vía `app/main.py::render_findings_narrator()`, usado en las pestañas "IA" de EMG/ECG Monitor/Multisensor/HRV Analysis (Clinical Hub). `app/ai_copilot.py` y `app/biomedical_tutor.py` fueron eliminados el mismo día — no reintroducir un chatbot aislado en su lugar (Art. I).
 
+## Dónde viven las calculadoras clínicas
+
+`clinical/calculators.py` (funciones puras, cada fórmula con su `*_CITATION`) + `app/supermodules/calculators/pages.py` (Clinical Hub → "🧮 Calculadoras Clínicas"). Tanda 2C, 2026-10-24. El eje QRS **no tiene fórmula propia**: usa `qrs_axis_from_net()` de `src/signals/ecg/twelve_lead_analyzer.py` (Einthoven, `atan2(2·aVF, √3·I)`), la misma que ECG-12 — no copies otra. Los tests (`tests/test_clinical_calculators.py`) usan verdad independiente (tabla del estándar, caso canónico o literal calculado a mano); nunca recalcules el esperado con la fórmula bajo prueba.
+
 ## Antes de tocar código
 
 1. Lee `PLAN.md` para saber en qué fase está el proyecto y qué está aprobado para ejecutarse.

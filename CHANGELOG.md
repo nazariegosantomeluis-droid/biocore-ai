@@ -1,5 +1,74 @@
 # Changelog
 
+## 2026-10-24 — Tanda 2C del aporte auditado: calculadoras clínicas, con el eje de main y tests de referencia independiente
+
+**Contexto**: el diagnóstico de `clinical/calculators.py` y `app/supermodules/calculators/` encontró que casi todas las calculadoras eran correctas y citadas. Las excepciones eran el eje QRS (el mismo bug `atan2(aVF, I)` ya corregido en ECG-12) y tres matices de presentación o de cita. Además, los tests del aporte eran en parte circulares. Se traen desde `respaldo-mezcla-20261021` con esas correcciones.
+
+### Parte A — Lo que entra tal cual
+
+- QTc (Bazett, Fridericia, Framingham, Hodges, con los umbrales AHA/ACCF/HRS 2009 y >500 ms de Drew 2010).
+- FC desde el papel a 25 mm/s.
+- PAM y presión de pulso.
+- NEWS2 (RCP 2017), qSOFA (Seymour 2016) y Glasgow (Teasdale 1974).
+- P/F de Berlín (2012), gas alveolar con presión barométrica ISA y gradiente A–a (la regla edad/4 + 4 rotulada como heurística).
+- ASC de Mosteller y de Du Bois, e IMC.
+- **Citas en la UI**: las 20 constantes `*_CITATION` aparecen en la página renderizada (lo comprueba un test).
+- **Sin la capa de arte**: la página del aporte dependía de piezas que main no tiene y que siguen fuera: las láminas `render_plate`, el medidor SVG de NEWS2, `art=` en el encabezado, `PALETTE.TRACE` y la paleta de gráficos de su `config.toml`. Sin quitarlas, la página no arrancaba en main. Se pierden las ilustraciones; los cálculos, la tabla de componentes de NEWS2, la gráfica PAO₂-altitud (con tokens de `PALETTE`) y las citas se quedan.
+- **El botón "Usar valores del gemelo"** también entra. Copia la FC, FR y SpO₂ que el gemelo de la sesión tiene en `signals` (lo que realmente se le alimentó), rotuladas como simulación. Sin gemelo alimentado no copia nada y lo dice.
+
+### Parte B — El eje QRS usa la fórmula de main
+
+- **Una sola fuente**: la fórmula y las zonas se extrajeron de `TwelveLeadEcgAnalyzer._determine_qrs_axis` a `qrs_axis_from_net()`, en el mismo archivo. ECG-12 y la calculadora la llaman las dos, y `calculators.py` no tiene ninguna arcotangente propia. Los 30 tests de `test_qrs_axis_einthoven.py` siguen pasando sin cambios.
+- **El caso del bug**: con un vector real a −32°, la fórmula del aporte daba −28.4° ("normal"). Ahora da −32.0°, "desviación izquierda". En la página, DI 8.5 / aVF −4.5 da −31°, "desviación izquierda" (el aporte daba −28°, normal).
+- `classify_qrs_axis()` recibe el `QrsAxis` y traduce su categoría. No repite los cortes.
+
+### Parte C — Los tres matices
+
+- **IMC**: la obesidad clase I salía "severo" en rojo. El color ahora sigue el riesgo de comorbilidades que la misma OMS (TRS 894) asigna a cada clase, y la etiqueta lo dice:
+  - sobrepeso: aumentado, 🟡
+  - clase I: moderado, 🟡
+  - clase II: severo, 🔴
+  - clase III: muy severo, 🔴
+- **Índice de choque**: el corte ≥1.0 ahora tiene cita. Es Mutschler M, et al. *Crit Care* 2013;17:R172, verificado en PubMed: 21 853 adultos con trauma, en estratos SI <0.6 / 0.6–<1.0 / 1.0–<1.4 / ≥1.4, con más transfusión y mortalidad en los estratos altos. La etiqueta dice que es en trauma. El rango normal 0.5–0.7 sigue citado a Allgöwer y Burri (1967).
+- **IC de Forrester**: el corte <2.2 L/min/m² sigue citado a Forrester (1976). El rango 2.5–4.0 no tiene cita firme, y tanto la etiqueta ("rango orientativo… sin cita firme") como la constante de la cita lo dicen.
+
+### Lo que la verificación encontró y el diagnóstico no vio
+
+- **La leyenda de la altitud se contradecía**. Decía "en la Ciudad de México la PAO₂ en aire ambiente ronda 60 mmHg", lo cual solo es cierto con PaCO₂ 40. Con la PaCO₂ inicial de la propia página (32), la tarjeta de al lado mostraba ~72. Ahora los dos números (aquí y al nivel del mar) se calculan con la misma ecuación y la PaCO₂ que escribió el usuario.
+- **PAO₂ negativa**: con altitudes extremas y una PaCO₂ alta, la ecuación da una presión negativa, y la página la mostraba como resultado. Ahora muestra un error que dice que la combinación no es fisiológica.
+- Fuera de eso, las tablas del estándar transcritas aparte coinciden en todos los valores barridos: NEWS2, Berlín, OMS, AHA 2009, Sepsis-3 e ISA.
+
+### Tests (`tests/test_clinical_calculators.py`, 103 casos; reemplaza los del aporte)
+
+Ningún esperado se recalcula con la fórmula bajo prueba. Cada uno sale de una de estas fuentes:
+
+- **El estándar**:
+  - La tabla NEWS2 del RCP, transcrita aparte y barrida valor por valor en los cinco parámetros, además de la escala 2.
+  - Los bordes de Berlín, de las clases de la OMS y de AHA 2009.
+  - La tabla de verdad de qSOFA.
+  - La presión tabulada de la ISO 2533 a 0/1000/2000/3000/5000 m.
+- **Casos canónicos**: PAO₂ 99.7 al nivel del mar y PAM 93 con 120/80.
+- **Cálculo a mano escrito como literal**: QTc a 100 y a 50 lpm, y Du Bois a 170 cm / 70 kg.
+- **Para el eje**, el enfoque de `test_qrs_axis_einthoven.py`:
+  - un vector de ángulo conocido, de −179° a 180°;
+  - la regla de la derivación isoeléctrica;
+  - la regla de signos cada medio grado;
+  - igualdad exacta con `_determine_qrs_axis`.
+- **UI**: las 20 citas visibles; el eje de main en pantalla; los vitales del gemelo importados con su rótulo de simulación; la ruta desde Clinical Hub; nada de `visualization.art` ni de IA local.
+- **Los tests discriminan**:
+  - Contra el `calculators.py` del aporte fallan 27.
+  - Tres mutaciones de un carácter (el coeficiente de Framingham 154→145, el exponente ISA y un borde de SpO₂ en NEWS2) se detectan cada una.
+- **Suite**: 1028 pasan con `-k "not ptbxl"` (925 + 103 nuevos).
+- **`test_lab3d_auditado.py`**: se quitó `app/supermodules/calculators` de la lista de "lo rechazado no entró". En la pieza del 3D estaba pendiente de auditoría; ahora entra auditado.
+
+### Pendiente (visto, no tocado)
+
+- Las intervenciones del gemelo (oxígeno, sedación, ejercicio) escriben la FC/SpO₂ a partir de un valor por defecto (70 lpm, 98 %) si el gemelo nunca recibió datos. Si después se importan a las calculadoras, salen rotuladas como simulación, pero parten de un relleno. Es un comportamiento previo del gemelo (`digital_twin_organism.py`), no de las calculadoras.
+- `_card()` pone el badge "🟢 validado clínicamente" por defecto también en presión de pulso y gasto cardiaco, que son definiciones (PAS − PAD, FC × VS) y no llevan cita.
+- Se conserva la decisión del aporte de pintar en rojo ("severo") la desviación extrema del eje.
+
+Cita Art. I: cada clasificación dice de dónde sale su corte, y si no tiene cita lo dice. El eje no puede volver a divergir de ECG-12 porque es la misma función. La página ya no afirma un número fijo que contradecía su propia tarjeta.
+
 ## 2026-10-24 — Tanda 2B del aporte auditado: el reporte genera PDF de verdad (fpdf2) y lanzadores de Windows
 
 **Contexto**: el Diagnóstico 2 verificó dos arreglos más del aporte, ambos de bugs reales de main. Se traen desde `respaldo-mezcla-20261021` con tres ajustes: el aviso educativo en el reporte, el rótulo de caducidad de `run_biocore.py` y `--server.headless true` en los lanzadores.
