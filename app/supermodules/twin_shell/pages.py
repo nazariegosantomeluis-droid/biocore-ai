@@ -59,7 +59,9 @@ from domain.physiology.narrator import (
     stream_causal_narration,
     stream_findings_narration,
 )
-from domain.physiology.narrator import is_configured as narrator_is_configured
+# Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
+from app.utils.ai_session import AI_KEY_HINT, ai_client
+from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.narrator import stream_narration
 from domain.physiology.scenarios.rich_engine import (
     create_ephemeral_basal_patient,
@@ -934,7 +936,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
             st.warning(
                 "`ANTHROPIC_API_KEY` no está configurada en el entorno. El narrador llama a la "
                 "API real de Anthropic con streaming — no existe una narración simulada de "
-                "respaldo. Define la variable de entorno para activarlo."
+                "respaldo. " + AI_KEY_HINT
             )
             return
 
@@ -965,7 +967,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
                 f"eventos del UPS, generados en {context.generated_at}."
             )
             try:
-                st.write_stream(stream_narration(context, depth))
+                st.write_stream(stream_narration(context, depth, client=ai_client()))
             except NarratorNotConfiguredError as exc:
                 render_error_state(str(exc))
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
@@ -1284,7 +1286,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
         if not narrator_is_configured():
             st.warning(
                 "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
+                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
             )
             return
 
@@ -1430,7 +1432,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 findings_context = FindingsContext(lab_name="Caso Clínico Interactivo", findings=findings)
 
                 try:
-                    feedback_text = "".join(stream_findings_narration(findings_context))
+                    feedback_text = "".join(stream_findings_narration(findings_context, client=ai_client()))
                     st.session_state.clinical_case_feedback = feedback_text
                     st.session_state.clinical_case_feedback_error = None
                 except NarratorNotConfiguredError as exc:
@@ -1505,7 +1507,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
         if not narrator_is_configured():
             st.warning(
                 "`ANTHROPIC_API_KEY` no está configurada — el razonamiento causal requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
+                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
             )
             return
 
@@ -1530,7 +1532,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
                 f"{len(causal_context.narrative.events)} eventos del UPS."
             )
             try:
-                st.write_stream(stream_causal_narration(causal_context))
+                st.write_stream(stream_causal_narration(causal_context, client=ai_client()))
             except NarratorNotConfiguredError as exc:
                 render_error_state(str(exc))
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.

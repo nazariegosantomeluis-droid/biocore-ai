@@ -40,8 +40,8 @@ if ($needsInstall) {
     Write-Host "Dependencias al día."
 }
 
-if (-not (Test-Path ".env")) {
-    Write-Host "Nota: sin .env el narrador clínico IA queda desactivado (la app funciona igual)."
+if (-not $env:ANTHROPIC_API_KEY -and -not (Test-Path ".env")) {
+    Write-Host "Nota: la app te pedirá tu API key al entrar (opcional; sin ella funciona igual, sin IA)."
 }
 
 Write-Host "Iniciando BIOCORE AI en http://localhost:8501 (Ctrl+C para cerrar)"

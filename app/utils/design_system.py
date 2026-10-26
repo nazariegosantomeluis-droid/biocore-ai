@@ -332,8 +332,8 @@ def render_error_state(message: str, exception: Optional[BaseException] = None) 
 
 AI_FEEDBACK_OFF_MESSAGE = (
     "Sin clave de IA: la calificación funciona igual (la decide el código, no la IA); solo el "
-    "feedback narrado queda apagado. Para activarlo, pon tu <code>ANTHROPIC_API_KEY</code> en "
-    "<code>.env</code>."
+    "feedback narrado queda apagado. Para activarlo, pega tu clave con «🔑 Poner mi clave» en la barra "
+    "lateral, o pon tu <code>ANTHROPIC_API_KEY</code> en <code>.env</code>."
 )
 
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-25 — Clave de IA por sesión: panel de entrada para pegar la API key
+
+**Contexto**: para usar la IA había que guardar la clave en `.env` o definir `ANTHROPIC_API_KEY` en la terminal antes de arrancar. Ahora la persona puede pegarla al entrar y usarla solo durante esa sesión.
+
+- **Panel previo** (`app/utils/ai_session.py::render_entry_gate`, llamado al inicio de `main()`):
+  - Un campo oculto "Pega tu API key de Anthropic" y dos botones: "Entrar con mi clave" y "Entrar sin IA". La plataforma sigue funcionando sin IA, como antes.
+  - Si el servidor ya tiene `ANTHROPIC_API_KEY` (entorno o `.env`), el panel no aparece.
+- **Verificación**: la clave se comprueba contra Anthropic (`models.retrieve` del modelo del narrador) antes de aceptarla, y cada fallo explica su motivo: clave inválida, sin permiso, modelo no disponible o sin conexión. Probado contra la API real con una clave falsa: responde 401 en ~1 s.
+- **Aislamiento**:
+  - La clave vive solo en `st.session_state`: nunca en disco ni en `os.environ`, que es del proceso entero y la compartiría con otras pestañas o usuarios.
+  - El campo se vacía al enviar.
+  - Las 6 llamadas de la interfaz al narrador (Digital Twin OS, las pestañas "IA" de los laboratorios y la Academia) reciben `client=ai_client()`, un cliente creado con la clave de esa sesión.
+  - Sin clave de sesión, el narrador usa la del entorno, como siempre.
+- **Barra lateral**: muestra el estado de la IA (con tu clave, clave del servidor o apagada), con "Olvidar mi clave" y "Poner mi clave".
+- **Avisos corregidos**:
+  - Los paneles de IA apagada ahora dicen cómo activarla desde la app.
+  - Los lanzadores decían "sin .env el narrador queda desactivado", lo cual dejó de ser cierto: ahora solo avisan, si no hay `.env` ni variable de entorno, que la app pedirá la clave al entrar.
+- **Tests**: `tests/test_ai_session_key.py` (8). Cubren:
+  - el panel aparece primero;
+  - entrar sin IA;
+  - una clave válida queda solo en esa sesión: otra sesión no la ve y `os.environ` sigue intacto;
+  - una clave inválida se rechaza con su motivo;
+  - olvidar y volver a poner la clave;
+  - la clave del servidor salta el panel;
+  - el narrador recibe un cliente con la clave de la sesión;
+  - ninguna llamada de la interfaz al narrador olvida pasar `client=`.
+- **Límite declarado en el propio panel**: la clave pasa por la memoria del servidor de BIOCORE. En tu PC eso es tu propia máquina, pero si la app se sirve por la red sin HTTPS, la clave viaja sin cifrar. Pégala solo en una instancia de confianza.
+
 ## 2026-10-24 — Tanda 2D del aporte auditado: mapa EEG 3D con el rótulo corregido y ML de pacientes con guardia anti-fuga por ID
 
 **Contexto**: es la última pieza traíble del aporte (`respaldo-mezcla-20261021`). El diagnóstico había encontrado dos problemas. El tramo de EEG de ejemplo tenía un rótulo circular: se eligió por tener alfa y luego se presentaba la alfa como hallazgo. Y el ML de pacientes tenía una fuga por ID: un número de paciente daba AUC 1.000 sin ningún aviso. Las dos piezas viven en "Crea tu modelo 3D".

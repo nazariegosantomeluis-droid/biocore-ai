@@ -3,7 +3,8 @@ REM BIOCORE AI - lanzador para Windows (doble clic).
 REM  1. Crea un entorno virtual .venv la primera vez (no toca tu Python global).
 REM  2. Instala/actualiza dependencias SOLO cuando requirements.txt cambia.
 REM  3. Abre la app en http://localhost:8501
-REM Para el narrador clinico: copia .env.example a .env y pon tu ANTHROPIC_API_KEY.
+REM Para la IA: pega tu API key en el panel de entrada de la app (solo dura esa sesion),
+REM o define ANTHROPIC_API_KEY (variable de entorno o archivo .env).
 
 chcp 65001 >nul
 setlocal
@@ -60,8 +61,8 @@ if errorlevel 1 (
     echo Dependencias al dia.
 )
 
-if not exist ".env" (
-    echo Nota: sin .env el narrador clinico IA queda desactivado ^(la app funciona igual^).
+if not defined ANTHROPIC_API_KEY if not exist ".env" (
+    echo Nota: la app te pedira tu API key al entrar ^(opcional; sin ella funciona igual, sin IA^).
 )
 
 echo.

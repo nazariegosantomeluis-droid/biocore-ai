@@ -31,6 +31,8 @@ if ROOT_DIR not in sys.path:
 from app.utils.env_loader import load_dotenv_file
 load_dotenv_file(Path(ROOT_DIR) / ".env")
 
+from app.utils.ai_session import AI_KEY_HINT, ai_client, ai_configured, render_entry_gate, render_sidebar_status
+
 from app.supermodules import (
     generate_demo_bp_signal,
     generate_demo_ppg_signal,
@@ -323,14 +325,13 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
         Finding,
         FindingsContext,
         NarratorNotConfiguredError,
-        is_configured,
         stream_findings_narration,
     )
 
-    if not is_configured():
+    if not ai_configured():
         st.warning(
             "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
-            "Anthropic con streaming — no existe una narración simulada de respaldo."
+            "Anthropic con streaming — no existe una narración simulada de respaldo. " + AI_KEY_HINT
         )
         return
 
@@ -338,7 +339,7 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
     if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
         context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings])
         try:
-            st.write_stream(stream_findings_narration(context))
+            st.write_stream(stream_findings_narration(context, client=ai_client()))
         except NarratorNotConfiguredError as exc:
             render_error_state(str(exc))
         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
@@ -2666,7 +2667,11 @@ def render_patient_pipeline_page() -> None:
 def main() -> None:
     init_state()
     inject_global_theme()
-    
+    # 2026-10-25: panel previo opcional para pegar la API key de esta sesión
+    # (ver app/utils/ai_session.py). Si el servidor ya tiene ANTHROPIC_API_KEY, no aparece.
+    if not render_entry_gate():
+        return
+
     st.sidebar.markdown("## ECOSISTEMA BIOCORE AI")
     selected_hub = st.sidebar.radio('Selecciona un hub', list(HUBS.keys()), index=list(HUBS.keys()).index(st.session_state.selected_hub), label_visibility='hidden')
     if selected_hub != st.session_state.selected_hub:
@@ -2683,6 +2688,7 @@ def main() -> None:
     # vivía el Narrador Clínico (implícitamente, el ahora eliminado AI Hub).
     # Se deja explícito para no perder capacidad de descubrimiento.
     st.sidebar.markdown("- 🩺 Narrador Clínico → Digital Twin OS")
+    render_sidebar_status()
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Modo plataforma:** \nLaboratorio biomédico, clínica, investigación y simulación.")

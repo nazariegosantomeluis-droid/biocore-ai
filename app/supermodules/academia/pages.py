@@ -30,7 +30,9 @@ from domain.physiology.narrator import (
     NarratorNotConfiguredError,
     stream_findings_narration,
 )
-from domain.physiology.narrator import is_configured as narrator_is_configured
+# Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
+from app.utils.ai_session import AI_KEY_HINT, ai_client
+from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
     EventSeverity,
@@ -243,7 +245,7 @@ def render_lessons_quizzes_tab() -> None:
                         ]
                         findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
                         try:
-                            quiz_state["feedback"] = "".join(stream_findings_narration(findings_context))
+                            quiz_state["feedback"] = "".join(stream_findings_narration(findings_context, client=ai_client()))
                             quiz_state["feedback_error"] = None
                         except NarratorNotConfiguredError as exc:
                             quiz_state["feedback"] = None
@@ -348,7 +350,7 @@ def render_synthetic_case_section() -> None:
         if not narrator_is_configured():
             st.warning(
                 "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
+                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
             )
             return
 
@@ -492,7 +494,7 @@ def render_synthetic_case_section() -> None:
                 findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings)
 
                 try:
-                    feedback_text = "".join(stream_findings_narration(findings_context))
+                    feedback_text = "".join(stream_findings_narration(findings_context, client=ai_client()))
                     st.session_state["academia_case_feedback"] = feedback_text
                     st.session_state["academia_case_feedback_error"] = None
                 except NarratorNotConfiguredError as exc:
