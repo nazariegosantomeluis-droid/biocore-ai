@@ -9,7 +9,7 @@ El organismo sigue calculando sus propias métricas derivadas
 `_update_heart`/`_update_lungs`; este módulo solo decide qué señales de
 entrada recibe en cada paso, sin duplicar ningún umbral clínico.
 
-Alcance de este slice (Fase 1.2, PLAN.md): 2-3 escenarios cardiovascular/
+Alcance de este slice (Fase 1.2, PLAN.md): 2 escenarios cardiovascular/
 respiratorio, no una biblioteca completa — evitar sobre-ingeniería.
 """
 
@@ -36,28 +36,8 @@ SCENARIOS: Dict[str, List[Waypoint]] = {
         (0.6, {"respiratory": {"respiratory_rate": 24, "spo2": 88, "ahi": 6}}),
         (1.0, {"respiratory": {"respiratory_rate": 30, "spo2": 82, "ahi": 12}}),
     ],
-    "sepsis_temprana": [
-        (0.0, {
-            "ecg": {"heart_rate": 78, "hrv": 50},
-            "respiratory": {"respiratory_rate": 16, "spo2": 97},
-            "eeg": {"stress_level": 20},
-        }),
-        (0.4, {
-            "ecg": {"heart_rate": 95, "hrv": 35},
-            "respiratory": {"respiratory_rate": 22, "spo2": 94},
-            "eeg": {"stress_level": 45},
-        }),
-        (0.7, {
-            "ecg": {"heart_rate": 110, "hrv": 22},
-            "respiratory": {"respiratory_rate": 26, "spo2": 91},
-            "eeg": {"stress_level": 65},
-        }),
-        (1.0, {
-            "ecg": {"heart_rate": 125, "hrv": 15},
-            "respiratory": {"respiratory_rate": 30, "spo2": 88},
-            "eeg": {"stress_level": 85},
-        }),
-    ],
+    # Unificación 2: "sepsis_temprana" (FC 78->125, SpO2 97->88) se retiró -- la sepsis tiene UNA trayectoria
+    # canónica, en `src/clinical/sepsis_trajectory.py`. Solo la usaban tests.
 }
 
 

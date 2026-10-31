@@ -125,7 +125,7 @@ def test_the_quick_apply_and_the_simulator_start_from_the_same_instance(type_key
 
 def test_apply_arrhythmia_touches_only_the_heart_rate():
     organism = DigitalTwinOrganism()
-    organism.create_patient_scenario("sepsis")
+    organism.apply_sepsis("2h")
     heart, lungs = organism.organs["heart"].metrics.signals, organism.organs["lungs"].metrics.signals
     before = dict(heart), dict(lungs)
     organism.apply_arrhythmia("svt", 2)

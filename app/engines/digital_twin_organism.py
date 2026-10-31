@@ -934,7 +934,7 @@ class DigitalTwinOrganism:
 
     def create_patient_scenario(self, scenario: str) -> None:
         """
-        Aplica un preset de paciente (healthy, hypertension, copd, sepsis)
+        Aplica un preset de paciente (healthy, hypertension, copd)
         directamente a las señales/detalles de los órganos correspondientes.
         """
         scenarios: Dict[str, Dict[str, Dict[str, float]]] = {
@@ -948,16 +948,18 @@ class DigitalTwinOrganism:
             'copd': {
                 'respiratory': {'respiratory_rate': 22, 'spo2': 88, 'ahi': 3},
             },
-            'sepsis': {
-                'ecg': {'heart_rate': 110, 'hrv': 20}, 'respiratory': {'respiratory_rate': 28, 'spo2': 92},
-                'eeg': {'stress_level': 85},
-            },
         }
 
         if scenario == 'arrhythmia':
             raise ValueError(
                 "El preset 'arrhythmia' se retiró (Unificación 1): 'arritmia' no es un diagnóstico. "
                 "Usa apply_arrhythmia(tipo, semilla) con un tipo de arrhythmia_types.ARRHYTHMIA_TYPES."
+            )
+        if scenario == 'sepsis':
+            raise ValueError(
+                "El preset 'sepsis' (FC 110, FR 28, SpO2 92) se retiró (Unificación 2): era un punto "
+                "arbitrario de una evolución. Usa apply_sepsis(horizonte) con un horizonte de la trayectoria "
+                "canónica src/clinical/sepsis_trajectory.py."
             )
         config = scenarios.get(scenario)
         if config is None:
@@ -978,3 +980,20 @@ class DigitalTwinOrganism:
         ecg = {**self.organs['heart'].metrics.signals, 'heart_rate': instance_hr(type_key, seed)}
         self.update_from_sensors({'ecg': ecg})
         return declare_instance(type_key, seed, (0,))
+
+    def apply_sepsis(self, horizon: str = 'now') -> str:
+        """Aplica un PUNTO de la trayectoria canónica de sepsis (`src/clinical/sepsis_trajectory.py`) --
+        FC, HRV, FR, SpO2 y estrés de ese horizonte, el mismo valor que el `SimulationEngine` da en él --
+        conservando el resto de las señales de cada órgano. Devuelve la fase del punto y su declaración
+        de PA para que la UI la muestre."""
+        from src.clinical import sepsis_trajectory as sepsis
+
+        v = sepsis.horizon_vitals(horizon)
+        signals = lambda organ: self.organs[organ].metrics.signals
+        self.current_scenario = f"sepsis:{horizon}"
+        self.update_from_sensors({
+            'ecg': {**signals('heart'), 'heart_rate': v['hr'], 'hrv': v['hrv']},
+            'respiratory': {**signals('lungs'), 'respiratory_rate': v['respiratory_rate'], 'spo2': v['spo2']},
+            'eeg': {**signals('brain'), 'stress_level': v['stress_level']},
+        })
+        return f"Sepsis, horizonte {horizon} (fase {sepsis.phase_of(horizon)}): {sepsis.pa_phase_note(sepsis.phase_of(horizon))}"

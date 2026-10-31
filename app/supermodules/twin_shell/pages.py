@@ -82,6 +82,7 @@ from domain.physiology.state import (
     get_value_history,
 )
 from src.ai.patient_analytics import AnomalyDetector, PatientRiskPredictor
+from src.clinical import sepsis_trajectory
 from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES
 from src.signals.signal_sources import ESP32SignalSource
 
@@ -588,7 +589,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         st.markdown("**Preset rápido:**")
         scenarios = {
             "healthy": "🟢 Sano", "hypertension": "🟡 Hipertensión",
-            "copd": "🔴 EPOC", "sepsis": "🆘 Sepsis",
+            "copd": "🔴 EPOC",
         }
         cols = st.columns(len(scenarios))
         for col, (key, label) in zip(cols, scenarios.items()):
@@ -596,6 +597,19 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
                 if st.button(label, key=f"twin_shell_scenario_{key}", use_container_width=True):
                     organism.create_patient_scenario(key)
                     st.rerun()
+
+        st.markdown("**Sepsis (punto de la trayectoria canónica):**")
+        sep_col1, sep_col2 = st.columns([3, 2])
+        sepsis_horizon = sep_col1.selectbox(
+            "Horizonte", list(sepsis_trajectory.HORIZON_PHASES),
+            format_func=lambda h: f"{h} — {sepsis_trajectory.phase_of(h)}",
+            key="twin_shell_sepsis_horizon", label_visibility="collapsed",
+        )
+        if sep_col2.button("Aplicar punto", key="twin_shell_sepsis_apply", use_container_width=True):
+            st.session_state.twin_shell_sepsis_declaration = organism.apply_sepsis(sepsis_horizon)
+            st.rerun()
+        if st.session_state.get("twin_shell_sepsis_declaration"):
+            st.info(st.session_state.twin_shell_sepsis_declaration)
 
         st.markdown("**Arritmia (tipo específico, fuente única):**")
         arr_col1, arr_col2, arr_col3 = st.columns([3, 1, 2])
@@ -721,6 +735,8 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                 help="Fija la instancia dentro del rango declarado del tipo; otra semilla, otra instancia.",
             ))
             st.info(SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario_key))
+        if scenario_key == SimulationScenario.SEPSIS:
+            st.info(sepsis_trajectory.declare_trajectory())
         start_mode = st.radio(
             "Punto de partida:",
             ["Estado actual del paciente", "Basal genérica (caso didáctico)"],
@@ -1216,6 +1232,20 @@ def _attach_calculated_pa_to_case(session, patient_id: str, scenario_value: str,
     return state, references
 
 
+def _sepsis_pa_phase_note(state, scenario_value: str) -> str:
+    """Para sepsis: en qué fase de la trayectoria canónica está este caso (leída del horizonte con que se
+    persistió su FC) y qué representa la PA calculada en ella. Vacío para otros escenarios o si el estado no
+    viene de un escenario rico."""
+    if scenario_value != "sepsis":
+        return ""
+    hr_descriptor = state.cardiovascular.get("heart_rate")
+    horizon = sepsis_trajectory.horizon_from_source_detail(hr_descriptor.source_detail if hr_descriptor else None)
+    if horizon is None:
+        return ""
+    phase = sepsis_trajectory.phase_of(horizon)
+    return f" FASE DE ESTE CASO (trayectoria canónica de sepsis, horizonte {horizon}): {sepsis_trajectory.pa_phase_note(phase)}"
+
+
 def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
     """`Finding`s de PA para el narrador -- calculada (siempre, si existe),
     referencia clínica (si coexiste) y la nota de divergencia entre ambas
@@ -1242,6 +1272,7 @@ def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
                 "vasoplejía reduce el tono vascular y colapsa el retorno venoso, por lo que la "
                 "presión cae pese a la taquicardia compensatoria; en hipertensión: el reseteo del "
                 "barostato eleva el punto de equilibrio) -- no te limites a reportar el número."
+                + _sepsis_pa_phase_note(state, scenario_value)
             ),
         )
     )

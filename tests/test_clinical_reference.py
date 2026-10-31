@@ -85,7 +85,7 @@ def test_create_and_retrieve_reference_round_trip(db_path):
     with SessionLocal() as session:
         patient_id = create_patient(session, display_name="Paciente Referencia")
         organism = DigitalTwinOrganism()
-        organism.create_patient_scenario("sepsis")
+        organism.apply_sepsis("2h")
         state = from_digital_twin_organism(organism, patient_id, Provenance.SIMULACION, 0.9)
         snapshot_id = save_state(session, state)
 

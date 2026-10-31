@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-31 — Unificación 2: sepsis desde una trayectoria canónica única (temprana → shock) y la PA con su fase declarada
+
+**Contexto**: segunda colisión del diagnóstico de fragmentación. "Sepsis" tenía varias fuentes con números propios: el preset de Twin OS (FC 110, FR 28, SpO2 92), `sepsis_temprana` de `definitions.py` (FC 78→125, SpO2 97→88), la fórmula en línea de `SimulationEngine` (100/22/95 → 150/32/85) y, para la PA, una FC inicial propia en el panel del barorreflejo. Eran puntos distintos de una misma evolución sin decirlo.
+
+- **Trayectoria canónica propuesta, pendiente de firma** (`src/clinical/sepsis_trajectory.py`, módulo puro, mismo patrón que los tipos de arritmia). Los valores son los que el `SimulationEngine` ya daba, ahora con nombre, citas y fases:
+  - inicio (0 min) → shock (≥ 360 min), con interpolación lineal;
+  - FC 100 → 150 lpm; FR 22 → 32 rpm; SpO₂ 95 → 85 %; HRV 30 → 5; estrés 70 → 100;
+  - FC > 90 (SIRS, Bone 1992) y FR ≥ 22 (qSOFA, Sepsis-3, Singer 2016) respaldan el inicio; las magnitudes de shock no tienen cita: `PENDING_VALIDATION`;
+  - fases por horizonte: temprana (now, 5min, 30min), progresión (2h) y shock (24h, 7d). Las etiquetas también están pendientes de firma.
+- **Sin variabilidad entre instancias**: la trayectoria es única y determinista; la semilla no la cambia. La UI lo declara. Si se firma variabilidad, debe ser función pura de (semilla, horizonte), como en arritmia.
+- **Fuentes colapsadas a una**:
+  - `SimulationEngine._simulate_sepsis` lee la tabla canónica (mismos valores que antes, medido);
+  - preset "Sepsis" retirado (`create_patient_scenario("sepsis")` lanza error) y sustituido por `DigitalTwinOrganism.apply_sepsis(horizonte)`, un punto de la trayectoria que conserva el resto de las señales; en Twin OS, un selector de horizonte con su fase;
+  - `sepsis_temprana` retirado de `definitions.py` (solo lo usaban tests);
+  - el panel del barorreflejo toma su FC inicial de sepsis (150) del punto de shock canónico.
+- **Hallazgo que corrige la premisa de la tarea** (medido): el motor hemodinámico da PAM 61 con FC 60, 47 con FC 100, 43 con FC 110, 36 con FC 125 y 24 con FC 150. Cae por debajo de 65 con cualquier FC, porque la presión la fija el mecanismo —vasoplejía con techo de vasoconstricción 0.5×, ganancia 0.3× y retorno venoso reducido— y no la FC. Y la referencia citada (Sepsis-3: 85/55, PAM 65) es la fase de **shock séptico** (su propia nota lo dice): es el umbral de shock, no la sepsis temprana. Por eso con la FC canónica de la fase temprana el motor no da PAM ≈ 65; da 47. La PAM 24 no la fabricaba una FC divergente: es el punto de shock de la trayectoria (FC 150).
+- **Qué se hizo con eso (sin tocar el motor)**: la fase viaja con la PA calculada. La trayectoria declara que el motor solo describe la fase de **shock**; en las fases temprana y de progresión su PA "NO representa a este paciente" (allí la PA real puede ser normal) y se dice. Esa nota se añade a la `Finding` de PA calculada que recibe el narrador (Academia y modo caso de Twin OS) y se muestra con la trayectoria en el simulador. La divergencia referencia–calculado ya se declaraba (referencia = umbral de shock); ahora también se declara en qué fase aplica el cálculo.
+- **Cadena verificada de punta a punta** (`tests/test_sepsis_unification.py`, 19): por cada horizonte, la FC canónica llega al UPS, el motor la recibe sin otra FC de por medio y la PAM del UPS es la del motor con esa FC; la PAM cae a lo largo de la trayectoria (47 → 24) y queda por debajo del umbral de 65 en todas las fases. El test fija el 47 de la fase temprana como límite conocido: si el motor se recalibra, hay que actualizarlo.
+- **Motor hemodinámico intacto**: `git diff` de `domain/physiology/hemodynamics/` vacío (también como test), y los puntos fijos de las rondas de validación (sepsis a FC 150, sano a FC 72) sin cambios. La compliancia sigue `PENDING_VALIDATION` y su rótulo viaja.
+- **Decisión abierta para Luis**: hoy la PA calculada se sigue adjuntando a los 6 horizontes de sepsis (sus tests lo fijan), con la fase declarada en las tempranas. Alternativa más estricta: declinar la PA en las fases no-shock, como ya se declina por desajuste de fase en apnea o convulsión. Cambiaría ese comportamiento validado.
+- **Cita**: Art. I y IV.
+
 ## 2026-10-31 — Unificación 1: "arritmia" genérico-aleatorio reemplazado por tipos específicos, desde una sola fuente y con variabilidad declarada
 
 **Contexto**: el diagnóstico de fragmentación encontró que "arritmia" era la peor colisión: divergente y no reproducible. El preset daba FC 95; el `SimulationEngine` daba FC ~ N(110, 30) sin semilla (de 41 a 183 lpm según la corrida: 163 lpm con evento crítico o 81 lpm sin evento con el mismo clic); ECG-12 dibujaba la FA a 112 fijo; el entrenador, a ~128; y `fibrilacion_estres` era solo una FC 75→145 con nombre de diagnóstico. Decisiones del experto: variabilidad declarada (el rango se muestra, no se esconde) y tipos específicos en lugar de la categoría.

@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 import numpy as np
 
+from src.clinical import sepsis_trajectory
 from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES, declare_instance, instance_hr
 
 
@@ -538,20 +539,23 @@ class SimulationEngine:
             return self._simulate_healthy(time_label, minutes, state)
     
     def _simulate_sepsis(self, time_label: str, minutes: int, state: Dict) -> SimulationTimestep:
-        """Simulación: Sepsis progresiva"""
-        progression = min(1.0, minutes / 360)
-        
+        """Simulación: Sepsis progresiva. FC, HRV, FR, SpO2 y estrés salen de la trayectoria canónica
+        (`src/clinical/sepsis_trajectory.py`, fuente única; ahí están sus citas y sus fases); el resto de
+        campos del timestep (display) sigue la misma progresión."""
+        progression = sepsis_trajectory.progression(minutes)
+        v = sepsis_trajectory.vitals(minutes)
+
         return SimulationTimestep(
             time_point=time_label,
             minutes_elapsed=minutes,
-            hr=100 + progression * 50,
-            hrv=30 - progression * 25,
+            hr=v["hr"],
+            hrv=v["hrv"],
             cardiac_output=4.0 - progression * 2.0,
-            stress_level=70 + progression * 30,
+            stress_level=v["stress_level"],
             cognitive_state=75 - progression * 50,
             eeg_activity=45 - progression * 25,
-            respiratory_rate=22 + progression * 10,
-            spo2=95 - progression * 10,
+            respiratory_rate=v["respiratory_rate"],
+            spo2=v["spo2"],
             ahi=0,
             fatigue_index=80 + progression * 15,
             muscle_activation=30,

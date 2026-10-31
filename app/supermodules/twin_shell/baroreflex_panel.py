@@ -33,6 +33,7 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 from app.utils.design_system import PALETTE, render_metric_card, render_validation_marker
+from src.clinical import sepsis_trajectory
 from domain.physiology.hemodynamics import (
     BAROREFLEX_MAX_RD,
     BAROREFLEX_MECHANISM_CITATION,
@@ -74,7 +75,10 @@ VASCULAR_ARM_VALIDATION_DETAIL = (
 
 # Los tres puntos fijos validados del lazo (`tests/test_hemodynamics_closed_loop_stability.py`,
 # misma traza de demostración que `closed_loop.py::__main__`) -- solo el valor inicial del slider.
-_FIXED_POINT_HR_BPM: Dict[str, float] = {"healthy": 72.0, "hypertension": 85.0, "sepsis": 150.0}
+# La FC de sepsis es el punto de shock de la trayectoria canónica (`src/clinical/sepsis_trajectory.py`), no un número propio.
+_FIXED_POINT_HR_BPM: Dict[str, float] = {
+    "healthy": 72.0, "hypertension": 85.0, "sepsis": sepsis_trajectory.horizon_vitals("24h")["hr"],
+}
 # Rango barrido: los 3 escenarios convergen sin oscilar en 40-220 lpm (2026-10-19).
 _HR_MIN_BPM, _HR_MAX_BPM = 40, 220
 

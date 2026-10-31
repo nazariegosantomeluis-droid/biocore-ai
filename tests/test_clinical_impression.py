@@ -192,7 +192,7 @@ def test_existing_ups_tables_unaffected_by_clinical_impressions(db_path):
     SessionLocal = _session_factory(db_path)
     with SessionLocal() as session:
         patient_id = create_patient(session, display_name="Paciente Regresion")
-        snapshot_id, state = _save_demo_state(session, patient_id, scenario="sepsis")
+        snapshot_id, state = _save_demo_state(session, patient_id, scenario="hypertension")
 
         create_clinical_impression(
             session, snapshot_id=snapshot_id, patient_id=patient_id,
