@@ -35,7 +35,7 @@ calculada todavía, cada uno con su razón propia (ver "Reconocimiento",
   snapshot (horizonte 7 días) refleja un estado recuperado/basal, no la
   fase aguda (arousal post-apnea / ictal) que describe la referencia
   citada de cada uno.
-- `arrhythmia`: falta un driver de efectividad de bombeo reducida (pérdida
+- `arrhythmia_*` (antes un `arrhythmia` genérico, Unificación 1: afib/aflutter/svt/sbrady): falta un driver de efectividad de bombeo reducida (pérdida
   de contribución auricular, latido irregular) -- el barórreflejo
   normaliza la PA en vez de reproducir la descompensación hipotensiva real
   (PAM referencia 70 mmHg; el lazo da ~93).

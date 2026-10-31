@@ -135,7 +135,7 @@ def test_events_are_first_class_and_persisted(db_path):
         patient_id = create_patient(session, display_name="Paciente Eventos")
 
         cardio_organism = DigitalTwinOrganism()
-        cardio_organism.create_patient_scenario("arrhythmia")  # hr=95, hrv=15 -> HRV bajo
+        cardio_organism.update_from_sensors({"ecg": {"heart_rate": 95, "hrv": 15}})  # hrv=15 -> HRV bajo (el preset "arrhythmia" se retiró)
         cardio_state = from_digital_twin_organism(cardio_organism, patient_id, Provenance.SIMULACION, 0.9)
         save_state(session, cardio_state)
 

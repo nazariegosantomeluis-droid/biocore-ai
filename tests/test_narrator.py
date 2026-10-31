@@ -43,7 +43,7 @@ def test_build_context_includes_temporal_comparison_after_trajectory(tmp_path):
     with SessionLocal() as session:
         patient_id = create_patient(session, display_name="Paciente Narrador")
         organism = DigitalTwinOrganism()
-        list(run_scenario(session, patient_id, "fibrilacion_estres", steps=6, organism=organism))
+        list(run_scenario(session, patient_id, "taquicardia_estres", steps=6, organism=organism))
 
     with SessionLocal() as session:
         context = build_context(session, patient_id)

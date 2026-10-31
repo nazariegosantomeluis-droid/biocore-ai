@@ -2,23 +2,30 @@
 BIOCORE AI — Simulation Engine
 
 Motor de simulación fisiológica.
-12 escenarios clínicos dinámicos.
+15 escenarios clínicos dinámicos (los de arritmia son tipos específicos, ver arrhythmia_types.py).
 Evolución temporal (Ahora → 5min → 30min → 2h → 24h → 7d)
 """
 
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import numpy as np
 
+from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES, declare_instance, instance_hr
+
 
 class SimulationScenario(Enum):
-    """12 escenarios clínicos"""
+    """15 escenarios clínicos"""
     HEALTHY = "healthy"  # Paciente sano
     EXERCISE = "exercise"  # Ejercicio
     STRESS = "stress"  # Estrés psicológico
     ANXIETY = "anxiety"  # Ansiedad
-    ARRHYTHMIA = "arrhythmia"  # Arritmia cardíaca
+    # Arritmia genérico retirado (Unificación 1): no es un diagnóstico. Cada tipo sale de la
+    # fuente única `src/signals/ecg/arrhythmia_types.py`; el valor es "arrhythmia_" + la clave del tipo.
+    ARRHYTHMIA_AFIB = "arrhythmia_afib"  # Fibrilación auricular
+    ARRHYTHMIA_AFLUTTER = "arrhythmia_aflutter"  # Flutter auricular 2:1
+    ARRHYTHMIA_SVT = "arrhythmia_svt"  # Taquicardia supraventricular
+    ARRHYTHMIA_SBRADY = "arrhythmia_sbrady"  # Bradicardia sinusal
     HYPOXIA = "hypoxia"  # Hipoxia (SpO2 bajo)
     APNEA = "apnea"  # Apnea del sueño
     FATIGUE = "fatigue"  # Fatiga crónica
@@ -26,6 +33,18 @@ class SimulationScenario(Enum):
     SEPSIS = "sepsis"  # Sepsis (infección sistémica)
     COPD = "copd"  # EPOC
     HYPERTENSION = "hypertension"  # Hipertensión
+
+
+ARRHYTHMIA_SCENARIO_TYPE: Dict[SimulationScenario, str] = {
+    s: s.value.removeprefix("arrhythmia_") for s in SimulationScenario if s.value.startswith("arrhythmia_")
+}
+assert set(ARRHYTHMIA_SCENARIO_TYPE.values()) == set(ARRHYTHMIA_TYPES), "enum y arrhythmia_types.py desalineados"
+
+
+def _arrhythmia_description(type_key: str) -> str:
+    t = ARRHYTHMIA_TYPES[type_key]
+    rango = f"{t.hr_min_bpm:.0f}" if t.hr_min_bpm == t.hr_max_bpm else f"{t.hr_min_bpm:.0f}-{t.hr_max_bpm:.0f}"
+    return f"{t.label}. FC {rango} lpm, {t.regularity_label}; {t.morphology}."
 
 
 @dataclass
@@ -65,6 +84,8 @@ class SimulationTimestep:
 class SimulationEngine:
     """Motor de simulación fisiológica multiescenario"""
     
+    TIME_POINTS = (("now", 0), ("5min", 5), ("30min", 30), ("2h", 120), ("24h", 1440), ("7d", 10080))
+
     # Parámetros basales (sano)
     BASELINE_PARAMETERS = {
         "hr": 72,
@@ -107,15 +128,6 @@ class SimulationEngine:
             "respiratory_trend": "hyperventilation",
             "fatigue_trend": "increasing",
             "duration_minutes": 90,
-        },
-        SimulationScenario.ARRHYTHMIA: {
-            "hr_trend": "irregular_spikes",
-            "hrv_trend": "very_low",
-            "stress_trend": "high_acute",
-            "respiratory_trend": "shallow",
-            "fatigue_trend": "rapid",
-            "duration_minutes": 60,
-            "severity": "high",
         },
         SimulationScenario.HYPOXIA: {
             "spo2_trend": "decreasing",
@@ -173,7 +185,10 @@ class SimulationEngine:
         },
     }
     
-    def __init__(self):
+    def __init__(self, seed: int = 0):
+        # `seed` solo afecta a los escenarios de arritmia: la instancia (tipo, semilla) es
+        # determinista dentro del rango declarado del tipo. El resto de escenarios no la usa.
+        self.seed = seed
         self.current_scenario: Optional[SimulationScenario] = None
         self.timeline: List[SimulationTimestep] = []
         self.current_step: int = 0
@@ -202,16 +217,7 @@ class SimulationEngine:
             state.update(initial_state)
         
         # Puntos temporales a simular
-        time_points = [
-            ("now", 0),
-            ("5min", 5),
-            ("30min", 30),
-            ("2h", 120),
-            ("24h", 1440),
-            ("7d", 10080),
-        ]
-        
-        for time_label, minutes in time_points:
+        for time_label, minutes in self.TIME_POINTS:
             timestep = self._compute_timestep(
                 scenario,
                 time_label,
@@ -247,8 +253,10 @@ class SimulationEngine:
         elif scenario == SimulationScenario.ANXIETY:
             timestep = self._simulate_anxiety(time_label, minutes_elapsed, base_state)
         
-        elif scenario == SimulationScenario.ARRHYTHMIA:
-            timestep = self._simulate_arrhythmia(time_label, minutes_elapsed, base_state)
+        elif scenario in ARRHYTHMIA_SCENARIO_TYPE:
+            timestep = self._simulate_arrhythmia(
+                ARRHYTHMIA_SCENARIO_TYPE[scenario], time_label, minutes_elapsed, base_state
+            )
         
         elif scenario == SimulationScenario.HYPOXIA:
             timestep = self._simulate_hypoxia(time_label, minutes_elapsed, base_state)
@@ -392,28 +400,22 @@ class SimulationEngine:
             risk_level=15 + intensity * 35,
         )
     
-    def _simulate_arrhythmia(self, time_label: str, minutes: int, state: Dict) -> SimulationTimestep:
-        """Simulación: Arritmia cardíaca"""
-        return SimulationTimestep(
-            time_point=time_label,
-            minutes_elapsed=minutes,
-            hr=110 + np.random.normal(0, 30),  # Muy variable
-            hrv=15,  # Muy baja
-            cardiac_output=3.8,
-            stress_level=70,
-            cognitive_state=65,
-            eeg_activity=55,
-            respiratory_rate=22,
-            spo2=94,
-            ahi=1,
-            fatigue_index=50,
-            muscle_activation=45,
-            sympathetic_tone=75,
-            parasympathetic_tone=25,
-            global_health=40,
-            risk_level=85,
+    def _simulate_arrhythmia(self, type_key: str, time_label: str, minutes: int, state: Dict) -> SimulationTimestep:
+        """Arritmia de un TIPO específico: solo la FC es del tipo (rango declarado en
+        `arrhythmia_types.py`, instancia fijada por `self.seed`). HRV, FR y SpO2 se conservan del
+        estado de partida -- los tipos no declaran valores propios para ellos, no se inventan."""
+        return replace(
+            self._baseline_timestep(time_label, minutes, state), hr=instance_hr(type_key, self.seed, minutes)
         )
-    
+
+    def instance_declaration(self, scenario: SimulationScenario) -> Optional[str]:
+        """Texto de variabilidad declarada (rango, semilla, FC de esta instancia) para un escenario
+        de arritmia; `None` para los demás."""
+        type_key = ARRHYTHMIA_SCENARIO_TYPE.get(scenario)
+        if type_key is None:
+            return None
+        return declare_instance(type_key, self.seed, tuple(m for _, m in self.TIME_POINTS))
+
     def _simulate_hypoxia(self, time_label: str, minutes: int, state: Dict) -> SimulationTimestep:
         """Simulación: Hipoxia progresiva"""
         hypoxia_progression = min(1.0, minutes / 120)
@@ -673,7 +675,10 @@ class SimulationEngine:
             SimulationScenario.EXERCISE: "Ejercicio intenso con recuperación. Ver aumento de FC, RR y fatiga durante actividad.",
             SimulationScenario.STRESS: "Estrés psicológico sostenido. Activación simpática, aumento de FC y estrés hormonal.",
             SimulationScenario.ANXIETY: "Ataque de pánico / ansiedad aguda. Taquicardia, hiperventilación, disminución cognitiva.",
-            SimulationScenario.ARRHYTHMIA: "Arritmia cardíaca. FC muy irregular, HRV muy baja, riesgo cardiovascular alto.",
+            SimulationScenario.ARRHYTHMIA_AFIB: _arrhythmia_description("afib"),
+            SimulationScenario.ARRHYTHMIA_AFLUTTER: _arrhythmia_description("aflutter"),
+            SimulationScenario.ARRHYTHMIA_SVT: _arrhythmia_description("svt"),
+            SimulationScenario.ARRHYTHMIA_SBRADY: _arrhythmia_description("sbrady"),
             SimulationScenario.HYPOXIA: "Hipoxia progresiva. SpO2 cae, aumento compensatorio de FC y RR, deterioro cognitivo.",
             SimulationScenario.APNEA: (
                 "Apnea Obstructiva del Sueño severa. Muestra el NADIR de un evento apneico crítico "

@@ -341,7 +341,7 @@ def render_synthetic_case_section() -> None:
     with st.expander("🧪 Caso clínico sintético (diagnóstico ciego)", expanded=False):
         st.caption(
             "🧪 Caso **simulado** por el banco de casos de BIOCORE — no es un paciente real. "
-            "Es una variación honesta de uno de los 12 escenarios reales del simulador "
+            "Es una variación honesta de uno de los 15 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
             "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
             "(Anthropic), fundamentado en los descriptores y eventos que este caso contiene."
@@ -430,7 +430,7 @@ def render_synthetic_case_section() -> None:
                 "Valor CALCULADO por el modelo a partir del heart_rate real de este caso -- no es una "
                 "medición del paciente ni un valor de guía clínica. Solo disponible para sano/"
                 "hipertensión/sepsis (los 3 escenarios con validación experta completa del motor "
-                "hemodinámico); en el resto de los 12 escenarios este caso no muestra PA calculada."
+                "hemodinámico); en el resto de los 15 escenarios este caso no muestra PA calculada."
             )
 
         if events:

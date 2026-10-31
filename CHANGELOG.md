@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-10-31 — Unificación 1: "arritmia" genérico-aleatorio reemplazado por tipos específicos, desde una sola fuente y con variabilidad declarada
+
+**Contexto**: el diagnóstico de fragmentación encontró que "arritmia" era la peor colisión: divergente y no reproducible. El preset daba FC 95; el `SimulationEngine` daba FC ~ N(110, 30) sin semilla (de 41 a 183 lpm según la corrida: 163 lpm con evento crítico o 81 lpm sin evento con el mismo clic); ECG-12 dibujaba la FA a 112 fijo; el entrenador, a ~128; y `fibrilacion_estres` era solo una FC 75→145 con nombre de diagnóstico. Decisiones del experto: variabilidad declarada (el rango se muestra, no se esconde) y tipos específicos en lugar de la categoría.
+
+- **Fuente única** (`src/signals/ecg/arrhythmia_types.py`, módulo puro sin imports del proyecto, para que lo consuma cualquiera sin ciclos). **Tipos propuestos, pendientes de firma** (todos `PENDING_VALIDATION`):
+  - fibrilación auricular: FC 100–160 lpm, irregularmente irregular;
+  - flutter auricular 2:1: FC 150 lpm, regular, valor único;
+  - taquicardia supraventricular: FC 150–220 lpm, regular;
+  - bradicardia sinusal: FC 40–59 lpm, regular.
+  Quitar uno es borrar su entrada de la tabla.
+- **Extrasístoles no entran**: su FC media es normal y el UPS no tiene descriptor de ritmo, así que un escenario de signos vitales no tendría nada que lo distinguiera de "sano". Necesitan una forma de onda con salvas prematuras; se añaden con su propio generador si se firma.
+- **Variabilidad declarada, sin `np.random`**: una instancia es el par (tipo, semilla) y la FC es función pura de él, dentro del rango declarado. Los tipos regulares mantienen una FC por episodio; la FA cambia entre horizontes. El estado global de numpy ya no influye. La UI muestra rango, semilla y FC de la instancia ("Rango declarado de …: FC 100-160 lpm, … Esta instancia (semilla 0): …"), tanto en el simulador de escenarios (con un campo de semilla) como en el panel de ajustes rápidos.
+- **`SimulationScenario.ARRHYTHMIA` retirado** y reemplazado por `ARRHYTHMIA_AFIB/AFLUTTER/SVT/SBRADY` (15 escenarios). Solo la FC es del tipo; HRV, FR y SpO2 se conservan del estado de partida, porque los tipos no declaran valores propios para ellos (los de antes —HRV 15, FR 22, SpO2 94— no tenían cita).
+- **Tablas paralelas retiradas o redirigidas**:
+  - Preset "Arritmia" (FC 95/HRV 15): retirado; `create_patient_scenario("arrhythmia")` ahora lanza error en lugar de ignorarse en silencio. Lo sustituye `DigitalTwinOrganism.apply_arrhythmia(tipo, semilla)`, que solo cambia la FC (el organismo sustituye las señales de un órgano por lo recibido, así que reenvía las vigentes).
+  - `SimulationEngine._simulate_arrhythmia` (N(110, 30)): reescrito sobre la fuente única.
+  - ECG-12: la FC de FA (antes 112 fijo), de flutter (150 fijo) y de bradicardia sale del tipo. La condición "Bradicardia sinusal" dibujaba el slider (75 lpm por defecto) con la etiqueta de bradicardia; ahora dibuja ~50 lpm. La métrica "FC" de la página muestra la FC realmente generada, no el slider, y declara el rango.
+  - Entrenador ECG (`signal_generator.py`): FA (antes media 120, recorte 80–180) y bradicardia (45) salen del tipo; la FA usa un generador local con semilla.
+  - `definitions.py::fibrilacion_estres` → `taquicardia_estres` (solo la usan tests; no trazaba nada de fibrilación). Se conserva como trayectoria de estrés.
+- **Flutter de ECG-12 arreglado**: usaba `np.sawtooth`, que no existe en numpy (`AttributeError`); ahora `scipy.signal.sawtooth`. Medido: pico de las ondas F a 5 Hz (300/min), FC 150.00 lpm. AF y flutter generan con semilla, así que el trazado ya no cambia con cada interacción.
+- **Eventos del UPS**: verificados contra el builder real, no solo declarados. Flutter y TSV disparan siempre el evento por FC (aviso con 150, crítico por encima de 150); la FA solo con FC > 120. **Hueco declarado**: la bradicardia sinusal (40–59) no dispara ningún evento, porque el UPS solo marca FC < 40. Los códigos propuestos `ARR_*_ON` requieren un descriptor de ritmo en el esquema del UPS y no existen todavía.
+- **Efectos en datos validados (pendientes de firma del validador)**:
+  - `CLINICAL_GROUPS`: los tres tipos taquiarrítmicos heredan la doble pertenencia A+C que el validador decidió para el genérico; la bradicardia sinusal solo entra en C.
+  - Referencia de PA (AHA/ACC/HRS, 90/60, fase descompensada): la heredan los tres tipos taquiarrítmicos con la misma cita y nota; la bradicardia sinusal queda sin referencia (hueco honesto). Las referencias pasan de 10 a 12.
+- **Tests**: `tests/test_arrhythmia_unification.py` (29). Cubren:
+  - fuente única y preset retirado;
+  - toda instancia dentro del rango declarado y misma (tipo, semilla) = mismo paciente con cualquier estado de numpy;
+  - preset/organismo y simulador parten de la misma instancia;
+  - ECG-12 y entrenador usan la FC canónica;
+  - eventos del UPS contra el builder;
+  - flutter;
+  - la UI declara rango y semilla.
+  Se actualizaron los contratos que nombraban el genérico (grupos de distractores, referencias de PA, banco de casos, preset en dos tests). Pendiente aparte: "Taquicardia sinusal" de ECG-12 sigue dibujando el slider con etiqueta de taquicardia (siguiente colisión).
+- **Cita**: Art. I y IV.
+
 ## 2026-10-31 — HRV no lineal: SampEn, DFA α1 y Poincaré (SD1/SD2) sobre RR con estructura real
 
 **Contexto**: la RSA dio RR con estructura autonómica real; sobre el ruido blanco del viejo "Demo (ECG-derived)" estas métricas no enseñaban nada. `src/advanced_hrv.py` (huérfano) **no se reusa**: su "DFA" devolvía 1.0 de relleno y su ApEn era O(N²) y sesgado. Módulo nuevo, sin relleno: cada métrica da un número calculado o declina con motivo.

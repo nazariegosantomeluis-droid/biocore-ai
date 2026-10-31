@@ -12,6 +12,7 @@ Additional pathological patterns:
 """
 
 import numpy as np
+from scipy.signal import sawtooth  # np.sawtooth no existe: el flutter fallaba con AttributeError
 from typing import Dict, Tuple
 
 
@@ -23,7 +24,8 @@ class AdvancedEcgPatterns:
         duration: float = 10.0,
         sampling_rate: float = 250,
         ventricular_rate: float = 110,
-        fibrillation_amplitude: float = 0.15
+        fibrillation_amplitude: float = 0.15,
+        seed: int = 0
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generate Atrial Fibrillation pattern
@@ -39,16 +41,19 @@ class AdvancedEcgPatterns:
             sampling_rate: Samples per second
             ventricular_rate: Average ventricular rate (100-160 typical)
             fibrillation_amplitude: Baseline oscillation amplitude (0.1-0.3 mV)
+            seed: Semilla del generador local (irregularidad RR, ondas f y ruido);
+                misma semilla, mismo trazado
             
         Returns:
             (signal, time) tuple
         """
+        rng = np.random.default_rng(seed)
         n_samples = int(duration * sampling_rate)
         time = np.arange(n_samples) / sampling_rate
         signal = np.zeros(n_samples)
         
         # Add fibrillation waves (300-600 bpm atrial rate)
-        af_freq = np.random.uniform(300/60, 600/60)  # Hz
+        af_freq = rng.uniform(300/60, 600/60)  # Hz
         signal += fibrillation_amplitude * np.sin(2 * np.pi * af_freq * time)
         signal += fibrillation_amplitude * 0.3 * np.cos(2 * np.pi * af_freq * 1.5 * time)
         
@@ -60,7 +65,7 @@ class AdvancedEcgPatterns:
         
         while current_time < duration:
             # Random variation ±20% of mean RR
-            rr_interval = mean_rr * np.random.uniform(0.8, 1.2)
+            rr_interval = mean_rr * rng.uniform(0.8, 1.2)
             current_time += rr_interval
             beat_positions.append(int(current_time * sampling_rate))
         
@@ -79,7 +84,7 @@ class AdvancedEcgPatterns:
                     signal[beat_pos:beat_pos + qrs_width] += qrs * 0.8
         
         # Add noise
-        signal += np.random.normal(0, 0.02, n_samples)
+        signal += rng.normal(0, 0.02, n_samples)
         
         return signal, time
     
@@ -89,7 +94,8 @@ class AdvancedEcgPatterns:
         sampling_rate: float = 250,
         flutter_rate: float = 300,
         atrioventricular_ratio: int = 2,
-        ventricular_rate: float = 150
+        ventricular_rate: float = 150,
+        seed: int = 0
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generate Atrial Flutter pattern
@@ -105,6 +111,7 @@ class AdvancedEcgPatterns:
             flutter_rate: Atrial flutter rate (typically 250-350 bpm)
             atrioventricular_ratio: 2:1 or 3:1 conduction (default 2:1)
             ventricular_rate: Resulting ventricular rate
+            seed: Semilla del ruido de fondo; misma semilla, mismo trazado
             
         Returns:
             (signal, time) tuple
@@ -115,7 +122,7 @@ class AdvancedEcgPatterns:
         
         # Flutter waves at regular rate (sawtooth pattern)
         flutter_freq = flutter_rate / 60  # Convert to Hz
-        flutter_signal = np.sawtooth(2 * np.pi * flutter_freq * time)
+        flutter_signal = sawtooth(2 * np.pi * flutter_freq * time)
         signal += 0.3 * flutter_signal
         
         # Generate regular QRS complexes
@@ -136,7 +143,7 @@ class AdvancedEcgPatterns:
                     
                     signal[beat_pos:beat_pos + qrs_width] += qrs
         
-        signal += np.random.normal(0, 0.015, n_samples)
+        signal += np.random.default_rng(seed).normal(0, 0.015, n_samples)
         
         return signal, time
     

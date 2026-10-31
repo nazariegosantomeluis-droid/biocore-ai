@@ -934,7 +934,7 @@ class DigitalTwinOrganism:
 
     def create_patient_scenario(self, scenario: str) -> None:
         """
-        Aplica un preset de paciente (healthy, hypertension, copd, arrhythmia, sepsis)
+        Aplica un preset de paciente (healthy, hypertension, copd, sepsis)
         directamente a las señales/detalles de los órganos correspondientes.
         """
         scenarios: Dict[str, Dict[str, Dict[str, float]]] = {
@@ -948,17 +948,33 @@ class DigitalTwinOrganism:
             'copd': {
                 'respiratory': {'respiratory_rate': 22, 'spo2': 88, 'ahi': 3},
             },
-            'arrhythmia': {
-                'ecg': {'heart_rate': 95, 'hrv': 15},
-            },
             'sepsis': {
                 'ecg': {'heart_rate': 110, 'hrv': 20}, 'respiratory': {'respiratory_rate': 28, 'spo2': 92},
                 'eeg': {'stress_level': 85},
             },
         }
 
+        if scenario == 'arrhythmia':
+            raise ValueError(
+                "El preset 'arrhythmia' se retiró (Unificación 1): 'arritmia' no es un diagnóstico. "
+                "Usa apply_arrhythmia(tipo, semilla) con un tipo de arrhythmia_types.ARRHYTHMIA_TYPES."
+            )
         config = scenarios.get(scenario)
         if config is None:
             return
         self.current_scenario = scenario
         self.update_from_sensors(config)
+
+    def apply_arrhythmia(self, type_key: str, seed: int = 0) -> str:
+        """Aplica un tipo de arritmia de la fuente única (`src/signals/ecg/arrhythmia_types.py`):
+        solo la FC de la instancia (tipo, semilla) en el horizonte inicial; HRV y el resto del
+        organismo no se tocan. Devuelve el texto de variabilidad declarada (rango, semilla, FC)
+        para que la UI lo muestre."""
+        from src.signals.ecg.arrhythmia_types import declare_instance, instance_hr
+
+        self.current_scenario = f"arrhythmia_{type_key}"
+        # `_update_heart` sustituye las señales del órgano por lo recibido: se reenvían las vigentes (HRV...)
+        # para que solo cambie la FC.
+        ecg = {**self.organs['heart'].metrics.signals, 'heart_rate': instance_hr(type_key, seed)}
+        self.update_from_sensors({'ecg': ecg})
+        return declare_instance(type_key, seed, (0,))

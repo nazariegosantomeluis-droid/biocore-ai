@@ -28,18 +28,18 @@ def _session_factory(path):
 
 def test_available_scenarios_include_the_documented_examples():
     scenarios = available_scenarios()
-    assert "fibrilacion_estres" in scenarios
+    assert "taquicardia_estres" in scenarios
     assert "hipoxia_progresiva" in scenarios
 
 
-def test_fibrilacion_estres_trajectory_is_monotonic_and_persisted(tmp_path):
+def test_taquicardia_estres_trajectory_is_monotonic_and_persisted(tmp_path):
     db_path = tmp_path / "scenario_test.db"
     SessionLocal = _session_factory(db_path)
 
     with SessionLocal() as session:
         patient_id = create_patient(session, display_name="Paciente Escenario")
         organism = DigitalTwinOrganism()
-        steps = list(run_scenario(session, patient_id, "fibrilacion_estres", steps=8, organism=organism))
+        steps = list(run_scenario(session, patient_id, "taquicardia_estres", steps=8, organism=organism))
 
     assert len(steps) == 8
     # Todos los valores medidos/simulados deben quedar etiquetados como tal —

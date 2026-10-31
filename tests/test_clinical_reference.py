@@ -131,8 +131,12 @@ def test_fatigue_and_copd_have_no_reference_honest_gap():
     assert "copd" not in BLOOD_PRESSURE_REFERENCES
 
 
-def test_ten_scenarios_have_data():
-    assert len(BLOOD_PRESSURE_REFERENCES) == 10
+def test_twelve_scenarios_have_data():
+    """10 originales: el 'arrhythmia' genérico se retiró (Unificación 1) y su referencia citada la heredan
+    los tres tipos taquiarrítmicos -> 10 - 1 + 3. Bradicardia sinusal queda sin referencia (hueco honesto)."""
+    assert len(BLOOD_PRESSURE_REFERENCES) == 12
+    assert "arrhythmia" not in BLOOD_PRESSURE_REFERENCES
+    assert "arrhythmia_sbrady" not in BLOOD_PRESSURE_REFERENCES
 
 
 def test_every_reference_value_has_a_non_empty_citation():
@@ -142,14 +146,14 @@ def test_every_reference_value_has_a_non_empty_citation():
 
 
 def test_bifasic_scenarios_carry_a_phase_note():
-    bifasic = ["sepsis", "hypoxia", "apnea", "seizure", "arrhythmia", "stress", "anxiety"]
+    bifasic = ["sepsis", "hypoxia", "apnea", "seizure", "arrhythmia_afib", "arrhythmia_aflutter", "arrhythmia_svt", "stress", "anxiety"]
     for scenario in bifasic:
         for v in BLOOD_PRESSURE_REFERENCES[scenario]:
             assert v.phase_note, f"{scenario}/{v.descriptor} sin nota de fase"
 
 
 def test_healthy_and_hypertension_have_full_triplet():
-    for scenario in ["healthy", "hypertension", "sepsis", "apnea", "seizure", "hypoxia", "arrhythmia"]:
+    for scenario in ["healthy", "hypertension", "sepsis", "apnea", "seizure", "hypoxia", "arrhythmia_afib", "arrhythmia_aflutter", "arrhythmia_svt"]:
         descriptors = {v.descriptor for v in BLOOD_PRESSURE_REFERENCES[scenario]}
         assert descriptors == {"systolic_bp", "diastolic_bp", "map"}, scenario
 

@@ -35,6 +35,7 @@ from app.engines import (
     SimulationScenario,
     PredictionEngine,
 )
+from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
 from app.utils.design_system import render_module_header, render_error_state, BADGES
 from app.supermodules.twin_shell.baroreflex_panel import pa_model_label, render_baroreflex_panel
 from app.utils.patient_session import (
@@ -81,6 +82,7 @@ from domain.physiology.state import (
     get_value_history,
 )
 from src.ai.patient_analytics import AnomalyDetector, PatientRiskPredictor
+from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES
 from src.signals.signal_sources import ESP32SignalSource
 
 from .ups_body_visual import render_ups_body
@@ -586,7 +588,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         st.markdown("**Preset rápido:**")
         scenarios = {
             "healthy": "🟢 Sano", "hypertension": "🟡 Hipertensión",
-            "copd": "🔴 EPOC", "arrhythmia": "⚠️ Arritmia", "sepsis": "🆘 Sepsis",
+            "copd": "🔴 EPOC", "sepsis": "🆘 Sepsis",
         }
         cols = st.columns(len(scenarios))
         for col, (key, label) in zip(cols, scenarios.items()):
@@ -594,6 +596,22 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
                 if st.button(label, key=f"twin_shell_scenario_{key}", use_container_width=True):
                     organism.create_patient_scenario(key)
                     st.rerun()
+
+        st.markdown("**Arritmia (tipo específico, fuente única):**")
+        arr_col1, arr_col2, arr_col3 = st.columns([3, 1, 2])
+        arrhythmia_key = arr_col1.selectbox(
+            "Tipo", list(ARRHYTHMIA_TYPES), format_func=lambda k: ARRHYTHMIA_TYPES[k].label,
+            key="twin_shell_arrhythmia_type", label_visibility="collapsed",
+        )
+        arrhythmia_seed = int(arr_col2.number_input(
+            "Semilla", min_value=0, value=0, step=1, key="twin_shell_arrhythmia_seed",
+            help="Fija la instancia dentro del rango declarado del tipo; otra semilla, otra instancia.",
+        ))
+        if arr_col3.button("Aplicar tipo", key="twin_shell_arrhythmia_apply", use_container_width=True):
+            st.session_state.twin_shell_arrhythmia_declaration = organism.apply_arrhythmia(arrhythmia_key, arrhythmia_seed)
+            st.rerun()
+        if st.session_state.get("twin_shell_arrhythmia_declaration"):
+            st.info(st.session_state.twin_shell_arrhythmia_declaration)
 
         st.markdown("**Intervenciones simuladas:**")
         interventions = [
@@ -613,7 +631,10 @@ RICH_SCENARIO_LABELS = {
     SimulationScenario.EXERCISE: "🏃 Ejercicio",
     SimulationScenario.STRESS: "😰 Estrés psicológico",
     SimulationScenario.ANXIETY: "😨 Crisis de ansiedad",
-    SimulationScenario.ARRHYTHMIA: "🫀 Arritmia cardíaca",
+    SimulationScenario.ARRHYTHMIA_AFIB: "🫀 Fibrilación auricular",
+    SimulationScenario.ARRHYTHMIA_AFLUTTER: "🫀 Flutter auricular 2:1",
+    SimulationScenario.ARRHYTHMIA_SVT: "🫀 Taquicardia supraventricular",
+    SimulationScenario.ARRHYTHMIA_SBRADY: "🫀 Bradicardia sinusal",
     SimulationScenario.HYPOXIA: "💨 Hipoxia progresiva",
     SimulationScenario.APNEA: "😴 Apnea del sueño",
     SimulationScenario.FATIGUE: "🥱 Fatiga crónica",
@@ -661,7 +682,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
     Antes ofrecía 3 trayectorias hechas a mano
     (`domain/physiology/scenarios/definitions.py` — sin tocar, sigue
     existiendo y cubierta por `tests/test_scenario_simulator.py`, ya no
-    expuesta en esta UI). Ahora los 12 escenarios reales de
+    expuesta en esta UI). Ahora los 15 escenarios reales de
     `SimulationEngine` (antes aislados en `render_simulation_lab`, sin
     persistencia — eliminada, 100% subsumida por esta función) alimentan el
     mismo pipeline de siempre — `organism.update_from_sensors` →
@@ -679,7 +700,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
 
     with st.expander("🧬 Simulador de escenarios clínicos (persistido en el UPS)"):
         st.caption(
-            "Los 12 escenarios reales de SimulationEngine persisten paso a paso en el Unified "
+            "Los 15 escenarios reales de SimulationEngine persisten paso a paso en el Unified "
             "Physiological State — siempre etiquetados como simulación."
         )
 
@@ -692,6 +713,14 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
             format_func=lambda s: RICH_SCENARIO_LABELS[s],
             key="twin_shell_rich_scenario_select",
         )
+        arrhythmia_seed = 0
+        if scenario_key in ARRHYTHMIA_SCENARIO_TYPE:
+            # Variabilidad DECLARADA (Unificación 1): rango del tipo, semilla y FC de la instancia a la vista.
+            arrhythmia_seed = int(st.number_input(
+                "Semilla de la instancia", min_value=0, value=0, step=1, key="twin_shell_rich_arrhythmia_seed",
+                help="Fija la instancia dentro del rango declarado del tipo; otra semilla, otra instancia.",
+            ))
+            st.info(SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario_key))
         start_mode = st.radio(
             "Punto de partida:",
             ["Estado actual del paciente", "Basal genérica (caso didáctico)"],
@@ -732,7 +761,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
                 spo2_trajectory: list = []
                 total_steps = 1
 
-                for step in run_rich_scenario(session, patient_id, scenario_key, organism, start_from_current):
+                for step in run_rich_scenario(session, patient_id, scenario_key, organism, start_from_current, seed=arrhythmia_seed):
                     hr_val = step.state.all_domains()["cardiovascular"].get("heart_rate")
                     spo2_val = step.state.all_domains()["respiratory"].get("spo2")
                     hr_trajectory.append(hr_val.value if hr_val is not None else None)
@@ -1036,13 +1065,21 @@ def _dedupe_events(events: list) -> list:
 # sin notar que la causa es la FC errática, no la vasoplejía). No es un
 # error de partición -- un mismo escenario puede ser el distractor correcto
 # de más de un diferencial real.
+# Unificación 1: "arrhythmia" genérico se retiró. Los tres tipos taquiarrítmicos heredan la
+# pertenencia A+C que el validador decidió para el genérico; la bradicardia sinusal (bajo gasto si es
+# sintomática, nunca activación simpática) solo entra en C. PENDIENTE DE FIRMA del validador.
+_TACHYARRHYTHMIA_SCENARIOS = (
+    SimulationScenario.ARRHYTHMIA_AFIB,
+    SimulationScenario.ARRHYTHMIA_AFLUTTER,
+    SimulationScenario.ARRHYTHMIA_SVT,
+)
 CLINICAL_GROUPS: Dict[str, FrozenSet[SimulationScenario]] = {
     "A_activacion_simpatica_aguda": frozenset({
         SimulationScenario.STRESS,
         SimulationScenario.ANXIETY,
         SimulationScenario.EXERCISE,
         SimulationScenario.SEIZURE,
-        SimulationScenario.ARRHYTHMIA,
+        *_TACHYARRHYTHMIA_SCENARIOS,
     }),
     "B_respiratorio_hipoxemico": frozenset({
         SimulationScenario.HYPOXIA,
@@ -1051,7 +1088,8 @@ CLINICAL_GROUPS: Dict[str, FrozenSet[SimulationScenario]] = {
     }),
     "C_hipotension_bajo_gasto_shock": frozenset({
         SimulationScenario.SEPSIS,
-        SimulationScenario.ARRHYTHMIA,
+        *_TACHYARRHYTHMIA_SCENARIOS,
+        SimulationScenario.ARRHYTHMIA_SBRADY,
     }),
     "D_basales_cronicos_leves": frozenset({
         SimulationScenario.HEALTHY,
@@ -1247,7 +1285,7 @@ def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
 def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
     """Modo Caso Clínico Interactivo v1 (2026-07-12) — diagnóstico por
     opción múltiple. Convierte al estudiante de espectador en clínico,
-    reutilizando TODO lo existente: los 12 escenarios reales
+    reutilizando TODO lo existente: los 15 escenarios reales
     (`domain.physiology.scenarios.rich_engine.run_rich_scenario`), el UPS
     persistido, el cuerpo visual (`render_ups_body`) y el narrador real
     (`stream_findings_narration` — misma disciplina de anclaje que
@@ -1278,7 +1316,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
 
     with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=False):
         st.caption(
-            "Se carga uno de los 12 escenarios reales sin revelar cuál. Diagnostica eligiendo "
+            "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo "
             "entre 4 opciones; el feedback lo genera el narrador real (Anthropic), fundamentado "
             "únicamente en los descriptores y eventos que el UPS realmente persistió."
         )
@@ -1375,7 +1413,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 "Valor CALCULADO por el modelo a partir del heart_rate real de este caso -- no es una "
                 "medición del paciente ni un valor de guía clínica. Solo disponible para sano/"
                 "hipertensión/sepsis (los 3 escenarios con validación experta completa del motor "
-                "hemodinámico); en el resto de los 12 escenarios este caso no muestra PA calculada."
+                "hemodinámico); en el resto de los 15 escenarios este caso no muestra PA calculada."
             )
 
         if events:
@@ -1633,7 +1671,7 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
             st.caption(
                 "Sin presión arterial disponible para el escenario más reciente de este paciente — "
                 "ese factor queda omitido del score. Solo hay referencia de PA transcrita con fuente "
-                "para 10 de los 12 escenarios (no para fatiga crónica ni EPOC) — nunca se rellena con "
+                "para 10 de los 15 escenarios (no para fatiga crónica ni EPOC) — nunca se rellena con "
                 "un valor típico sin cita."
             )
 

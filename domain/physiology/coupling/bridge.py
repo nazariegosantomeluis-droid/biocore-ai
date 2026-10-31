@@ -83,7 +83,7 @@ regla neuro->↑FC encima contaría el mismo efecto dos veces:
 
 - `stress`, `anxiety`: descarga simpática psicológica aguda; el heart_rate
   del escenario ya sube CON el stress_level en cada waypoint (ver
-  `scenarios/definitions.py::fibrilacion_estres`: stress 25->80 junto a FC
+  `scenarios/definitions.py::taquicardia_estres`: stress 25->80 junto a FC
   75->145). El módulo hemodinámico ya los excluye por la misma razón
   (`closed_loop_ups_bridge.py`: "PICO AGUDO transitorio de descarga
   simpática").

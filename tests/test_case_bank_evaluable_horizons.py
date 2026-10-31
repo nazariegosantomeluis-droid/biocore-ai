@@ -87,7 +87,7 @@ def test_seizure_always_uses_now_never_anything_else(tmp_path):
 
 @pytest.mark.parametrize(
     "scenario_value",
-    ["healthy", "arrhythmia", "sepsis", "hypertension", "fatigue", "apnea", "copd"],
+    ["healthy", "arrhythmia_afib", "arrhythmia_aflutter", "arrhythmia_svt", "arrhythmia_sbrady", "sepsis", "hypertension", "fatigue", "apnea", "copd"],
 )
 def test_unrestricted_scenarios_are_not_limited_to_a_subset(tmp_path, scenario_value):
     """Los 7 escenarios que la Fase 0 midió limpios en los 6 horizontes no

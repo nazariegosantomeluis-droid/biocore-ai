@@ -6,6 +6,8 @@ Generates synthetic ECG waveforms for various arrhythmias and clinical condition
 
 import numpy as np
 
+from src.signals.ecg.arrhythmia_types import get_type
+
 class ECGGenerator:
     @staticmethod
     def generate_base_ecg(duration: float, fs: float, hr: float, noise: float = 0.05):
@@ -28,22 +30,27 @@ class ECGGenerator:
         return t, signal
 
     @staticmethod
-    def generate_afib(duration: float, fs: float, avg_hr: float = 120):
+    def generate_afib(duration: float, fs: float, avg_hr: float = None, seed: int = 0):
+        # Unificación 1: la FC media y su recorte salen del tipo canónico (fuente única); antes eran
+        # un 120 y un recorte 80-180 propios de este generador. Misma semilla, mismo trazado.
+        afib = get_type('afib')
+        avg_hr = afib.nominal_hr_bpm if avg_hr is None else avg_hr
+        rng = np.random.default_rng(seed)
         t = np.linspace(0, duration, int(duration * fs))
         signal = np.zeros_like(t)
         
         current_t = 0.2
         while current_t < duration - 0.5:
-            hr = avg_hr + np.random.normal(0, 25)
-            hr = np.clip(hr, 80, 180)
+            hr = avg_hr + rng.normal(0, 25)
+            hr = np.clip(hr, afib.hr_min_bpm, afib.hr_max_bpm)
             period = 60.0 / hr
             
             signal += 1.1 * np.exp(-((t - current_t)**2) / (2 * 0.01**2))
             signal += 0.25 * np.exp(-((t - (current_t + 0.2))**2) / (2 * 0.04**2))
             current_t += period
             
-        signal += 0.08 * np.sin(2 * np.pi * np.random.uniform(10, 20) * t)
-        signal += 0.05 * np.random.randn(len(t))
+        signal += 0.08 * np.sin(2 * np.pi * rng.uniform(10, 20) * t)
+        signal += 0.05 * rng.standard_normal(len(t))
         return t, signal
 
     @staticmethod
@@ -79,7 +86,7 @@ class ECGGenerator:
         elif case_type == 'taquicardia':
             return ECGGenerator.generate_base_ecg(duration, fs, 120)
         elif case_type == 'bradicardia':
-            return ECGGenerator.generate_base_ecg(duration, fs, 45)
+            return ECGGenerator.generate_base_ecg(duration, fs, get_type('sbrady').nominal_hr_bpm)
         elif case_type == 'fibrilacion_auricular':
             return ECGGenerator.generate_afib(duration, fs)
         elif case_type == 'taquicardia_ventricular':

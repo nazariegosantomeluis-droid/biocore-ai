@@ -20,7 +20,11 @@ from typing import Dict, List, Tuple
 Waypoint = Tuple[float, Dict[str, Dict[str, float]]]
 
 SCENARIOS: Dict[str, List[Waypoint]] = {
-    "fibrilacion_estres": [
+    # Unificación 1: antes "fibrilacion_estres". Solo trazaba una FC 75->145 con HRV cayendo, sin nada de
+    # fibrilación auricular (irregularidad, rango propio): una taquicardia de estrés con nombre de
+    # diagnóstico. Ningún menú la usa (solo tests); la fibrilación auricular vive en
+    # `src/signals/ecg/arrhythmia_types.py`.
+    "taquicardia_estres": [
         (0.0, {"ecg": {"heart_rate": 75, "hrv": 55, "complexity": 60}, "eeg": {"stress_level": 25}}),
         (0.3, {"ecg": {"heart_rate": 95, "hrv": 35, "complexity": 45}, "eeg": {"stress_level": 45}}),
         (0.6, {"ecg": {"heart_rate": 120, "hrv": 20, "complexity": 25}, "eeg": {"stress_level": 65}}),

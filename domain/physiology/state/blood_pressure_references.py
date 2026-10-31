@@ -120,12 +120,19 @@ BLOOD_PRESSURE_REFERENCES: Dict[str, List[ClinicalReferenceValue]] = {
         "rango citado 130-150/85-95, valor de punto medio) -- no la hipoxia tardía/descompensada, "
         "donde la PA típicamente cae.",
     ),
-    "arrhythmia": _bp_pair(
-        "arrhythmia", 90.0, 60.0, _AHA_ACC_HRS,
-        "Representa la fase de descompensación hemodinámica de la arritmia (<90/60) -- muchas "
-        "arritmias cursan con PA normal/compensada; este valor es específico del cuadro "
-        "descompensado, no de la arritmia en general.",
-    ),
+    # Unificación 1: "arrhythmia" genérico se retiró; la referencia citada se hereda sin cambios por los
+    # tipos taquiarrítmicos (misma cita, misma nota). Bradicardia sinusal NO la hereda: el dato transcrito
+    # era de la descompensación de una arritmia, no de una bradicardia sinusal -- sin dato, sin inventarlo.
+    **{
+        f"arrhythmia_{type_key}": _bp_pair(
+            f"arrhythmia_{type_key}", 90.0, 60.0, _AHA_ACC_HRS,
+            "Representa la fase de descompensación hemodinámica de la arritmia (<90/60) -- muchas "
+            "arritmias cursan con PA normal/compensada; este valor es específico del cuadro "
+            "descompensado, no del tipo de arritmia en general. Heredado del 'arrhythmia' genérico "
+            "(Unificación 1), pendiente de firma por tipo.",
+        )
+        for type_key in ("afib", "aflutter", "svt")
+    },
     # Estrés y Ansiedad comparten la misma cifra transcrita ("aumenta EN 75-100 mmHg
     # sobre el basal", confirmado por el usuario -- no "hasta un valor de 75-100").
     # Sin diastólica ni PAM: la fuente solo especificó el incremento sistólico.

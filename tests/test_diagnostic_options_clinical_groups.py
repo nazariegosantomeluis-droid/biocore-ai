@@ -23,23 +23,29 @@ from app.supermodules.twin_shell.pages import (
 _N_TRIALS = 60
 
 
-def test_clinical_groups_cover_all_twelve_scenarios():
+S = SimulationScenario
+_TACHY = {S.ARRHYTHMIA_AFIB, S.ARRHYTHMIA_AFLUTTER, S.ARRHYTHMIA_SVT}
+_ARRHYTHMIAS = _TACHY | {S.ARRHYTHMIA_SBRADY}
+
+
+def test_clinical_groups_cover_all_scenarios():
     covered = set()
     for group in CLINICAL_GROUPS.values():
         covered |= group
     assert covered == set(SimulationScenario)
 
 
-def test_arrhythmia_belongs_to_both_group_a_and_group_c():
-    """Decisión explícita del validador -- no un accidente de partición."""
-    assert SimulationScenario.ARRHYTHMIA in CLINICAL_GROUPS["A_activacion_simpatica_aguda"]
-    assert SimulationScenario.ARRHYTHMIA in CLINICAL_GROUPS["C_hipotension_bajo_gasto_shock"]
-    membership_count = sum(
-        1 for group in CLINICAL_GROUPS.values() if SimulationScenario.ARRHYTHMIA in group
-    )
-    assert membership_count == 2  # ningún otro escenario debería estar en más de un grupo
+def test_tachyarrhythmias_inherit_both_group_a_and_group_c_and_bradycardia_only_c():
+    """Unificación 1: el "arrhythmia" genérico (A y C, decisión explícita del validador) se retiró; los tres
+    tipos taquiarrítmicos heredan esa doble pertenencia y la bradicardia sinusal solo entra en C. Pendiente de
+    firma del validador."""
+    for scenario in _TACHY:
+        assert scenario in CLINICAL_GROUPS["A_activacion_simpatica_aguda"]
+        assert scenario in CLINICAL_GROUPS["C_hipotension_bajo_gasto_shock"]
+    assert S.ARRHYTHMIA_SBRADY in CLINICAL_GROUPS["C_hipotension_bajo_gasto_shock"]
+    assert S.ARRHYTHMIA_SBRADY not in CLINICAL_GROUPS["A_activacion_simpatica_aguda"]
     for scenario in SimulationScenario:
-        if scenario is SimulationScenario.ARRHYTHMIA:
+        if scenario in _TACHY:
             continue
         count = sum(1 for group in CLINICAL_GROUPS.values() if scenario in group)
         assert count == 1, f"{scenario.value} está en {count} grupos, se esperaba exactamente 1"
@@ -48,34 +54,25 @@ def test_arrhythmia_belongs_to_both_group_a_and_group_c():
 @pytest.mark.parametrize(
     "scenario,expected_neighbors",
     [
-        (SimulationScenario.SEPSIS, {SimulationScenario.ARRHYTHMIA}),
-        (
-            SimulationScenario.ANXIETY,
-            {SimulationScenario.STRESS, SimulationScenario.EXERCISE, SimulationScenario.SEIZURE, SimulationScenario.ARRHYTHMIA},
-        ),
-        (SimulationScenario.HEALTHY, {SimulationScenario.FATIGUE, SimulationScenario.HYPERTENSION}),
-        (SimulationScenario.HYPOXIA, {SimulationScenario.APNEA, SimulationScenario.COPD}),
-        (
-            SimulationScenario.ARRHYTHMIA,
-            {
-                SimulationScenario.STRESS, SimulationScenario.ANXIETY, SimulationScenario.EXERCISE,
-                SimulationScenario.SEIZURE, SimulationScenario.SEPSIS,
-            },
-        ),
+        (S.SEPSIS, _ARRHYTHMIAS),
+        (S.ANXIETY, {S.STRESS, S.EXERCISE, S.SEIZURE} | _TACHY),
+        (S.HEALTHY, {S.FATIGUE, S.HYPERTENSION}),
+        (S.HYPOXIA, {S.APNEA, S.COPD}),
+        (S.ARRHYTHMIA_AFIB, {S.STRESS, S.ANXIETY, S.EXERCISE, S.SEIZURE, S.SEPSIS, S.ARRHYTHMIA_AFLUTTER, S.ARRHYTHMIA_SVT, S.ARRHYTHMIA_SBRADY}),
+        (S.ARRHYTHMIA_SBRADY, {S.SEPSIS} | _TACHY),
     ],
 )
-def test_clinical_neighbors_match_the_validated_grouping(scenario, expected_neighbors):
+def test_clinical_neighbors_match_the_grouping(scenario, expected_neighbors):
     assert _clinical_neighbors(scenario) == frozenset(expected_neighbors)
     assert scenario not in _clinical_neighbors(scenario)  # nunca vecino de sí mismo
 
 
-def test_sepsis_always_includes_arrhythmia_the_only_close_distractor():
-    """Grupo C solo tiene 2 miembros -- sepsis SIEMPRE debe traer arritmia,
-    en cada tirada, no solo "a veces"."""
+def test_sepsis_distractors_are_always_arrhythmia_types():
+    """Grupo C = sepsis + los 4 tipos de arritmia: los 3 distractores de sepsis salen siempre de ahí."""
     for i in range(_N_TRIALS):
         random.seed(4000 + i)
         options = _diagnostic_options(SimulationScenario.SEPSIS)
-        assert SimulationScenario.ARRHYTHMIA in options
+        assert {o for o in options if o != SimulationScenario.SEPSIS} <= _ARRHYTHMIAS
 
 
 def test_healthy_always_includes_both_fatigue_and_hypertension():
@@ -102,7 +99,7 @@ def test_anxiety_distractors_are_always_from_group_a_never_a_far_scenario():
 @pytest.mark.parametrize("scenario", list(SimulationScenario))
 def test_every_scenario_gets_at_least_one_close_distractor_across_many_trials(scenario):
     """La garantía central del Trabajo 1: ningún caso queda con puros
-    distractores lejanos -- verificado para los 12 escenarios, no solo los
+    distractores lejanos -- verificado para todos los escenarios, no solo los
     de ejemplo, en muchas tiradas cada uno."""
     neighbors = _clinical_neighbors(scenario)
     assert neighbors, f"{scenario.value} no tiene ningún vecino clínico -- revisar CLINICAL_GROUPS"

@@ -45,7 +45,7 @@ from typing import Dict, FrozenSet, List, Optional
 from sqlalchemy.orm import Session
 
 from app.engines.digital_twin_organism import DigitalTwinOrganism
-from app.engines.simulation_engine import SimulationScenario
+from app.engines.simulation_engine import SimulationEngine, SimulationScenario
 from domain.physiology.state import (
     PhysiologicalEvent,
     Provenance,
@@ -202,8 +202,9 @@ def generate_case(
     # debe mezclarse con la trayectoria real del usuario.
     patient_id = create_ephemeral_case_patient(session, f"Caso sintético — {scenario.value}")
 
+    arrhythmia_seed = rng.randrange(2**31)  # instancia reproducible desde `rng`; se declara en `parametros`
     steps = list(
-        run_rich_scenario(session, patient_id, scenario, organism, start_from_current_state=True)
+        run_rich_scenario(session, patient_id, scenario, organism, start_from_current_state=True, seed=arrhythmia_seed)
     )
 
     # Trabajo 2, Fase 1 (2026-08-06): restricción ESTRUCTURAL -- solo se
@@ -239,6 +240,10 @@ def generate_case(
         "spo2_base_semilla": round(seed_spo2, 1),
         "stress_level_base_semilla": round(seed_stress, 1),
     }
+    declaration = SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario)
+    if declaration is not None:
+        parametros["semilla_arritmia"] = arrhythmia_seed
+        parametros["variabilidad_declarada"] = declaration
 
     return ClinicalCase(
         case_id=f"{patient_id}:{chosen_step.state.timestamp.isoformat()}",

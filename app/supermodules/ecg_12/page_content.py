@@ -21,6 +21,33 @@ if PROJECT_ROOT not in sys.path:
 from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgParameters, generate_12lead_example
 from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
 from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
+from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES, get_type
+
+# Unificación 1: la FC de estas condiciones sale de la fuente única de tipos de arritmia, no de un
+# número propio de esta página (antes: FA 112 fijo, flutter 150 fijo, y "Bradicardia sinusal"
+# dibujaba el slider -- 75 lpm por defecto -- con la etiqueta de bradicardia). La generación de la
+# onda sigue siendo de este laboratorio; la fisiología (la FC) no.
+_CANONICAL_RHYTHM_TYPE = {"af": "afib", "flutter": "aflutter", "bradycardia": "sbrady"}
+
+
+def canonical_hr(condition_short: str):
+    """FC del trazado (punto medio del rango declarado del tipo) o `None` si la condición no es un
+    tipo de arritmia y manda el slider."""
+    key = _CANONICAL_RHYTHM_TYPE.get(condition_short)
+    return get_type(key).nominal_hr_bpm if key else None
+
+
+def declared_range_note(condition_short: str):
+    """Texto de variabilidad declarada para el trazado de una condición-tipo, o `None`."""
+    key = _CANONICAL_RHYTHM_TYPE.get(condition_short)
+    if key is None:
+        return None
+    t = ARRHYTHMIA_TYPES[key]
+    rango = f"{t.hr_min_bpm:.0f}" if t.hr_min_bpm == t.hr_max_bpm else f"{t.hr_min_bpm:.0f}-{t.hr_max_bpm:.0f}"
+    return (
+        f"{t.label}: rango declarado FC {rango} lpm, {t.regularity_label}. Este trazado usa "
+        f"{t.nominal_hr_bpm:.0f} lpm (punto medio); el slider de FC no aplica a este tipo."
+    )
 
 # Consolidación Visual Tanda 3 (2026-09-21): `PALETTE`/`BADGES`/
 # `render_metric_card` -- fuente única de color y de tarjeta de métrica
@@ -111,9 +138,9 @@ def simulate_device_capture(condition_short: str) -> Dict[str, np.ndarray]:
     """Simulate device acquisition and return a full 12-lead record."""
     if condition_short in ['af', 'flutter', 'wpw', 'long_qt']:
         if condition_short == 'af':
-            signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(duration=10.0, sampling_rate=500, ventricular_rate=110)
+            signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(duration=10.0, sampling_rate=500, ventricular_rate=canonical_hr('af'))
         elif condition_short == 'flutter':
-            signal, time = AdvancedEcgPatterns.generate_atrial_flutter(duration=10.0, sampling_rate=500, flutter_rate=300, ventricular_rate=150)
+            signal, time = AdvancedEcgPatterns.generate_atrial_flutter(duration=10.0, sampling_rate=500, flutter_rate=2 * canonical_hr('flutter'), ventricular_rate=canonical_hr('flutter'))
         elif condition_short == 'wpw':
             signal, time = AdvancedEcgPatterns.generate_wpw_pattern(duration=10.0, sampling_rate=500)
         else:
@@ -137,7 +164,7 @@ def simulate_device_capture(condition_short: str) -> Dict[str, np.ndarray]:
     else:
         generator = TwelveLeadEcgGenerator(sampling_rate=500)
         ecg_params = EcgParameters(
-            heart_rate=75,
+            heart_rate=canonical_hr(condition_short) or 75,
             p_amplitude=0.15,
             qrs_duration=0.08,
             st_segment=0.0,
@@ -350,11 +377,12 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 
             if condition_short == "af":
                 signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(
-                    duration=10.0, sampling_rate=500, ventricular_rate=110
+                    duration=10.0, sampling_rate=500, ventricular_rate=canonical_hr("af")
                 )
             elif condition_short == "flutter":
                 signal, time = AdvancedEcgPatterns.generate_atrial_flutter(
-                    duration=10.0, sampling_rate=500, flutter_rate=300, ventricular_rate=150
+                    duration=10.0, sampling_rate=500, flutter_rate=2 * canonical_hr("flutter"),
+                    ventricular_rate=canonical_hr("flutter"),
                 )
             elif condition_short == "wpw":
                 signal, time = AdvancedEcgPatterns.generate_wpw_pattern(
@@ -383,7 +411,7 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
         else:
             generator = TwelveLeadEcgGenerator(sampling_rate=500)
             ecg_params = EcgParameters(
-                heart_rate=heart_rate,
+                heart_rate=canonical_hr(condition_short) or heart_rate,
                 p_amplitude=p_amplitude,
                 qrs_duration=qrs_duration/1000,  # Convert ms to seconds
                 st_segment=st_elevation,
@@ -398,7 +426,9 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 
     st.session_state.ecg_data = ecg_data
     st.session_state.condition = condition_short
-    st.session_state.heart_rate = heart_rate
+    # FC del trazado realmente generado: la canónica del tipo, o el slider si la condición no es un tipo.
+    st.session_state.heart_rate = canonical_hr(condition_short) or heart_rate
+    st.session_state.heart_rate_note = declared_range_note(condition_short)
     st.session_state.signal_source = signal_source
 
 # Display ECG if generated
@@ -667,9 +697,11 @@ with col2:
         # -- `BADGES.HEURISTIC` (no hay `*_CITATION` que lo respalde; sin
         # `classification=`, no se fabrica un semáforo de 3 niveles).
         render_metric_card(
-            "FC (bpm)", f"{st.session_state.heart_rate}",
+            "FC (bpm)", f"{st.session_state.heart_rate:g}",
             provenance=BADGES.HEURISTIC,
         )
+        if st.session_state.get("heart_rate_note"):
+            st.caption(st.session_state.heart_rate_note)
 
     if "ecg_data" in st.session_state:
         analysis = st.session_state.ecg_data

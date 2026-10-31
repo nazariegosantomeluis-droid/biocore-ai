@@ -46,7 +46,7 @@ __all__ = [
 
 
 def available_rich_scenarios() -> List[SimulationScenario]:
-    """Los 12 escenarios reales del SimulationEngine, en el orden del enum."""
+    """Los escenarios reales del SimulationEngine, en el orden del enum."""
     return list(SimulationScenario)
 
 
@@ -80,6 +80,7 @@ def run_rich_scenario(
     scenario: SimulationScenario,
     organism: "DigitalTwinOrganism",
     start_from_current_state: bool,
+    seed: int = 0,
 ) -> Iterator[ScenarioStep]:
     """Evoluciona `organism` a través de uno de los 12 escenarios reales del
     SimulationEngine y persiste cada uno de sus 6 horizontes temporales
@@ -101,8 +102,11 @@ def run_rich_scenario(
     diastólica/PAM, con su cita) se adjuntan al ÚLTIMO snapshot de esta
     corrida — no a los 6, porque es una fotografía del cuadro, no una
     trayectoria dinámica. Escenarios sin fuente transcrita (fatiga, EPOC)
-    no reciben nada, honestamente."""
-    engine = SimulationEngine()  # instancia nueva: cero estado residual entre corridas
+    no reciben nada, honestamente.
+
+    `seed` fija la instancia de los escenarios de arritmia (tipo, semilla) dentro del rango
+    declarado del tipo; los demás escenarios no la usan."""
+    engine = SimulationEngine(seed=seed)  # instancia nueva: cero estado residual entre corridas
     initial_state = _current_state_as_initial_state(organism) if start_from_current_state else None
     timeline = engine.simulate_scenario(scenario, initial_state=initial_state)
 
