@@ -56,7 +56,7 @@ from app.supermodules import (
 from app.engines import DigitalTwinOrganism
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
 from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, detect_rsa, rr_spectrum
-from app.supermodules import rsa_panel
+from app.supermodules import hrv_nonlinear_panel, rsa_panel
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card,
@@ -2307,7 +2307,9 @@ def render_hrv_page() -> None:
             respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
                 help='La banda HF de la Task Force cubre 9-24 rpm; fuera de ella la RSA no se lee como HF.')),
         )
-        n = st.sidebar.slider('Duración (seg)', 30, 300, 120)
+        # 240 s (~290 latidos a 72 lpm): SampEn y DFA α1 necesitan ≥200 latidos; con 120 s
+        # (~144) la fuente por defecto declinaría ambas.
+        n = st.sidebar.slider('Duración (seg)', 30, 300, 240)
         rsa_signals, r_peak_times_s = rsa_panel.simulate_rsa_rr(rsa_params, float(n), ECGAnalyzer)
         rr_ms = np.diff(r_peak_times_s) * 1000.0
         st.caption(
@@ -2345,6 +2347,9 @@ def render_hrv_page() -> None:
         detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
         rsa_signals, rsa_params,
     )
+
+    st.divider()
+    hrv_nonlinear_panel.render_nonlinear_panel(rr_ms)
 
     st.divider()
     _render_hrv_save_to_twin(sdnn, mean_nn, source)

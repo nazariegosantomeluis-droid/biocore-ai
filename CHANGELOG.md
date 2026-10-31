@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-31 — HRV no lineal: SampEn, DFA α1 y Poincaré (SD1/SD2) sobre RR con estructura real
+
+**Contexto**: la RSA dio RR con estructura autonómica real; sobre el ruido blanco del viejo "Demo (ECG-derived)" estas métricas no enseñaban nada. `src/advanced_hrv.py` (huérfano) **no se reusa**: su "DFA" devolvía 1.0 de relleno y su ApEn era O(N²) y sesgado. Módulo nuevo, sin relleno: cada métrica da un número calculado o declina con motivo.
+
+- **Métricas** (`src/signals/ecg/hrv_nonlinear.py`, patrón `Result(available, value, reason)` como PLV/ERD/RSA):
+  - SampEn m=2, r=0.2·SD (Richman y Moorman 2000).
+  - DFA α1, cajas de 4 a 16 latidos (Peng 1995).
+  - Poincaré SD1/SD2 (Brennan 2001).
+- **Ground truth** (`tests/test_hrv_nonlinear.py`):
+  - SampEn de ruido blanco = valor analítico −ln(erf(0.1)) = 2.185, y coincide exacto con una implementación ingenua de referencia.
+  - DFA α1: 1/f → 1.0, browniano → 1.5, ruido blanco → 0.58.
+  - SD1 = RMSSD/√2 y SD2² = 2·SDNN² − SD1² (error < 1–2 %).
+- **Sesgo declarado**: con escalas 4–16 el ruido blanco da α1 = 0.58, no 0.50, con cualquier N (con escalas 16–64 da 0.46). α1 sirve para contrastar series, no como valor absoluto.
+- **Degradación honesta**: los mínimos salen de medir, no de la literatura. SampEn y DFA α1 declinan con menos de 200 latidos ("se requieren ≥200 latidos; hay M"); Poincaré, con menos de 50. También declinan ante una serie con valores no válidos, plana por debajo de un escalón del detector (4 ms) o sin coincidencias de plantillas.
+- **DFA α2 fuera**: requiere >1000 latidos y la demo tiene 36–360. Se declara en la UI, no se calcula.
+- **Hallazgo que corrige la expectativa**: la RSA del generador es una sinusoide, y sus RR dan **α1 ≈ 0.22 y SampEn ≈ 0** (oscilación casi periódica, más regular que un corazón real), no "α1 ≈ 1.0, SampEn moderada". El α1 ≈ 1.0 es de la serie 1/f, que solo existe como referencia de validación. El contraste de la UI es serie vs. su **sustituto barajado** (mismos RR, orden al azar): SampEn ≈ 0 contra ≈ 2.1 y α1 ≈ 0.22 contra ≈ 0.55.
+- **UI** (`app/supermodules/hrv_nonlinear_panel.py`, en el HRV Lab): las cuatro tarjetas para la serie y para el sustituto, gráfico de Poincaré de ambos y rótulo "sin estructura autonómica — señal de ruido" cuando α1 y SampEn son compatibles con ruido blanco. Gramática de demostración, con aviso `PENDING_VALIDATION`: la interpretación clínica de la complejidad (p. ej. α1 reducida) no tiene firma del experto.
+- **Duración por defecto** de la simulación: 120 → 240 s, para que la fuente por defecto (~290 latidos) alcance el mínimo de 200.
+- **Tests**: `tests/test_hrv_nonlinear.py` (23). Art. I: ningún valor de relleno; `grep "return 1.0"` en los archivos nuevos no encuentra nada.
+
 ## 2026-10-25 — Clave de IA por sesión: panel de entrada para pegar la API key
 
 **Contexto**: para usar la IA había que guardar la clave en `.env` o definir `ANTHROPIC_API_KEY` en la terminal antes de arrancar. Ahora la persona puede pegarla al entrar y usarla solo durante esa sesión.
