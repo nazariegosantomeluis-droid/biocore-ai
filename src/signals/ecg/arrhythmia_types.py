@@ -34,7 +34,8 @@ evento acompaña al tipo, no un evento propio del tipo. Los códigos `ARR_*_ON`
 propuestos requieren un descriptor de ritmo en el esquema del UPS (decisión
 pendiente) y NO existen todavía. Hueco declarado: la bradicardia sinusal
 (40-59 lpm) no dispara ningún evento, porque el UPS solo marca FC < 40; un test
-verifica cada `ups_hr_event` contra el builder real.
+verifica cada `ups_hr_event` contra el builder real. Lo mismo para la taquicardia sinusal (100-140): 100-120
+lpm no dispara evento (el UPS marca solo > 120), 121-140 sí; su FC nominal (120, punto medio) NO lo dispara.
 """
 
 from __future__ import annotations
@@ -98,12 +99,35 @@ ARRHYTHMIA_TYPES: Dict[str, ArrhythmiaType] = {
     )
 }
 
+# Unificación 3 (2026-11-05): ritmos sinusales con FC canónica que NO son escenarios del simulador. ECG-12
+# dibujaba "Taquicardia sinusal" con el slider de FC (75 por defecto): la etiqueta no producía la fisiología
+# que nombra. Va aparte de ARRHYTHMIA_TYPES a propósito: el simulador (`ARRHYTHMIA_SCENARIO_TYPE`) y el juego
+# diagnóstico de la Academia (grupos clínicos y distractores) enumeran ese dict, y añadir ahí un tipo exige
+# decidir grupos clínicos y distractores del juego -- decisión de otro lab, no de esta unificación. Mismo
+# dataclass, misma `instance_hr`/`declare_instance`/`get_type`. Rango propuesto por el experto (Luis),
+# PENDING_VALIDATION como los demás. Definición clínica: FC sinusal en reposo > 100 lpm.
+SINUS_RHYTHM_TYPES: Dict[str, ArrhythmiaType] = {
+    t.key: t for t in (
+        ArrhythmiaType(
+            "stachy", "Taquicardia sinusal", 100.0, 140.0, False,
+            "onda P antes de cada QRS, ritmo regular, QRS estrecho",
+            EVENT_DEPENDS_ON_HR, "tratar la causa (fiebre, dolor, hipovolemia, ansiedad)",
+        ),
+    )
+}
+
+# Ritmo sinusal normal (no es una arritmia): FC de reposo del adulto, mismos cortes que usan
+# `clinical/calculators.py` y el analizador de ECG-12 (60-100 lpm).
+SINUS_NORMAL_RANGE_BPM: Tuple[float, float] = (60.0, 100.0)
+
+_ALL_TYPES: Dict[str, ArrhythmiaType] = {**ARRHYTHMIA_TYPES, **SINUS_RHYTHM_TYPES}
+
 
 def get_type(key: str) -> ArrhythmiaType:
     try:
-        return ARRHYTHMIA_TYPES[key]
+        return _ALL_TYPES[key]
     except KeyError:
-        raise ValueError(f"Tipo de arritmia desconocido: {key!r}. Disponibles: {sorted(ARRHYTHMIA_TYPES)}") from None
+        raise ValueError(f"Tipo de ritmo desconocido: {key!r}. Disponibles: {sorted(_ALL_TYPES)}") from None
 
 
 def instance_hr(key: str, seed: int = 0, slot: int = 0) -> float:

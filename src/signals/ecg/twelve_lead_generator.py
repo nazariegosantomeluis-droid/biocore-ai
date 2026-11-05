@@ -18,6 +18,8 @@ import numpy as np
 from typing import Dict, Tuple, List
 from dataclasses import dataclass
 
+from src.signals.ecg.arrhythmia_types import get_type
+
 
 @dataclass
 class EcgParameters:
@@ -425,10 +427,11 @@ def generate_12lead_example(
     """
     params = EcgParameters(heart_rate=heart_rate)
     
+    # Unificación 3: la FC de estos dos ritmos sale de la fuente única, no de un número propio (antes 110 / 45).
     if condition == 'tachycardia':
-        params.heart_rate = 110
+        params.heart_rate = get_type('stachy').nominal_hr_bpm
     elif condition == 'bradycardia':
-        params.heart_rate = 45
+        params.heart_rate = get_type('sbrady').nominal_hr_bpm
     elif condition == 'anterior_stemi':
         params.anterior_mi = True
         params.st_segment = 0.25  # 2.5 mm = 0.25 mV

@@ -21,28 +21,47 @@ if PROJECT_ROOT not in sys.path:
 from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgParameters, generate_12lead_example
 from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
 from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
-from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES, get_type
+from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM, get_type
 
-# Unificación 1: la FC de estas condiciones sale de la fuente única de tipos de arritmia, no de un
-# número propio de esta página (antes: FA 112 fijo, flutter 150 fijo, y "Bradicardia sinusal"
-# dibujaba el slider -- 75 lpm por defecto -- con la etiqueta de bradicardia). La generación de la
+# Unificación 1 y 3: la FC de estas condiciones sale de la fuente única de tipos de ritmo, no de un
+# número propio de esta página (antes: FA 112 fijo, flutter 150 fijo, y "Bradicardia"/"Taquicardia
+# sinusal" dibujaban el slider -- 75 lpm por defecto -- con la etiqueta cambiada). La generación de la
 # onda sigue siendo de este laboratorio; la fisiología (la FC) no.
-_CANONICAL_RHYTHM_TYPE = {"af": "afib", "flutter": "aflutter", "bradycardia": "sbrady"}
+_CANONICAL_RHYTHM_TYPE = {"af": "afib", "flutter": "aflutter", "bradycardia": "sbrady", "tachycardia": "stachy"}
 
 
 def canonical_hr(condition_short: str):
     """FC del trazado (punto medio del rango declarado del tipo) o `None` si la condición no es un
-    tipo de arritmia y manda el slider."""
+    tipo de ritmo y manda el slider."""
     key = _CANONICAL_RHYTHM_TYPE.get(condition_short)
     return get_type(key).nominal_hr_bpm if key else None
 
 
-def declared_range_note(condition_short: str):
-    """Texto de variabilidad declarada para el trazado de una condición-tipo, o `None`."""
+def generation_hr(condition_short: str, slider_hr: float) -> float:
+    """FC con la que se genera el trazado -- y la que muestra la métrica: la del tipo si la etiqueta lo es;
+    "Normal" respeta el slider solo dentro del rango sinusal normal (60-100); el resto de condiciones
+    (STEMI, bloqueos, LVH, WPW, QT largo) no nombran una FC y siguen al slider."""
+    fixed = canonical_hr(condition_short)
+    if fixed is not None:
+        return fixed
+    if condition_short == "normal":
+        lo, hi = SINUS_NORMAL_RANGE_BPM
+        return float(min(max(slider_hr, lo), hi))
+    return float(slider_hr)
+
+
+def declared_range_note(condition_short: str, slider_hr: float = None):
+    """Aviso de FC para el trazado: rango declarado de un tipo, o el recorte de "Normal"; `None` si no aplica."""
     key = _CANONICAL_RHYTHM_TYPE.get(condition_short)
     if key is None:
+        if condition_short == "normal" and slider_hr is not None and generation_hr("normal", slider_hr) != slider_hr:
+            lo, hi = SINUS_NORMAL_RANGE_BPM
+            return (
+                f"Ritmo sinusal normal: FC {lo:.0f}-{hi:.0f} lpm. El slider pedía {slider_hr:g} lpm; "
+                f"se limitó a {generation_hr('normal', slider_hr):g} lpm para que el trazado sea el que dice la etiqueta."
+            )
         return None
-    t = ARRHYTHMIA_TYPES[key]
+    t = get_type(key)
     rango = f"{t.hr_min_bpm:.0f}" if t.hr_min_bpm == t.hr_max_bpm else f"{t.hr_min_bpm:.0f}-{t.hr_max_bpm:.0f}"
     return (
         f"{t.label}: rango declarado FC {rango} lpm, {t.regularity_label}. Este trazado usa "
@@ -134,17 +153,17 @@ def bandpass_filter_signal(signal: np.ndarray, fs: float, lowcut: float = 0.5, h
         return signal
 
 
-def simulate_device_capture(condition_short: str) -> Dict[str, np.ndarray]:
-    """Simulate device acquisition and return a full 12-lead record."""
+def simulate_device_capture(condition_short: str, hr: float = 75) -> Dict[str, np.ndarray]:
+    """Simulate device acquisition and return a full 12-lead record. `hr` es `generation_hr(...)`."""
     if condition_short in ['af', 'flutter', 'wpw', 'long_qt']:
         if condition_short == 'af':
             signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(duration=10.0, sampling_rate=500, ventricular_rate=canonical_hr('af'))
         elif condition_short == 'flutter':
             signal, time = AdvancedEcgPatterns.generate_atrial_flutter(duration=10.0, sampling_rate=500, flutter_rate=2 * canonical_hr('flutter'), ventricular_rate=canonical_hr('flutter'))
         elif condition_short == 'wpw':
-            signal, time = AdvancedEcgPatterns.generate_wpw_pattern(duration=10.0, sampling_rate=500)
+            signal, time = AdvancedEcgPatterns.generate_wpw_pattern(duration=10.0, sampling_rate=500, heart_rate=hr)
         else:
-            signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(duration=10.0, sampling_rate=500, qt_prolongation=1.7)
+            signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(duration=10.0, sampling_rate=500, heart_rate=hr, qt_prolongation=1.7)
 
         return {
             'I': signal * 0.8,
@@ -164,7 +183,7 @@ def simulate_device_capture(condition_short: str) -> Dict[str, np.ndarray]:
     else:
         generator = TwelveLeadEcgGenerator(sampling_rate=500)
         ecg_params = EcgParameters(
-            heart_rate=canonical_hr(condition_short) or 75,
+            heart_rate=hr,
             p_amplitude=0.15,
             qrs_duration=0.08,
             st_segment=0.0,
@@ -261,11 +280,14 @@ with col1:
             # Key explícita (Fusión ECG Lab, 2026-07-14): near-miss con el
             # slider de FC de render_ecg_monitor_page (mismo tema, difieren
             # solo en mayúscula) — ver docstring de render_ecg_lab_page().
+            # Unificación 3: si la etiqueta fija la FC (tipo de ritmo), el slider no aplica y se deshabilita.
             heart_rate = st.slider(
                 "Frecuencia Cardíaca (bpm)",
                 min_value=30, max_value=200, value=75,
-                help="Rango normal: 60-100 bpm",
+                help="Rango normal: 60-100 bpm. No aplica a Taquicardia, Bradicardia, FA ni Flutter: "
+                     "esa etiqueta fija la FC (fuente única de tipos de ritmo). En 'Normal' se limita a 60-100.",
                 key="ecglab_12_hr_slider",
+                disabled=canonical_hr(condition_map.get(condition, "normal")) is not None,
             )
 
         with col_cfg2:
@@ -340,6 +362,7 @@ if "generate_ecg" not in st.session_state:
 
 if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
     condition_short = condition_map.get(condition, "normal")
+    hr = generation_hr(condition_short, heart_rate)  # la FC con que se genera Y la que muestra la métrica
     ecg_data = {}
 
     if signal_source == "Cargar ECG desde archivo CSV" and uploaded_ecg is not None:
@@ -368,8 +391,11 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
                 length = len(ecg_data[first_lead]) if first_lead else 0
                 ecg_data['time'] = np.arange(length) / 500.0
 
+    # Trazado cargado de archivo: no se generó con ninguna FC, así que la métrica no puede mostrar el slider.
+    from_file = len(ecg_data) > 0
+
     if signal_source == "Simular captura de dispositivo" and len(ecg_data) == 0:
-        ecg_data = simulate_device_capture(condition_short)
+        ecg_data = simulate_device_capture(condition_short, hr)
 
     if signal_source == "Generar señal sintética" or len(ecg_data) == 0:
         if condition_short in ["af", "flutter", "wpw", "long_qt"]:
@@ -386,11 +412,11 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
                 )
             elif condition_short == "wpw":
                 signal, time = AdvancedEcgPatterns.generate_wpw_pattern(
-                    duration=10.0, sampling_rate=500
+                    duration=10.0, sampling_rate=500, heart_rate=hr
                 )
             else:  # long_qt
                 signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(
-                    duration=10.0, sampling_rate=500, qt_prolongation=1.7
+                    duration=10.0, sampling_rate=500, heart_rate=hr, qt_prolongation=1.7
                 )
 
             ecg_data = {
@@ -411,7 +437,7 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
         else:
             generator = TwelveLeadEcgGenerator(sampling_rate=500)
             ecg_params = EcgParameters(
-                heart_rate=canonical_hr(condition_short) or heart_rate,
+                heart_rate=hr,
                 p_amplitude=p_amplitude,
                 qrs_duration=qrs_duration/1000,  # Convert ms to seconds
                 st_segment=st_elevation,
@@ -426,9 +452,9 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 
     st.session_state.ecg_data = ecg_data
     st.session_state.condition = condition_short
-    # FC del trazado realmente generado: la canónica del tipo, o el slider si la condición no es un tipo.
-    st.session_state.heart_rate = canonical_hr(condition_short) or heart_rate
-    st.session_state.heart_rate_note = declared_range_note(condition_short)
+    # FC del trazado realmente generado (`generation_hr`); `None` si el trazado vino de un archivo.
+    st.session_state.heart_rate = None if from_file else hr
+    st.session_state.heart_rate_note = None if from_file else declared_range_note(condition_short, heart_rate)
     st.session_state.signal_source = signal_source
 
 # Display ECG if generated
@@ -690,12 +716,13 @@ if "ecg_data" in st.session_state:
 with col2:
     st.markdown("## 📊 Métricas")
 
-    if "heart_rate" in st.session_state:
+    if st.session_state.get("heart_rate") is not None:
         # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
         # `render_metric_card`. `heart_rate` es el parámetro de generación
-        # elegido por el usuario (slider), no una medición sobre la señal
-        # -- `BADGES.HEURISTIC` (no hay `*_CITATION` que lo respalde; sin
-        # `classification=`, no se fabrica un semáforo de 3 niveles).
+        # (`generation_hr`: el del tipo de ritmo, o el slider), no una medición
+        # sobre la señal -- pero es el MISMO con el que se generó el trazado
+        # (Unificación 3). `BADGES.HEURISTIC` (no hay `*_CITATION` que lo
+        # respalde; sin `classification=`, no se fabrica un semáforo de 3 niveles).
         render_metric_card(
             "FC (bpm)", f"{st.session_state.heart_rate:g}",
             provenance=BADGES.HEURISTIC,
