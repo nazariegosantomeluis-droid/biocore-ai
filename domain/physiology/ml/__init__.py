@@ -1,5 +1,6 @@
 """
-Tanda 4 (2026-07-04) — Puentes entre el UPS y modelos de ML reales que
+Tanda 4 (2026-07-04) — Puentes entre el UPS y modelos de puntaje y clasificación
+(pesos fijos y reglas por umbral; ninguno se entrena -- corrección 2026-11-05, Art. I) que
 antes vivían huérfanos (alcanzables solo con datos de paciente hardcodeados
 en app/pages_legacy/4_👥_Patients.py, ya archivado).
 

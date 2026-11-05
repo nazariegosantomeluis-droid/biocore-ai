@@ -544,21 +544,11 @@ def render_synthetic_case_section() -> None:
                 st.rerun()
 
 
-def render_tutor_tab() -> None:
-    """Fase 1.3: el chatbot de keywords (`app/biomedical_tutor.py`) fue
-    eliminado — refundido en el narrador clínico real de `Digital Twin OS`,
-    que lee el UPS en vez de responder desde un diccionario hardcodeado. No
-    se recrea un chat aquí (evitaría el patrón de chatbot aislado, Art. I de
-    la Constitución). Consolidación, Tanda 3 (2026-07-13): el AI Hub que
-    exponía ese mismo narrador por una segunda puerta se eliminó — queda un
-    único lugar."""
-    st.header("🩺 Tutor IA Biomédico")
-    st.info(
-        "El tutor de preguntas y respuestas se consolidó en el **Narrador Clínico**, "
-        "dentro de **Digital Twin OS** — ahí la explicación se genera con IA real, "
-        "fundamentada en el estado fisiológico actual del paciente, no desde un "
-        "diccionario de palabras clave."
-    )
+# Tanda 1 de contención (2026-11-05, Art. I): `render_tutor_tab()` y su pestaña
+# se RETIRARON. No había IA detrás: solo un `st.info` que redirigía al Narrador
+# Clínico de Digital Twin OS; un rótulo de tutor sin tutor afirmaba una capacidad
+# inexistente. El feedback con IA real de esta página (quiz y casos)
+# sigue en `render_lessons_quizzes_tab()` y queda apagado sin clave.
 
 
 # Consolidación, Tanda 1 (2026-07-13): render_progress_tab() se eliminó — "Nivel"
@@ -574,14 +564,9 @@ def main() -> None:
     # not be repeated here (this was the root cause of the old Academia
     # Clínica "Clínica" tab silently failing every render).
     render_module_header("Academia BIOCORE AI", icon="🏫")
-    st.caption("Lecciones, casos clínicos y tutor IA.")
+    st.caption("Lecciones y casos clínicos.")
 
-    tabs = st.tabs(["📝 Lecciones y Casos", "📖 Tutor IA"])
-
-    with tabs[0]:
-        render_lessons_quizzes_tab()
-    with tabs[1]:
-        render_tutor_tab()
+    render_lessons_quizzes_tab()
 
 
 def run() -> None:

@@ -54,7 +54,6 @@ cache_signal_in_session = app_utils.cache_signal_in_session
 get_cached_signal = app_utils.get_cached_signal
 render_metric_explained = app_utils.render_metric_explained
 render_view_selector = app_utils.render_view_selector
-render_scientific_discovery_layer = app_utils.render_scientific_discovery_layer
 render_discovery_lab = app_utils.render_discovery_lab
 validate_signal = app_utils.validate_signal
 create_metric_row = app_utils.create_metric_row
@@ -78,7 +77,7 @@ __all__.extend([
     'plot_signal_matplotlib', 'plot_clinical_ecg_safe', 'display_error_message',
     'display_info_message', 'display_success_message', 'display_warning_message',
     'init_session_state_key', 'cache_signal_in_session', 'get_cached_signal',
-    'render_metric_explained', 'render_view_selector', 'render_scientific_discovery_layer',
+    'render_metric_explained', 'render_view_selector',
     'render_discovery_lab', 'validate_signal', 'create_metric_row', 'create_section',
     'create_two_column_layout', 'get_analyzer_singleton', 'cache_mitbih_record_list'
 ])

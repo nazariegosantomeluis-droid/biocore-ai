@@ -465,23 +465,10 @@ def render_view_selector() -> str:
     )
 
 
-def render_scientific_discovery_layer(signals: Dict[str, np.ndarray]):
-    """Adds a layer of scientific discovery to the current lab context.
-
-    Consolidación, Tanda 1 (2026-07-13): el botón "Identificar Patrones Ocultos"
-    se eliminó — tras un time.sleep(1) siempre imprimía el mismo texto fijo
-    ("...acoplamientos sutiles entre bandas de baja frecuencia"), sin leer
-    `signals` en absoluto (Art. I de la Constitución). "Analizar Entropía y
-    Complejidad" sí calcula algo real sobre la señal recibida — se conserva
-    intacto."""
-    st.markdown("---")
-    st.markdown("### 🧪 Capa de Descubrimiento Científico")
-    if st.button("Analizar Entropía y Complejidad"):
-        for name, sig in signals.items():
-            if len(sig) > 0:
-                # Simple entropy proxy (mean absolute difference)
-                ent = float(np.abs(np.mean(np.diff(sig))))
-                st.write(f"• **{name}** - Índice de Complejidad Dinámica: {ent:.4f}")
+# Tanda 1 de contención (2026-11-05, Art. I): `render_scientific_discovery_layer()` se
+# RETIRÓ. Su único botón calculaba `|media(diff(x))|` (la deriva neta de la señal,
+# igual a `|x_final - x_inicial|/(N-1)`) y lo rotulaba índice de complejidad
+# dinámica: daba ~0 para un seno puro y para ruido blanco. Detalle en CHANGELOG.md.
 
 
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):

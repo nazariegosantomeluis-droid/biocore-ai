@@ -1685,11 +1685,11 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
     persistido, sin cambios; su desincronización frente a las tarjetas de
     órgano queda fuera del alcance de esta tanda -- ver CHANGELOG.md."""
 
-    with st.expander("🧬 Riesgo cardiovascular (ML real, desde el UPS)"):
+    with st.expander("🧬 Índice de riesgo heurístico (pesos fijos, sin entrenamiento), desde el UPS"):
         st.caption(
-            "PatientRiskPredictor + AnomalyDetector (src/ai/patient_analytics.py), alimentados "
-            "con los descriptores reales del snapshot más reciente del UPS — nunca con datos de "
-            "paciente hardcodeados."
+            "PatientRiskPredictor (suma de factores con pesos fijos, sin entrenamiento) + AnomalyDetector "
+            "(puntaje Z estadístico) de src/ai/patient_analytics.py, alimentados con los descriptores "
+            "reales del snapshot más reciente del UPS — no es un modelo de aprendizaje automático."
         )
         # Fase 5.2 (honestidad de presentación, 2026-08-30): este panel lee
         # el ÚLTIMO PERSISTIDO a propósito (ver docstring de la función,
@@ -1803,7 +1803,7 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
 def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
     """Tanda 4, Pieza 2 (2026-07-04): clasificador de ECG real
     (`clinical.ecg_analyzer.ECGAnalyzer.detect_clinical_pattern`) +
-    explicabilidad SHAP/LIME real (`src/interpretability.py`), integrado al
+    explicación por contribución de pesos fijos (`src/interpretability.py`, heurística: no es SHAP ni LIME), integrado al
     Twin OS. Regla absoluta de esta pieza: ninguna señal de ECG cruda entra
     al clasificador sin procedencia veraz — la procedencia refleja lo que
     realmente ocurrió, no lo que el usuario pidió.
@@ -1824,9 +1824,9 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
 
     with st.expander("🫀 Clasificador de ECG (real, desde tu estado actual)"):
         st.caption(
-            "detect_clinical_pattern() + SHAP/LIME reales (clinical/ecg_analyzer.py + "
-            "src/interpretability.py) sobre una señal real — nunca ruido aleatorio ni un "
-            "resultado fijo."
+            "detect_clinical_pattern() (reglas por umbral, clinical/ecg_analyzer.py) + explicación por "
+            "contribución de pesos fijos (src/interpretability.py) sobre la señal analizada — "
+            "nunca ruido aleatorio ni un resultado fijo."
         )
 
         mode = st.radio(
@@ -1970,9 +1970,9 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
             st.caption(f"Picos R detectados: {result.r_peak_count}")
 
         st.markdown("---")
-        st.markdown("**Explicabilidad (SHAP/LIME real, sobre la señal analizada):**")
+        st.markdown("**Explicación por contribución de pesos fijos (heurística, sobre la señal analizada):**")
         if result.shap_lime:
-            tab_shap, tab_lime, tab_importance = st.tabs(["SHAP", "LIME", "Importancia"])
+            tab_shap, tab_lime, tab_importance = st.tabs(["Contribución por desviación", "Dirección de riesgo", "Importancia"])
             with tab_shap:
                 for line in result.shap_lime["shap"]:
                     st.write(line)
@@ -1985,9 +1985,9 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 # alimentar las narrativas de las dos pestañas de arriba -- aquí solo
                 # se dibuja ese mismo dato como barra, sin recalcular nada.
                 st.caption(
-                    "Importancia por desviación de baseline (estilo SHAP: |valor-baseline| "
-                    "normalizado a 100% entre las features) -- NO es SHAP/LIME real de una "
-                    "librería, es la misma heurística que ya narran las pestañas SHAP/LIME."
+                    "Importancia por desviación de baseline (|valor-baseline| normalizado a 100% "
+                    "entre las features) -- heurística de pesos fijos; no es SHAP ni LIME, y es la "
+                    "misma cuenta que narran las otras dos pestañas."
                 )
                 importance = result.shap_lime["importance"]
                 importance_df = pd.DataFrame(

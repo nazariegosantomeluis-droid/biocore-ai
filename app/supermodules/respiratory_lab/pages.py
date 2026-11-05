@@ -20,13 +20,18 @@ from app.utils.design_system import BADGES, render_module_header, render_section
 # copiado tal cual a page_content.py junto a este archivo, sin cambiar una línea.
 MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
-# Consolidación Visual, Tanda Final (2026-09-22): texto VERBATIM de la
-# firma del experto (Luis) -- vive aquí, no en `app/main.py`, porque
-# `render_module_header()` de este módulo se llama desde este archivo
-# (ver `render_views()` abajo), no desde `main.py`.
-_RESPIRATORY_VALIDATION_DETAIL = (
-    "Cálculo de AHI y estratificación de severidad conformes a los manuales de puntuación de la "
-    "American Academy of Sleep Medicine (AASM)."
+# Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este
+# módulo (firma AASM de la Tanda Final) se RETIRÓ. El inventario del 2026-11-05
+# midió que `RespiratoryAnalyzer` devuelve FR = 60.0 constante y AHI = 0 con
+# cualquier señal (incluidos los patrones de apnea), así que la firma ya no
+# describe lo que el módulo calcula. El cálculo NO se tocó (arco propio);
+# aquí solo se deja de afirmar lo falso.
+RESPIRATORY_UNRELIABLE_NOTICE = (
+    "**En corrección.** La frecuencia respiratoria, su variabilidad, el AHI y los eventos de apnea de "
+    "este laboratorio **no son fiables todavía** (el analizador devuelve valores que no dependen de la "
+    "señal). Por eso se muestran marcados como «no fiable», se suprimen las interpretaciones clínicas "
+    "derivadas de ellos (taquipnea, apnea del sueño, severidad, patrón) y este laboratorio **no escribe "
+    "al gemelo**. La visualización de la señal y la oximetría se conservan."
 )
 
 
@@ -45,15 +50,11 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
-    # AHI/severidad conformes a criterio AASM real (confirmado por
-    # revisión: `_assess_severity()`, `respiratory_analyzer.py:378`,
-    # cita AASM en el propio código) -- `validation="VALIDATED"`.
-    render_module_header(
-        "Respiratory Lab", icon="💨",
-        validation="VALIDATED",
-        validation_detail=_RESPIRATORY_VALIDATION_DETAIL,
-    )
+    # Tanda 1 de contención (2026-11-05): `validation=None` EXPLÍCITO -- no un
+    # olvido. La insignia anterior (firma AASM) se retiró porque FR/AHI de
+    # este laboratorio no son fiables; ver `RESPIRATORY_UNRELIABLE_NOTICE`.
+    render_module_header("Respiratory Lab", icon="💨", validation=None)
+    st.warning(RESPIRATORY_UNRELIABLE_NOTICE, icon="🛠️")
     tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
 
     with tabs[0]:
@@ -77,11 +78,16 @@ def render_views():
 
 
 def _render_investigacion_tab():
-    """Detalle del AHI y eventos de apnea -- reutiliza el análisis YA calculado
-    por RespiratoryAnalyzer en la Vista Clínica (page_content.py), leído vía
-    st.session_state. No vuelve a calcular nada: el bloque `with tabs[0]:` de
-    arriba ya corrió y pobló `_respiratory_lab_analysis` antes de llegar aquí,
-    en el mismo rerun de Streamlit (2026-08-21, Capa 2 Fase 2.2, Ejecución 2)."""
+    """Vista Investigación -- Tanda 1 de contención (2026-11-05, Art. I).
+
+    Antes mostraba el AHI, la severidad, la tabla de eventos de apnea (con
+    exportación CSV) y el botón "Guardar al gemelo". El inventario del
+    2026-11-05 midió que el AHI es 0 con cualquier señal (el emparejamiento de
+    inicios/fines de apnea queda desalineado y el umbral de duración es de 1 s,
+    no de 10 s) y que la FR es 60.0 constante: esos números y todo lo derivado
+    (severidad, eventos, CSV) afirmaban algo falso. El AHI se sigue mostrando,
+    marcado "no fiable"; la severidad, la tabla y el CSV se suprimen; el cálculo
+    NO se tocó (arco propio). Lee el análisis que ya calculó la Vista Clínica."""
     render_section_header("Vista Investigación — Índice AHI y eventos de apnea")
 
     bridge = st.session_state.get('_respiratory_lab_analysis')
@@ -98,124 +104,30 @@ def _render_investigacion_tab():
         f"ventana de **{bridge['duration']}s**. Mismo cálculo, sin recalcular."
     )
 
-    # Consolidación Visual Tanda 3 (2026-09-21): `col.metric` crudo ->
-    # `render_metric_card`. `BADGES.CLINICAL` (no HEURISTIC): el AHI y su
-    # severidad se calculan según criterio AASM -- el mismo estándar que
-    # `twin_shell/pages.py` ya cita para AHI (`PROVENANCE_SOURCE_AASM`),
-    # no una heurística de ingeniería propia. Sin `classification=`: no
-    # existe un `classify_ahi()` de 3 niveles en el repo -- inventar uno
-    # aquí sería fabricar una clasificación clínica sin firma del experto
-    # (mismo criterio que BAR sin `classify_bar()`).
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        render_metric_card(
-            "Índice AHI", f"{analysis.apnea_hypopnea_index:.1f}",
-            provenance=BADGES.CLINICAL,
-        )
-    with col2:
-        render_metric_card("Severidad", analysis.severity.title(), provenance=BADGES.CLINICAL)
-    with col3:
-        render_metric_card(
-            "Eventos de apnea detectados", str(len(analysis.apnea_events)),
-            provenance=BADGES.CLINICAL,
-        )
-
-    if analysis.apnea_detected and analysis.apnea_events:
-        import pandas as pd
-        events_df = pd.DataFrame([
-            {
-                "Evento": i,
-                "Inicio (s)": f"{event['start_time']:.1f}",
-                "Fin (s)": f"{event['end_time']:.1f}",
-                "Duración (s)": f"{event['duration']:.1f}",
-                "Tipo": event['type'].capitalize(),
-            }
-            for i, event in enumerate(analysis.apnea_events, 1)
-        ])
-        st.dataframe(events_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Exportar eventos de apnea (CSV)",
-            events_df.to_csv(index=False).encode('utf-8'),
-            file_name="respiratory_apnea_events.csv",
-            mime="text/csv",
-        )
-    else:
-        st.success("✅ No se detectaron eventos de apnea en el patrón/parámetros actuales de la Vista Clínica.")
+    # AHI: se muestra, pero declarado no fiable y sin badge de validación.
+    render_metric_card("Índice AHI — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} (no usar)")
+    st.info(
+        "Severidad, eventos de apnea y exportación CSV **suprimidos**: dependen del detector de apneas, "
+        "que hoy no cuenta eventos aunque la señal tenga pausas de ~20 s (ver el aviso de arriba)."
+    )
 
     st.divider()
-    _render_save_to_twin(analysis, bridge['pattern_display'])
+    _render_save_to_twin_disabled()
 
 
-def _render_save_to_twin(analysis, pattern_display: str) -> None:
-    """Piloto de integración estrecha (2026-08-24, Capa 2 Fase 2.4): primer
-    lab que escribe al UPS real, con botón explícito -- mismo patrón que
-    Patient Pipeline (`app/main.py::render_patient_pipeline_page()`), nunca
-    automático (evita inundar la trayectoria con un snapshot por cada
-    interacción de widget).
+def _render_save_to_twin_disabled() -> None:
+    """Guardar al gemelo -- DESACTIVADO (Tanda 1 de contención, 2026-11-05).
 
-    Paciente destino: Fase 3 (paciente único de sesión, 2026-08-30) formalizó
-    lo que este piloto ya hacía por convención -- `get_active_patient_id()`/
-    `get_active_session_factory()` (`app/utils/patient_session.py`) son
-    ahora el único punto de verdad, reemplazando la lectura directa de
-    `twin_shell_ups_session_factory`/`twin_shell_ups_patient_id` que este
-    archivo tenía inline (1 de los 4 sitios que copiaban ese bootstrap).
-    Mismo paciente de siempre -- Twin OS/ECG Lab/HRV/Patient Pipeline lo
-    comparten todos a través de la misma función.
-
-    Qué escribe -- solo lo real con destino Y efecto (cruce del recon de
-    2.4.0): `respiratory_rate`, `spo2` (mapeado desde `analysis.baseline_spo2`,
-    no `minimum_spo2` -- representa el nivel de reposo/estable del patrón
-    actual, coherente con cómo Patient Pipeline/Twin OS tratan `spo2` como
-    un valor de estado, no un nadir puntual durante un evento) y `ahi`.
-    `rr_variability`/`apnea_type`/`breathing_pattern`/etc. NO se escriben --
-    no tienen destino en el schema (`PhysiologicalDescriptor.value` es
-    float, y esos campos son categóricos o sin slot) -- no se fuerzan.
-
-    Procedencia: `Provenance.SIMULACION` (señal generada por
-    `RespiratorySignalGenerator`, nunca un sensor real) con `source_detail`
-    describiendo el origen exacto -- mismo criterio que Patient Pipeline
-    etiqueta su entrada manual como `"patient_pipeline:entrada_manual"`.
-
-    La raíz cardiovascular (Fase 2.4, gate ya cerrado en el builder) hace su
-    trabajo aquí sola: como `update_from_sensors()` solo recibe `"respiratory"`,
-    el dominio cardiovascular del estado resultante queda vacío -- no hay
-    corazón fantasma que evitar a mano."""
+    El botón escribía `respiratory_rate=analysis.respiratory_rate` (siempre 60.0)
+    y `ahi=analysis.apnea_hypopnea_index` (siempre 0.0) al UPS con procedencia
+    `SIMULACION`: una constante disfrazada de medición, que el narrador, el
+    clasificador de riesgo y el cuerpo visual leerían como dato del paciente
+    (Art. I). Este laboratorio no escribe al UPS por ninguna ruta mientras el
+    analizador no se repare; no hay botón ni código de escritura aquí."""
     st.markdown("#### 🔗 Guardar estado al gemelo")
     st.caption(
-        "Escribe `respiratory_rate`/`spo2`/`ahi` reales (del análisis de arriba) al Unified "
-        "Physiological State, bajo el mismo paciente que renderiza Digital Twin OS -- sus "
-        "pulmones reaccionarán a estos valores la próxima vez que abras esa página o pulses "
-        "\"Sincronizar\" ahí. Procedencia: simulación (señal generada, no un sensor real)."
+        "Desactivado: la frecuencia respiratoria y el AHI de este laboratorio no son fiables todavía."
     )
-    if st.button("💾 Guardar estado al gemelo", key="respiratory_lab_save_to_ups"):
-        from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
-        from app.engines.digital_twin_organism import DigitalTwinOrganism
-        from app.utils.patient_session import get_active_patient_id, get_active_session_factory
-
-        session_factory = get_active_session_factory()
-        patient_id = get_active_patient_id()
-
-        organism = DigitalTwinOrganism()
-        organism.update_from_sensors({
-            "respiratory": {
-                "respiratory_rate": float(analysis.respiratory_rate),
-                "spo2": float(analysis.baseline_spo2),
-                "ahi": float(analysis.apnea_hypopnea_index),
-            }
-        })
-        state = from_digital_twin_organism(
-            organism, patient_id, provenance=Provenance.SIMULACION,
-            source_detail=f"respiratory_lab:investigacion:patron={pattern_display}",
-        )
-        with session_factory() as session:
-            snapshot_id = save_state(session, state)
-
-        st.success(f"Estado guardado al gemelo -- snapshot: {snapshot_id}")
-        st.caption(
-            f"cardiovascular: {len(state.cardiovascular.descriptors)} descriptores "
-            f"(vacío esperado -- este lab no envía dato cardíaco) · "
-            f"respiratory: {len(state.respiratory.descriptors)} descriptores"
-        )
 
 
 def _render_simulacion_tab():

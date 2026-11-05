@@ -151,13 +151,16 @@ def test_ecg_12_and_eeg_neuro_lab_still_declare_no_validation_tier():
     assert "validation=\"HEURISTIC\"" not in eeg_src
 
 
-def test_respiratory_lab_now_declares_validated_tier_per_expert_signature():
+def test_respiratory_lab_declares_no_validation_tier_while_in_correction():
+    """Tanda 1 de contención (2026-11-05, Art. I): la insignia VALIDATED (firma AASM de la Tanda
+    Final) se retiró: FR/AHI del analizador no son fiables. `validation=None` es EXPLÍCITO."""
     src = Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")
-    assert 'validation="VALIDATED"' in src
-    assert "American Academy of Sleep Medicine (AASM)" in src
+    assert 'validation="VALIDATED"' not in src
+    assert "validation=None" in src
+    assert "American Academy of Sleep Medicine" not in src
 
 
-def test_respiratory_lab_header_shows_validated_confidence_marker():
+def test_respiratory_lab_header_shows_no_confidence_marker_but_the_correction_notice():
     def _script():
         import app.supermodules.respiratory_lab.pages as m
         m.run()
@@ -165,10 +168,8 @@ def test_respiratory_lab_header_shows_validated_confidence_marker():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     markers = [md.value for md in at.main.markdown if "border-left:3px" in md.value]
-    assert len(markers) == 1, f"se esperaba exactamente un marcador VALIDATED: {markers}"
-    assert PALETTE.STABLE in markers[0]
-    assert "✓" in markers[0]
-    assert "AASM" in markers[0], "el texto verbatim de la firma debe aparecer completo, no truncado"
+    assert markers == [], f"no debe quedar marcador de validación: {markers}"
+    assert any("En corrección" in w.value for w in at.warning)
 
 
 def test_eeg_neuro_lab_header_shows_no_confidence_marker_deliberately(eeg_ups):
@@ -261,24 +262,21 @@ def test_no_local_style_blocks_remain():
         assert not re.search(r"(?<!`)<style>(?!`)", src), f"{path} todavía tiene un <style> propio"
 
 
-def test_respiratory_ahi_severity_provenance_is_clinical_consistent_with_twin_shell():
-    """Consistencia entre-archivos: el AHI/Severidad de Respiratory Lab
-    está respaldado por criterio AASM real (`_assess_severity()`,
-    `src/signals/respiration/respiratory_analyzer.py`) -- mismo estándar
-    que `twin_shell/pages.py::_RISK_SYSTEM_PROVENANCE` ya cita
-    (`PROVENANCE_SOURCE_AASM`) para el mismo AHI. Debe llevar
-    `BADGES.CLINICAL`, no `HEURISTIC`, en TODOS los sitios donde se
-    muestra (fila de métricas principal, resumen clínico, pestaña
-    Investigación)."""
-    page_content = Path("app/supermodules/respiratory_lab/page_content.py").read_text(encoding="utf-8")
-    pages = Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")
+def test_respiratory_ahi_severity_cards_are_never_shown_as_trusted_values():
+    """Tanda 1 de contención (2026-11-05, Art. I). Antes este test exigía `BADGES.CLINICAL` en todas
+    las tarjetas de AHI/Severidad (criterio AASM). El AHI de este laboratorio ya no es fiable (0 con
+    cualquier señal) y la severidad se derivaba de él: toda tarjeta de AHI debe llevar «no fiable» en
+    su título y toda de Severidad debe ser una tarjeta «no disponible» (value=None), nunca CLINICAL."""
     import re
 
+    page_content = Path("app/supermodules/respiratory_lab/page_content.py").read_text(encoding="utf-8")
+    pages = Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")
+
     for src, label in ((page_content, "page_content.py"), (pages, "pages.py")):
-        for m in re.finditer(r'render_metric_card\(\s*"([^"]*(?:AHI|Severidad)[^"]*)"', src):
-            # find the provenance= on the same call (within next ~200 chars)
-            window = src[m.end(): m.end() + 250]
-            assert "BADGES.CLINICAL" in window, (
-                f"{label}: la tarjeta '{m.group(1)}' debería usar BADGES.CLINICAL (AASM), "
-                f"contexto: {window[:120]!r}"
-            )
+        assert "BADGES.CLINICAL" not in src, f"{label}: nada de este lab puede llevar el badge CLÍNICO mientras esté en corrección"
+        for m in re.finditer(r'render_metric_card\(\s*"([^"]*(?:AHI|Severidad)[^"]*)"\s*,\s*(.*)', src):
+            title, rest = m.group(1), m.group(2)
+            if "AHI" in title:
+                assert "no fiable" in title, f"{label}: la tarjeta {title!r} debe declararse no fiable"
+            else:
+                assert rest.strip().startswith("None"), f"{label}: la tarjeta {title!r} debe estar suprimida (value=None)"

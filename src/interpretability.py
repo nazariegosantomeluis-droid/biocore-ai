@@ -269,19 +269,24 @@ def compute_feature_importance(features, baseline=None):
 
 
 def shap_like_explanation(features, prediction):
-    """`probability` se retiró del parámetro (2026-08-06) -- el único
-    llamador real (`classify_ecg_signal`) lo alimentaba con un `confidence`
-    que era una constante literal por rama de regla en
-    `ECGAnalyzer.detect_clinical_pattern()`, no una probabilidad calculada;
-    mostrarlo aquí como "X% de confianza" era el mismo dato falso filtrado
-    por una segunda vía. Ver CHANGELOG.md."""
+    """Contribución por desviación respecto de una referencia fija (NO es SHAP).
+
+    Tanda 1 de contención (2026-11-05, Art. I): el texto anterior decía que "el
+    modelo combina estos factores para explicar el resultado", pero el patrón lo
+    decide `ECGAnalyzer.detect_clinical_pattern()` por umbrales, no un modelo que
+    use estas métricas. Aquí solo se describe cuánto se aleja cada métrica HRV de
+    su valor de referencia (`DEFAULT_FEATURE_BASELINES`).
+
+    `probability` se retiró del parámetro (2026-08-06) -- el único llamador real
+    lo alimentaba con un `confidence` que era una constante literal."""
     importance = compute_feature_importance(features)
     if not importance:
         return []
 
     narrative = []
     narrative.append(
-        'La clasificación de riesgo fue impulsada principalmente por:'
+        'Métricas HRV que más se alejan de su valor de referencia fijo '
+        '(desviación normalizada; no es SHAP):'
     )
     for item in importance[:4]:
         change = 'alto' if item['direction'] == 'higher' else 'bajo'
@@ -289,28 +294,34 @@ def shap_like_explanation(features, prediction):
             f"- {item['label']} {change} ({item['percent']:.0f}%) — {item['human']}"
         )
     narrative.append(
-        f"El modelo combina estos factores para explicar el resultado: {prediction}."
+        f"Patrón detectado por reglas: {prediction}. Esta lista describe la desviación de las métricas, "
+        "no la causa de esa clasificación."
     )
     return narrative
 
 
 def lime_like_explanation(features, prediction):
+    """Dirección de riesgo asociada a cada métrica, de una tabla fija (NO es LIME).
+
+    Tanda 1 de contención (2026-11-05, Art. I): el texto anterior describía un
+    un entorno local y qué pasa al alterar ligeramente las características;
+    no se perturba nada. La dirección sale de
+    `FEATURE_RISK_DIRECTION` (convención fija) y del signo de la desviación."""
     importance = compute_feature_importance(features)
     if not importance:
         return []
 
     narrative = []
     narrative.append(
-        'Explicación estilo LIME (vecindario local) para principiantes:'
+        'Dirección de riesgo de cada métrica según una tabla fija (no se simuló ningún cambio '
+        'sobre la señal; no es LIME):'
     )
     for item in importance[:4]:
         narrative.append(
-            f"- Si {item['label']} cambia un poco, el resultado se mueve {'hacia mayor riesgo' if item['direction'] == 'higher' else 'hacia menor riesgo'} "
-            f"(contribución estimada {item['percent']:.0f}%)."
+            f"- {item['label']}: se aleja de la referencia "
+            f"{'hacia mayor riesgo' if item['direction'] == 'higher' else 'hacia menor riesgo'} "
+            f"(peso {item['percent']:.0f}%)."
         )
-    narrative.append(
-        'Estas son las características que más cambian la predicción cuando se alteran ligeramente en el entorno local del ECG analizado.'
-    )
     return narrative
 
 

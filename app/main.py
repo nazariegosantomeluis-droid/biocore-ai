@@ -50,7 +50,6 @@ from app.supermodules import (
     display_info_message,
     render_metric_explained,
     render_view_selector,
-    render_scientific_discovery_layer,
     render_discovery_lab,
 )
 from app.engines import DigitalTwinOrganism
@@ -1058,7 +1057,8 @@ def render_emg_page() -> None:
                     consequences='Elevada activación prolongada sugiere fatiga y riesgo de lesión.')
         st.write('¿Qué significa?: Nivel de reclutamiento motor. Por qué importa: indica esfuerzo y fatiga.')
         st.write('Qué lo afecta: carga, postura, fatiga, neurogenic factors.')
-        render_scientific_discovery_layer({'EMG': signal})
+        # Tanda 1 de contención (2026-11-05, Art. I): 'Capa de Descubrimiento Científico' retirada
+        # (su botón no medía lo que decía); detalle en CHANGELOG.md.
 
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
@@ -1823,7 +1823,6 @@ def render_ecg_monitor_page() -> None:
                 if loaded_case.mortality_risk:
                     st.write(f"**Riesgo de mortalidad estimado:** {loaded_case.mortality_risk * 100:.0f}%")
 
-        render_scientific_discovery_layer({'ECG': signal})
         if PLOTLY_OK:
             try:
                 fig = PLOTLY_GO.Figure()
@@ -2081,7 +2080,6 @@ def render_multisensor_page() -> None:
         render_metric_card('Heart Rate', f"{indices['heart_rate']:.0f} bpm", provenance=BADGES.HEURISTIC)
         render_metric_card('SpO2', f"{indices['spo2_mean']:.1f}%", provenance=BADGES.HEURISTIC)
         st.write('Qué significa: índice agregado de bienestar fisiológico. Por qué importa: prioriza intervenciones.')
-        render_scientific_discovery_layer(demo_channels)
 
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
@@ -2353,8 +2351,6 @@ def render_hrv_page() -> None:
 
     st.divider()
     _render_hrv_save_to_twin(sdnn, mean_nn, source)
-
-    render_scientific_discovery_layer({'RR_ms': rr_ms})
 
     lf_power = None
     hf_power = None

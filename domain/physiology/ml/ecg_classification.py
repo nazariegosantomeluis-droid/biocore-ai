@@ -4,7 +4,7 @@ sobre una señal de ECG cruda ya obtenida (sintética del UPS, modo A, o de
 hardware real, modo B) — este módulo nunca genera ni inventa la señal, solo
 la analiza. Cero `np.random`, cero resultado hardcodeado: cada valor sale
 de `clinical.ecg_analyzer.ECGAnalyzer` (detección de picos R real) y
-`src.feature_extraction`/`src.interpretability` (HRV real + SHAP/LIME real)
+`src.feature_extraction`/`src.interpretability` (HRV real + explicación por contribución de pesos fijos)
 sobre esa misma señal.
 """
 
@@ -46,8 +46,8 @@ class EcgClassificationResult:
 def classify_ecg_signal(signal: np.ndarray, fs: float) -> EcgClassificationResult:
     """Clasifica `signal` (real, ya sea sintética-del-UPS o de hardware) con
     el analizador real y, si hay suficientes latidos, calcula
-    explicabilidad SHAP/LIME real sobre las mismas métricas HRV extraídas de
-    esa señal — nunca sobre texto canned."""
+    explicación por contribución de pesos fijos (heurística; no es SHAP ni LIME)
+    sobre las mismas métricas HRV extraídas de esa señal — nunca sobre texto canned."""
     analyzer = ECGAnalyzer(fs=fs)
     result = analyzer.detect_clinical_pattern(signal)
     r_peaks = analyzer.detect_r_peaks(signal)
@@ -61,12 +61,12 @@ def classify_ecg_signal(signal: np.ndarray, fs: float) -> EcgClassificationResul
             hrv_features = extract_features(rr_intervals, power_spectrum, frequencies)
             shap_lime = generate_shap_lime_report(hrv_features, result["pattern"])
         except Exception as exc:  # cálculo real que puede fallar con datos límite — no fabricar respaldo
-            note = f"No se pudo calcular explicabilidad SHAP/LIME: {exc}"
+            note = f"No se pudo calcular la explicación por contribución: {exc}"
     else:
         note = (
             f"Se detectaron {len(r_peaks)} picos R ({len(rr_intervals)} intervalos RR) — se "
             f"necesitan al menos {MIN_RR_INTERVALS_FOR_EXPLAINABILITY + 1} picos para calcular "
-            f"explicabilidad SHAP/LIME."
+            f"la explicación por contribución."
         )
 
     return EcgClassificationResult(

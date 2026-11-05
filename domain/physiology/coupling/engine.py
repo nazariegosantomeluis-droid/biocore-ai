@@ -1,19 +1,21 @@
 """
-Motor de acoplamiento fisiológico -- dormido por diseño (Paso 1b, 2026-07-15).
+Motor de acoplamiento fisiológico (Paso 1b, 2026-07-15).
 
 Dado un `UnifiedPhysiologicalState` y un conjunto de `CouplingRule`,
 `evaluate()` calcula qué reglas HABILITADAS se disparan y qué efectos
-PROPONDRÍAN -- nunca los aplica al estado. Aplicar pertenece a una fase
-futura, posterior a esta, cuando existan reglas reales validadas y se
-decida conectar el motor al flujo vivo del UPS. Ningún módulo de
-`domain/physiology/scenarios/`, `builder.py`, `narrator/*` ni la app
-importa este paquete todavía -- construido y probado aislado, tal como se
-pidió.
+PROPONDRÍAN -- nunca los aplica al estado; aplicar es trabajo de
+`coupling/bridge.py::apply_couplings()`.
 
-Con el conjunto de reglas real de este proyecto hoy (vacío -- ver
-`rules.py`, que no trae ninguna regla real precargada), `evaluate()`
-siempre devuelve una lista vacía. No falla, no inventa, no aplica ningún
-efecto: el motor nace honestamente inerte.
+Corrección 2026-11-05 (Tanda 1 de contención, Art. I): la versión original de
+este docstring decía que el motor estaba "dormido", que ningún módulo importaba
+este paquete y que el catálogo estaba vacío. Ya no es cierto: `catalog.py`
+trae UNA regla activa (`AROUSAL_TAQUICARDIA_BAR`, VALIDADO_POR_FUENTE) y el
+paquete tiene dos llamadores vivos de `apply_couplings()`:
+`state/composer.py::compose_neuro_cardiac_snapshot()` (botón "Componer y
+evaluar" de Digital Twin OS, donde la regla sí dispara) y el botón "Guardar
+estado al gemelo" del EEG Lab (no-op honesto: ese snapshot no trae FC base).
+Con un estado sin el descriptor de la condición o sin reglas habilitadas,
+`evaluate()` devuelve una lista vacía: no falla ni inventa.
 """
 
 from __future__ import annotations

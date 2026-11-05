@@ -276,10 +276,14 @@ col1, col2, col3, col4, col5 = st.columns(5)
 # un semáforo de 3 niveles que nadie validó; el emoji de severidad
 # (`severity_colors`, cálculo ya existente, sin cambios) se conserva
 # dentro del texto del valor, igual que antes.
+# Tanda 1 de contención (2026-11-05, Art. I): FR y AHI se muestran marcados
+# "no fiable" (el analizador devuelve FR = 60.0 constante y AHI = 0 con cualquier
+# señal; ver RESPIRATORY_UNRELIABLE_NOTICE en pages.py) y se SUPRIMEN el patrón
+# y la severidad, que son clasificaciones derivadas de esos números. Sin badge
+# de procedencia en los valores no fiables: ni CLINICAL ni HEURISTIC les aplica.
 with col1:
     render_metric_card(
-        "Frecuencia Respiratoria", f"{analysis.respiratory_rate:.1f} r/min",
-        provenance=BADGES.HEURISTIC,
+        "Frecuencia Respiratoria — ⛔ no fiable", f"{analysis.respiratory_rate:.1f} r/min (no usar)",
     )
 
 with col2:
@@ -289,35 +293,20 @@ with col2:
     )
 
 with col3:
-    # BADGES.CLINICAL, no HEURISTIC (corregido tras revisión -- consistencia
-    # con `respiratory_lab/pages.py::_render_investigacion_tab()` y con
-    # `twin_shell/pages.py::_RISK_SYSTEM_PROVENANCE`, que ya cita
-    # `PROVENANCE_SOURCE_AASM` para este mismo AHI): `_assess_severity()`
-    # (`src/signals/respiration/respiratory_analyzer.py:378`) está basado
-    # en el criterio AASM real, no es una heurística de ingeniería sin cita.
     render_metric_card(
-        "Índice AHI", f"{analysis.apnea_hypopnea_index:.1f}",
-        provenance=BADGES.CLINICAL,
+        "Índice AHI — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} (no usar)",
     )
 
 with col4:
     render_metric_card(
-        "Patrón", analysis.breathing_pattern.capitalize(),
-        provenance=BADGES.HEURISTIC,
+        "Patrón", None,
+        unavailable_reason="clasificación suprimida: depende de la detección de respiraciones, en corrección",
     )
 
 with col5:
-    severity_colors = {
-        "normal": "🟢",
-        "mild": "🟡",
-        "moderate": "🟠",
-        "severe": "🔴"
-    }
-    severity_emoji = severity_colors.get(analysis.severity, "⚪")
-    # BADGES.CLINICAL: misma razón que "Índice AHI" arriba -- AASM real.
     render_metric_card(
-        "Severidad", f"{severity_emoji} {analysis.severity.upper()}",
-        provenance=BADGES.CLINICAL,
+        "Severidad", None,
+        unavailable_reason="suprimida: se deriva del AHI, que no es fiable todavía",
     )
 
 st.markdown("---")
@@ -438,10 +427,9 @@ with tab1:
             )
 
     with col4:
-        render_metric_card(
-            "Variabilidad RR", f"{analysis.rr_variability:.2f}",
-            provenance=BADGES.HEURISTIC,
-        )
+        # Misma línea defectuosa que la FR (diferencias de índices de respiración,
+        # no de tiempos): siempre 0.00. Tanda 1 de contención, 2026-11-05.
+        render_metric_card("Variabilidad RR — ⛔ no fiable", f"{analysis.rr_variability:.2f} (no usar)")
 
 with tab2:
     st.markdown("### 🫀 Monitoreo de Oximetría (SpO2)")
@@ -528,69 +516,17 @@ with tab2:
 
 with tab3:
     st.markdown("### 📈 Análisis Avanzado")
-    
-    # Apnea events
-    if analysis.apnea_detected:
-        st.markdown(f"#### 🔴 Eventos de Apnea Detectados ({len(analysis.apnea_events)})")
-        
-        apnea_df_data = []
-        for i, event in enumerate(analysis.apnea_events[:10], 1):  # Show first 10
-            apnea_df_data.append({
-                "Evento": i,
-                "Inicio (s)": f"{event['start_time']:.1f}",
-                "Fin (s)": f"{event['end_time']:.1f}",
-                "Duración (s)": f"{event['duration']:.1f}",
-                "Tipo": event['type'].capitalize()
-            })
-        
-        if apnea_df_data:
-            import pandas as pd
-            apnea_df = pd.DataFrame(apnea_df_data)
-            st.dataframe(apnea_df, use_container_width=True, hide_index=True)
-        
-        # Severity classification
-        ahi = analysis.apnea_hypopnea_index
-        if ahi < 5:
-            ahi_severity = "✅ Normal"
-        elif ahi < 15:
-            ahi_severity = "🟡 Leve (AOS leve)"
-        elif ahi < 30:
-            ahi_severity = "🟠 Moderada (AOS moderada)"
-        else:
-            ahi_severity = "🔴 Severa (AOS severa)"
-        
-        # Consolidación Visual Tanda 3 (2026-09-21): bloque de texto libre
-        # -> `render_metric_card`. `BADGES.CLINICAL` (corregido tras
-        # revisión, no HEURISTIC): los cortes 5/15/30 de `ahi_severity`
-        # son exactamente los umbrales AASM reales (Normal<5, Leve 5-15,
-        # Moderada 15-30, Severa>30) -- mismo estándar que `analysis.
-        # severity` (`_assess_severity()`, AASM) y que `PROVENANCE_SOURCE_
-        # AASM` ya cita en `twin_shell/pages.py` para este mismo AHI. Sin
-        # `classification=`: no existe un `classify_*()` de 3-tupla que
-        # envuelva este cálculo -- no se fabrica uno a mano.
-        render_metric_card(
-            "Índice AHI (Apnea-Hypopnea Index)", f"{ahi:.1f} eventos/hora",
-            provenance=BADGES.CLINICAL,
-        )
-        render_metric_card(
-            "Clasificación AHI", ahi_severity,
-            provenance=BADGES.CLINICAL,
-        )
-    else:
-        st.success("✅ No se detectaron apneas")
-    
-    # Breathing pattern analysis
-    st.markdown("#### 🫁 Análisis de Patrón Respiratorio")
-    
-    pattern_descriptions = {
-        "regular": "Respiración regular y ordenada - Buen control respiratorio",
-        "irregular": "Respiración irregular - Puede indicar inestabilidad del sueño",
-        "periodic": "Respiración periódica - Característica de apnea del sueño",
-        "insufficient_data": "Datos insuficientes para análisis"
-    }
-    
-    pattern_desc = pattern_descriptions.get(analysis.breathing_pattern, "Patrón desconocido")
-    st.info(f"**Patrón detectado:** {analysis.breathing_pattern.capitalize()}\n\n{pattern_desc}")
+    # Tanda 1 de contención (2026-11-05, Art. I): se suprimen la tabla de eventos
+    # de apnea, la clasificación por AHI, el "✅ No se detectaron apneas" y la
+    # descripción del patrón respiratorio. El detector no cuenta apneas aunque la
+    # señal tenga pausas de ~20 s (mide 0 eventos en los patrones de apnea del
+    # propio generador), así que tanto "hay apnea" como "no hay apnea" serían
+    # afirmaciones sin respaldo. El cálculo no se tocó (arco propio).
+    st.info(
+        "Análisis avanzado **suprimido mientras el detector de apneas y de respiraciones está en "
+        "corrección**: no se muestran eventos de apnea, clasificación por AHI ni descripción del "
+        "patrón respiratorio. La oximetría (pestaña SpO2) y la señal sí se conservan."
+    )
 
 with tab4:
     st.markdown("### 📚 Referencias Clínicas")
@@ -664,59 +600,18 @@ with tab5:
     quiz_type = st.radio(
         "Seleccionar Tipo de Pregunta:",
         [
-            "Identificar Patrón",
-            "AHI y Severidad",
             "Diferenciación Apnea",
             "Factores de Riesgo",
             "Correlación ECG-Respiratoria"
         ]
     )
     
-    if quiz_type == "Identificar Patrón":
-        st.info("""
-        **Pregunta:** ¿Cuál es el patrón respiratorio mostrado en la primera pestaña?
-        
-        Observa:
-        1. La regularidad de los ciclos
-        2. La amplitud (profundidad) de las respiraciones
-        3. Los períodos sin flujo de aire (apneas)
-        """)
-        
-        answer = st.radio("Tu respuesta:", [
-            f"✓ {analysis.breathing_pattern.capitalize()}",
-            "Otro patrón"
-        ])
-        
-        if answer.startswith("✓"):
-            st.success("✅ ¡Correcto!")
-        else:
-            st.error(f"❌ La respuesta correcta es: {analysis.breathing_pattern.capitalize()}")
-    
-    elif quiz_type == "AHI y Severidad":
-        st.info(f"""
-        **Pregunta:** ¿Cuál es la severidad de apnea basada en AHI = {analysis.apnea_hypopnea_index:.1f}?
-        """)
-        
-        if analysis.apnea_hypopnea_index < 5:
-            correct = "Normal"
-        elif analysis.apnea_hypopnea_index < 15:
-            correct = "Leve"
-        elif analysis.apnea_hypopnea_index < 30:
-            correct = "Moderada"
-        else:
-            correct = "Severa"
-        
-        answer = st.radio("Tu respuesta:", [
-            f"✓ {correct}",
-            "Otro grado"
-        ])
-        
-        if answer.startswith("✓"):
-            st.success("✅ ¡Correcto!")
-        else:
-            st.error(f"❌ La respuesta correcta es: {correct}")
-    
-    elif quiz_type == "Diferenciación Apnea":
+    # Tanda 1 de contención (2026-11-05): se quitaron "Identificar Patrón" y
+    # "AHI y Severidad": su respuesta "correcta" salía de `analysis.breathing_pattern`
+    # y `analysis.apnea_hypopnea_index`, es decir del analizador en corrección
+    # (daba "✓ Periodic" para respiración normal). Las otras tres preguntas son
+    # texto fijo, sin dependencia del analizador.
+    if quiz_type == "Diferenciación Apnea":
         st.info("""
         **Pregunta:** ¿Cuál es la diferencia CLAVE entre apnea central y obstructiva?
         
@@ -776,21 +671,21 @@ st.markdown("---")
 
 st.markdown("### 📋 Resumen Clínico")
 
-# Consolidación Visual Tanda 3 (2026-09-21): los 9 `st.metric()` del
-# resumen -> `render_metric_card`, `BADGES.HEURISTIC` (mismos valores ya
-# calculados arriba, sin recalcular nada -- solo cambia el renderizador).
+# Tanda 1 de contención (2026-11-05, Art. I): el resumen conserva solo lo que no
+# depende del detector de respiraciones/apneas (oximetría y conteo bruto de
+# respiraciones detectadas). FR y AHI figuran como "no fiable"; patrón, eventos
+# de apnea y severidad se suprimen; las "notas clínicas" automáticas del
+# analizador ("Taquipnea…", "apnea del sueño…", "No apneas detected") no se
+# renderizan porque se generan a partir de esos mismos valores.
 col1, col2, col3 = st.columns(3)
 with col1:
-    render_metric_card("Frecuencia respiratoria", f"{analysis.respiratory_rate:.1f} breaths/min", provenance=BADGES.HEURISTIC)
-    render_metric_card("Patrón respiratorio", analysis.breathing_pattern.title(), provenance=BADGES.HEURISTIC)
-    render_metric_card("Eventos de apnea", "Sí" if analysis.apnea_detected else "No", provenance=BADGES.HEURISTIC)
+    render_metric_card("Frecuencia respiratoria — ⛔ no fiable", f"{analysis.respiratory_rate:.1f} breaths/min (no usar)")
+    render_metric_card("Patrón respiratorio", None, unavailable_reason="suprimido: en corrección")
+    render_metric_card("Eventos de apnea", None, unavailable_reason="suprimido: el detector no es fiable todavía")
 
 with col2:
-    # BADGES.CLINICAL para estos dos (corregido tras revisión): mismo AHI/
-    # severidad AASM-real que arriba -- ver la nota completa junto a la
-    # fila de métricas principal.
-    render_metric_card("AHI estimado", f"{analysis.apnea_hypopnea_index:.1f} eventos/h", provenance=BADGES.CLINICAL)
-    render_metric_card("Severidad", analysis.severity.title(), provenance=BADGES.CLINICAL)
+    render_metric_card("AHI estimado — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} eventos/h (no usar)")
+    render_metric_card("Severidad", None, unavailable_reason="suprimida: se deriva del AHI")
     render_metric_card("Respiraciones detectadas", str(len(analysis.breaths)), provenance=BADGES.HEURISTIC)
 
 with col3:
@@ -798,15 +693,7 @@ with col3:
     render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.HEURISTIC)
     render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.HEURISTIC)
 
-st.markdown("**Notas clínicas clave:**")
-for note in analysis.clinical_notes:
-    st.markdown(f"- {note}")
-
-st.markdown("**Interpretación rápida:**")
-st.write(
-    "Este análisis muestra el patrón respiratorio principal, el grado de desaturación y la presencia de apneas. "
-    "Considere correlacionar estos resultados con síntomas clínicos, somnolencia diurna y factores de riesgo cardiopulmonar."
-)
+st.markdown("**Notas clínicas automáticas:** suprimidas mientras el analizador respiratorio está en corrección.")
 
 # ═══════════════════════════════════════════════════════════════
 # EDUCATIONAL SIDEBAR

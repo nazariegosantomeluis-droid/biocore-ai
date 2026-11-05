@@ -22,8 +22,12 @@ class ClinicalDataQualityError(Exception):
 
 # Umbral PROVISIONAL (2026-08-24, Capa 2/5B) -- pendiente de bendición del
 # experto tras revisar la 2ª ronda del banco de validación
-# (docs/validation/ecg_hr_detector_bank/). No se usa en ningún flujo de
-# producción todavía -- la escritura ECG->UPS sigue sin cablear.
+# (docs/validation/ecg_hr_detector_bank/). Corrección 2026-11-05 (Tanda 1 de
+# contención, Art. I): el comentario anterior decía que la escritura ECG->UPS
+# "sigue sin cablear"; SÍ está cableada (`_render_ecg_save_to_twin()`,
+# `app/main.py`, botón `ecg_lab_save_to_ups`, que pasa por la compuerta de
+# `estimate_heart_rate_with_confidence()` y declina con motivo). Lo que sigue
+# PROVISIONAL es este umbral, no la existencia de la escritura.
 QUALITY_THRESHOLD = 0.6
 
 
