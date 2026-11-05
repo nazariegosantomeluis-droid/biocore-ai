@@ -19,6 +19,7 @@ compartan exactamente la misma función, no una copia que pueda divergir."""
 
 import pytest
 
+from src.clinical import sepsis_trajectory
 from app.engines.simulation_engine import SimulationScenario
 from app.supermodules.twin_shell.pages import (
     _attach_calculated_pa_to_case,
@@ -57,10 +58,21 @@ def _generate_case_with_calculated_pa(session, scenario, rng):
     return case, case_state, case_references
 
 
-@pytest.mark.parametrize(
-    "scenario",
-    [SimulationScenario.HEALTHY, SimulationScenario.HYPERTENSION, SimulationScenario.SEPSIS],
-)
+def _sepsis_case_in_phase(session, shock: bool):
+    """Primer caso de sepsis (semillas 0..59) cuyo horizonte elegido está -- o no -- en la fase de shock.
+    Desde la regla firmada (2026-11-02) el horizonte importa: la PA solo existe en shock, y Academia elige el
+    horizonte al azar, así que los tests lo buscan en lugar de suponerlo."""
+    for seed in range(60):
+        case, case_state, references = _generate_case_with_calculated_pa(
+            session, SimulationScenario.SEPSIS, rng=__import__("random").Random(seed)
+        )
+        horizon = sepsis_trajectory.horizon_from_source_detail(case_state.cardiovascular.get("heart_rate").source_detail)
+        if (sepsis_trajectory.phase_of(horizon) == "shock") == shock:
+            return case, case_state, references, horizon
+    raise AssertionError(f"ninguna de las 60 semillas dio un caso de sepsis con shock={shock} -- revisar el test")
+
+
+@pytest.mark.parametrize("scenario", [SimulationScenario.HEALTHY, SimulationScenario.HYPERTENSION])
 def test_enabled_scenarios_receive_calculated_pa_labeled_with_provenance(tmp_path, scenario):
     SessionLocal = _session_factory(tmp_path / f"academia_case_{scenario.value}.db")
 
@@ -74,17 +86,50 @@ def test_enabled_scenarios_receive_calculated_pa_labeled_with_provenance(tmp_pat
             assert descriptor.confidence == pytest.approx(HEMODYNAMIC_MODEL_VALIDATED_CONFIDENCE)
 
 
+def test_sepsis_in_shock_receives_calculated_pa_labeled_with_provenance(tmp_path):
+    """Regla firmada por el experto (2026-11-02): la PA de sepsis se muestra SOLO en shock. Aquí las aserciones
+    de antes -- procedencia y confianza validada -- siguen intactas, ahora sobre un caso en fase de shock."""
+    SessionLocal = _session_factory(tmp_path / "academia_case_sepsis_shock_provenance.db")
+
+    with SessionLocal() as session:
+        _, case_state, _, horizon = _sepsis_case_in_phase(session, shock=True)
+        assert horizon in ("24h", "7d")
+        for name in ("systolic_bp_modelo", "diastolic_bp_modelo", "map_modelo"):
+            descriptor = case_state.cardiovascular.get(name)
+            assert descriptor is not None, name
+            assert descriptor.provenance == Provenance.MODELO_HEMODINAMICO
+            assert descriptor.confidence == pytest.approx(HEMODYNAMIC_MODEL_VALIDATED_CONFIDENCE)
+
+
+def test_sepsis_before_shock_declines_the_pa_with_its_reason(tmp_path):
+    """Decisión clínica firmada, no regresión: en temprana/progresión el caso NO lleva PA calculada y el
+    narrador recibe la declinación (con motivo) en lugar de un número seguido de una nota que lo desmienta."""
+    SessionLocal = _session_factory(tmp_path / "academia_case_sepsis_declined.db")
+
+    with SessionLocal() as session:
+        _, case_state, references, horizon = _sepsis_case_in_phase(session, shock=False)
+        assert horizon in ("now", "5min", "30min", "2h")
+        for name in ("systolic_bp_modelo", "diastolic_bp_modelo", "map_modelo"):
+            assert case_state.cardiovascular.get(name) is None, name
+        assert case_state.cardiovascular.get("heart_rate") is not None  # el caso sigue intacto
+        assert references == []
+
+        findings = _build_pa_findings(case_state, references, "sepsis")
+        assert [f.name for f in findings] == ["PA del modelo hemodinámico (declinada)"]
+        assert findings[0].value.startswith("PA no disponible en fase ")
+        assert findings[0].value.endswith("(límite del modelo)")
+        assert "mmHg" not in findings[0].value
+
+
 def test_sepsis_case_calculated_pa_is_collapsed_consistent_with_shock(tmp_path):
     """No repite la validación fisiológica ya hecha en 'La película' -- solo
     confirma que el valor que llega a la UI de Academia sigue siendo el
     mismo tipo de colapso (PAM muy por debajo de lo normal), no un número
-    desconectado del motor."""
+    desconectado del motor. Solo en shock: ahí la PA existe (regla firmada)."""
     SessionLocal = _session_factory(tmp_path / "academia_case_sepsis_shock.db")
 
     with SessionLocal() as session:
-        case, case_state, _ = _generate_case_with_calculated_pa(
-            session, SimulationScenario.SEPSIS, rng=__import__("random").Random(2)
-        )
+        _, case_state, _, _ = _sepsis_case_in_phase(session, shock=True)
         map_modelo = case_state.cardiovascular.get("map_modelo")
         assert map_modelo.value < 65.0  # muy por debajo de una PAM sana (~93)
 
@@ -207,7 +252,9 @@ def test_divergence_note_present_only_when_both_pa_coexist(tmp_path):
                 assert "Sepsis-3" in divergence.meaning  # ejemplo concreto de umbral de guía
                 assert "PARA ESTE paciente concreto" in divergence.meaning  # estimación específica
 
-            elif not references and not found_calculated_only:
+            elif not references and case_state.cardiovascular.get("map_modelo") is not None and not found_calculated_only:
+                # Solo PA calculada = shock sin referencia (24h). Un caso temprano/progresión NO entra aquí:
+                # no tiene PA calculada, tiene la declinación (cubierta en su propio test).
                 found_calculated_only = True
                 assert names == ["PA calculada por el modelo hemodinámico"]
                 assert "Nota sobre la posible divergencia entre las dos PA" not in names

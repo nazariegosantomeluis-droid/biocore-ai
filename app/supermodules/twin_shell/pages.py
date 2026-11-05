@@ -1214,6 +1214,12 @@ def _attach_calculated_pa_to_case(session, patient_id: str, scenario_value: str,
     if hr_descriptor is None or snapshot_id is None:
         return state, []
 
+    # Sepsis: el motor solo modela el shock establecido. Fuera de esa fase la PA se DECLINA (regla firmada por
+    # el experto, 2026-11-02): no se calcula ni se adjunta -- mismo resultado que apnea, `(state, [])`. Sin
+    # fase identificable tampoco se asume shock.
+    if scenario_value == "sepsis" and _sepsis_case_phase(state, scenario_value) not in sepsis_trajectory.PA_MODEL_PHASES:
+        return state, []
+
     try:
         compute_and_attach_closed_loop_pressure(
             session,
@@ -1232,18 +1238,47 @@ def _attach_calculated_pa_to_case(session, patient_id: str, scenario_value: str,
     return state, references
 
 
-def _sepsis_pa_phase_note(state, scenario_value: str) -> str:
+def _sepsis_case_phase(state, scenario_value: str) -> Optional[str]:
     """Para sepsis: en qué fase de la trayectoria canónica está este caso (leída del horizonte con que se
-    persistió su FC) y qué representa la PA calculada en ella. Vacío para otros escenarios o si el estado no
-    viene de un escenario rico."""
+    persistió su FC). `None` para otros escenarios o si el estado no viene de un escenario rico."""
     if scenario_value != "sepsis":
-        return ""
+        return None
     hr_descriptor = state.cardiovascular.get("heart_rate")
     horizon = sepsis_trajectory.horizon_from_source_detail(hr_descriptor.source_detail if hr_descriptor else None)
-    if horizon is None:
+    return None if horizon is None else sepsis_trajectory.phase_of(horizon)
+
+
+def _sepsis_pa_phase_note(state, scenario_value: str) -> str:
+    """Qué representa la PA calculada en la fase de este caso de sepsis (solo se adjunta en shock; ver
+    `_attach_calculated_pa_to_case`). Vacío para otros escenarios o si la fase no se identifica."""
+    phase = _sepsis_case_phase(state, scenario_value)
+    if phase is None:
         return ""
-    phase = sepsis_trajectory.phase_of(horizon)
-    return f" FASE DE ESTE CASO (trayectoria canónica de sepsis, horizonte {horizon}): {sepsis_trajectory.pa_phase_note(phase)}"
+    return f" FASE DE ESTE CASO (trayectoria canónica de sepsis, {phase}): {sepsis_trajectory.pa_phase_note(phase)}"
+
+
+def _sepsis_pa_declination_finding(state, scenario_value: str) -> list:
+    """Sepsis fuera de shock: el narrador recibe la declinación (con su motivo) en lugar de una cifra de PA.
+    Lista vacía para cualquier otro caso -- apnea y compañía siguen sin Finding de PA, como antes."""
+    if scenario_value != "sepsis":
+        return []
+    phase = _sepsis_case_phase(state, scenario_value)
+    if phase in sepsis_trajectory.PA_MODEL_PHASES:
+        return []
+    return [
+        Finding(
+            name="PA del modelo hemodinámico (declinada)",
+            value=sepsis_trajectory.pa_declination(phase),
+            meaning=(
+                "El modelo NO calculó PA para este caso -- es un límite declarado del modelo, no un dato "
+                f"omitido: {sepsis_trajectory.PA_DECLINATION_REASON} NO inventes, estimes ni insinúes una cifra "
+                "de PA, y NO enseñes que la sepsis temprana es hipotensiva (Sepsis-3 define el shock séptico "
+                "por la hipotensión que exige vasopresores para mantener PAM ≥ 65 pese a la reposición de "
+                "volumen, no la sepsis temprana). Si la PA entra en la explicación, di que el modelo no la "
+                "cubre en esta fase."
+            ),
+        )
+    ]
 
 
 def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
@@ -1256,7 +1291,7 @@ def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
     map_modelo = state.cardiovascular.get("map_modelo")
     pa_findings = []
     if map_modelo is None:
-        return pa_findings
+        return _sepsis_pa_declination_finding(state, scenario_value)
 
     systolic_modelo = state.cardiovascular.get("systolic_bp_modelo")
     diastolic_modelo = state.cardiovascular.get("diastolic_bp_modelo")

@@ -33,7 +33,14 @@ normal. Medido (2026-10-31), el motor da PAM 61 con FC 60, 47 con FC 100, 36 con
 FC 125 y 24 con FC 150: cae por debajo de 65 con cualquier FC porque la presión
 la fija el mecanismo, no la FC. Por eso la PA calculada solo representa a las
 fases de shock, y la referencia citada (Sepsis-3: 85/55, PAM 65) es el UMBRAL
-del shock, no la sepsis temprana. Ver `pa_phase_note()`.
+del shock, no la sepsis temprana.
+
+REGLA FIRMADA POR EL EXPERTO (Luis, 2026-11-02): la PA se DECLINA fuera de la fase de
+shock. En temprana y progresión no se calcula ni se adjunta al UPS: se declara el límite
+del modelo (`pa_declination()`), igual que apnea y convulsión declinan por desajuste de
+fase. Mostrar una PAM de shock con una nota que la desmintiera enseñaría -- falsamente --
+que la sepsis temprana es hipotensiva. La PA se muestra solo en shock (24h, 7d), donde es
+válida. Es una decisión clínica, no una regresión. Ver `pa_phase_note()`.
 
 SIN VARIABILIDAD entre instancias: la trayectoria es única y determinista (no
 usa semilla). Si se firma variabilidad, debe ser función pura de (semilla,
@@ -107,19 +114,31 @@ def horizon_from_source_detail(source_detail: Optional[str]) -> Optional[str]:
     return label if label in HORIZON_PHASES else None
 
 
+_PHASE_LABEL = {"temprana": "temprana", "progresion": "de progresión", "shock": "de shock"}
+
+PA_DECLINATION_REASON = (
+    "el motor hemodinámico modela dinámica de shock establecido (vasoplejía completa); la PA de la sepsis "
+    "temprana requiere un modelo que la plataforma no tiene aún."
+)
+
+
+def pa_declination(phase: Optional[str]) -> str:
+    """Texto corto de la declinación de PA en una fase que el motor no describe (`phase=None`: no se pudo
+    identificar la fase del caso; sin fase no se puede afirmar que el motor aplique, así que también se declina)."""
+    where = f"en fase {_PHASE_LABEL.get(phase, phase)}" if phase else "- fase de la sepsis no identificada"
+    return f"PA no disponible {where} (límite del modelo)"
+
+
 def pa_phase_note(phase: str) -> str:
-    """Qué representa la PA calculada por el motor en esta fase (para la UI y el narrador)."""
+    """Qué dice la plataforma de la PA en esta fase (para la UI y el narrador): en shock, qué representa la
+    calculada; en las demás, la declinación con su motivo -- nunca un número acompañado de una nota que lo desmienta."""
     if phase in PA_MODEL_PHASES:
         return (
             "fase de shock séptico: el modelo hemodinámico (vasoplejía, retorno venoso reducido) describe a "
             "este paciente; la referencia citada (Sepsis-3, PAM 65) es el UMBRAL de shock y el cálculo cae por "
             "debajo de él."
         )
-    return (
-        f"fase {phase.replace('progresion', 'de progresión')} de la sepsis: el modelo hemodinámico solo modela la "
-        "vasoplejía del shock establecido y no tiene un mecanismo de sepsis temprana, donde la PA real puede ser "
-        "normal -- esta PA calculada NO representa a este paciente; es lo que el modelo daría si ya estuviera en shock."
-    )
+    return f"{pa_declination(phase)}: {PA_DECLINATION_REASON}"
 
 
 def declare_trajectory() -> str:
@@ -134,6 +153,6 @@ def declare_trajectory() -> str:
         "**Trayectoria canónica de sepsis** (una sola, sin variabilidad entre instancias; "
         f"[{VALIDATION_STATUS}]: FC > 90 y FR ≥ 22 al inicio tienen cita —SIRS, qSOFA—; las magnitudes de shock no).\n\n"
         + "\n".join(filas)
-        + "\n\nPresión arterial: el modelo hemodinámico solo describe la fase de **shock**; en las fases "
-        "temprana y de progresión su PA no representa al paciente (la PA real puede ser normal)."
+        + "\n\nPresión arterial: el modelo hemodinámico solo modela la fase de **shock**; en las fases "
+        "temprana y de progresión la PA se declina (no se muestra): " + PA_DECLINATION_REASON
     )
