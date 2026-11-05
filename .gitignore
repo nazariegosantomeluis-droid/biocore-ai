@@ -127,3 +127,6 @@ secrets/
 
 # ── Consolidation scaffolding ──
 _archive/
+data/*.backup-*
+data/*.db-shm
+data/*.db-wal
