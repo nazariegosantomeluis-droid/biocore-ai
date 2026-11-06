@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-05 — Unificación 4: "sano" (`_simulate_healthy`) con variabilidad declarada, función pura de la semilla (antes 7 gaussianas sin semilla)
+
+**Contexto**: cuarta colisión del diagnóstico de fragmentación. "Sano" es el punto de referencia de la plataforma y era la misma fachada que "arritmia" tenía antes de la unificación 1: variabilidad oculta tras `np.random`. El mismo "sano" daba un paciente distinto en cada clic y sin avisar. Art. I y IV: la variabilidad se declara, no se esconde.
+
+- **Censo (medido, 300 corridas)**: no era solo la FC. `_simulate_healthy` aplicaba 7 `np.random.normal` del estado global de numpy, sin acotar: FC 72 ± 3, HRV 50 ± 5, estrés 20 ± 5, cognición 85 ± 5, FR 16 ± 1, SpO2 98 ± 0.5, fatiga 10 ± 5. **Producía valores imposibles**: fatiga −9.8 y cognición 102.6. Dentro de una misma corrida cada horizonte saltaba por separado (FC 69.6 → 71.6 → 72.5 → 68.5…), es decir, una persona sana distinta en cada horizonte. `np.random.seed()` movía el resultado (dependía del estado global).
+- **Quién heredaba el temblor**: (1) la convulsión: `_simulate_seizure` devuelve `_simulate_healthy` a partir de los 5 min, así que 5 de sus 6 horizontes eran "sano" tembloroso (sd 2.8 lpm); (2) el escenario Sano en sí, en el simulador del UPS, el banco de casos de la Academia y las comparaciones de PA/barorreflejo que se alimentan de la FC del horizonte; (3) la matriz de horizontes evaluables del banco de casos, que se midió contra "la banda de ruido de sano" (ver abajo). Además: `_simulate_healthy` **ignoraba el estado de partida**, así que el jitter inicial que el banco de casos declaraba como `fc_base_semilla` en un caso sano no era la FC que el caso mostraba.
+- **Fuente única** (`src/clinical/healthy_baseline.py`, módulo puro, mismo patrón que `arrhythmia_types.py` y `sepsis_trajectory.py`): `HEALTHY_VARIABLES` (nominal, mínimo, máximo) y `instance(seed)`, función pura de la semilla. Una instancia es UNA persona: los valores no cambian entre horizontes. Rangos propuestos, **pendientes de firma** (`PENDING_VALIDATION`, sin cita):
+
+  | variable | nominal | rango |
+  |---|---|---|
+  | FC (lpm) | 72 | 60–85 |
+  | HRV | 50 | 35–65 |
+  | FR (rpm) | 16 | 12–18 |
+  | SpO₂ (%) | 98 | 96–99 |
+  | estrés | 20 | 10–35 |
+  | cognición | 85 | 80–90 |
+  | fatiga | 10 | 5–15 |
+
+  Los cinco primeros son los rangos que el banco de casos ya usaba; cognición y fatiga son el nominal ± 5 (el sigma anterior), ahora acotados.
+- **Semilla 0 = persona de referencia** (valores nominales). Es la semilla por defecto del motor, así que el "sano" que nadie configuró es siempre el mismo y los puntos fijos de validación (lazo hemodinámico a FC 72, PAM 93.3) siguen siendo su baseline. Otra semilla = otra persona sana dentro de los mismos rangos. **Decisión para Luis**: si prefieres que la semilla 0 también sea un sorteo (como en arritmia), es quitar una línea, pero el baseline por defecto dejaría de ser FC 72.
+- **UI**: el simulador de escenarios del UPS ofrece el campo de semilla también para Sano y declara "Rangos declarados de Sano… Esta instancia (semilla N): FC …". El banco de casos registra `semilla_instancia` y la declaración (antes `semilla_arritmia`, solo arritmia); se muestran tras responder, así que no revelan el diagnóstico.
+- **Colisión con el "Normal" de ECG-12 (unificación 3)**: no son el mismo concepto y no se fusionan. "Normal" es el corte clínico del ritmo (60–100 lpm); "sano" es el subrango de una persona sana en reposo. Se unifican en lo que sí comparten: la FC de "sano" va **contenida** en `SINUS_NORMAL_RANGE_BPM` (aserción al importar y test). El subrango es 60–85 y no 60–100 porque con 98–100 lpm "sano" se confundiría con estrés (82.5), hipertensión (85) y el límite de ciclo documentado del lazo hemodinámico para FC ≥ 98.
+- **Definiciones paralelas de "sano" colapsadas a la fuente**: `BASELINE_PARAMETERS` del motor (mismos valores, ahora derivados), el jitter del banco de casos (`_BASELINE_JITTER`, mismos rangos, ahora derivados) y el preset "healthy" del organismo, que **decía HRV 60 donde el motor decía 50**: ahora 50.
+- **Matriz de horizontes evaluables (banco de casos) re-medida** contra la banda de "sano" antigua (nominal ± 3σ) y contra los rangos declarados nuevos, en los 15 escenarios × 6 horizontes: **ningún horizonte evaluable de un escenario patológico se vuelve indistinguible de sano**. Cambian 3 celdas (estrés 5min, hipoxia now y 5min), las tres en horizontes ya excluidos, en la dirección conservadora (la banda nueva, más estrecha en estrés/fatiga/cognición, los marcaría como distinguibles). `EVALUABLE_HORIZONS_BY_SCENARIO` **no se tocó**: cambiarlo es decisión del validador.
+- **Fuera de alcance, anotado**: el banco de casos sigue sorteando el punto de partida con `random.Random()` sin semilla por defecto (declara los valores en `parametros`, y para los escenarios que sí usan el estado de partida es el eje de variación documentado); la ocurrencia de `np.random` en otros módulos (generadores de señal, datos de ejemplo) no es de este escenario. Motor hemodinámico y UPS: sin tocar.
+- **Tests**: `tests/test_healthy_unification.py` (16): misma semilla = mismo paciente, igual en los 6 horizontes y con cualquier estado de numpy; semillas distintas = personas distintas dentro del rango; sin `np.random` en el camino de sano; la convulsión vuelve al mismo sano declarado; la UI declara rango y semilla; FC de sano contenida en el ritmo normal; motor, banco de casos y preset derivan de la fuente; un caso sano declara la base que de verdad tiene.
+- **Cita**: Art. I y IV.
+
 ## 2026-11-05 — Tanda 1 de contención: fachadas vivas del inventario (Respiratory Lab, "Entropía", etiquetas de IA/ML)
 
 **Contexto**: `docs/INVENTARIO_BIOCORE_2026-11-05.md` encontró afirmaciones falsas todavía vivas que la Capa 3 no cubrió. Esta tanda es **solo contención**: retira o marca lo que hoy afirma algo falso. No construye nada nuevo y **no repara ningún cálculo** (el de Respiratory es su propio arco: arreglar una pieza daría un número plausible pero falso, peor que uno que se autodenuncia, misma decisión que el 220 bpm del ECG Monitor). **Cita**: Art. I (nunca fingir lo que no se sabe).

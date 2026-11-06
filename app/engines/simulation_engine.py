@@ -9,9 +9,8 @@ Evolución temporal (Ahora → 5min → 30min → 2h → 24h → 7d)
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, replace
 from enum import Enum
-import numpy as np
 
-from src.clinical import sepsis_trajectory
+from src.clinical import healthy_baseline, sepsis_trajectory
 from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES, declare_instance, instance_hr
 
 
@@ -87,15 +86,11 @@ class SimulationEngine:
     
     TIME_POINTS = (("now", 0), ("5min", 5), ("30min", 30), ("2h", 120), ("24h", 1440), ("7d", 10080))
 
-    # Parámetros basales (sano)
+    # Parámetros basales (sano): los valores nominales de la fuente única (`healthy_baseline.py`), no una tabla propia.
     BASELINE_PARAMETERS = {
-        "hr": 72,
-        "hrv": 50,
-        "respiratory_rate": 16,
-        "spo2": 98,
-        "stress_level": 20,
-        "cognitive_state": 80,
-        "fatigue_index": 10,
+        **{name: healthy_baseline.HEALTHY_VARIABLES[name][0] for name in (
+            "hr", "hrv", "respiratory_rate", "spo2", "stress_level", "cognitive_state", "fatigue_index",
+        )},
         "sympathetic_tone": 30,
     }
     
@@ -187,8 +182,8 @@ class SimulationEngine:
     }
     
     def __init__(self, seed: int = 0):
-        # `seed` solo afecta a los escenarios de arritmia: la instancia (tipo, semilla) es
-        # determinista dentro del rango declarado del tipo. El resto de escenarios no la usa.
+        # `seed` fija la instancia de los escenarios con variabilidad declarada: arritmia (tipo, semilla,
+        # `arrhythmia_types.py`) y sano (semilla, `healthy_baseline.py`). El resto no la usa.
         self.seed = seed
         self.current_scenario: Optional[SimulationScenario] = None
         self.timeline: List[SimulationTimestep] = []
@@ -288,20 +283,23 @@ class SimulationEngine:
     # ============ SIMULADORES POR ESCENARIO ============
     
     def _simulate_healthy(self, time_label: str, minutes: int, state: Dict) -> SimulationTimestep:
-        """Simulación: Paciente sano"""
+        """Simulación: Paciente sano. Una persona (la de `self.seed`, `healthy_baseline.py`): función pura de
+        la semilla dentro de rangos declarados, igual en los 6 horizontes. Ignora `state`, como siempre.
+        También es el estado al que vuelve la convulsión pasada la fase ictal."""
+        person = healthy_baseline.instance(self.seed)
         return SimulationTimestep(
             time_point=time_label,
             minutes_elapsed=minutes,
-            hr=72 + np.random.normal(0, 3),
-            hrv=50 + np.random.normal(0, 5),
+            hr=person["hr"],
+            hrv=person["hrv"],
             cardiac_output=5.0,
-            stress_level=20 + np.random.normal(0, 5),
-            cognitive_state=85 + np.random.normal(0, 5),
+            stress_level=person["stress_level"],
+            cognitive_state=person["cognitive_state"],
             eeg_activity=50,
-            respiratory_rate=16 + np.random.normal(0, 1),
-            spo2=98 + np.random.normal(0, 0.5),
+            respiratory_rate=person["respiratory_rate"],
+            spo2=person["spo2"],
             ahi=2,
-            fatigue_index=10 + np.random.normal(0, 5),
+            fatigue_index=person["fatigue_index"],
             muscle_activation=40,
             sympathetic_tone=30,
             parasympathetic_tone=70,
@@ -410,8 +408,10 @@ class SimulationEngine:
         )
 
     def instance_declaration(self, scenario: SimulationScenario) -> Optional[str]:
-        """Texto de variabilidad declarada (rango, semilla, FC de esta instancia) para un escenario
-        de arritmia; `None` para los demás."""
+        """Texto de variabilidad declarada (rango, semilla, valores de esta instancia) para un escenario
+        de arritmia o para sano; `None` para los demás."""
+        if scenario == SimulationScenario.HEALTHY:
+            return healthy_baseline.declare_instance(self.seed)
         type_key = ARRHYTHMIA_SCENARIO_TYPE.get(scenario)
         if type_key is None:
             return None

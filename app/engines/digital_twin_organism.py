@@ -937,10 +937,14 @@ class DigitalTwinOrganism:
         Aplica un preset de paciente (healthy, hypertension, copd)
         directamente a las señales/detalles de los órganos correspondientes.
         """
+        from src.clinical.healthy_baseline import instance as _healthy_instance
+        _H = _healthy_instance()  # semilla de referencia: valores nominales
         scenarios: Dict[str, Dict[str, Dict[str, float]]] = {
+            # Unificación 4: los valores de "sano" son los nominales de la fuente única (antes HRV 60 aquí y 50 en el motor).
             'healthy': {
-                'ecg': {'heart_rate': 72, 'hrv': 60}, 'respiratory': {'respiratory_rate': 16, 'spo2': 98},
-                'eeg': {'stress_level': 20}, 'emg': {'fatigue_index': 10, 'efficiency': 90},
+                'ecg': {'heart_rate': _H['hr'], 'hrv': _H['hrv']},
+                'respiratory': {'respiratory_rate': _H['respiratory_rate'], 'spo2': _H['spo2']},
+                'eeg': {'stress_level': _H['stress_level']}, 'emg': {'fatigue_index': _H['fatigue_index'], 'efficiency': 90},
             },
             'hypertension': {
                 'ecg': {'heart_rate': 85, 'hrv': 40}, 'eeg': {'stress_level': 55},

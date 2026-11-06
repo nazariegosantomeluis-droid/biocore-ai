@@ -26,8 +26,10 @@ Tres ejes de variación, todos reales (nada inventado numéricamente):
    físicamente imposibles en vez de a un estado indistinguible -- ver
    `EVALUABLE_HORIZONS_BY_SCENARIO["exercise"]` para el detalle; la
    restricción de horizontes no cambió, cambió la razón.)
-3. Ruido: el que `SimulationEngine` ya aplica sin semilla en cada corrida
-   (gaussiano, no controlado por este módulo) — gratis, ya presente.
+3. Ruido: ya no hay ruido sin semilla (Unificación 4, 2026-11-05). La única
+   variabilidad es la instancia que fija la semilla del caso -- arritmia
+   (`arrhythmia_types.py`) o sano (`healthy_baseline.py`) -- y se declara en
+   `parametros`. Antes `SimulationEngine` aplicaba un gaussiano sin semilla a "sano".
 
 No hay una perilla de "severidad": `SimulationEngine.SCENARIO_PARAMETERS`
 no la expone como parámetro (solo trae etiquetas descriptivas internas de
@@ -43,6 +45,8 @@ from dataclasses import dataclass
 from typing import Dict, FrozenSet, List, Optional
 
 from sqlalchemy.orm import Session
+
+from src.clinical import healthy_baseline
 
 from app.engines.digital_twin_organism import DigitalTwinOrganism
 from app.engines.simulation_engine import SimulationEngine, SimulationScenario
@@ -131,13 +135,11 @@ EVALUABLE_HORIZONS_BY_SCENARIO: Dict[str, FrozenSet[str]] = {
 # Rango de variación honesta del estado inicial — fisiológicamente normal de
 # reposo, nunca patológico por sí mismo (la patología la aporta el
 # escenario, no el punto de partida). Equivalente a la variabilidad
-# interpersonal real entre pacientes sanos en reposo.
+# interpersonal real entre pacientes sanos en reposo. Unificación 4: son los
+# rangos de "sano" de la fuente única (`healthy_baseline.py`), no una tabla propia.
 _BASELINE_JITTER = {
-    "hr": (60.0, 85.0),
-    "hrv": (35.0, 65.0),
-    "respiratory_rate": (12.0, 18.0),
-    "spo2": (96.0, 99.0),
-    "stress_level": (10.0, 35.0),
+    name: healthy_baseline.HEALTHY_VARIABLES[name][1:]
+    for name in ("hr", "hrv", "respiratory_rate", "spo2", "stress_level")
 }
 
 
@@ -240,9 +242,20 @@ def generate_case(
         "spo2_base_semilla": round(seed_spo2, 1),
         "stress_level_base_semilla": round(seed_stress, 1),
     }
+    if scenario == SimulationScenario.HEALTHY:
+        # "sano" ignora el estado de partida: su persona ES la instancia de la semilla. Lo que se declara como
+        # base tiene que ser lo que el caso muestra, no el jitter descartado.
+        person = healthy_baseline.instance(arrhythmia_seed)
+        parametros.update(
+            fc_base_semilla=round(person["hr"], 1),
+            hrv_base_semilla=round(person["hrv"], 1),
+            respiratory_rate_base_semilla=round(person["respiratory_rate"], 1),
+            spo2_base_semilla=round(person["spo2"], 1),
+            stress_level_base_semilla=round(person["stress_level"], 1),
+        )
     declaration = SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario)
     if declaration is not None:
-        parametros["semilla_arritmia"] = arrhythmia_seed
+        parametros["semilla_instancia"] = arrhythmia_seed  # arritmia (tipo, semilla) o sano (semilla)
         parametros["variabilidad_declarada"] = declaration
 
     return ClinicalCase(

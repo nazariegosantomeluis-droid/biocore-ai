@@ -728,11 +728,11 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
             key="twin_shell_rich_scenario_select",
         )
         arrhythmia_seed = 0
-        if scenario_key in ARRHYTHMIA_SCENARIO_TYPE:
-            # Variabilidad DECLARADA (Unificación 1): rango del tipo, semilla y FC de la instancia a la vista.
+        if scenario_key in ARRHYTHMIA_SCENARIO_TYPE or scenario_key == SimulationScenario.HEALTHY:
+            # Variabilidad DECLARADA (Unificación 1 arritmia, 4 sano): rango, semilla y valores de la instancia a la vista.
             arrhythmia_seed = int(st.number_input(
                 "Semilla de la instancia", min_value=0, value=0, step=1, key="twin_shell_rich_arrhythmia_seed",
-                help="Fija la instancia dentro del rango declarado del tipo; otra semilla, otra instancia.",
+                help="Fija la instancia dentro del rango declarado; otra semilla, otra instancia.",
             ))
             st.info(SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario_key))
         if scenario_key == SimulationScenario.SEPSIS:
