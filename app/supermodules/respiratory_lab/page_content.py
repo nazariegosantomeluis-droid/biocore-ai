@@ -144,16 +144,26 @@ with col3:
     )
 
 with col4:
+    # Arco respiratorio, fase 2a (2026-11-07): el control vuelve a estar activo porque el generador ya
+    # lo usa. 0.0 = automático: la espiración ocupa el resto del ciclo (lo que el generador hacía siempre,
+    # cuando este control no hacía nada). Un valor > 0 acota el flujo espiratorio a esa duración y deja
+    # el resto del ciclo en pausa; inspiración + espiración no pueden superar el ciclo (60 / FR).
     exp_time = st.number_input(
         "Tiempo Espiración (s)",
-        min_value=0.3,
+        min_value=0.0,
         max_value=3.0,
-        value=1.5,
-        step=0.1
+        value=0.0,
+        step=0.1,
+        help="0 = automático (resto del ciclo). Un valor > 0 acota la espiración y deja pausa telespiratoria; "
+             "inspiración + espiración deben caber en el ciclo (60 / FR).",
     )
 
 # SpO2 parameters
 st.sidebar.markdown("### 🫀 Parámetros de Oxigenación")
+st.sidebar.caption(
+    "⛔ La SpO₂ simulada hoy es un artefacto del generador (cae en cada cruce por cero del flujo, "
+    "incluso con respiración normal): estos dos parámetros solo mueven ese artefacto."
+)
 
 col5, col6 = st.sidebar.columns(2)
 
@@ -200,7 +210,7 @@ def generate_respiration_data(pattern, rr, tv, insp, exp, baseline, desaturated,
         respiratory_rate=rr,
         tidal_volume=tv,
         inspiration_time=insp,
-        expiration_time=exp,
+        expiration_time=(exp if exp > 0 else None),
         pattern_type=pattern,
         baseline_spo2=baseline,
         desaturation_level=desaturated,
@@ -227,9 +237,15 @@ def analyze_respiration_data(airflow, time, spo2, chest):
 
 
 # Generate data
-respiration_data = generate_respiration_data(
-    selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, duration
-)
+# Parámetros imposibles (p. ej. inspiración >= ciclo): el generador lanza ValueError y aquí se muestra
+# explícito, en vez de la señal sin espiración que se dibujaba en silencio.
+try:
+    respiration_data = generate_respiration_data(
+        selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, duration
+    )
+except ValueError as _err:
+    st.error(f"⛔ Parámetros respiratorios imposibles: {_err}")
+    st.stop()
 
 airflow = respiration_data['airflow']
 time_array = respiration_data['time']
@@ -288,8 +304,7 @@ with col1:
 
 with col2:
     render_metric_card(
-        "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%",
-        provenance=BADGES.HEURISTIC,
+        "SpO2 Mínimo — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)",
     )
 
 with col3:
@@ -435,12 +450,19 @@ with tab1:
 
 with tab2:
     st.markdown("### 🫀 Monitoreo de Oximetría (SpO2)")
+    st.warning(
+        "⛔ **Artefacto del generador, no fiable (no usar).** La SpO₂ de esta pestaña no es una medición ni "
+        "un modelo fisiológico: el generador la deriva de |flujo| y por eso cae en cada cruce por cero de cada "
+        "respiración, incluso en respiración normal (con los valores por defecto, 'Tiempo <90 %' marca más de "
+        "50 s de 120). Se corrige en la fase 2b del arco respiratorio.",
+        icon="⛔",
+    )
     
     # Create SpO2 visualization
     fig_spo2 = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
-        subplot_titles=("Saturación de Oxígeno (SpO2)", "Flujo de Aire (referencia)"),
+        subplot_titles=("SpO2 simulada — ⛔ artefacto del generador, no fiable (no usar)", "Flujo de Aire (referencia)"),
         vertical_spacing=0.12,
         row_heights=[0.7, 0.3]
     )
@@ -504,17 +526,20 @@ with tab2:
     # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
     # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real sobre la señal
     # de SpO2, sin cita clínica de umbral en este módulo).
+    # Contención 2 (2026-11-07, Art. I): las cuatro tarjetas leen la SpO2 del generador,
+    # que cae en cada cruce por cero del flujo (respiración normal, FR 15: media 90.2 %,
+    # 54 s de 120 bajo 90 %). Son un artefacto, no una medición.
     with col1:
-        render_metric_card("SpO2 Basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+        render_metric_card("SpO2 Basal — ⛔ artefacto del generador", f"{analysis.baseline_spo2:.1f}% (no usar)")
 
     with col2:
-        render_metric_card("SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.HEURISTIC)
+        render_metric_card("SpO2 Mínimo — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)")
 
     with col3:
-        render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f}s", provenance=BADGES.HEURISTIC)
+        render_metric_card("Tiempo <90% — ⛔ artefacto del generador", f"{analysis.time_below_90:.1f}s (no usar)")
 
     with col4:
-        render_metric_card("Tiempo <85%", f"{analysis.time_below_85:.1f}s", provenance=BADGES.HEURISTIC)
+        render_metric_card("Tiempo <85% — ⛔ artefacto del generador", f"{analysis.time_below_85:.1f}s (no usar)")
 
 with tab3:
     st.markdown("### 📈 Análisis Avanzado")
@@ -527,7 +552,8 @@ with tab3:
     st.info(
         "Análisis avanzado **suprimido mientras el detector de apneas y de respiraciones está en "
         "corrección**: no se muestran eventos de apnea, clasificación por AHI ni descripción del "
-        "patrón respiratorio. La oximetría (pestaña SpO2) y la señal sí se conservan."
+        "patrón respiratorio. La señal (flujo, pared torácica, abdomen) se conserva; la oximetría es un "
+        "artefacto del generador y figura marcada como tal."
     )
 
 with tab4:
@@ -691,9 +717,9 @@ with col2:
     render_metric_card("Respiraciones detectadas — ⛔ no fiable", f"{len(analysis.breaths)} (no usar)")
 
 with col3:
-    render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.HEURISTIC)
-    render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.HEURISTIC)
-    render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.HEURISTIC)
+    render_metric_card("SpO2 basal — ⛔ artefacto del generador", f"{analysis.baseline_spo2:.1f}% (no usar)")
+    render_metric_card("SpO2 mínima — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)")
+    render_metric_card("Tiempo <90% — ⛔ artefacto del generador", f"{analysis.time_below_90:.1f} s (no usar)")
 
 st.markdown("**Notas clínicas automáticas:** suprimidas mientras el analizador respiratorio está en corrección.")
 

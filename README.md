@@ -16,7 +16,7 @@ BIOCORE se construyó sobre la regla opuesta, que gobierna toda su arquitectura:
 
 > **Cada dato declara su procedencia. Cuando el sistema no puede saber algo, lo dice — nunca rellena el hueco con algo plausible.**
 
-Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: hoy, **Respiratory Lab está en corrección** y muestra su frecuencia respiratoria, su AHI y el conteo de respiraciones como «no fiable».
+Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: hoy, **Respiratory Lab está en corrección** y muestra su frecuencia respiratoria, su AHI, el conteo de respiraciones y su oximetría (un artefacto del generador) como «no fiable».
 
 ---
 

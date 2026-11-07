@@ -310,3 +310,117 @@ def test_twin_os_causal_message_lists_the_domains_the_schema_models(temp_ups):
     text = " ".join(str(e.value) for e in at.info)
     assert f"El UPS modela hoy {len(modelados)} dominios ({', '.join(modelados)})" in text
     assert "solo cardiovascular y respiratorio" not in text
+
+
+# --- Contención 2 + fase 2a del arco respiratorio (2026-11-07, Art. I) -------------------------------------------
+
+import base64  # noqa: E402
+import json  # noqa: E402
+
+import numpy as np  # noqa: E402
+
+_SPO2_LABELS = ("SpO2 Basal", "SpO2 Mínimo", "SpO2 basal", "SpO2 mínima", "Tiempo <90%", "Tiempo <85%")
+_ARTIFACT_MARK = " — ⛔ artefacto del generador"
+
+
+def _plotly_traces(chart):
+    """{nombre: y} de un st.plotly_chart de AppTest (plotly puede codificar y en binario)."""
+    spec = json.loads(chart.proto.spec)
+    out = {}
+    for t in spec["data"]:
+        y = t["y"]
+        if isinstance(y, dict):
+            y = np.frombuffer(base64.b64decode(y["bdata"]), dtype=y["dtype"])
+        out[t.get("name")] = np.array(y, dtype=float)
+    return out, spec
+
+
+def _number_input(at, label):
+    return [n for n in at.sidebar.number_input if n.label == label][0]
+
+
+def _clinical_flow(at):
+    traces, _ = _plotly_traces(at.get("plotly_chart")[0])
+    return traces["Flujo de Aire"]
+
+
+@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central"])
+def test_every_spo2_value_is_marked_as_a_generator_artifact(temp_ups, pattern):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid, pattern)
+    assert at.exception == []
+    text = _all_text(at)
+    for label in _SPO2_LABELS:
+        occurrences = [m.start() for m in re.finditer(re.escape(label), text)]
+        assert occurrences, f"la etiqueta {label!r} ya no aparece: actualiza la lista si se retiró a propósito"
+        for pos in occurrences:
+            assert text[pos + len(label):].startswith(_ARTIFACT_MARK), f"{label!r} sin la marca de artefacto"
+            assert "(no usar)" in text[pos: pos + 400], f"{label!r} sin '(no usar)' en el valor"
+    assert any("Artefacto del generador, no fiable (no usar)" in w.value for w in at.warning)
+    # el gráfico de SpO2 también lleva la marca en su título
+    spec_texts = [json.loads(pc.proto.spec)["layout"].get("annotations", []) for pc in at.get("plotly_chart")]
+    assert any("artefacto del generador" in a.get("text", "") for annots in spec_texts for a in annots)
+
+
+def test_the_page_notice_no_longer_says_the_oximetry_is_kept(temp_ups):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    notice = " ".join(w.value for w in at.warning)
+    assert "artefacto del generador" in notice
+    assert "la oximetría se conservan" not in notice
+
+
+def test_expiration_control_is_active_default_is_automatic_and_moves_the_signal(temp_ups):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    exp = _number_input(at, "Tiempo Espiración (s)")
+    assert exp.disabled is False and exp.value == 0.0  # 0 = automático = el comportamiento de siempre
+    base = _clinical_flow(at)
+    exp.set_value(1.0).run()
+    assert at.exception == []
+    moved = _clinical_flow(at)
+    assert base.shape == moved.shape and not np.allclose(base, moved)
+    assert "automático" in (exp.help or "")
+
+
+@pytest.mark.parametrize("label,new_value", [
+    ("Frecuencia Respiratoria (resp/min)", 25), ("Volumen Corriente (L)", 1.0), ("Tiempo Inspiración (s)", 1.5),
+    ("Tiempo Espiración (s)", 1.0),
+])
+def test_every_clinical_control_that_claims_to_shape_the_signal_does(temp_ups, label, new_value):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    base = _clinical_flow(at)
+    _number_input(at, label).set_value(new_value).run()
+    assert at.exception == []
+    assert not np.allclose(base, _clinical_flow(at)), f"'{label}' no mueve la señal"
+
+
+@pytest.mark.parametrize("key,new_value", [("resp_sim_rr", 30), ("resp_sim_tv", 1.2)])
+def test_every_simulation_slider_moves_the_signal(temp_ups, key, new_value):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    base, _ = _plotly_traces(at.get("plotly_chart")[-1])
+    [s for s in at.slider if s.key == key][0].set_value(new_value).run()
+    assert at.exception == []
+    moved, _ = _plotly_traces(at.get("plotly_chart")[-1])
+    assert not np.allclose(base["Flujo de aire"], moved["Flujo de aire"]), key
+    assert not np.allclose(base["Pared torácica"], moved["Pared torácica"]), key
+
+
+def test_cycles_card_is_labeled_as_a_computed_target_not_a_measurement(temp_ups):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    text = _all_text(at)
+    assert "Ciclos objetivo en 30 s (calculado de la FR elegida, no medido)" in text
+    assert "Ciclos respiratorios en 30s" not in text
+
+
+def test_impossible_parameters_show_an_explicit_error_not_a_signal_without_expiration(temp_ups):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    _number_input(at, "Frecuencia Respiratoria (resp/min)").set_value(40)
+    _number_input(at, "Tiempo Inspiración (s)").set_value(3.0)
+    at.run()
+    assert at.exception == []
+    assert any("Parámetros respiratorios imposibles" in e.value and "no cabe en el ciclo" in e.value for e in at.error)

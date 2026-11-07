@@ -32,7 +32,9 @@ RESPIRATORY_UNRELIABLE_NOTICE = (
     "este laboratorio **no son fiables todavía** (el analizador devuelve valores que no dependen de la "
     "señal). Por eso se muestran marcados como «no fiable», se suprimen las interpretaciones clínicas "
     "derivadas de ellos (taquipnea, apnea del sueño, severidad, patrón) y este laboratorio **no escribe "
-    "al gemelo**. La visualización de la señal y la oximetría se conservan."
+    "al gemelo**. Se conserva la visualización de la señal (flujo, pared torácica, abdomen). La oximetría "
+    "también es un **artefacto del generador** (la SpO₂ cae en cada cruce por cero del flujo, incluso con "
+    "respiración normal) y se muestra marcada como no fiable."
 )
 
 
@@ -173,7 +175,7 @@ def _render_simulacion_tab():
         )
     with col_cycles:
         render_metric_card(
-            "Ciclos respiratorios en 30s", f"{(30 * sim_rr / 60):.0f}",
+            "Ciclos objetivo en 30 s (calculado de la FR elegida, no medido)", f"{(30 * sim_rr / 60):.0f}",
             provenance=BADGES.HEURISTIC,
         )
 
