@@ -17,21 +17,12 @@ contra los casos de prueba oficiales del propio proyecto (ver
   Software*, 10(109), 7595. https://doi.org/10.21105/joss.07595
 - Licencia: **BSD 3-Clause**
 
-```
-Copyright 2016-2025 Stanford University, The Regents of the University of California, and others.
+El texto exacto de esta licencia, descargado del archivo original del repositorio,
+vive en el `THIRD_PARTY_NOTICES.md` de la raíz del proyecto (sección 1). Se dejó de
+copiar aquí porque la copia anterior no era exacta (comillas rectas en lugar de las
+curvas del original) y dos copias pueden divergir.
 
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
-Fuente exacta del texto: https://github.com/SimVascular/svZeroDSolver/blob/master/LICENSE.txt
+Fuente: https://github.com/SimVascular/svZeroDSolver/blob/master/LICENSE.txt
 
 ## Nota de transparencia — desviación respecto a lo pedido, marcada explícitamente
 
@@ -56,18 +47,8 @@ Ese repositorio archivado usa una licencia de texto distinto (estilo MIT,
 también permisiva y comercialmente utilizable, pero no idéntica en su
 redacción a "BSD-3-Clause"):
 
-```
-Copyright (c) Stanford University, The Regents of the University of
-California, and others. All Rights Reserved.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject
-to the following conditions: [...]
-```
+El texto exacto y completo de esa licencia también está en el `THIRD_PARTY_NOTICES.md`
+de la raíz (sección 1). La versión que había aquí estaba truncada (le faltaba el resto del texto).
 
 Fuente: https://github.com/SimVascular/svZeroDSolver-Archived/blob/master/LICENSE.md
 

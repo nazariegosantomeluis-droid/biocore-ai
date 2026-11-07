@@ -2444,7 +2444,7 @@ def render_hrv_page() -> None:
 # se eliminó — confirmado antes de borrar que era exactamente un título más
 # un st.info() de disclaimer (Auditoría Art. I, 2026-07-03: el 'Confidence
 # Score' era un literal fijo, la capa de 'descubrimiento' corría sobre
-# ruido puro, y cada pestaña afirmaba análisis — CNN, SHAP/LIME, hipótesis
+# ruido puro, y cada pestaña afirmaba análisis — CNN, explicabilidad, hipótesis
 # causales — que nunca se ejecutaban; ya se había vaciado a un cartel
 # honesto de redirección). Cero lógica, cero widgets, nada que perder. El
 # propio Research Hub que lo contenía también se eliminó del menú — su

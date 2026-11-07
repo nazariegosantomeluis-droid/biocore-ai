@@ -1,7 +1,7 @@
 """
 Unified Physiological State (UPS) — fuente única de verdad del organismo.
 
-Fase 1.1 (ver PLAN.md): esquema tipado + persistencia SQLAlchemy/SQLite,
+Fase 1.1 (registro en CHANGELOG.md): esquema tipado + persistencia SQLAlchemy/SQLite,
 con procedencia y confianza por valor, trayectoria temporal, y eventos
 como entidad de primera clase. Alcance de este slice: dominios
 cardiovascular y respiratorio únicamente.

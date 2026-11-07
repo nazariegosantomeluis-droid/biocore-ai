@@ -1,3 +1,6 @@
+> **Obsoleto en parte: describe una versión anterior; la referencia vigente es [CLAUDE.md](../../CLAUDE.md).**
+> Las secciones de fisiología y salud son material educativo general. Las secciones sobre «IA automática» (comparación con millones de casos, porcentajes de confianza, predicciones, alertas inmediatas) se corrigieron el 2026-11-07 porque BIOCORE no hace eso hoy; lo que sí hace está descrito en la sección corregida.
+
 # NEUROLOGÍA - GUÍA EXPLÍCITA PARA PRINCIPIANTES
 ## "Todo lo que Necesitas Saber sobre tu Cerebro"
 
@@ -305,29 +308,31 @@ SÍNTOMA: Cataplexia (pérdida muscular despierto)
 
 ---
 
-## PARTE 7: CÓMO LA IA DETECTA AUTOMÁTICAMENTE
+## PARTE 7: QUÉ HACE BIOCORE CON UN EEG HOY
 
-### EL FLUJO AUTOMÁTICO
+*(Sección corregida el 2026-11-07. La versión anterior describía una «IA automática» que detectaba espigas y epilepsia con porcentajes de confianza y predecía el riesgo de crisis en 24 horas. Nada de eso existe.)*
+
+Lo que el EEG Neuro Lab hace de verdad:
 
 ```
-1. EEG entra
+1. SEÑAL
+   Un generador sintético de EEG (la pantalla lo declara) o una señal
+   cargada.
    ↓
-2. IA extrae bandas (Delta, Theta, Alpha, Beta, Gamma)
+2. POTENCIA POR BANDAS
+   Delta, Theta, Alpha, Beta y Gamma (método de Welch) y los cocientes
+   BAR, DAR y TBR, cada uno con su cita.
    ↓
-3. IA compara con patrones normales
-   ↓
-4. ¿Es normal? ¿Epilepsia? ¿Anomalía?
-   ↓
-5. Predicción: ¿Riesgo de crisis en próximas 24 horas?
-   ↓
-6. Digital Twin: Visualiza cerebro simulado
-   ↓
-7. Alertas: Si hay riesgo → Alerta inmediata
-   ↓
-8. Reporte: Documento automático
+3. OTROS INDICADORES
+   Exponente aperiódico chi (método FOOOF), desincronización mu (ERD) e
+   índice de engagement.
 ```
 
-### CARACTERÍSTICAS QUE DETECTA IA
+Lo que **no** hace: no detecta espigas ni epilepsia, no da porcentajes de confianza y no predice crisis. Las «espigas» del escenario *Seizure* son parte de la señal simulada, no un hallazgo.
+
+### PATRONES EEG DE REFERENCIA (solo educativos)
+
+Así se describen en los textos de neurología. BIOCORE **no** los detecta automáticamente.
 
 #### Espiga (Spike)
 ```
@@ -336,10 +341,8 @@ Onda muy abrupta:
     ╱╲
 ───╱  ╲───
    <20ms
-
-IA dice: "Posible epilepsia"
-Confianza: 82%
 ```
+Patrón clásico asociado a epilepsia.
 
 #### Punta-Onda
 ```
@@ -348,20 +351,18 @@ Punta seguida de onda:
  ╱  ╲ ╱ ╲
 ╱    ╱   ╲
       └──Onda
-
-IA dice: "Probable ausencia (epilepsia menor)"
-Confianza: 88%
 ```
+Patrón clásico asociado a las crisis de ausencia.
 
 #### Lentificación
 ```
 Bandas anormalmente lentas:
      ┌─────┐
 ─────┘     └───── ← Delta excesivo despierto
-
-IA dice: "Posible encefalopatía"
-Confianza: 75%
 ```
+Patrón clásico asociado a encefalopatía.
+
+La narración con IA real (un modelo de lenguaje que explica los datos del estado fisiológico del gemelo, solo con clave configurada) no emite diagnósticos.
 
 ---
 
@@ -489,7 +490,7 @@ EPILEPSIA: Descargas anormales → Crisis
            Tratamiento: Medicamentos anticonvulsivos
            Pronóstico: Controlable en 70% de casos
 
-IA AUTOMÁTICA: Analiza, predice, alerta en milisegundos
+BIOCORE HOY = potencia por bandas y cocientes citados; sin detección de epilepsia ni predicción de crisis
 ```
 
 ---

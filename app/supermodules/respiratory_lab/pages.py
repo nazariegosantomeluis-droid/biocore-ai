@@ -89,7 +89,7 @@ def _render_investigacion_tab():
     (severidad, eventos, CSV) afirmaban algo falso. El AHI se sigue mostrando,
     marcado "no fiable"; la severidad, la tabla y el CSV se suprimen; el cálculo
     NO se tocó (arco propio). Lee el análisis que ya calculó la Vista Clínica."""
-    render_section_header("Vista Investigación — Índice AHI y eventos de apnea")
+    render_section_header("AHI y eventos de apnea (en corrección)")
 
     bridge = st.session_state.get('_respiratory_lab_analysis')
     if bridge is None:

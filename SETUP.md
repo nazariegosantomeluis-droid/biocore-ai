@@ -1,12 +1,12 @@
 # BIOCORE AI — Setup & Run
 
-Single source of truth for getting the app running locally. Supersedes the
-older `COMO_EJECUTAR.md` / `QUICKSTART.md` / `SETUP_GUIDE.md` /
-`STREAMLIT_SETUP_GUIDE.md` (removed).
+Single source of truth for getting the app running locally. It replaces the
+older setup guides, which were removed.
 
 ## Requirements
 
-- **Python 3.10+** (developed and tested on CPython 3.13).
+- **Python**: developed and tested on CPython 3.13 only. The devcontainer uses 3.11
+  (`.devcontainer/devcontainer.json`); other versions have not been tested.
 - OS: Windows, macOS or Linux. Helper scripts for Windows are included
   (`run_local.ps1`, `RUN_BIOCORE.bat`).
 
@@ -31,8 +31,8 @@ streamlit run app/main.py
 ```
 
 Then open the URL Streamlit prints (default <http://localhost:8501>) and use
-the in-app Hub navigation (Digital Twin OS + Learning / Clinical / Research /
-Simulation / AI / Hardware hubs). `app/streamlit_app.py` is only a thin
+the in-app navigation: four hubs (Digital Twin OS, Learning Hub, Clinical Hub and
+Laboratorio 3D), with twelve menu entries in total (defined in `HUBS`, `app/main.py`). `app/streamlit_app.py` is only a thin
 wrapper that re-execs `app/main.py`.
 
 On Windows you can instead double-click `RUN_BIOCORE.bat` or run
@@ -44,7 +44,9 @@ The only real AI integration (`domain/physiology/narrator/`) calls the
 Anthropic API. It is **off by default** and the app runs fully without it —
 the narrator panels show an explicit "not configured" notice instead.
 
-To enable it, set the API key in your environment before launching:
+To enable it, either paste your key in the sidebar panel (it lives only in that
+browser session, never in `os.environ` or on disk) or set it in the server's
+environment before launching:
 
 ```bash
 # Windows PowerShell
@@ -53,14 +55,17 @@ $env:ANTHROPIC_API_KEY = "sk-your-key-here"
 export ANTHROPIC_API_KEY="sk-your-key-here"
 ```
 
-See `.env.example` for the full list of environment variables. The key is
-read **only** from the environment — never hard-code it.
+See `.env.example` for the full list of environment variables. Never hard-code
+the key.
 
 ## Run the tests
 
 ```bash
 pytest tests/ -q
 ```
+
+`tests/conftest.py` redirects the UPS database to a temporary file for the whole
+test session, so running the suite never writes to `data/biocore_ups.db`.
 
 ## Command-line pipeline (no UI)
 

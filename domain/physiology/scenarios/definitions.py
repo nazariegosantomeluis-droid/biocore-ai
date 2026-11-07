@@ -9,7 +9,7 @@ El organismo sigue calculando sus propias métricas derivadas
 `_update_heart`/`_update_lungs`; este módulo solo decide qué señales de
 entrada recibe en cada paso, sin duplicar ningún umbral clínico.
 
-Alcance de este slice (Fase 1.2, PLAN.md): 2 escenarios cardiovascular/
+Alcance de este slice (Fase 1.2, registro en CHANGELOG.md): 2 escenarios cardiovascular/
 respiratorio, no una biblioteca completa — evitar sobre-ingeniería.
 """
 

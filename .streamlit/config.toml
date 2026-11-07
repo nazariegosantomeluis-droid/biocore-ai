@@ -1,9 +1,9 @@
 [client]
-# BIOCORE AI uses a single, curated hub-based navigation (Digital Twin OS +
-# Learning/Clinical/Research/Simulation/AI/Hardware hubs) rendered inside
-# app/main.py. Streamlit's automatic multipage sidebar — which lists every
-# file in app/pages/ individually with no organization — is disabled so the
-# 17 loose entries don't appear as a second, uncurated navigation surface.
+# BIOCORE AI uses a single, curated hub-based navigation (Digital Twin OS,
+# Learning Hub, Clinical Hub and Laboratorio 3D; see HUBS in app/main.py)
+# rendered inside app/main.py. Streamlit's automatic multipage sidebar, which
+# would list every file of a pages/ folder with no organization, is disabled
+# so it doesn't appear as a second, uncurated navigation surface.
 showSidebarNavigation = false
 
 [theme]

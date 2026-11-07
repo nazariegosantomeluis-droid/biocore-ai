@@ -1,3 +1,6 @@
+> **Obsoleto en parte: describe una versión anterior; la referencia vigente es [CLAUDE.md](CLAUDE.md).**
+> Este documento describe el paquete `biomedical/` (`BiomedicalReasoningEngine`). Ni `app/`, ni `domain/`, ni `clinical/`, ni `src/` lo importan; solo lo usa el script de ejemplo `example_reasoning_engine.py`. La arquitectura que la plataforma ejecuta hoy gira en torno al UPS (`domain/physiology/state/`); su mapa está en `CLAUDE.md`. Las afirmaciones de este documento no se re-verificaron el 2026-11-07.
+
 # 🏗️ Arquitectura del Biomedical Reasoning Engine
 
 ## Flujo General

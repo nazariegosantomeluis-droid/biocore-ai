@@ -58,7 +58,9 @@ sqlalchemy>=2.0.0
 # no accidente de "instaló lo último".
 fooof==1.1.1
 
-# AI Explainability (Phase 2)
+# NINGÚN archivo del repo importa `shap` ni `lime` (verificado 2026-11-07): se conservan
+# declarados hasta decidir retirarlos. Las 'explicaciones' de la app son contribuciones de
+# pesos fijos (src/interpretability.py), no vienen de estas librerías.
 shap>=0.42.0
 lime>=0.2.0
 

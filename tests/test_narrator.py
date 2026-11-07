@@ -6,7 +6,7 @@ estructurado desde el UPS (incluida la comparación temporal antes/ahora) y
 construcción del prompt (system prompt con reglas de anclaje + mensaje de
 usuario con el contexto como datos, no prosa). La llamada real a la API de
 Anthropic (streaming) se verifica manualmente en la UI — no hay mock de red
-aquí, ver PLAN.md para el registro de esa verificación.
+aquí.
 """
 
 import json

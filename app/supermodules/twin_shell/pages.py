@@ -1581,6 +1581,20 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
 _CAUSAL_UPS_ORGANS = {"heart", "lungs"}
 
 
+def _ups_domain_names() -> list[str]:
+    """Dominios que el UPS modela HOY, leídos del propio esquema (`all_domains()`),
+    para que el texto de la UI no vuelva a caducar cuando se agregue un dominio."""
+    from datetime import datetime, timezone
+
+    from domain.physiology.state import DomainState, UnifiedPhysiologicalState
+
+    vacio = UnifiedPhysiologicalState(
+        patient_id="", timestamp=datetime.now(timezone.utc),
+        cardiovascular=DomainState(domain="cardiovascular"), respiratory=DomainState(domain="respiratory"),
+    )
+    return list(vacio.all_domains())
+
+
 def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
     """Consolidación (2026-07-13): antes usaba `CausalityEngine.find_root_cause()`
     — texto armado desde reglas fijas (`CAUSAL_RULES`), sin IA y con un final
@@ -1602,8 +1616,9 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
 
         if organ_id not in _CAUSAL_UPS_ORGANS:
             st.info(
-                f"El UPS todavía no modela el dominio de **{organ.name}** (solo cardiovascular y "
-                "respiratorio) — no hay datos reales sobre los que fundamentar una causa. "
+                f"El razonamiento causal solo está habilitado para el corazón y los pulmones; "
+                f"**{organ.name}** no está cableado a esta función. "
+                f"El UPS modela hoy {len(_ups_domain_names())} dominios ({', '.join(_ups_domain_names())}). "
                 "Selecciona el corazón o los pulmones para usar el razonamiento causal."
             )
             return

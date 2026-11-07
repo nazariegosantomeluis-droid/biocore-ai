@@ -1,7 +1,7 @@
 """
 Fase 1.1 — Unified Physiological State.
 
-Cubre el criterio de aceptación de PLAN.md:
+Cubre el criterio de aceptación de la Fase 1.1:
 (a) crear un paciente, escribir su estado y recuperarlo entre sesiones;
 (b) guardar y recuperar una serie temporal de estados, y consultar cómo
     cambió un valor concreto (HRV) entre dos momentos.

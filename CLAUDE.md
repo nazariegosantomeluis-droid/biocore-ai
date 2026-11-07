@@ -1,84 +1,85 @@
 # CLAUDE.md — BIOCORE AI
 
-Guía de orientación rápida para cualquier sesión de Claude Code que trabaje en este repo. Ver `PLAN.md` para el estado de fases y `documentation/Nivel 00` y `documentation/Nivel 01` para la arquitectura objetivo (constitución, UPS, Digital Twin, etc. — son visión a largo plazo, no lo que existe hoy).
+Guía operativa para cualquier sesión de Claude Code en este repo. Es la referencia vigente: si otro documento la contradice, este gana. La historia del proyecto vive en `CHANGELOG.md`, no aquí. El estado real de cada módulo (real, heurístico, simulado, defectuoso) está en `docs/INVENTARIO_BIOCORE_2026-11-05.md`.
 
-## Qué es esto de verdad, hoy
+## Qué es
 
-Un monolito Python + Streamlit ("Biomedical Signal Visualizer") que está en proceso de convertirse en "BIOCORE AI", un Biomedical Operating System. La documentación en `documentation/` describe la visión objetivo (10 generaciones, Unified Physiological State, Digital Human Twin 3D, AI Orchestrator). **Nada de eso está implementado todavía** salvo piezas parciales — ver `PLAN.md` para el gap analysis completo.
+Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **simulado** (declarado como simulación) y varios laboratorios que analizan señal, todos alimentando un estado fisiológico unificado (UPS) donde cada valor declara su procedencia. Un narrador con IA (API de Anthropic, opcional) explica en palabras los datos del UPS.
 
-## Reglas de oro (no negociables)
+**Art. I, regla rectora:** nunca presentar como real, medido, validado o inteligente lo que no lo es. Cuando algo no se puede saber, se dice «no disponible» con el motivo; no se rellena con algo plausible. Esto aplica al código, a la UI y a los documentos.
 
-1. No romper lo que funciona. Entender antes de refactorizar.
-2. Trabajar por fases pequeñas, cada una ejecutable y probada. Nada de reescrituras "big bang".
-3. IA real, no fingida: el razonamiento/explicaciones se generan con la API de Anthropic desde el backend, fundamentadas en datos reales. Prohibido texto hardcodeado disfrazado de IA (el ejemplo histórico de lo que NO hacer era `app/biomedical_tutor.py`, un `dict` de keywords — eliminado en Fase 1.3, refundido en `domain/physiology/narrator/`).
-4. Simulación fisiológica ≠ dato falso: generar pacientes/escenarios sintéticos es una función deseada, pero debe etiquetarse siempre como simulación. Nunca presentar un valor inventado como si viniera de un sensor real.
-5. Preguntar antes de decisiones grandes (borrar módulos, cambiar framework, elegir BD).
-6. Todo elemento nuevo debe justificar su existencia contra el UPS/Digital Twin/valor educativo — si no, fusionar/rediseñar/eliminar.
-7. Documentar en `PLAN.md` y marcar lo pendiente como `// TODO: integración real pendiente`.
-8. Commits SOLO a nombre de Luis Nazariego Santome. Nunca añadir una línea `Co-Authored-By: Claude` (ni ninguna otra atribución) a un commit.
+## Mapa real
 
-## Stack real
+- **Entrada:** `streamlit run app/main.py` (en Windows también `RUN_BIOCORE.bat` / `run_local.ps1`, vía `run_biocore.py`). `app/streamlit_app.py` solo reejecuta `main.py`. El `main.py` de la raíz es un pipeline CLI de ECG, aparte de la app.
+- **Navegación:** el diccionario `HUBS` de `app/main.py` define 4 hubs y 12 entradas; `render_page_content()` enruta por substring del nombre.
 
-- **Lenguaje/Framework**: Python + Streamlit (sin frontend JS separado, sin build step).
-- **Paquetes**: `pip` + `requirements.txt` plano. No hay `pyproject.toml` propio.
-- **Run**: `streamlit run app/main.py`, o en Windows `RUN_BIOCORE.bat` / `run_local.ps1` (crean `.venv`, reinstalan solo si cambia `requirements.txt` y arrancan vía `run_biocore.py`, que mitiga el cierre del socket de escucha de asyncio en Windows; la mitigación solo aplica con el lanzador y caduca en Python 3.16). `app/streamlit_app.py` es solo un wrapper que reejecuta `main.py`.
-- **PDF**: `fpdf2` (no PyFPDF: ambos son el módulo `fpdf` y chocan). Ver Tanda 2B en `CHANGELOG.md`.
-- **Visualización**: matplotlib + Plotly. **No hay librería 3D real** para el Digital Twin — hoy es HTML/CSS cards (`app/supermodules/twin_shell/pages.py`).
-- **IA**: `anthropic` SDK. Única integración real: `domain/physiology/narrator/` (Fase 1.3) — narrador clínico con streaming, modelo `claude-opus-5-5`, prompt construido desde datos estructurados del UPS (`build_context()`), nunca desde texto libre. Expuesto en la UI vía `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y el hub "AI Hub" de `app/main.py`. `app/ai_copilot.py` (JARVIS, código muerto) y `app/biomedical_tutor.py` (`BiomedicalTutor`, dict de keywords) fueron eliminados el 2026-07-02 — no reintroducir ese patrón. Antes de asumir que algo llama a Claude, verificar que pase por este paquete.
-- **Persistencia**: dos capas que coexisten sin fusionar todavía. (1) El UPS (`domain/physiology/state/`) usa SQLite + SQLAlchemy en `data/biocore_ups.db` — implementado en Fase 1.1. (2) El resto de la app sigue con SQLite crudo (`sqlite3`, sin ORM) en dos esquemas incompatibles (`app/clinical_db.py` y `src/rural_health/offline_support.py`) — no tocado todavía, fusión diferida a una fase posterior de consolidación.
+| Hub | Entrada | Dónde vive |
+|---|---|---|
+| Digital Twin OS | Digital Twin OS | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
+| Learning Hub | Academia Clínica | `app/supermodules/academia/` |
+| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) |
+| Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
+| Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (**en corrección**, ver abajo) |
+| Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/` |
+| Clinical Hub | EMG Muscle Lab | `render_emg_page()` en `app/main.py` |
+| Clinical Hub | HRV Analysis | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
+| Clinical Hub | Biomarkers Lab | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
+| Clinical Hub | Calculadoras Clínicas | `app/supermodules/calculators/` + `clinical/calculators.py` |
+| Clinical Hub | Patient Pipeline | `render_patient_pipeline_page()` en `app/main.py` |
+| Laboratorio 3D | Crea tu modelo 3D | `app/supermodules/model3d/` |
 
-## Ganadores de duplicación (decididos 2026-07-02, ver `PLAN.md` Fase 0)
+- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio).
+- `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
 
-Estas decisiones aplican a todo trabajo nuevo. El resto de las copias no se ha eliminado todavía (se difiere a una fase de consolidación posterior) pero **no se debe construir sobre ellas**:
+## El UPS (`domain/physiology/state/`)
 
-- **Señales**: gana `src/signals/` (paquete completo por modalidad). `signals/` (raíz) y el antiguo shim `domain/signals/` (ya eliminado) quedan fuera.
-- **Motor de razonamiento**: gana `biomedical/reasoning_engine.py` (`BiomedicalReasoningEngine`) — es el que usan `app/bio_reasoning_streamlit.py` y `app/reasoning_engine_streamlit.py`. `src/reasoning_engine.py` (833 líneas) está diferido/huérfano — no extenderlo.
-- **Capa clínica**: gana `clinical/` (`ECGAnalyzer`, `ecg12.py`) para análisis clínico. `src/clinical/case_database.py` se conserva (biblioteca de casos, sin equivalente en `clinical/`). `src/clinical/ecg_interpreter.py` está diferido para fusionar más adelante.
-- **Visualización**: gana el paquete `visualization/` (en particular `visualization/medical/plotly_clinical.py`) para todo trabajo nuevo de la app Streamlit. `src/visualization.py` se mantiene intacto solo para el pipeline CLI de la raíz (`main.py`) — no mezclarlo con la app.
+- **Cuatro dominios:** `cardiovascular`, `respiratory`, `neurological`, `muscular`. Son campos nombrados de `UnifiedPhysiologicalState` en `schema.py`; `all_domains()` los lista (la UI lee de ahí, no los repitas en textos).
+- **`Provenance`** (enum en `schema.py`, 7 valores): `SENSOR_REAL`, `SIMULACION`, `DERIVADO`, `REFERENCIA_CLINICA`, `MODELO_HEMODINAMICO`, `DERIVADO_ACOPLAMIENTO`, `ARRASTRE_TEMPORAL`. Se declara al entrar el valor, nunca después. `CONFIDENCE_REFERENCE` da una banda de confianza a cinco procedencias; `REFERENCIA_CLINICA` y `ARRASTRE_TEMPORAL` no tienen banda a propósito (`default_confidence()` lanza `KeyError` con ellas). La referencia clínica usa su propio tipo (`ClinicalReferenceValue`, con cita obligatoria, sin confianza numérica); el arrastre temporal hereda tal cual la confianza del valor de origen.
+- **Gates anti-órgano-fantasma** (`builder.py`: `_cardiovascular_state`, `_respiratory_state`, `_neurological_state`, `_muscular_state`): sin dato real, el dominio queda vacío. Un laboratorio que mide solo una cosa no escribe valores por defecto de las demás. `from_digital_twin_organism()` es la única forma soportada de poblar el UPS desde el organismo.
+- **Compositor** (`composer.py`, `compose_neuro_cardiac_snapshot`): une el último `bar` (EEG) y el último `heart_rate` reales en un snapshot, con el `heart_rate` como `ARRASTRE_TEMPORAL` y su edad declarada. Si falta alguno, o el `heart_rate` es más viejo que `max_hr_carry_age_s`, devuelve `ComposeResult(available=False, reason=...)` y no compone nada. Tras guardar llama a `apply_couplings(..., scenario=None)`.
+- **Acoplamientos** (`coupling/`): `VALIDATED_RULES` (en `catalog.py`) tiene **una** regla activa, `AROUSAL_TAQUICARDIA_BAR`: `bar` > 1.8 ⇒ +15 bpm en `heart_rate`, confianza 0.70. Dispara en el snapshot del compositor (donde coexisten `bar` y `heart_rate`). En el EEG Neuro Lab la llamada a `apply_couplings` es un **no-op honesto**: ese snapshot no trae `heart_rate`. `COUPLING_DISABLED_SCENARIOS` (`stress`, `anxiety`, `seizure`) bloquea el acoplamiento donde el escenario ya modela la descarga simpática. No agregues reglas «por simetría»: cada una necesita su firma de experto.
+- **Hemodinámica** (`hemodynamics/`): reimplementación analítica de las ecuaciones RCR de svZeroDSolver (atribución en `THIRD_PARTY_NOTICES.md`); lazo cerrado propio, habilitado en 3 escenarios (`healthy`, `hypertension`, `sepsis`). Solo modela el shock establecido; fuera de esa fase la PA se declina con motivo. `SimulationScenario` tiene 15 escenarios.
+- **Persistencia:** SQLite + SQLAlchemy en `data/biocore_ups.db` (ignorado por git). La ruta sale del global `domain.physiology.state.db.DEFAULT_DB_PATH`, que `make_engine(None)` lee al llamarse; la app comparte un engine vía `app/utils/patient_session.py::get_shared_ups_engine()`.
+- **Narrador** (`domain/physiology/narrator/`): `client.py` (`DEFAULT_MODEL = "claude-opus-5-5"`, **no verificado por ejecución**: sin clave en el entorno no se hizo ninguna llamada real), `context.py`, `prompt.py`, `findings.py`, `causal.py`. Sin clave falla explícito (`NarratorNotConfiguredError`); no hay modo simulado. La clave pegada por la persona vive solo en `st.session_state` (`app/utils/ai_session.py`), nunca en `os.environ`. Toda llamada a un modelo de lenguaje debe pasar por este paquete.
+- **Cuerpo visual:** el color de cada órgano sale de `organ_visual_state(state)` en `ups_body_visual.py`, que consumen las tarjetas SVG y el cuerpo 3D. Nunca colorees desde `organism.organs[...].status`.
 
-## Trampas conocidas (no construir sobre esto sin revisar primero)
+## Reglas de trabajo
 
-- **`domain/`** es un scaffold de migración iniciado el 2026-07-01. El subpaquete `domain/signals/` (shim sin lógica propia) fue eliminado el 2026-07-02 — `main.py` (raíz) ahora importa directo de `src/`. El resto de `domain/` (`physiology/`, `patients/`, etc.) sigue siendo un scaffold mayormente vacío — no asumir que es la fuente de verdad todavía, salvo `domain/physiology/state/`, que es el destino intencional del UPS formal (Fase 1.1).
-- **`app/components/digital_twins_ui.py`** fue eliminado el 2026-07-02 (era "3D" simulado, heatmap 2D + scatter, no conectado al flujo real). El twin real es `app/engines/digital_twin_organism.py` + `app/supermodules/twin_shell/`.
-- **`pages_legacy/`**: solo quedan los 9 archivos con nombre emoji que sí están en uso vía `runpy.run_path()` desde `app/supermodules/{multisensor,education,patients,ai_analysis,emg_muscle_lab,eeg_neuro_lab,respiratory_lab,guides,ecg_12}/pages.py`. Los 13 archivos huérfanos/duplicados fueron eliminados el 2026-07-02. **No asumir que un archivo de `pages_legacy/` es huérfano sin grepear referencias a `pages_legacy` primero** — el informe de auditoría original se equivocó en esto.
-- **`app/dashboard.py`**, **`app/config.py`**: eliminados el 2026-07-02 (estaban vacíos, no importados).
-- **`shared/core`**: no existe en disco. Los imports fantasma (`try: from shared.core.utils import * except Exception: pass`) fueron eliminados de `app/utils/__init__.py` y `app/supermodules/__init__.py` el 2026-07-02.
-- **`_archive/`**: contiene al menos dos intentos previos de consolidación abandonados, incluyendo un backend FastAPI + SQLAlchemy completo (`_archive/v2_backend_stack/`) con un esquema de datos (`Patient`, `SignalReading`, `Prediction`, `AuditLog`) que se está reutilizando como base para la BD de la Fase 1.1 — pero no está conectado a nada hoy.
+1. **Diagnostica antes de tocar.** Mide, localiza la causa y repórtala antes de cambiar nada. Un síntoma no es una causa.
+2. **Verifica por ejecución**, no por lectura: corre `pytest` y, para la UI, un `AppTest` que llegue al final del render. Contra una base temporal, nunca la de desarrollo.
+3. **Lee las funciones completas** y confirma los llamadores con `git grep` antes de editar o borrar.
+4. **Diferido no es roto; archivado no es pendiente.** No «arregles» lo que se difirió a propósito, ni resucites lo archivado.
+5. **Prohibido `get(key, default)` disfrazado de medición.** Un valor por defecto que se muestra o se persiste como si fuera un dato es una fachada. Si falta el dato: «no disponible», con motivo.
+6. **Simulación ≠ dato falso:** lo sintético se etiqueta siempre como simulación. Una etiqueta de validación (`VALIDATED`, citas, «real», «IA», «ML») solo se pone si el código hace eso; una heurística se llama heurística.
+7. **Pregunta antes de decisiones grandes** (borrar módulos, cambiar de framework o de base de datos).
+8. **Sin commits sin aprobación de Luis, y sin atribución a Claude** (ni `Co-Authored-By` ni mensajes «generado con»): todo va solo a nombre de Luis Nazariego Santome. Luis revisa y commitea.
+9. **Todo elemento nuevo justifica su existencia** frente al UPS, el gemelo o el valor educativo; si no, no entra.
+10. **Documenta en `CHANGELOG.md`** cada tanda, citando el Art. I cuando corrija una fachada. No existen `PLAN.md` ni un plan maestro en este repo.
 
-## Dónde vive el UPS
+## Comandos
 
-`domain/physiology/state/` (implementado 2026-07-02, Fase 1.1, con dos ajustes de contrato del mismo día — `CONFIDENCE_REFERENCE`/`default_confidence()` y `EventType` como enum cerrado — ver `PLAN.md`). Es la fuente única de verdad para los dominios **cardiovascular y respiratorio** (los únicos modelados hasta ahora):
-- `schema.py` — contrato tipado (`UnifiedPhysiologicalState`, `DomainState`, `PhysiologicalDescriptor` con `Provenance`+`confidence`, `PhysiologicalEvent` con `EventType`).
-- `models.py` / `db.py` — persistencia SQLAlchemy/SQLite (`data/biocore_ups.db`).
-- `repository.py` — `create_patient`, `save_state`, `get_latest_state`, `get_value_history` (consulta temporal), `get_events`.
-- `builder.py` — `from_digital_twin_organism()`: única forma soportada de poblar el UPS desde `app/engines/digital_twin_organism.py` (que **no se modifica**, solo se lee).
+```bash
+source .venv/Scripts/activate          # Windows + Git Bash; Python 3.13 (única versión probada)
+pytest tests/ -q                       # suite completa; varios minutos
+pytest tests/test_containment_facades_tanda1.py -q    # contención de fachadas (AppTest)
+streamlit run app/main.py
+```
 
-`app/engines/digital_twin_organism.py` sigue viviendo también en `st.session_state` (UI en tiempo real), pero ya está conectado al UPS persistido en tres puntos: `domain/physiology/scenarios/` (Fase 1.2, evoluciona el organismo y persiste cada paso), el botón "Explicar estado actual" del narrador (Fase 1.3, persiste un snapshot bajo demanda antes de narrar), y el cuerpo visual (Fase 1.4, ver abajo — lee pasivamente, con su propio botón de sincronización). No dupliques la lógica de `_update_heart`/`_update_lungs`/umbrales de riesgo en otro sitio — el builder y el simulador de escenarios ya la reutilizan.
+- **Aislamiento de la base:** `tests/conftest.py` tiene un fixture `autouse` de sesión que redirige `domain.physiology.state.db.DEFAULT_DB_PATH` a un archivo temporal. La suite no debe escribir en `data/biocore_ups.db`; compruébalo contando pacientes antes y después.
+- **Guardia de `domain/`:** `tests/test_ups_body_3d_paridad.py::test_ups_builder_schema_and_engine_untouched` corre `git diff --stat HEAD -- domain/` y exige salida vacía. Falla mientras haya cambios de `domain/` sin commitear; no es un fallo del código.
+- **Recetas de AppTest** (`streamlit.testing.v1`):
+  - Un supermódulo: `AppTest.from_function(script)` con `m.run()`, e inyectar `twin_shell_ups_session_factory` y `twin_shell_ups_patient_id` en `session_state` para que escriba en una base temporal.
+  - La app completa: `AppTest.from_file(str(Path("app/main.py").resolve()))` con `biocore_ai_entry_done=True`, `selected_hub` y `selected_page`.
+  - `at.exception` **no** ve los errores que pasan por `render_error_state()` (solo los registra y dibuja una caja): comprueba también el texto de la página.
+- **Archivos:** muchos son CRLF; conserva los finales de línea al editar. Los comentarios y la UI van en español.
 
-## Dónde vive el cuerpo visual (Fase 1.4 — cierre de la Fase 1)
+## En corrección o no fiable hoy
 
-`app/supermodules/twin_shell/ups_body_visual.py` (2026-07-03). Corazón y pulmones en SVG 2D (sin 3D), coloreados/animados **directamente desde el UPS** — severidad de eventos por dominio (`EventSeverity`) + descriptores (`heart_rate`, `respiratory_rate`, `spo2`). Deliberadamente NO analiza el texto del narrador: son dos lectores independientes de la misma fuente de verdad, ninguno lee al otro. `SEVERITY_COLOR`/`EVENT_VISUAL_MAP` son los únicos mapeos color/órgano — no dupliques esa lógica en otro sitio. Desde la Pieza 2 (2026-10-22) la decisión de color vive en `organ_visual_state(state)` (mismo archivo) y la consumen DOS renderizadores: las tarjetas SVG y el cuerpo 3D del gemelo (`twin_shell/ups_body_3d.py`, vía `render_ups_body(state, with_3d=True)`), así que no pueden contradecirse. El 3D solo colorea corazón, pulmones+tráquea y cerebro (`UPS_ORGAN_PARTS` en `visualization/anatomy3d.py`); vasos, médula y abdomen van en tejido atenuado. Nunca colorear el 3D desde `organism.organs[...].status` (puntaje heurístico: fabricaba alertas desde un valor por defecto). Expuesto vía `render_synced_digital_twin_body()` en `twin_shell/pages.py`, junto al narrador; se actualiza en vivo, paso a paso, dentro del simulador de escenarios de la Fase 1.2. Solo dibuja los dos dominios que el UPS modela — no añadas órganos que el UPS no modela todavía (nervioso, muscular) sin antes extender el esquema en `domain/physiology/state/schema.py`.
+- **Respiratory Lab (en corrección):** `RespiratoryAnalyzer` (`src/signals/respiration/respiratory_analyzer.py`) devuelve una frecuencia respiratoria constante de 60.0 (`_calculate_respiratory_rate` resta índices de respiración en vez de tiempos), un AHI de 0 con cualquier señal (`_detect_apneas` empareja mal inicios y finales y usa un mínimo de `apnea_threshold / 10` = 1 s, no los 10 s de AASM) y no detecta hipopneas. La UI marca FR, variabilidad RR, AHI, conteo de respiraciones, duración media e I:E como «⛔ no fiable (no usar)», suprime el patrón, la severidad y los eventos de apnea, y **no escribe al UPS**. La oximetría y la señal graficada se conservan. El cálculo no se arregló: es un arco propio; no lo «parches» desde la UI.
+- **Heurístico o demo, declarado así en pantalla:** Biomarkers Lab («modo demostración»), Multisensor Fusion Lab (solo canales demo), activación del EMG (media/máximo de la señal filtrada, no % de contracción máxima), fatiga del EMG con la señal demo, índice de riesgo de Digital Twin OS y sus «explicaciones» (pesos fijos, sin entrenamiento; no son SHAP ni LIME).
+- **Lo que no existe:** un dominio metabólico en el UPS, `PLAN.md`, `pages_legacy/`, `_archive/`.
+- **`shap` y `lime`** figuran en `requirements.txt` pero ningún archivo los importa.
 
-## Dónde vive el narrador clínico
+## Datos de terceros
 
-`domain/physiology/narrator/` (Fase 1.3, 2026-07-02 — esperando confirmación del usuario, incluida una prueba manual con `ANTHROPIC_API_KEY` real). Única integración de IA del proyecto, con dos rutas de contexto sobre el mismo cliente:
-- `context.py` — `build_context()`: lee el UPS y arma un `NarrativeContext` (datos, no prosa) con descriptores + comparación temporal antes/ahora + eventos.
-- `prompt.py` — `DepthLevel` + reglas de anclaje (citar descriptor/evento exacto, prohibido inventar valores, comparación temporal obligatoria).
-- `client.py` — `stream_narration()`: `client.messages.stream(model="claude-opus-5-5", ...)`. Sin `ANTHROPIC_API_KEY`, falla explícito (`NarratorNotConfiguredError`) — no hay modo simulado de respaldo. Desde 2026-10-25 la persona también puede pegar su clave en un panel de entrada (`app/utils/ai_session.py`): vive solo en `st.session_state` de esa sesión, **nunca** en `os.environ` (es del proceso y la compartiría con otras sesiones), y cada llamada de la UI al narrador pasa `client=ai_client()` (un test lo vigila).
-- `findings.py` (2026-07-03) — `stream_findings_narration()`: mismo cliente/modelo/disciplina de anclaje que `client.py`, pero para laboratorios sin dominio en el UPS (EMG, HRV, Multisensor, ECG Monitor — el UPS solo modela cardiovascular y respiratorio). Contexto más liviano (`FindingsContext`/`Finding`: métricas ya calculadas por el laboratorio, sin comparación temporal). No es un narrador aislado nuevo — reutiliza `is_configured`/`NarratorNotConfiguredError`/`DEFAULT_MODEL` de `client.py`.
-
-Expuesto en `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y reutilizado (misma sesión/organismo) desde el hub "AI Hub" de `app/main.py`; `findings.py` se expone vía `app/main.py::render_findings_narrator()`, usado en las pestañas "IA" de EMG/ECG Monitor/Multisensor/HRV Analysis (Clinical Hub). `app/ai_copilot.py` y `app/biomedical_tutor.py` fueron eliminados el mismo día — no reintroducir un chatbot aislado en su lugar (Art. I).
-
-## Dónde viven las calculadoras clínicas
-
-`clinical/calculators.py` (funciones puras, cada fórmula con su `*_CITATION`) + `app/supermodules/calculators/pages.py` (Clinical Hub → "🧮 Calculadoras Clínicas"). Tanda 2C, 2026-10-24. El eje QRS **no tiene fórmula propia**: usa `qrs_axis_from_net()` de `src/signals/ecg/twelve_lead_analyzer.py` (Einthoven, `atan2(2·aVF, √3·I)`), la misma que ECG-12 — no copies otra. Los tests (`tests/test_clinical_calculators.py`) usan verdad independiente (tabla del estándar, caso canónico o literal calculado a mano); nunca recalcules el esperado con la fórmula bajo prueba.
-
-## Dónde viven el mapa EEG 3D y el ML de pacientes (Tanda 2D, 2026-10-24)
-
-Ambos en "Crea tu modelo 3D". El mapa: `spherical_spline()`/`head_figure(values=...)` en `visualization/anatomy3d.py` (Perrin 1989; gris >45 mm; la sobreoscilación recortada se declara con su % en `fig.layout.meta["clipped_fraction"]`) y `render_head_map()` en `model3d/panels.py`. El EEG de ejemplo (`data/reference_signals/cap_n16.npz`) se eligió **por su alfa en P4-O2, no por el hipnograma**: no lo presentes como "persona despierta y relajada" ni la alfa como hallazgo (la vigilia se comprobó después contra el hipnograma; "relajada" no consta — ver `meta.hypnogram_check`). El ML: `src/ml/cohort_map.py`, exploratorio, con guardia anti-fuga (`id_like_columns()` excluye identificadores y `CohortMap.warnings` siempre se muestra). El cuerpo 3D coloreado por NEWS2 del aporte **no entró**: usaba lo que se quitó en la Pieza 2.
-
-## Antes de tocar código
-
-1. Lee `PLAN.md` para saber en qué fase está el proyecto y qué está aprobado para ejecutarse.
-2. Para `signals/`, `clinical/`, `visualization/` y el motor de razonamiento, usa los ganadores ya decididos (sección arriba) — no reabras esa decisión sin motivo.
-3. Si vas a añadir una integración de IA, debe ser una llamada real a la API de Anthropic, fundamentada en el UPS — no un diccionario de respuestas ni un chatbot aislado (Art. I de la Constitución).
+Ecuaciones, datos incluidos en el repo, librerías y métodos publicados están atribuidos en `THIRD_PARTY_NOTICES.md`. Si agregas uno, agrégalo ahí con su licencia y su cita, tomadas de la fuente original y no de memoria.

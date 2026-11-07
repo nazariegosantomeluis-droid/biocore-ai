@@ -1,7 +1,7 @@
 """
 Fase 1.2 — Simulador de escenarios clínicos que alimenta el UPS.
 
-Cubre el criterio de aceptación de PLAN.md: el UPS evoluciona en el
+Cubre el criterio de aceptación de la Fase 1.2: el UPS evoluciona en el
 tiempo de forma fisiológicamente coherente y consultable (histórico, no
 solo el último valor).
 """

@@ -235,7 +235,7 @@ def test_every_value_from_the_respiration_detector_carries_the_unreliable_mark(t
         assert occurrences, f"la etiqueta {label!r} ya no aparece: actualiza la lista si se retiró a propósito"
         for pos in occurrences:
             rest = text[pos + len(label):]
-            if rest.startswith((":**", "\n", " y eventos")):  # viñeta/encabezado/título de sección (texto fijo), no un valor
+            if rest.startswith((":**", "\n")):  # viñeta/encabezado de la referencia clínica (texto fijo), no un valor
                 continue
             assert rest.startswith(" — ⛔ no fiable"), f"{label!r} sin la marca 'no fiable'"
     # y el valor mismo dice "no usar" (el conteo sigue visible, pero declarado inservible)
@@ -274,3 +274,39 @@ def test_suite_never_points_at_the_development_database():
 
     dev = (Path(db.__file__).resolve().parents[3] / "data" / "biocore_ups.db").resolve()
     assert Path(db.DEFAULT_DB_PATH).resolve() != dev, "conftest.py debe redirigir la base de la suite"
+
+
+# --- Tanda 2 (2026-11-07): textos de UI que caducaron ---------------------------
+
+def test_respiratory_investigation_title_does_not_promise(temp_ups):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid)
+    assert at.exception == []
+    text = _all_text(at)
+    assert "AHI y eventos de apnea (en corrección)" in text
+    assert "Vista Investigación — Índice AHI" not in text
+
+
+def test_twin_os_causal_message_lists_the_domains_the_schema_models(temp_ups):
+    from domain.physiology.state import DomainState, UnifiedPhysiologicalState
+    from datetime import datetime, timezone
+
+    sf, pid = temp_ups
+
+    def _script():
+        import app.supermodules.twin_shell.pages as m
+        m.run()
+
+    at = AppTest.from_function(_script, default_timeout=120)
+    at.session_state["twin_shell_ups_session_factory"] = sf
+    at.session_state["twin_shell_ups_patient_id"] = pid
+    at.session_state["twin_shell_selected_organ"] = "brain"
+    at.run()
+    assert at.exception == []
+    modelados = list(UnifiedPhysiologicalState(
+        patient_id="", timestamp=datetime.now(timezone.utc),
+        cardiovascular=DomainState(domain="cardiovascular"), respiratory=DomainState(domain="respiratory"),
+    ).all_domains())
+    text = " ".join(str(e.value) for e in at.info)
+    assert f"El UPS modela hoy {len(modelados)} dominios ({', '.join(modelados)})" in text
+    assert "solo cardiovascular y respiratorio" not in text

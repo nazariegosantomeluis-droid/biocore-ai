@@ -1,3 +1,6 @@
+> **Obsoleto en parte: describe una versión anterior; la referencia vigente es [CLAUDE.md](../../CLAUDE.md).**
+> Las secciones de fisiología y salud son material educativo general. Las secciones sobre «IA automática» (comparación con millones de casos, porcentajes de confianza, predicciones, alertas inmediatas) se corrigieron el 2026-11-07 porque BIOCORE no hace eso hoy; lo que sí hace está descrito en la sección corregida.
+
 # CARDIOLOGÍA - GUÍA EXPLÍCITA PARA PRINCIPIANTES
 ## "Todo lo que Necesitas Saber sobre tu Corazón"
 
@@ -270,72 +273,36 @@ Presión BAJA:
 
 ---
 
-## PARTE 6: CÓMO NUESTRO SISTEMA DETECTA AUTOMÁTICAMENTE
+## PARTE 6: QUÉ HACE BIOCORE CON UN ECG HOY
 
-### EL FLUJO AUTOMÁTICO
+*(Sección corregida el 2026-11-07. La versión anterior describía una «IA automática» que comparaba cada onda con millones de casos, daba porcentajes de confianza y predecía el riesgo a 30 días. Nada de eso existe.)*
+
+Lo que el ECG Lab hace de verdad:
 
 ```
-1. MEDICIÓN
-   Electrodos en pecho detectan electricidad
+1. SEÑAL
+   Un registro real (MIT-BIH, PTB-XL, un CSV o un ESP32) o una señal
+   simulada. Si es simulada, la pantalla lo dice.
    ↓
-2. SEÑAL DIGITAL
-   Se convierte a números que la IA puede analizar
+2. LATIDOS
+   Un detector de energía (operador de Teager-Kaiser) encuentra los QRS
+   y calcula la frecuencia cardíaca. Está validado contra una cohorte de
+   registros de MIT-BIH, en seis rondas con un experto.
    ↓
-3. IA AUTOMÁTICA
-   Analiza QRS, P, T, duración, ritmo
-   ↓
-4. DETECCIÓN AUTOMÁTICA
-   ¿Es normal? ¿Arritmia? ¿Bloqueo?
-   ↓
-5. PREDICCIÓN AUTOMÁTICA
-   ¿Qué pasa en 30 días? ¿Riesgo?
-   ↓
-6. DIGITAL TWIN
-   Visualiza corazón simulado
-   ↓
-7. ALERTAS
-   Si hay problema → Alerta inmediata
-   ↓
-8. REPORTE
-   Documento automático para médico
+3. ANÁLISIS POR REGLAS
+   Intervalos, eje QRS y bloqueos de rama con reglas de umbral. El detector
+   de bloqueos tiene una prueba contra 50 registros reales de PTB-XL.
 ```
 
-### ¿QUÉ HACE LA IA?
+Lo que **no** hace: no compara con millones de ECG, no da porcentajes de confianza de un modelo entrenado y no predice riesgos futuros (como el ictus a 30 días). El generador de 12 derivaciones produce señal simulada, y se declara como tal.
 
-#### Reconoce Patrones
-```
-Entrada: Onda ECG
-         |
-         v
-¿Es esto...?  ← IA compara con millones
-         |
-         ├─ Normal (95% confianza)
-         ├─ FA (87% confianza)
-         ├─ Bradicardia (92% confianza)
-         └─ Bloqueo AV (80% confianza)
-```
-
-#### Explica por Qué
-```
-"Detecté FA porque:"
-1. RR intervals muy variables (variación >30%)
-2. No hay ondas P claras
-3. Complejo QRS irregular
-4. Frecuencia > 100 BPM
-→ Confianza: 87%
-```
-
-#### Predice el Futuro
-```
-"Basado en tu FA, en 30 días:"
-├─ Riesgo de ictus: 2.3%
-├─ Necesidad de medicamento: Alta
-└─ Pronóstico con tratamiento: Bueno
-```
+La única IA real de la plataforma es el **narrador clínico**: un modelo de lenguaje (API de Anthropic) que explica en palabras los datos que ya están en el estado fisiológico del gemelo. Solo funciona si hay una clave configurada, y no emite diagnósticos.
 
 ---
 
-## PARTE 7: ¿QUÉ SIGNIFICA CADA ALERTA?
+## PARTE 7: NIVELES DE REFERENCIA (GUÍA EDUCATIVA GENERAL)
+
+*Estos niveles son orientación educativa general, sin cita; no están verificados contra los umbrales de ningún módulo de BIOCORE.*
 
 ### 🟢 VERDE (Normal)
 - Ritmo sinusal normal
@@ -486,7 +453,7 @@ PRESIÓN = Fuerza de sangre en arterias
           ├─ Normal: 120/80
           └─ Alto: > 140/90 (peligro)
 
-IA AUTOMÁTICA = Analiza, predice, alerta en milisegundos
+BIOCORE HOY = detector de latidos (TKEO) + análisis por reglas de umbral; sin predicción automática
 ```
 
 ---

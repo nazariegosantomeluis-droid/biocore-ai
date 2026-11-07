@@ -1,7 +1,7 @@
 """
 Unified Physiological State — conexión a base de datos.
 
-SQLite embebido vía SQLAlchemy (decisión aprobada en PLAN.md Fase 0):
+SQLite embebido vía SQLAlchemy (decisión aprobada en la Fase 0; el registro está en CHANGELOG.md):
 offline-first, sin infraestructura de servidor separada. El archivo vive en
 `data/biocore_ups.db`, junto al resto de datos locales de la app
 (`data/local/`).

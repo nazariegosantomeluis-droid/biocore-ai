@@ -1,10 +1,10 @@
 # BIOCORE AI
 
-**Un laboratorio digital de fisiología humana para enseñar medicina con IA, construido sobre una regla: nunca finge lo que no sabe.**
+**Un laboratorio digital de fisiología humana para enseñar medicina, construido sobre una regla: nunca finge lo que no sabe.**
 
-BIOCORE AI es una plataforma educativa de fisiología humana para estudiantes de medicina y ciencias de la salud. En lugar de enseñar con texto estático, enseña con un **gemelo digital reactivo**: un organismo virtual cuyo estado fisiológico se calcula con modelos reales, se altera con escenarios clínicos, y se explica con fundamento.
+BIOCORE AI es una plataforma educativa de fisiología humana para estudiantes de medicina y ciencias de la salud. En lugar de enseñar con texto estático, enseña con un **gemelo digital reactivo**: un organismo virtual **simulado** (la plataforma lo declara así en pantalla) cuyo estado fisiológico se altera con escenarios clínicos y se explica con fundamento, junto a laboratorios que analizan señales reales.
 
-La tesis: aprender medicina no es leer una buena explicación, es intentar, equivocarse y ser corregido con fundamento. El estudiante no memoriza que la sepsis baja la presión — ve la presión desplomarse por el mecanismo de la vasoplejía, e intenta diagnosticarlo mientras sucede.
+La tesis: aprender medicina no es leer una buena explicación, es intentar, equivocarse y ser corregido con fundamento.
 
 ---
 
@@ -16,56 +16,51 @@ BIOCORE se construyó sobre la regla opuesta, que gobierna toda su arquitectura:
 
 > **Cada dato declara su procedencia. Cuando el sistema no puede saber algo, lo dice — nunca rellena el hueco con algo plausible.**
 
-Cada valor en la plataforma sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, o **calculado por modelo**. Los biomarcadores llevan la cita del estándar del que provienen. Cuando falta señal para un cálculo, el sistema devuelve "no disponible" con el motivo — nunca un número de relleno. Y cada módulo declara su nivel de validación: un lab validado contra un dataset canónico se presenta con más autoridad que un índice heurístico de ingeniería, y la interfaz lo hace visible.
-
-Esa honestidad de procedencia no es un detalle estético. Es la diferencia entre enseñar medicina real y enseñar algo que suena a medicina — y es el diferenciador de confianza frente a plataformas que no la tienen.
+Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: hoy, **Respiratory Lab está en corrección** y muestra su frecuencia respiratoria, su AHI y el conteo de respiraciones como «no fiable».
 
 ---
 
 ## Arquitectura
 
-**UPS (Unified Physiological State) — el estado fisiológico unificado.** La fuente única de verdad del paciente. Cada dato lleva su procedencia. Los dominios modelados incluyen cardiovascular, respiratorio, neurológico y muscular, con biomarcadores que los cruzan.
+**UPS (Unified Physiological State) — el estado fisiológico unificado.** La fuente única de verdad del paciente, con procedencia y confianza por valor. Modela cuatro dominios: cardiovascular, respiratorio, neurológico y muscular.
 
-**Motor hemodinámico validado.** Calcula presión arterial y dinámica cardiovascular por fisiología real, basado en un modelo publicado (svZeroDSolver), con parámetros validados por un experto humano contra literatura. La sepsis colapsa a shock por mecanismo, no por ajuste — la prueba de honestidad del modelo.
+**Motor hemodinámico.** Reimplementación analítica, en Python, de las ecuaciones del bloque RCR de svZeroDSolver (no es el solver ni lo usa como dependencia; ver [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)), con un lazo cerrado propio que hoy tiene habilitados tres escenarios. Modela el shock establecido: fuera de esa fase la presión arterial se declina con su motivo, no se inventa.
 
-**Los tres hubs:**
-- **Digital Twin OS** — el organismo entero: órganos que reaccionan al UPS, acoplamientos entre sistemas, casos clínicos, línea de tiempo fisiológica.
-- **Clinical Hub** — los laboratorios de señal: ECG, EEG, EMG, Respiratorio, HRV, Biomarcadores, y más.
-- **Learning Hub** — casos clínicos ciegos y evaluación con feedback fundamentado.
+**Cuatro hubs, doce entradas de menú** (definidos en `HUBS`, `app/main.py`):
+- **Digital Twin OS** — el organismo simulado: órganos que reaccionan al UPS, escenarios, casos clínicos, línea de tiempo.
+- **Learning Hub** — Academia Clínica: quiz, casos clínicos ciegos y tabla de 12 derivaciones.
+- **Clinical Hub** — ECG Lab, Multisensor Fusion Lab, Respiratory Lab (en corrección), EEG Neuro Lab, EMG Muscle Lab, HRV Analysis, Biomarkers Lab, Calculadoras Clínicas y Patient Pipeline.
+- **Laboratorio 3D** — «Crea tu modelo 3D»: reconstrucción desde TC/RM, anatomía de referencia no reactiva, mapa EEG y vectocardiograma, cada pestaña con su nivel de evidencia declarado.
 
-**Procesamiento de señal real.** Detección de complejos QRS y bloqueos de rama validada contra el MIT-BIH Arrhythmia Database; análisis espectral de EEG con parametrización del componente aperiódico (FOOOF); métricas de variabilidad cardíaca bajo estándares de la Task Force ESC/NASPE; electromiografía con activación fisiológica real.
+**Procesamiento de señal.** El detector de latidos del ECG Lab (frecuencia cardíaca por operador de Teager-Kaiser) se validó contra una cohorte de registros del MIT-BIH Arrhythmia Database en rondas con un experto; el detector de bloqueos de rama tiene una prueba contra 50 registros reales de PTB-XL. El EEG calcula potencia por bandas con cocientes citados y el exponente aperiódico (FOOOF). HRV sigue las métricas de la Task Force ESC/NASPE. En EMG, la frecuencia mediana es un cálculo real; la activación es la media/máximo de la señal filtrada (una heurística, no un porcentaje de la contracción máxima).
+
+**IA.** Todo uso de un modelo de lenguaje (API de Anthropic) pasa por el paquete del narrador, `domain/physiology/narrator/`: narración clínica, razonamiento causal y retroalimentación de casos y quiz. Explica en palabras datos que ya están en el UPS; es opcional y está apagado sin clave, sin modo simulado de respaldo. Los índices de riesgo y las explicaciones por contribución son reglas y pesos fijos, y así se etiquetan; la única otra pieza de aprendizaje automático es el mapa de cohortes del Laboratorio 3D, un análisis exploratorio declarado como tal.
 
 ---
 
 ## Estado del proyecto
 
-BIOCORE está en desarrollo activo. La base honesta está construida y verificada: el motor hemodinámico validado, los dominios del UPS con procedencia por descriptor, el procesamiento de señal real en múltiples laboratorios, y una suite de pruebas extensa que verifica tanto el cálculo como la ausencia de fachadas.
-
-El desarrollo sigue una disciplina de honestidad estricta: cada capacidad se valida antes de exhibirse, cada biomarcador de vanguardia se prueba contra ground truth antes de declararse, y las ideas que no alcanzan el estándar se archivan con evidencia en lugar de construirse a medias.
+BIOCORE está en desarrollo activo. El registro de qué se hizo, qué se corrigió y qué se descartó es [`CHANGELOG.md`](CHANGELOG.md); el inventario de qué es real, heurístico, simulado o defectuoso está en [`docs/INVENTARIO_BIOCORE_2026-11-05.md`](docs/INVENTARIO_BIOCORE_2026-11-05.md) (fotografía del 5 de noviembre de 2026, anterior a las correcciones posteriores que cuenta el CHANGELOG). La suite de pruebas se ejecuta con `pytest` y no escribe en la base de datos de desarrollo.
 
 ---
 
 ## Instalación
 
-Requiere Python 3.10+.
+Desarrollado y probado en Python 3.13; otras versiones no se han probado (el devcontainer usa 3.11).
 
-\`\`\`bash
+```bash
 git clone <url-del-repositorio>
-cd biocore
+cd biocore-public
 pip install -r requirements.txt
 streamlit run app/main.py
-\`\`\`
+```
 
-La aplicación se abre en el navegador. Los datos de señal se generan por escenario o se cargan desde archivos; ninguna clave de API es necesaria para el uso base.
+La aplicación se abre en el navegador. Los datos de señal se generan por escenario o se cargan desde archivos; no hace falta ninguna clave de API para el uso base. Detalles en [`SETUP.md`](SETUP.md).
 
 ---
 
 ## Licencia
 
-Este proyecto se distribuye bajo una licencia de fuente disponible, no comercial. El código es visible para revisión, estudio y evaluación, pero su uso comercial requiere acuerdo con el titular. Ver [\`LICENSE\`](LICENSE) para los términos completos.
+Este proyecto se distribuye bajo una licencia de fuente disponible, no comercial. El código es visible para revisión, estudio y evaluación, pero su uso comercial requiere acuerdo con el titular. Ver [`LICENSE`](LICENSE) para los términos completos. Los componentes de terceros (ecuaciones, datos, librerías) conservan sus licencias y sus citas: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 © 2026 Luis Nazariego Santome.
-
----
-
-*BIOCORE AI — fisiología humana para enseñar medicina, sobre la regla de que nunca finge lo que no sabe.*
