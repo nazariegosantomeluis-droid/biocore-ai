@@ -27,7 +27,8 @@ MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 # describe lo que el módulo calcula. El cálculo NO se tocó (arco propio);
 # aquí solo se deja de afirmar lo falso.
 RESPIRATORY_UNRELIABLE_NOTICE = (
-    "**En corrección.** La frecuencia respiratoria, su variabilidad, el AHI y los eventos de apnea de "
+    "**En corrección.** La frecuencia respiratoria, su variabilidad, el AHI, los eventos de apnea y todo "
+    "lo que sale del detector de respiraciones (conteo, duración media, relación I:E) de "
     "este laboratorio **no son fiables todavía** (el analizador devuelve valores que no dependen de la "
     "señal). Por eso se muestran marcados como «no fiable», se suprimen las interpretaciones clínicas "
     "derivadas de ellos (taquipnea, apnea del sueño, severidad, patrón) y este laboratorio **no escribe "

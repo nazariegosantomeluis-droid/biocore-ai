@@ -412,11 +412,9 @@ _ECG_VALIDATION_DETAIL = (
     "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database "
     "(Sensibilidad >99%). Filtros estándar AHA."
 )
-# NOTA: Respiratory Lab tiene su propia constante equivalente en
-# `app/supermodules/respiratory_lab/pages.py` (`_RESPIRATORY_VALIDATION_
-# DETAIL`) -- vive ahí, no aquí, porque su `render_module_header()` se
-# llama desde ese archivo, no desde `main.py` (evita un import cruzado
-# innecesario entre un supermodule y `main.py`).
+# NOTA: Respiratory Lab NO tiene constante de validación (Tanda 1, 2026-11-05):
+# su insignia se retiró porque FR/AHI no son fiables; ver
+# `RESPIRATORY_UNRELIABLE_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
 _HRV_VALIDATION_DETAIL = (
     "Métricas de dominio temporal (SDNN, RMSSD) calculadas bajo los estándares de la Task Force "
     "de la European Society of Cardiology (ESC/NASPE)."
@@ -2199,13 +2197,14 @@ def render_multisensor_page() -> None:
 
 # NOTA (2026-07-03): la vieja render_respiratory_page() inline (un patrón fijo,
 # RR crudo, sin apnea/AHI) fue eliminada — ver render_respiratory_lab_page()
-# arriba, que delega al supermódulo real con análisis de apnea/AHI completo.
+# arriba, que delega al supermódulo. Tanda 1 (2026-11-05): ese análisis de
+# apnea/AHI NO es fiable todavía y está marcado así en pantalla.
 
 
 def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
     """Segundo lab de la integración estrecha (2026-08-24, Capa 2 Fase 2.4) --
-    mismo molde que `respiratory_lab/pages.py::_render_save_to_twin()` (piloto
-    ya verificado), aplicado al lado cardio-únicamente. Botón explícito, nunca
+    mismo molde que tuvo `respiratory_lab/pages.py::_render_save_to_twin()`
+    (desactivada el 2026-11-05: FR/AHI no fiables), aplicado al lado cardio-únicamente. Botón explícito, nunca
     automático. Fase 3 (2026-08-30): el bootstrap manual ya no existe --
     llama a `get_active_patient_id()`/`get_active_session_factory()`
     (`app/utils/patient_session.py`), el punto único de verdad que

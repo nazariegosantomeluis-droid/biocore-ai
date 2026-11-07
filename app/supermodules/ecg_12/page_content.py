@@ -672,10 +672,10 @@ if "ecg_data" in st.session_state:
             'explanation': 'El segmento ST es el periodo isoeléctrico entre QRS y T.'
         },
         {
-            'question': '¿Cuál es la utilidad de las inferencias IA en ECG 12-lead?',
-            'options': ['Detectar patrones clínicos y recomendaciones', 'Sustituir completamente al médico', 'Reducir la frecuencia cardiaca', 'Medir la SpO2'],
-            'correct': 'Detectar patrones clínicos y recomendaciones',
-            'explanation': 'La IA ayuda a identificar diagnósticos y hallazgos, no a reemplazar la evaluación clínica.'
+            'question': '¿Cuál es la utilidad del análisis automático por reglas de umbral en ECG 12-lead?',
+            'options': ['Señalar patrones candidatos para que los confirme el clínico', 'Sustituir completamente al médico', 'Reducir la frecuencia cardiaca', 'Medir la SpO2'],
+            'correct': 'Señalar patrones candidatos para que los confirme el clínico',
+            'explanation': 'El análisis aplica reglas fijas de umbral (no un modelo de aprendizaje): señala hallazgos candidatos, no reemplaza la evaluación clínica.'
         },
         {
             'question': 'En un ECG normal, la onda T debe ser:',
@@ -690,10 +690,10 @@ if "ecg_data" in st.session_state:
             'explanation': 'LVH puede causar altos voltajes y cambios secundarios de ST/T.'
         },
         {
-            'question': 'La detección automática de arritmias en esta página incluye:',
+            'question': 'Los ritmos que esta página puede simular y analizar con reglas de umbral incluyen:',
             'options': ['AF, Flutter, WPW, Long QT', 'Solo bradicardia', 'Solo infartos', 'Solo hipertrofia'],
             'correct': 'AF, Flutter, WPW, Long QT',
-            'explanation': 'El laboratorio incluye patrones avanzados y análisis IA para estas arritmias.'
+            'explanation': 'El laboratorio simula estos ritmos y los interpreta con reglas fijas de umbral; no usa un modelo de IA entrenado.'
         }
     ]
 

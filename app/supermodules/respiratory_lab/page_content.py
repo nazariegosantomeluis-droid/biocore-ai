@@ -400,30 +400,32 @@ with tab1:
     # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real, sin cita
     # clínica). "N/A" (sin respiraciones detectadas) -> `value=None` +
     # `unavailable_reason` real, en vez de un string "N/A" opaco.
+    # Tanda 1.5 (2026-11-05, Art. I): TODO valor que sale del detector de
+    # respiraciones (conteo, duración, I:E) comparte el defecto de la FR: el
+    # detector no es fiable. Se muestran marcados, sin badge de procedencia.
     with col1:
         render_metric_card(
-            "Total Respiraciones", str(len(analysis.breaths)),
-            provenance=BADGES.HEURISTIC,
+            "Total Respiraciones — ⛔ no fiable", f"{len(analysis.breaths)} (no usar)",
         )
 
     with col2:
         if len(analysis.breaths) > 0:
             mean_duration = np.mean([b.duration_seconds for b in analysis.breaths])
-            render_metric_card("Duración Promedio", f"{mean_duration:.2f}s", provenance=BADGES.HEURISTIC)
+            render_metric_card("Duración Promedio — ⛔ no fiable", f"{mean_duration:.2f}s (no usar)")
         else:
             render_metric_card(
-                "Duración Promedio", None,
-                unavailable_reason="sin respiraciones detectadas en este patrón/parámetros",
+                "Duración Promedio — ⛔ no fiable", None,
+                unavailable_reason="sin respiraciones detectadas; el detector está en corrección",
             )
 
     with col3:
         if len(analysis.breaths) > 0:
             mean_ie = np.mean([b.i_e_ratio for b in analysis.breaths])
-            render_metric_card("Ratio I:E Promedio", f"{mean_ie:.2f}", provenance=BADGES.HEURISTIC)
+            render_metric_card("Ratio I:E Promedio — ⛔ no fiable", f"{mean_ie:.2f} (no usar)")
         else:
             render_metric_card(
-                "Ratio I:E Promedio", None,
-                unavailable_reason="sin respiraciones detectadas en este patrón/parámetros",
+                "Ratio I:E Promedio — ⛔ no fiable", None,
+                unavailable_reason="sin respiraciones detectadas; el detector está en corrección",
             )
 
     with col4:
@@ -520,7 +522,7 @@ with tab3:
     # de apnea, la clasificación por AHI, el "✅ No se detectaron apneas" y la
     # descripción del patrón respiratorio. El detector no cuenta apneas aunque la
     # señal tenga pausas de ~20 s (mide 0 eventos en los patrones de apnea del
-    # propio generador), así que tanto "hay apnea" como "no hay apnea" serían
+    # propio generador), así que tanto "hay apnea" como "no hay apnea" serían (1.5: igual el conteo de respiraciones)
     # afirmaciones sin respaldo. El cálculo no se tocó (arco propio).
     st.info(
         "Análisis avanzado **suprimido mientras el detector de apneas y de respiraciones está en "
@@ -673,7 +675,7 @@ st.markdown("### 📋 Resumen Clínico")
 
 # Tanda 1 de contención (2026-11-05, Art. I): el resumen conserva solo lo que no
 # depende del detector de respiraciones/apneas (oximetría y conteo bruto de
-# respiraciones detectadas). FR y AHI figuran como "no fiable"; patrón, eventos
+# respiraciones detectadas, marcado "no fiable" en la Tanda 1.5). FR y AHI figuran como "no fiable"; patrón, eventos
 # de apnea y severidad se suprimen; las "notas clínicas" automáticas del
 # analizador ("Taquipnea…", "apnea del sueño…", "No apneas detected") no se
 # renderizan porque se generan a partir de esos mismos valores.
@@ -686,7 +688,7 @@ with col1:
 with col2:
     render_metric_card("AHI estimado — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} eventos/h (no usar)")
     render_metric_card("Severidad", None, unavailable_reason="suprimida: se deriva del AHI")
-    render_metric_card("Respiraciones detectadas", str(len(analysis.breaths)), provenance=BADGES.HEURISTIC)
+    render_metric_card("Respiraciones detectadas — ⛔ no fiable", f"{len(analysis.breaths)} (no usar)")
 
 with col3:
     render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.HEURISTIC)

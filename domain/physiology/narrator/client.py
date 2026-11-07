@@ -18,7 +18,7 @@ import anthropic
 from .context import NarrativeContext
 from .prompt import DepthLevel, build_request
 
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_MODEL = "claude-opus-5-5"
 
 
 class NarratorNotConfiguredError(RuntimeError):

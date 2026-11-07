@@ -214,3 +214,63 @@ def test_ui_source_has_no_shap_lime_real_or_ml_real_claims():
     for path in list(Path("app").rglob("*.py")) + [Path("domain/physiology/ml/ecg_classification.py")]:
         src = path.read_text(encoding="utf-8")
         assert "SHAP/LIME real" not in src and "ML real" not in src, path
+
+
+# --- Tanda 1.5 (2026-11-05): cerrar la contencion + aislar la suite ------------
+
+_DETECTOR_LABELS = (
+    "Total Respiraciones", "Duración Promedio", "Ratio I:E Promedio", "Respiraciones detectadas",
+    "Variabilidad RR", "Frecuencia Respiratoria", "Frecuencia respiratoria", "Índice AHI", "AHI estimado",
+)
+
+
+@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central"])
+def test_every_value_from_the_respiration_detector_carries_the_unreliable_mark(temp_ups, pattern):
+    sf, pid = temp_ups
+    at = _respiratory_app(sf, pid, pattern)
+    assert at.exception == []
+    text = _all_text(at)
+    for label in _DETECTOR_LABELS:
+        occurrences = [m.start() for m in re.finditer(re.escape(label), text)]
+        assert occurrences, f"la etiqueta {label!r} ya no aparece: actualiza la lista si se retiró a propósito"
+        for pos in occurrences:
+            rest = text[pos + len(label):]
+            if rest.startswith((":**", "\n", " y eventos")):  # viñeta/encabezado/título de sección (texto fijo), no un valor
+                continue
+            assert rest.startswith(" — ⛔ no fiable"), f"{label!r} sin la marca 'no fiable'"
+    # y el valor mismo dice "no usar" (el conteo sigue visible, pero declarado inservible)
+    assert text.count("(no usar)") >= 6
+
+
+def test_ecg12_quiz_no_longer_claims_ai_that_does_not_exist():
+    for path in list(Path("app").rglob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        assert "inferencias IA" not in src and "análisis IA" not in src, path
+
+
+def test_dead_explainability_module_is_buried_and_no_lime_style_claim_survives():
+    assert not Path("src/ai/explainability.py").exists()
+    import src.ai as ai
+
+    assert not hasattr(ai, "grad_cam") and not hasattr(ai, "saliency_map")
+    for root in ("app", "src", "domain", "clinical"):
+        for path in Path(root).rglob("*.py"):
+            assert "LIME-style" not in path.read_text(encoding="utf-8"), path
+
+
+def test_narrator_model_id_is_the_current_one_everywhere_in_code():
+    from domain.physiology.narrator.client import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL == "claude-opus-5-5"
+    for root in ("app", "src", "domain", "clinical", "tests"):
+        for path in Path(root).rglob("*.py"):
+            if path.name == "test_containment_facades_tanda1.py":
+                continue
+            assert "claude-opus-4-8" not in path.read_text(encoding="utf-8"), path
+
+
+def test_suite_never_points_at_the_development_database():
+    import domain.physiology.state.db as db
+
+    dev = (Path(db.__file__).resolve().parents[3] / "data" / "biocore_ups.db").resolve()
+    assert Path(db.DEFAULT_DB_PATH).resolve() != dev, "conftest.py debe redirigir la base de la suite"
