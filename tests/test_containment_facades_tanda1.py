@@ -65,26 +65,32 @@ def _all_text(at) -> str:
 
 # --- Parte A: Respiratory Lab ------------------------------------------------
 
-def test_respiratory_lab_has_no_ups_write_path_in_source():
+def test_respiratory_lab_ups_write_path_lives_only_in_views_and_only_for_fr_and_spo2():
+    """Fase 4 (2026-11-09): «Guardar al gemelo» vuelve, pero con UN solo camino de escritura (views.py) y solo para los
+    dos valores que significan lo mismo que un campo del UPS. page_content.py y pages.py no escriben nada."""
     for path in RESP_DIR.glob("*.py"):
         code = "\n".join(l for l in path.read_text(encoding="utf-8").splitlines() if not l.strip().startswith("#"))
-        # el docstring de la función desactivada nombra lo que ya no hace; se busca código, no prosa
         tree = ast.parse(code)
         names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | {
             n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
         }
-        for forbidden in ("save_state", "from_digital_twin_organism", "update_from_sensors", "get_active_session_factory"):
-            assert forbidden not in names, f"{path.name} todavía referencia {forbidden}"
-        assert "respiratory_lab_save_to_ups" not in code, f"{path.name} conserva el botón de guardado"
+        if path.name != "views.py":
+            for forbidden in ("save_state", "from_digital_twin_organism", "update_from_sensors", "get_active_session_factory"):
+                assert forbidden not in names, f"{path.name} escribe al UPS fuera de views.py ({forbidden})"
+        else:
+            strings = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+            assert "ahi" not in strings, "la tasa por hora de registro NO se escribe como AHI"
+            assert {"respiratory_rate", "spo2"} <= strings
 
 
-def test_respiratory_lab_pressing_every_button_writes_nothing_to_the_ups(temp_ups):
+def test_respiratory_lab_pressing_any_button_but_the_explicit_save_writes_nothing_to_the_ups(temp_ups):
     sf, pid = temp_ups
     at = _respiratory_app(sf, pid)
     assert at.exception == []
-    assert not any("Guardar estado al gemelo" in b.label for b in at.button), "el botón de guardado debe haber desaparecido"
-    assert "Desactivado: no se reactiva en esta fase" in _all_text(at)
+    assert any("Guardar FR y SpO₂ basal al gemelo" in b.label for b in at.button), "la fase 4 reactiva el guardado explícito"
     for i in range(len(at.button)):
+        if "Guardar FR y SpO₂ basal" in at.button[i].label:
+            continue
         fresh = _respiratory_app(sf, pid)
         fresh.button[i].click().run()
         assert fresh.exception == []

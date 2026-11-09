@@ -83,7 +83,8 @@ def test_respiratory_lab_no_longer_shows_the_validated_signature():
     porque su FR/AHI no son fiables (el inventario midió FR=60.0 constante y AHI=0 con cualquier
     señal). Antes este test fijaba que la firma apareciera completa; ahora fija que NO aparezca.
     Fase 3 (2026-11-07): el detector se reparó contra golden tests, pero la insignia de validado NO
-    se reactiva: el aviso del módulo lo dice."""
+    se reactiva. Fase 4 (2026-11-09): tampoco una insignia GLOBAL (la mixta sigue pendiente); el aviso
+    del módulo dice qué está validado por fuente y qué sigue fuera, y cada valor lleva la suya."""
     def _script():
         import app.supermodules.respiratory_lab.pages as m
         m.run()
@@ -93,7 +94,7 @@ def test_respiratory_lab_no_longer_shows_the_validated_signature():
     assert at.exception == []
     assert _marker_div(at) == []
     assert VALIDATED_SIGNATURES["Respiratory Lab"] not in " ".join(md.value for md in at.main.markdown)
-    assert any("no lleva insignia de validado" in i.value for i in at.info)
+    assert any("Validado por fuente" in i.value and "Sigue fuera" in i.value for i in at.info)
 
 
 def test_hrv_lab_shows_validated_signature_verbatim_not_truncated():

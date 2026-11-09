@@ -493,7 +493,12 @@ def classify_pf_ratio(pf: Optional[float]) -> Classification:
 # ESCALAS DE ALERTA Y CONCIENCIA
 # ═══════════════════════════════════════════════════════════════════════
 
-def _news2_rr(rr: float) -> int:
+def news2_respiratory_rate_score(rr: float) -> int:
+    """Puntos NEWS2 de la frecuencia respiratoria (resp/min, entero ya redondeado por quien llama):
+    ≤ 8 → 3; 9–11 → 1; 12–20 → 0; 21–24 → 2; ≥ 25 → 3. Fuente: `NEWS2_CITATION` (Royal College of Physicians,
+    NEWS2, Londres 2017, gráfico 1 «Physiological parameters», fila de frecuencia respiratoria), contrastada con la
+    tabla reproducida en PMC8244393. Es la única copia de la tabla: el laboratorio respiratorio y `news2_score`
+    la llaman, nadie la reescribe."""
     if rr <= 8:
         return 3
     if rr <= 11:
@@ -603,7 +608,7 @@ def news2_score(*, respiratory_rate: float, spo2: float, on_oxygen: bool, systol
     if spo2_scale not in (1, 2):
         raise ValueError("la escala de SpO₂ debe ser 1 o 2")
     components = {
-        "Frecuencia respiratoria": _news2_rr(respiratory_rate),
+        "Frecuencia respiratoria": news2_respiratory_rate_score(respiratory_rate),
         f"SpO₂ (escala {spo2_scale})": (
             _news2_spo2_scale1(spo2) if spo2_scale == 1 else _news2_spo2_scale2(spo2, on_oxygen)
         ),

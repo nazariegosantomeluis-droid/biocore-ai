@@ -229,17 +229,29 @@ def test_ataxic_irregularity_zero_is_regular_and_validated():
 
 @pytest.mark.parametrize("rr", [8, 15, 30])
 def test_cheyne_stokes_has_a_central_apnea_of_at_least_10_s_in_every_valley(rr):
+    """Fase 4 (decisión 7): el evento se mide con la regla firmada (excursión < 10 % de la basal de Berry). Contiene la
+    ventana de flujo cero que pidió el patrón y se extiende por la rampa de la modulación (< 10 %)."""
     d = _gen("cheyne_stokes", rr, 300)
     gt = d["ground_truth"]
-    assert [(e["start_s"], e["duration_s"], e["type"]) for e in gt["events"]] == [
+    cycle = 60.0 / rr
+    assert [(e["construction_start_s"], e["construction_duration_s"], e["type"]) for e in gt["events"]] == [
         (40.0, 20.0, "central"), (100.0, 20.0, "central"), (160.0, 20.0, "central"), (220.0, 20.0, "central"),
         (280.0, 20.0, "central")]
-    assert all(e["duration_s"] >= 10.0 for e in gt["events"])
+    assert all(e["duration_s"] >= 10.0 and e["origin"] == "calendario" for e in gt["events"])
+    for e in gt["events"]:
+        end, c_end = e["start_s"] + e["duration_s"], e["construction_start_s"] + e["construction_duration_s"]
+        assert e["start_s"] <= e["construction_start_s"] and (end >= c_end or e["truncated"])
+        # cada lado: la rampa donde la modulación (triangular sobre 40 s) queda bajo el 10 % (2 s) y, como mucho, un ciclo
+        assert e["construction_start_s"] - e["start_s"] <= 2.0 + cycle + 0.5 and end - c_end <= 2.0 + cycle + 0.5
     x, c, t = d["airflow"], d["chest_wall"], d["time"]
     for e in gt["events"]:
         w = (t >= e["start_s"]) & (t < e["start_s"] + e["duration_s"])
-        assert np.abs(uniform_filter1d(x, 25)[w]).max() < 0.15           # flujo ausente
-        assert np.abs(uniform_filter1d(c, 25)[w]).max() < 0.05           # esfuerzo ausente (apnea CENTRAL)
+        assert np.abs(uniform_filter1d(x, 25)[w]).max() < 0.1 * e["baseline_amplitude"] + 0.03   # flujo ausente (< 10 % de la basal)
+        # esfuerzo ausente (apnea CENTRAL): en la ventana de flujo cero que pidió el patrón, siempre; en las colas
+        # que la regla añade, el esfuerzo (seno de fase distinta a la del flujo) puede rozar el 16 % de su basal
+        cw = (t >= e["construction_start_s"]) & (t < e["construction_start_s"] + e["construction_duration_s"])
+        assert np.abs(uniform_filter1d(c, 25)[cw]).max() < 0.1 * 0.5 + 0.03
+        assert np.mean(np.abs(uniform_filter1d(c, 25)[w]) >= 0.1 * 0.5) <= 0.10                 # <= 10 % del evento con esfuerzo
     assert gt["modulation_period_s"] == 60.0
 
 
@@ -253,8 +265,10 @@ def test_cheyne_stokes_waxes_and_wanes_between_the_apneas(no_noise):
 def test_cheyne_stokes_desaturates_after_each_valley(no_noise):
     d = _gen("cheyne_stokes", 15, 150)
     ev = d["ground_truth"]["events"][0]
-    assert d["spo2"].min() == pytest.approx(98.0 - R_DES * 20.0)
-    assert d["time"][int(np.argmin(d["spo2"]))] == pytest.approx(ev["start_s"] + 20.0 + TC, abs=0.2)
+    # la profundidad sale de la duración ANOTADA del evento (regla firmada), no de la ventana de flujo cero de 20 s
+    assert d["spo2"].min() == pytest.approx(98.0 - R_DES * ev["duration_s"], abs=0.02)
+    first = d["time"] < 100.0   # los valles siguientes tienen la misma profundidad: el nadir se busca en el primero
+    assert d["time"][first][int(np.argmin(d["spo2"][first]))] == pytest.approx(ev["start_s"] + ev["duration_s"] + TC, abs=0.2)
 
 
 @pytest.mark.parametrize("kw", [dict(apnea_duration=8.0), dict(cheyne_stokes_cycle=20.0), dict(cheyne_stokes_cycle=15.0, apnea_duration=15.0)])

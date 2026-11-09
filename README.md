@@ -16,7 +16,7 @@ BIOCORE se construyó sobre la regla opuesta, que gobierna toda su arquitectura:
 
 > **Cada dato declara su procedencia. Cuando el sistema no puede saber algo, lo dice — nunca rellena el hueco con algo plausible.**
 
-Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: el **Respiratory Lab** muestra solo lo que pasó sus golden tests contra un generador con verdad conocida (frecuencia respiratoria, apneas, la SpO₂ del modelo BIOCORE), declara lo que sigue oculto (hipopneas, I:E, patrón, notas clínicas) y no lleva insignia de validado.
+Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: el **Respiratory Lab** muestra solo lo que pasó sus golden tests contra un generador con verdad conocida y le pone a cada valor su propia insignia (validado por fuente: banda NEWS2 y apnea de Berry 2012; metodología propia o valor BIOCORE; heurística; pendiente de validación: la apnea mixta), declara lo que sigue fuera (hipopneas, I:E, ODI, categoría de severidad) y no lleva una insignia global de validado.
 
 ---
 

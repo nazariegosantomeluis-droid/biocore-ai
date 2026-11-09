@@ -6,7 +6,7 @@ Reescritura del detector contra los golden tests. Cumple los criterios firmados 
 - D1 FR: 60 / media de los intervalos entre inspiraciones (en segundos); >= 3 respiraciones o "no
   disponible" (None, nunca 0). Antes de aplicar las bandas NEWS2 se redondea al entero con .5 hacia arriba
   (`round_half_up`, explícito; NO `round()` de Python). La banda NEWS2 la calcula la UI con
-  `clinical.calculators._news2_rr` (no se copia la tabla aquí). Variabilidad = desviación estándar muestral
+  `clinical.calculators.news2_respiratory_rate_score` (no se copia la tabla aquí). Variabilidad = desviación estándar muestral
   de los intervalos (s), descriptiva. Duración del ciclo = media de los intervalos.
 - D2 Apnea (Berry 2012, AASM): caída >= 90 % de la excursión pico respecto a la línea basal previa durante
   >= 10 s. Basal según Berry/Chicago: media de las respiraciones estables de los 120 s previos, o media de las
@@ -21,8 +21,9 @@ Reescritura del detector contra los golden tests. Cumple los criterios firmados 
 - E11 Un evento ya en curso al inicio del registro (sin basal previa) es "no evaluable" y no cuenta; uno que
   llega al final cuenta solo si tiene >= 10 s dentro del registro y se marca "recortado".
 
-Suprimidos (siguen sin calcularse hasta que Luis firme sus criterios): clasificador de patrón, notas
-clínicas, ODI y severidad. Quedan como None.
+No existen en este analizador (decisiones firmadas de la fase 4): el índice de desaturación de oxígeno (ODI) y la
+categoría de severidad. El texto del patrón y de las notas clínicas se arma en el laboratorio
+(`app/supermodules/respiratory_lab/views.py`) a partir de los números de este análisis.
 
 Todo umbral técnico que NO está en los criterios firmados es HEURISTIC y está declarado en `HEURISTICS`
 con su calibración. Ninguna compuerta de amplitud es absoluta: la señal de flujo tiene la escala del
@@ -32,7 +33,7 @@ al ruido que se estima de ella.
 
 import numpy as np
 from typing import Dict, List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from scipy.signal import find_peaks
 from scipy.ndimage import uniform_filter1d, maximum_filter1d
 
@@ -77,7 +78,7 @@ class BreathDetection:
 
 @dataclass
 class RespiratoryAnalysis:
-    """Resultado del análisis. Los campos suprimidos valen None hasta que Luis firme sus criterios."""
+    """Resultado del análisis."""
     # D1
     respiratory_rate: Optional[float]            # resp/min, None = no disponible
     respiratory_rate_rounded: Optional[int]      # entero (.5 hacia arriba) para las bandas NEWS2
@@ -106,12 +107,6 @@ class RespiratoryAnalysis:
     spo2_nadir_time: float
     time_below_90: float
     time_below_85: float
-
-    # Suprimidos
-    breathing_pattern: Optional[str] = None
-    severity: Optional[str] = None
-    clinical_notes: List[str] = field(default_factory=list)
-    oxygen_desaturation_index: Optional[float] = None
 
 
 class RespiratoryAnalyzer:
@@ -151,7 +146,7 @@ class RespiratoryAnalyzer:
         noise_s = self._noise_sd(airflow) / np.sqrt(window)
         a95 = float(np.percentile(np.abs(s_breath), 95)) if n else 0.0
 
-        breaths = self._detect_breaths(s_breath, noise_s, a95)
+        breaths = self._detect_breaths(s_breath, noise_s, a95, s_apnea)
         status, detail = self._signal_status(breaths, a95, noise_s)
 
         events, non_eval, evaluable = [], [], status != "sin_senal_respiratoria"
@@ -186,7 +181,7 @@ class RespiratoryAnalyzer:
         )
 
     # ------------------------------------------------------------------ respiraciones
-    def _detect_breaths(self, s: np.ndarray, noise_s: float, a95: float) -> List[BreathDetection]:
+    def _detect_breaths(self, s: np.ndarray, noise_s: float, a95: float, s_fine: np.ndarray) -> List[BreathDetection]:
         if len(s) < 3 or a95 <= 0:
             return []
         prom = max(HEURISTICS["peak_prominence_noise_multiple"][0] * noise_s,
@@ -204,7 +199,11 @@ class RespiratoryAnalyzer:
                 onset = 0.0
             else:  # interpolación lineal entre j y j+1
                 onset = (j + (thr - s[j]) / (s[j + 1] - s[j])) / self.sampling_rate if s[j + 1] != s[j] else j / self.sampling_rate
-            out.append(BreathDetection(i, int(p), float(p / self.sampling_rate), float(s[p]), float(onset)))
+            # la amplitud de la cresta (basal de Berry) se lee en la señal poco suavizada: la media móvil de 0.25 s que
+            # sirve para localizar el pico la recorta 2-7 % en una inspiración corta y sesgaría la basal a la baja
+            half = int(HEURISTICS["breath_smoothing_s"][0] * self.sampling_rate)
+            amp = float(np.max(s_fine[max(0, p - half):p + half + 1]))
+            out.append(BreathDetection(i, int(p), float(p / self.sampling_rate), amp, float(onset)))
         return out
 
     def _signal_status(self, breaths, a95: float, noise_s: float):
@@ -269,54 +268,66 @@ class RespiratoryAnalyzer:
                 continue
             value, n_prev, win_s, rule = base
             thr = (1.0 - APNEA_DROP_FRACTION) * value
-            # run real con la basal del evento, alrededor del candidato
-            mid = (a + b) // 2
-            if a_abs[mid] >= thr:
-                continue
-            lo = mid
-            while lo > 0 and a_abs[lo - 1] < thr:
-                lo -= 1
-            hi = mid
-            while hi < n - 1 and a_abs[hi + 1] < thr:
-                hi += 1
-            truncated = hi == n - 1
-            dur = (hi + 1 - lo) / fs
-            if lo == 0:
-                non_eval.append({"start_time": float(time[0]), "end_time": float(time[0]) + dur, "duration": dur,
-                                 "reason": "ya en curso al inicio del registro (sin basal previa)"})
-                continue
-            if dur < APNEA_MIN_DURATION_S:
-                continue
-            ev = {
-                "start_time": float(time[lo]), "end_time": float(time[0]) + (hi + 1) / fs, "duration": dur,
-                "truncated": bool(truncated),
-                "baseline": {"amplitude": value, "n_breaths": n_prev, "window_s": win_s, "rule": rule,
-                             "declared_short": bool(win_s < BASELINE_WINDOW_S - 1.0)},
-            }
-            ev.update(self._classify(ev, lo, hi, breaths, effort, s_effort_cache=None))
-            events.append(ev)
+            # Duración (Berry 2012 §3.2): el tramo contiguo en que la excursión queda por debajo del 10 % de la basal
+            # previa. El candidato (umbral sobre la mayor cresta) es un superconjunto: puede contener varios tramos
+            # bajo la basal REAL y el evento no tiene por qué estar en su centro.
+            low = a_abs[a:b] < thr
+            run_edges = np.diff(np.concatenate([[0], low.astype(np.int8), [0]]))
+            for r0, r1 in zip(np.where(run_edges == 1)[0], np.where(run_edges == -1)[0]):
+                lo, hi = a + int(r0), a + int(r1) - 1
+                dur = (hi + 1 - lo) / fs
+                if dur < APNEA_MIN_DURATION_S:
+                    continue
+                ev = {
+                    "start_time": float(time[lo]), "end_time": float(time[0]) + (hi + 1) / fs, "duration": dur,
+                    "truncated": bool(hi == n - 1),
+                    "baseline": {"amplitude": value, "n_breaths": n_prev, "window_s": win_s, "rule": rule,
+                                 "declared_short": bool(win_s < BASELINE_WINDOW_S - 1.0)},
+                }
+                ev.update(self._classify(ev, lo, hi, breaths, effort, a))
+                events.append(ev)
         events.sort(key=lambda e: e["start_time"])
         return events, non_eval
 
-    def _classify(self, ev, lo, hi, breaths, effort, s_effort_cache):
+    def _effort_baseline(self, eff: np.ndarray, breaths, a_idx: int, cycle: float) -> float:
+        """Basal del esfuerzo: la misma regla de Berry/Chicago que `_baseline`, sobre la cresta de esfuerzo que rodea
+        a cada respiración previa (media móvil de 0.25 s ya aplicada a `eff`). 0.0 si no hay respiración previa."""
+        t_a = a_idx / self.sampling_rate
+        half = max(1, int(0.5 * cycle * self.sampling_rate))
+        amps = np.array([float(np.max(eff[max(0, b.peak_index - half):b.peak_index + half + 1]))
+                         for b in breaths if t_a - BASELINE_WINDOW_S <= b.peak_time_s < t_a])
+        if len(amps) == 0:
+            return 0.0
+        cv = float(np.std(amps) / np.mean(amps)) if len(amps) > 1 and np.mean(amps) > 0 else 0.0
+        if len(amps) > STABLE_BREATHS_TO_AVERAGE and cv > HEURISTICS["baseline_stability_cv"][0]:
+            return float(np.mean(np.sort(amps)[-STABLE_BREATHS_TO_AVERAGE:]))
+        return float(np.mean(amps))
+
+    def _classify(self, ev, lo, hi, breaths, effort, a_idx):
         """Tipo por esfuerzo (Criterio BIOCORE). Mixta: PENDING_VALIDATION."""
         if effort is None:
             return {"type": "unknown", "type_detail": "sin canal de esfuerzo", "type_label": "Criterio BIOCORE", "mixed_pending": False}
         fs = self.sampling_rate
-        eff = np.abs(self._smooth(np.asarray(effort, dtype=float), HEURISTICS["breath_smoothing_s"][0]))  # suavizar CON signo y luego |.|: promediar |ruido| lo dejaría en 0.8 sd
-        noise = self._noise_sd(np.asarray(effort, dtype=float)) / np.sqrt(max(1, int(round(HEURISTICS["breath_smoothing_s"][0] * fs))))
-        pre_a = max(0, lo - int(BASELINE_WINDOW_S * fs))
-        pre = eff[pre_a:lo]
-        # la basal de esfuerzo se toma de las cimas previas (p95 del esfuerzo suavizado)
-        e_base = float(np.percentile(pre, 95)) if len(pre) else 0.0
-        if e_base < HEURISTICS["effort_min_to_noise"][0] * noise:
-            return {"type": "unknown", "type_detail": "esfuerzo basal no medible", "type_label": "Criterio BIOCORE", "mixed_pending": False}
-        cyc = ev_cycle = None
+        # el esfuerzo se suaviza como el flujo en los bordes de un evento (0.1 s): con 0.25 s su cresta queda ~9 %
+        # por debajo de la del flujo y el mismo 10 % de la basal se cruza antes en un canal que en el otro
+        smooth_s = HEURISTICS["apnea_smoothing_s"][0]
+        eff = np.abs(self._smooth(np.asarray(effort, dtype=float), smooth_s))  # suavizar CON signo y luego |.|: promediar |ruido| lo dejaría en 0.8 sd
+        noise = self._noise_sd(np.asarray(effort, dtype=float)) / np.sqrt(max(1, int(round(smooth_s * fs))))
         t = np.array([b.peak_time_s for b in breaths if b.peak_time_s < lo / fs])
         cycle = float(np.median(np.diff(t))) if len(t) >= 3 else 4.0
+        # La basal del esfuerzo sigue LA MISMA regla que la del flujo (Berry/Chicago): la cresta de esfuerzo de cada
+        # respiración de los 120 s previos al tramo de baja excursión, y su media (o la de las 3 mayores si es
+        # inestable). Con un percentil 95 de toda la señal, un patrón irregular dejaba una basal de esfuerzo mucho
+        # menor que la del flujo y un evento sin esfuerzo se leía como 'obstructivo'.
+        e_base = self._effort_baseline(eff, breaths, a_idx, cycle)
+        if e_base < HEURISTICS["effort_min_to_noise"][0] * noise:
+            return {"type": "unknown", "type_detail": "esfuerzo basal no medible", "type_label": "Criterio BIOCORE", "mixed_pending": False}
         w = max(int(HEURISTICS["effort_window_cycles"][0] * cycle * fs), int(1.0 * fs))
         env = maximum_filter1d(eff, w)
-        a_i, b_i = lo + w // 2, hi + 1 - w // 2
+        # el filtro de máximos mira w/2 a cada lado y la media móvil del esfuerzo filtra el borde del evento hacia
+        # dentro: se descartan ambos márgenes para no leer como 'esfuerzo' el flanco de la respiración vecina
+        pad = int(smooth_s * fs)
+        a_i, b_i = lo + w // 2 + pad, hi + 1 - w // 2 - pad
         seg = env[a_i:b_i] if b_i > a_i else env[lo:hi + 1]
         present = float(np.mean(seg >= (1.0 - APNEA_DROP_FRACTION) * e_base))
         if present >= HEURISTICS["effort_present_fraction"][0]:

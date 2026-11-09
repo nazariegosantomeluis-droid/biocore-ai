@@ -204,6 +204,7 @@ circulation_delay = st.sidebar.number_input(
     help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Valor BIOCORE: la fuente (Hsia 2026) solo da el "
          "límite normal < 20 s. Rango 5–30 s.",
 )
+st.sidebar.caption(f"{BADGES.METHOD} Tc: {views.TC_LABEL}")
 slot_spo2 = st.sidebar.empty()
 
 duration = st.sidebar.slider(
@@ -298,6 +299,7 @@ st.session_state['_respiratory_lab_analysis'] = {
 }
 
 render_section_header(f"Patrón: {selected_pattern_display}")
+st.caption(f"Insignias por valor: {views.BADGE_LEGEND}")
 
 # ═══════════════════════════════════════════════════════════════
 # METRICS ROW
@@ -347,7 +349,7 @@ with tab1:
     fig = make_subplots(
         rows=3, cols=1,
         shared_xaxes=True,
-        subplot_titles=("Flujo de Aire (L/min, escala del generador)", "Pared Torácica", "Movimiento Abdominal"),
+        subplot_titles=("Flujo de Aire (unidades relativas: la escala absoluta no corresponde al volumen corriente elegido)", "Pared Torácica", "Movimiento Abdominal"),
         vertical_spacing=0.1
     )
     
@@ -392,7 +394,7 @@ with tab1:
     )
     
     fig.update_xaxes(title_text="Tiempo (segundos)", row=3, col=1)
-    fig.update_yaxes(title_text="L/min", row=1, col=1)
+    fig.update_yaxes(title_text="Flujo (u. relativas)", row=1, col=1)
     fig.update_yaxes(title_text="Movimiento", row=2, col=1)
     fig.update_yaxes(title_text="Movimiento", row=3, col=1)
     
@@ -431,11 +433,7 @@ with tab1:
                                f"{analysis.rr_variability:.2f} s", provenance=BADGES.METHOD)
 
     with col4:
-        band = views.fr_band_text(analysis)
-        if band is None:
-            render_metric_card("Banda NEWS2 de la FR", None, unavailable_reason=analysis.signal_status_detail or "FR no disponible")
-        else:
-            render_metric_card("Banda NEWS2 de la FR", band, provenance=BADGES.METHOD, citation=NEWS2_CITATION)
+        views.render_band_card(analysis)
 
     st.caption("La relación I:E no se muestra: todavía no tiene golden test ni criterio firmado.")
 
@@ -475,10 +473,6 @@ with tab2:
     # Reference lines
     fig_spo2.add_hline(y=95, line_dash="dash", line_color="#51cf66", row=1, col=1, 
                        annotation_text="Normal")
-    fig_spo2.add_hline(y=90, line_dash="dash", line_color="#ffa500", row=1, col=1,
-                       annotation_text="Hipoxemia leve")
-    fig_spo2.add_hline(y=85, line_dash="dash", line_color="#ff6b6b", row=1, col=1,
-                       annotation_text="Hipoxemia grave")
     
     # Airflow reference
     fig_spo2.add_trace(
@@ -522,8 +516,8 @@ with tab3:
     views.render_events_table(analysis)
     if analysis.event_period_s is not None:
         st.caption(f"Los eventos se repiten cada ~{analysis.event_period_s:.0f} s (mediana de la separación entre inicios).")
-    if selected_pattern == "cheyne_stokes":
-        st.warning(analysis.cheyne_stokes_note)
+    views.render_pattern_cards(analysis, selected_pattern, respiration_data["ground_truth"])
+    views.render_clinical_notes(analysis, circulation_delay)
     views.render_calculator_link("resp_osa_link_clinical")
     views.render_hidden_notice()
 
@@ -693,8 +687,8 @@ st.markdown("---")
 
 st.markdown("### 📋 Resumen Clínico")
 
-# Fase 3 (2026-11-07, Art. I): el resumen muestra solo valores con golden test. Patrón, notas clínicas, hipopneas,
-# I:E y ODI siguen ocultos (ver el aviso de la pestaña Análisis Avanzado).
+# Fase 3-4 (Art. I): el resumen muestra solo valores con golden test, cada uno con su insignia. Hipopneas, I:E y ODI
+# siguen fuera (ver el aviso de la pestaña Análisis Avanzado); el patrón y las notas son HEURISTIC y no diagnostican.
 col1, col2, col3 = st.columns(3)
 with col1:
     views.render_rate_cards(analysis)
@@ -715,7 +709,9 @@ with col3:
     render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
     render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
 
-st.markdown("**Notas clínicas automáticas, patrón respiratorio e hipopneas:** no se muestran todavía (sin criterio firmado).")
+st.markdown(f"**Patrón** ({BADGES.HEURISTIC} heurística): {views.pattern_description(analysis)}")
+views.render_clinical_notes(analysis, circulation_delay)
+st.caption("Hipopneas, relación I:E y ODI no se muestran (sin criterio firmado o sin golden test).")
 
 # ═══════════════════════════════════════════════════════════════
 # EDUCATIONAL SIDEBAR

@@ -169,7 +169,8 @@ def test_respiratory_lab_header_shows_no_confidence_marker_but_the_status_notice
     at.run(timeout=30)
     markers = [md.value for md in at.main.markdown if "border-left:3px" in md.value]
     assert markers == [], f"no debe quedar marcador de validación: {markers}"
-    assert any("solo los valores con golden test" in i.value for i in at.info)
+    assert any("Validado por fuente" in i.value and "Pendiente de validación" in i.value and "Sigue fuera" in i.value
+               for i in at.info)
 
 
 def test_eeg_neuro_lab_header_shows_no_confidence_marker_deliberately(eeg_ups):
@@ -273,7 +274,9 @@ def test_respiratory_ahi_severity_cards_are_never_shown_as_trusted_values():
     pages = Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")
 
     for src, label in ((page_content, "page_content.py"), (pages, "pages.py")):
-        assert "BADGES.CLINICAL" not in src, f"{label}: nada de este lab puede llevar el badge CLÍNICO mientras esté en corrección"
+        # Fase 4 (2026-11-09): el badge CLÍNICO vuelve, pero SOLO por valor y solo en views.py (banda NEWS2 y apnea de
+        # Berry); page_content.py y pages.py no lo usan, y AHI/severidad ya no existen en este lab
+        assert "BADGES.CLINICAL" not in src, f"{label}: el badge CLÍNICO solo se asigna por valor, en views.py"
         for m in re.finditer(r'render_metric_card\(\s*"([^"]*(?:AHI|Severidad)[^"]*)"\s*,\s*(.*)', src):
             title, rest = m.group(1), m.group(2)
             if "AHI" in title:

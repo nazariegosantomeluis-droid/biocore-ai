@@ -124,12 +124,14 @@ class BADGES:
     HEURISTIC = "🔵"   # cálculo real, constante/ponderación heurística (no de estudio de cohorte)
     GHOST = "🔴"       # entrada sin fuente real disponible -- no debería verse en producción (Capa 3 los retiró)
     METHOD = "🟣"      # metodología propia declarada como tal (no un score clínico estándar)
+    PENDING = "⏳"     # valor que se calcula pero cuyo criterio aún no está validado (PENDING_VALIDATION)
 
     _LABELS = {
         CLINICAL: "validado clínicamente",
         HEURISTIC: "heurística de ingeniería, no de estudio de cohorte",
         GHOST: "sin fuente real disponible",
         METHOD: "metodología propia de BIOCORE",
+        PENDING: "pendiente de validación (se calcula, no está validado)",
     }
 
     @classmethod

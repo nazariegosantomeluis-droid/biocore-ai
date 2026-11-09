@@ -21,25 +21,24 @@ from app.supermodules.respiratory_lab import views
 # copiado tal cual a page_content.py junto a este archivo, sin cambiar una línea.
 MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
-# Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este
-# módulo (firma AASM de la Tanda Final) se RETIRÓ. El inventario del 2026-11-05
-# midió que `RespiratoryAnalyzer` devolvía FR = 60.0 constante y 0 apneas con
-# cualquier señal (incluidos los patrones de apnea), así que la firma ya no
-# describía lo que el módulo calculaba. En la fase 3 (2026-11-07) el detector se
-# reparó contra golden tests, pero la insignia NO se reactiva.
+# Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este módulo (firma AASM de la Tanda Final) se
+# RETIRÓ porque `RespiratoryAnalyzer` devolvía FR = 60.0 constante y 0 apneas con cualquier señal. Fase 3 (2026-11-07): el
+# detector se reparó contra golden tests. Fase 4 (2026-11-09): tampoco vuelve la insignia GLOBAL (la apnea mixta sigue
+# PENDING_VALIDATION); la confianza se declara VALOR POR VALOR (ver `views.BADGE_LEGEND`).
 class VistaClinicaOmitida(Exception):
     """La vista clínica no se dibuja (parámetros imposibles). Se captura aquí para que las demás pestañas se
     sigan dibujando, en vez del `st.stop()` que dejaba toda la página a medias."""
 
 
 RESPIRATORY_STATUS_NOTICE = (
-    "**Arco respiratorio, fase 3 (2026-11-07).** Se muestran solo los valores con golden test: frecuencia respiratoria "
-    "(60 / media de los intervalos entre inspiraciones; banda NEWS2), duración del ciclo y su variabilidad, apneas "
-    "(≥ 10 s con caída ≥ 90 %, Berry 2012; tipo por esfuerzo = Criterio BIOCORE), la tasa equivalente por hora de "
-    "**registro** (extrapolada, sin valor diagnóstico) y la SpO₂ del modelo BIOCORE (simulación). **Siguen ocultos:** "
-    "hipopneas, relación I:E, patrón respiratorio, notas clínicas, ODI y la categoría de severidad (que vive en "
-    "Calculadoras Clínicas). Este laboratorio **no escribe al gemelo** y **no lleva insignia de validado**. La señal es "
-    "simulada (se declara así); los resultados no son una medición de un paciente."
+    "**Estado del módulo (fase 4, 2026-11-09).** **Validado por fuente 🟢:** la banda NEWS2 de la FR (RCP 2017) y la apnea "
+    "(caída ≥ 90 % durante ≥ 10 s, Berry 2012, AASM). **Con golden test, metodología propia 🟣:** FR = 60 / media de los "
+    "intervalos entre inspiraciones, duración del ciclo y su variabilidad, tipo de apnea por esfuerzo (Criterio BIOCORE), "
+    "tasa equivalente por hora de **registro** (extrapolada, sin valor diagnóstico) y la SpO₂ del modelo BIOCORE "
+    "(simulación; el retardo Tc es un valor BIOCORE). **Heurística 🔵:** la descripción del patrón y la irregularidad del "
+    "generador atáxico. **Pendiente de validación ⏳:** la apnea mixta (se calcula y se marca). **Sigue fuera:** "
+    "hipopneas, relación I:E, ODI y la categoría de severidad (vive en Calculadoras Clínicas). «Guardar al gemelo» escribe "
+    "solo FR y SpO₂ basal, como simulación. La señal es simulada: los resultados no son una medición de un paciente."
 )
 
 
@@ -58,8 +57,8 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    # `validation=None` EXPLÍCITO -- no un olvido: la insignia de validado NO se reactiva en la fase 3
-    # (decisión del arco: llegará, si llega, tras la validación experta); ver `RESPIRATORY_STATUS_NOTICE`.
+    # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado mientras la apnea mixta siga
+    # PENDING_VALIDATION; la confianza va por valor (ver `RESPIRATORY_STATUS_NOTICE` y `views.BADGE_LEGEND`).
     render_module_header("Respiratory Lab", icon="💨", validation=None)
     st.info(RESPIRATORY_STATUS_NOTICE, icon="🫁")
     tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
@@ -109,23 +108,7 @@ def _render_investigacion_tab():
     views.render_calculator_link("resp_osa_link_research")
 
     st.divider()
-    _render_save_to_twin_disabled()
-
-
-def _render_save_to_twin_disabled() -> None:
-    """Guardar al gemelo -- DESACTIVADO (Tanda 1 de contención, 2026-11-05).
-
-    El botón escribía `respiratory_rate=analysis.respiratory_rate` (siempre 60.0)
-    y el índice de apneas por hora (siempre 0.0) al UPS con procedencia
-    `SIMULACION`: una constante disfrazada de medición, que el narrador, el
-    clasificador de riesgo y el cuerpo visual leerían como dato del paciente
-    (Art. I). Este laboratorio no escribe al UPS por ninguna ruta mientras el
-    analizador no se repare; no hay botón ni código de escritura aquí."""
-    st.markdown("#### 🔗 Guardar estado al gemelo")
-    st.caption(
-        "Desactivado: no se reactiva en esta fase. Volverá con su procedencia («Simulación — modelo BIOCORE») en la fase 4, "
-        "solo para los campos validados."
-    )
+    views.render_save_to_twin(analysis, bridge['pattern_display'], key="respiratory_lab_save_to_ups")
 
 
 def _render_simulacion_tab():

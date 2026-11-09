@@ -61,6 +61,21 @@ SPO2_MODEL_SOURCES = {
 }
 
 
+# Criterios firmados por Luis (Berry 2012, AASM) con los que el generador ANOTA los eventos que no salen de un
+# calendario (atáxica y los bordes de Cheyne-Stokes). Son una copia deliberada de las constantes del
+# analizador: el generador no importa NADA del detector (un ground truth calculado con el detector sería
+# circular); un test fija que las dos copias coinciden.
+APNEA_DROP_FRACTION = 0.90        # caída >= 90 % de la excursión pico respecto a la basal previa
+APNEA_MIN_DURATION_S = 10.0       # durante >= 10 s
+BASELINE_WINDOW_S = 120.0         # basal: respiraciones de los 120 s previos (consenso de Chicago)
+STABLE_BREATHS_TO_AVERAGE = 3     # patrón inestable: media de las 3 mayores
+BASELINE_STABILITY_CV = 0.30      # HEURISTIC: CV de las amplitudes a partir del cual el patrón es "inestable"
+# HEURISTIC: un evento está "al límite" si una respiración somera interior llega a >= 95 % del umbral del 10 % de la
+# basal, o si dura menos de 10.5 s. Calibrado con 360 registros atáxicos: los 3 eventos que el detector no ve tenían
+# un margen de 0.1-0.6 %; el ruido de la señal y de la basal (~1 %) decide ahí, no el algoritmo.
+BORDERLINE_MARGIN = 0.05
+
+
 class ImpossibleParameters(ValueError):
     """Combinación de parámetros imposible. `control` nombra el parámetro afectado (para que la UI
     muestre el error junto al control correspondiente)."""
@@ -240,9 +255,96 @@ class RespiratorySignalGenerator:
                 "duration_s": float(end - start),
                 "type": kind,
                 "truncated": bool(end < start + dur),
+                "origin": "calendario",
             })
             k += 1
         return events
+
+    # -- anotación por regla (fase 4) ---------------------------------------------------------
+    @staticmethod
+    def _berry_baseline(crest_t: np.ndarray, crest_a: np.ndarray, t_a: float) -> Optional[float]:
+        """Basal previa al instante `t_a` según Berry 2012 / Chicago, calculada de las amplitudes por respiración
+        que el generador CONOCE: media de las respiraciones de los 120 s previos, o media de las 3 mayores si el
+        patrón es inestable. None = no hay respiración previa (evento sin basal)."""
+        amps = crest_a[(crest_t >= t_a - BASELINE_WINDOW_S) & (crest_t < t_a)]
+        if len(amps) == 0:
+            return None
+        cv = float(np.std(amps) / np.mean(amps)) if len(amps) > 1 else 0.0
+        if len(amps) > STABLE_BREATHS_TO_AVERAGE and cv > BASELINE_STABILITY_CV:
+            return float(np.mean(np.sort(amps)[-STABLE_BREATHS_TO_AVERAGE:]))
+        return float(np.mean(amps))
+
+    def _crests_per_cycle(self, clean: np.ndarray, time: np.ndarray, cycle: float, insp_time: float):
+        """(instante, amplitud) de la cresta inspiratoria de cada ciclo regular, leída de la señal limpia que el
+        generador acaba de construir (antes del ruido). Un ciclo sin flujo no es una respiración: no se lista."""
+        ts, amps = [], []
+        for k in range(int(time[-1] / cycle) + 1):
+            m = (time >= k * cycle) & (time < k * cycle + insp_time)
+            if m.any() and clean[m].max() > 1e-12:
+                ts.append(time[m][np.argmax(clean[m])])
+                amps.append(clean[m].max())
+        return np.array(ts), np.array(amps)
+
+    def _annotate_events_by_rule(self, clean: np.ndarray, time: np.ndarray, crest_t: np.ndarray, crest_a: np.ndarray,
+                                 calendar: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
+        """Anota los eventos que cumplen el criterio firmado (caída >= 90 % de la excursión respecto a la basal de
+        Berry durante >= 10 s) aplicándolo a la señal LIMPIA y a las amplitudes por respiración de la construcción.
+        Es el criterio, no el detector: no importa ni reutiliza código de `respiratory_analyzer`.
+
+        Duración de un evento: el tramo contiguo en que la excursión queda por debajo del 10 % de la basal. Berry
+        2012 §3.2 la define "desde el nadir previo a la primera respiración claramente reducida hasta el inicio de
+        la primera que se aproxima a la basal"; esa frase no cuantifica 'claramente reducida' ni 'se aproxima', y
+        el corte del 10 % la lleva al nivel de muestra: coincide con ella cuando el flujo cesa de golpe (todos los
+        calendarios de apnea) y se desvía como mucho un ciclo respiratorio cuando decae gradualmente (las colas
+        de Cheyne-Stokes).
+
+        Eventos sin basal previa (ya en curso al inicio) no se anotan: van a la lista de no evaluables. Un evento
+        que llega al final cuenta solo con >= 10 s dentro del registro y se marca `truncated`. `calendar` son las
+        ventanas de flujo cero que el patrón pretendía; cada evento medido guarda la que contiene
+        (`construction_*`), y si no contiene ninguna es "emergente"."""
+        fs = self.sampling_rate
+        n = len(clean)
+        events: List[Dict] = []
+        non_evaluable: List[Dict] = []
+        if len(crest_a) == 0:
+            return events, non_evaluable
+        a_abs = np.abs(clean)
+        candidates = a_abs < (1.0 - APNEA_DROP_FRACTION) * float(crest_a.max())  # superconjunto: la basal real es <= la mayor
+        edges = np.diff(np.concatenate([[0], candidates.astype(np.int8), [0]]))
+        for a, b in zip(np.where(edges == 1)[0], np.where(edges == -1)[0]):
+            if (b - a) / fs < APNEA_MIN_DURATION_S - 2.0:
+                continue
+            base = self._berry_baseline(crest_t, crest_a, a / fs) if a > 0 else None
+            if base is None:
+                non_evaluable.append({"start_s": float(time[a]), "duration_s": float((b - a) / fs),
+                                      "reason": "ya en curso al inicio del registro (sin basal previa)"})
+                continue
+            # basal = la previa al tramo de baja excursión; cada tramo contiguo bajo el 10 % de ella es un evento
+            # candidato (un tramo candidato puede contener varios)
+            low = a_abs[a:b] < (1.0 - APNEA_DROP_FRACTION) * base
+            edges = np.diff(np.concatenate([[0], low.astype(np.int8), [0]]))
+            for r0, r1 in zip(np.where(edges == 1)[0], np.where(edges == -1)[0]):
+                lo, hi = a + int(r0), a + int(r1) - 1
+                dur = (hi + 1 - lo) / fs
+                if dur < APNEA_MIN_DURATION_S:
+                    continue
+                start = float(time[lo])
+                # Margen respecto al criterio, leído de la construcción: ¿alguna respiración somera DENTRO del evento
+                # (sin contar 1 s en cada borde, donde la señal sube por definición) llega casi al 10 % de la basal?
+                # ¿dura casi lo mínimo? Un evento así está al límite: el ruido de cualquier medición decide si se ve.
+                interior = a_abs[lo + int(fs):hi + 1 - int(fs)]
+                excursion_margin = 1.0 - float(interior.max()) / ((1.0 - APNEA_DROP_FRACTION) * base) if len(interior) else 1.0
+                borderline = excursion_margin < BORDERLINE_MARGIN or dur < APNEA_MIN_DURATION_S * (1.0 + BORDERLINE_MARGIN)
+                ev = {"start_s": start, "duration_s": float(dur), "type": "central", "truncated": bool(hi == n - 1),
+                      "origin": "emergente", "baseline_amplitude": float(base),
+                      "borderline": bool(borderline), "excursion_margin": float(excursion_margin)}
+                window = next((c for c in calendar if c["start_s"] < start + dur and c["start_s"] + c["duration_s"] > start), None)
+                if window is not None:
+                    ev["origin"] = "calendario"
+                    ev["construction_start_s"] = float(window["start_s"])
+                    ev["construction_duration_s"] = float(window["duration_s"])
+                events.append(ev)
+        return events, non_evaluable
 
     # -- SpO2: curva del dedo por evento ----------------------------------------------------------
     @staticmethod
@@ -265,7 +367,8 @@ class RespiratorySignalGenerator:
         }
 
     def _ground_truth(self, params: RespiratoryPattern, eff: RespiratoryPattern, duration: float,
-                      seed: Optional[int], events: List[Dict], schedule: Optional[Dict] = None) -> Dict:
+                      seed: Optional[int], events: List[Dict], schedule: Optional[Dict] = None,
+                      non_evaluable: Optional[List[Dict]] = None) -> Dict:
         """Lo que la señal contiene REALMENTE, calculado de los mismos parámetros que la generan."""
         pattern = params.pattern_type if params.pattern_type in KNOWN_PATTERNS else "normal"
         out_events = []
@@ -285,6 +388,15 @@ class RespiratorySignalGenerator:
             "effective_respiratory_rate": float(eff.respiratory_rate),
             "rate_is_regular": True,
             "events": out_events,
+            # eventos en curso al inicio del registro (sin basal previa): no cuentan, igual que en el criterio firmado
+            "non_evaluable_events": list(non_evaluable or []),
+            "event_rule": {
+                "criterion": "caída >= 90 % de la excursión respecto a la basal previa (Berry 2012) durante >= 10 s",
+                "drop_fraction": APNEA_DROP_FRACTION,
+                "min_duration_s": APNEA_MIN_DURATION_S,
+                "baseline": "Berry 2012 / Chicago: media de las respiraciones de los 120 s previos, o de las 3 mayores si es inestable",
+                "origins": {"calendario": "ventana pedida por el patrón", "emergente": "nacido del azar de cada respiración"},
+            },
             "modulation_period_s": float(params.cheyne_stokes_cycle) if pattern == "cheyne_stokes" else None,
             "duration_s": float(duration),
             "sampling_rate_hz": float(self.sampling_rate),
@@ -362,7 +474,8 @@ class RespiratorySignalGenerator:
         n_samples = int(duration * self.sampling_rate)
         time = np.arange(n_samples) * self.sample_interval
 
-        events = self._events(params, duration)
+        events = self._events(params, duration)  # calendario de los patrones de apnea
+        non_evaluable: List[Dict] = []
         schedule = None
 
         # Generate base respiratory pattern
@@ -378,9 +491,21 @@ class RespiratorySignalGenerator:
             airflow, chest, abdomen = self._generate_obstructive_apnea(time, params)
         elif params.pattern_type == "cheyne_stokes":
             airflow, chest, abdomen = self._generate_cheyne_stokes(time, params)
+            # los bordes de cada valle se miden con la regla firmada, no con la ventana de flujo cero que se pidió
+            crest_t, crest_a = self._crests_per_cycle(airflow, time, 60.0 / params.respiratory_rate, params.inspiration_time)
+            events, non_evaluable = self._annotate_events_by_rule(airflow, time, crest_t, crest_a, calendar=events)
         elif params.pattern_type == "ataxic":
             schedule = self._ataxic_schedule(duration, params, rng)
             airflow, chest, abdomen = self._generate_ataxic_respiration(time, params, schedule)
+            # las apneas de la atáxica son EMERGENTES (nacen del azar de cada respiración): se anotan con la regla,
+            # a partir de la amplitud por respiración que el generador sorteó, para no penalizar al estudiante
+            mean_cycle = 60.0 / params.respiratory_rate
+            insp_fraction = min(params.inspiration_time / mean_cycle, 0.9)
+            crest_t = schedule["onsets"] + schedule["cycles"] * insp_fraction / 2.0
+            crest_a = params.tidal_volume * schedule["depths"] * 60.0 / schedule["cycles"]
+            inside = crest_t < duration
+            events, non_evaluable = self._annotate_events_by_rule(
+                airflow, time, crest_t[inside], crest_a[inside], calendar=[])
         else:
             airflow, chest, abdomen = self._generate_normal_respiration(time, params)
 
@@ -398,7 +523,7 @@ class RespiratorySignalGenerator:
             'abdomen': abdomen,  # Abdominal movement
             'spo2': spo2,  # Pulse oximetry
             'time': time,
-            'ground_truth': self._ground_truth(params, eff, duration, seed, events, schedule),
+            'ground_truth': self._ground_truth(params, eff, duration, seed, events, schedule, non_evaluable),
         }
 
         return result

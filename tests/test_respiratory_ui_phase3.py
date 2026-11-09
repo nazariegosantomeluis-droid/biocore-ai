@@ -74,17 +74,21 @@ def test_validated_values_are_shown_without_any_not_reliable_mark(temp_ups, patt
     text = _text(at)
     assert "no fiable" not in text and "(no usar)" not in text and "artefacto del generador" not in text
     cards = _cards(at)
-    for label in ("Frecuencia Respiratoria", "Duración del ciclo", "Apneas (≥ 10 s)", "SpO2 Mínimo", "SpO2 Basal",
-                  "Tiempo total de apnea", "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)"):
+    for label in ("Frecuencia Respiratoria", "Banda NEWS2 de la FR", "Duración del ciclo", "Apneas (≥ 10 s)", "SpO2 Mínimo",
+                  "SpO2 Basal", "Tiempo total de apnea",
+                  "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)"):
         assert label in cards, label
-    assert any("resp/min" in v and "NEWS2" in v for v in cards["Frecuencia Respiratoria"])
+    assert any("resp/min" in v for v in cards["Frecuencia Respiratoria"])
+    assert any("NEWS2" in v for v in cards["Banda NEWS2 de la FR"])
 
 
-def test_the_rate_card_carries_its_news2_band_and_citation(temp_ups):
+def test_the_rate_and_its_news2_band_are_two_cards_each_with_its_own_badge_and_source(temp_ups):
     sf, pid = temp_ups
     at = _app(sf, pid)
-    html = " ".join(m.value for m in at.markdown if "Frecuencia Respiratoria" in m.value)
-    assert "15.0 resp/min" in html and "dentro de 12–20 (NEWS2)" in html and "Royal College of Physicians" in html
+    fr = " ".join(m.value for m in at.markdown if "<strong>Frecuencia Respiratoria</strong>" in m.value)
+    band = " ".join(m.value for m in at.markdown if "<strong>Banda NEWS2 de la FR</strong>" in m.value)
+    assert "15.0 resp/min" in fr and "🟣" in fr and "60 / media de los intervalos" in fr and "🟢" not in fr
+    assert "dentro de 12–20 (NEWS2)" in band and "🟢" in band and "Royal College of Physicians" in band
 
 
 def test_spo2_cards_carry_the_simulation_provenance(temp_ups):
@@ -101,11 +105,11 @@ def test_central_apnea_is_listed_with_type_declared_borders_and_baseline(temp_up
     sf, pid = temp_ups
     at = _app(sf, pid, "Apnea Central")
     rows = at.dataframe[0].value.to_dict("records")
-    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Criterio BIOCORE)"] == "central" for r in rows)
+    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Criterio BIOCORE)"] == "🟣 central" for r in rows)
     assert rows[0]["Borde"] == "completo" and "recortado" in rows[1]["Borde"]       # el 2.º llega al final del registro
     assert "respiraciones previas" in rows[0]["Línea basal"] and "registro corto" in rows[0]["Línea basal"]
     obstructive = _app(sf, pid, "Apnea Obstructiva").dataframe[0].value.to_dict("records")
-    assert all(r["Tipo (Criterio BIOCORE)"] == "obstructiva" for r in obstructive)
+    assert all(r["Tipo (Criterio BIOCORE)"] == "🟣 obstructiva" for r in obstructive)
 
 
 def test_cheyne_stokes_warns_that_a_short_record_is_not_evaluable(temp_ups):
@@ -131,11 +135,10 @@ def test_hidden_values_stay_hidden(temp_ups, pattern):
     for hidden in ("Ratio I:E Promedio", "Patrón respiratorio", "Severidad", "Clasificación", "Índice", "ODI", "Hipopnea"):
         assert not any(hidden in label for label in cards), hidden
     for forbidden in ("Tachypnea", "Bradypnea", "Periodic breathing", "sleep apnea", "No apneas detected", "AOS leve",
-                      "Respiratory rate within normal range", "cardiology referral", "CPAP therapy consideration", "1:2 a 1:3", "Ratio I:E Normal"):
+                      "Respiratory rate within normal range", "cardiology referral", "CPAP therapy consideration", "1:2 a 1:3", "Ratio I:E Normal",
+                      "Índice de desaturación"):
         assert forbidden not in text, forbidden
-    assert "Todavía no se muestra" in text and "hipopneas" in text
-    assert not any("Guardar estado al gemelo" in b.label for b in at.button)         # sin botón de guardado
-    assert "Desactivado: no se reactiva en esta fase" in text
+    assert "Sigue fuera" in text and "hipopneas" in text and "relación I:E" in text
 
 
 def test_the_acronym_of_the_per_sleep_hour_index_is_banned_in_the_lab(temp_ups):
@@ -146,22 +149,27 @@ def test_the_acronym_of_the_per_sleep_hour_index_is_banned_in_the_lab(temp_ups):
         assert "AHI" not in path.read_text(encoding="utf-8"), path
 
 
-def test_there_is_no_validation_badge_and_the_notice_says_what_is_and_is_not_shown(temp_ups):
+def test_there_is_no_global_validation_badge_and_the_notice_says_what_is_validated_and_what_stays_out(temp_ups):
+    """Fase 4: sustituye al aviso «En corrección». Sin insignia GLOBAL (la mixta sigue pendiente); la confianza va por valor."""
     sf, pid = temp_ups
     at = _app(sf, pid)
-    assert [md for md in at.main.markdown if "border-left:3px" in md.value] == []     # sin marcador de validación
+    assert [md for md in at.main.markdown if "border-left:3px" in md.value] == []     # sin marcador de validación del módulo
     notice = " ".join(i.value for i in at.info)
-    assert "solo los valores con golden test" in notice and "no lleva insignia de validado" in notice
-    assert "no escribe al gemelo" in notice
+    assert "Validado por fuente" in notice and "banda NEWS2" in notice and "Berry 2012" in notice
+    assert "Pendiente de validación" in notice and "apnea mixta" in notice
+    assert "Sigue fuera" in notice and "hipopneas" in notice and "relación I:E" in notice and "ODI" in notice
+    assert "En corrección" not in _text(at) and "no lleva insignia de validado" not in notice
     assert "American Academy of Sleep Medicine" not in _text(at)
 
 
-def test_pressing_every_button_still_writes_nothing_to_the_ups(temp_ups):
+def test_pressing_every_button_but_the_explicit_save_writes_nothing_to_the_ups(temp_ups):
     from sqlalchemy import text as sql
 
     sf, pid = temp_ups
     for i in range(len(_app(sf, pid).button)):
         fresh = _app(sf, pid)
+        if "Guardar FR y SpO₂ basal" in fresh.button[i].label:
+            continue
         fresh.button[i].click().run()
         assert fresh.exception == []
     with sf() as s:
@@ -230,6 +238,18 @@ def test_the_apnea_counting_question_takes_its_answer_from_the_detector(temp_ups
     assert any("Correcto" in s.value and "2 apnea" in s.value for s in at.success)
     next(r for r in at.radio if r.key == "resp_quiz_apneas").set_value(3).run()
     assert any("solo cuentan los de ≥ 10 s" in e.value for e in at.error)
+
+
+def test_the_apnea_counting_answer_is_the_detector_count_which_matches_the_synchronized_annotation(temp_ups):
+    """Fase 4, decisión 1: la respuesta sale de `analysis.apnea_count` (el detector) y coincide con el ground truth
+    sincronizado del generador, también con la atáxica al valor por defecto (0.20 → ninguna apnea emergente)."""
+    sf, pid = temp_ups
+    at = _app(sf, pid, "Respiración Atáxica")
+    next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value("Contar las apneas de esta señal").run()
+    truth = [e for e in at.session_state["_respiratory_lab_analysis"]["analysis"].apnea_events]
+    assert truth == []                                                             # sin apneas emergentes a 0.20
+    next(r for r in at.radio if r.key == "resp_quiz_apneas").set_value(0).run()
+    assert any("Correcto" in s.value and "0 apnea" in s.value for s in at.success)
 
 
 # ------------------------------------------------------------------------- parámetros imposibles sin st.stop()

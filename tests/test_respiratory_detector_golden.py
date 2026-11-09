@@ -9,7 +9,7 @@ está declarado en `HEURISTICS` del analizador.
 import numpy as np
 import pytest
 
-from clinical.calculators import _news2_rr
+from clinical.calculators import news2_respiratory_rate_score
 from src.signals.respiration import RespiratoryAnalyzer, RespiratoryPattern, RespiratorySignalGenerator
 from src.signals.respiration.respiratory_analyzer import HEURISTICS, round_half_up
 
@@ -90,7 +90,7 @@ def test_e1_respiratory_rate_from_the_time_between_inspirations_and_its_news2_ba
     assert a.respiratory_rate == pytest.approx(rr, abs=0.5)      # prototipo: error <= 0.03
     assert a.respiratory_rate_rounded == rr
     assert a.respiratory_rate != 60.0 or rr == 60                # el bug histórico
-    assert _news2_rr(a.respiratory_rate_rounded) == NEWS2_POINTS[rr]
+    assert news2_respiratory_rate_score(a.respiratory_rate_rounded) == NEWS2_POINTS[rr]
 
 
 def test_e2_the_rate_is_the_mean_of_the_intervals_not_their_median_or_their_indices():
@@ -285,8 +285,10 @@ def test_e19_count_total_time_and_extrapolated_rate_per_hour_of_record(dur, gaps
 def test_there_is_no_severity_category_and_no_index_per_sleep_hour_in_the_result():
     t, x, c = tidal(15, 120.0, gaps=[(40.0, 12.0)])
     a = run(t, x, c)
-    assert a.severity is None and a.breathing_pattern is None and a.clinical_notes == [] and a.oxygen_desaturation_index is None
-    assert not hasattr(a, "apnea_hypopnea_index")
+    # fase 4: ODI y severidad ya no existen en el resultado (ni como campo dormido); el texto del patrón y de las notas
+    # se arma en el laboratorio, no en el analizador
+    for gone in ("severity", "oxygen_desaturation_index", "apnea_hypopnea_index", "breathing_pattern", "clinical_notes"):
+        assert not hasattr(a, gone), gone
 
 
 def test_e20_cheyne_stokes_the_valleys_recover_the_modulation_period_and_it_is_not_evaluable_in_a_short_record():
@@ -326,17 +328,36 @@ def test_the_detected_events_are_the_annotated_ones(pattern, rr, dur):
         assert det["truncated"] == (ann["truncated"] or ann["start_s"] + ann["duration_s"] >= dur - 0.01)
 
 
-def test_cheyne_stokes_valleys_are_detected_as_central_apneas_with_the_ramp_tolerance():
-    d, a = gen_run("cheyne_stokes", 15, 300)
-    truth = d["ground_truth"]["events"]
-    assert a.apnea_count == len(truth) == 5
-    for det, ann in zip(a.apnea_events, truth):
-        # con una envolvente que crece desde 0 el tramo con caída >= 90 % rodea la apnea anotada: la CONTIENE y
-        # se extiende unos segundos por lado (rampa + la espiración de la última respiración notable)
-        assert det["start_time"] <= ann["start_s"] + 0.5
-        assert det["start_time"] + det["duration"] >= ann["start_s"] + ann["duration_s"] - 0.5
-        assert ann["duration_s"] <= det["duration"] <= ann["duration_s"] + 10.0
-        assert det["type"] == "central"
+_CS_GRID = [(rr, cycle) for rr in (8, 12, 15, 30) for cycle in (45.0, 60.0, 90.0)]
+
+
+def test_cheyne_stokes_valley_duration_matches_the_annotation_within_2_seconds():
+    """Fase 4, decisión 7 (sustituye al margen de 10 s): la duración detectada coincide con la ANOTADA a ±2 s. La
+    anotación ya no es la ventana de flujo cero que pidió el patrón (20 s) sino el tramo que cumple la regla firmada
+    (excursión < 10 % de la basal de Berry), calculado desde la construcción sin usar el detector.
+
+    Los eventos que el propio generador marca `borderline` (una respiración somera interior a < 5 % del umbral) no
+    entran en la comparación de duración: ahí la envolvente cruza el 10 % muy despacio y 1 % de ruido o de basal mueve
+    el borde 1-3 s (medido: hasta 2.8 s). Se exige que el detector los vea y se declara cuántos son."""
+    compared = skipped = 0
+    for rr, cycle in _CS_GRID:
+        d, a = gen_run("cheyne_stokes", rr, 360, cheyne_stokes_cycle=cycle)
+        truth = d["ground_truth"]["events"]
+        assert a.apnea_count == len(truth) >= 3, (rr, cycle)
+        for det, ann in zip(a.apnea_events, truth):
+            assert det["start_time"] < ann["start_s"] + ann["duration_s"] and det["end_time"] > ann["start_s"]
+            assert det["type"] in ("central", "mixed")                  # 'mixed' = esfuerzo >= 10 % en las colas (PENDING_VALIDATION)
+            assert det["mixed_pending"] == (det["type"] == "mixed")
+            # control independiente de la anotación: el tramo detectado contiene la ventana de flujo cero del patrón
+            assert det["start_time"] <= ann["construction_start_s"] + 0.5 or ann["borderline"]
+            assert det["end_time"] >= ann["construction_start_s"] + ann["construction_duration_s"] - 0.5 or ann["borderline"] or det["truncated"]
+            if ann["borderline"]:
+                skipped += 1
+                continue
+            compared += 1
+            assert det["duration"] == pytest.approx(ann["duration_s"], abs=2.0), (rr, cycle)
+            assert det["start_time"] == pytest.approx(ann["start_s"], abs=2.0), (rr, cycle)
+    assert compared >= 3 * skipped and skipped <= 12      # la mayoría de los valles se compara; los límite son pocos
 
 
 def test_the_false_positive_apnea_of_tachypnea_at_rate_8_is_gone():
