@@ -18,7 +18,9 @@ ESTE_ARCHIVO = "tests/test_docs_honest_tanda2.py"
 
 def _tracked():
     try:
-        out = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True).stdout
+        # rastreados + nuevos no ignorados (un archivo recién creado y aún sin commitear ya "existe" para el repo)
+        out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                             capture_output=True, text=True, check=True).stdout
     except (FileNotFoundError, subprocess.CalledProcessError):
         pytest.skip("git no disponible")
     return [p for p in out.splitlines() if p]
@@ -114,4 +116,4 @@ def test_readme_no_longer_makes_the_false_claims():
 def test_ui_text_about_ups_domains_is_not_hardcoded_anymore():
     src = Path("app/supermodules/twin_shell/pages.py").read_text(encoding="utf-8")
     assert "solo cardiovascular y" not in src
-    assert "AHI y eventos de apnea (en corrección)" in Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")
+    assert "Apneas y tasa equivalente por hora de registro" in Path("app/supermodules/respiratory_lab/pages.py").read_text(encoding="utf-8")

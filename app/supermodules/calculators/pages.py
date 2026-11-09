@@ -88,6 +88,8 @@ _FIELDS: Dict[str, Tuple[float, float, float, str, float]] = {
     "calc_news_sbp": (40.0, 300.0, 1.0, "%.0f", 120.0),
     "calc_news_pulse": (20.0, 250.0, 1.0, "%.0f", 75.0),
     "calc_news_temp": (30.0, 43.0, 0.1, "%.1f", 37.0),
+    "calc_osa_events": (0.0, 2000.0, 1.0, "%.0f", 0.0),
+    "calc_osa_hours": (0.1, 24.0, 0.1, "%.1f", 7.0),
     "calc_qsofa_rr": (2.0, 70.0, 1.0, "%.0f", 16.0),
     "calc_qsofa_sbp": (40.0, 300.0, 1.0, "%.0f", 120.0),
 }
@@ -490,6 +492,25 @@ def _render_scores_tab() -> None:
           citation=calc.GCS_CITATION)
 
 
+def _render_osa_severity() -> None:
+    """Severidad de la apnea del sueño (E18): función pura con cita. Enlazada desde Respiratory Lab, que ya no
+    muestra categorías de severidad (un registro de minutos no admite un índice por hora de sueño)."""
+    st.markdown("---")
+    st.markdown("#### Severidad de la apnea del sueño (índice de eventos por hora)")
+    st.caption(
+        "Calculadora pura: tú aportas los eventos y las horas. El Respiratory Lab no calcula esta categoría porque "
+        "su registro dura minutos y el índice es por hora de sueño."
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        events = _num("Eventos respiratorios (apneas e hipopneas)", "calc_osa_events")
+    with c2:
+        hours = _num("Horas (de sueño en polisomnografía; de registro en un monitor portátil)", "calc_osa_hours")
+    index = calc.event_index_per_hour(events, hours)
+    _card("osa_severity", "Índice de eventos por hora", f"{index:.1f} eventos/h",
+          classification=calc.classify_osa_severity(index), citation=calc.OSA_SEVERITY_CITATION)
+
+
 def _render_report_tab() -> None:
     cards: Dict[str, MetricCardData] = st.session_state.get(_REPORT_KEY, {})
     if not cards:
@@ -546,5 +567,6 @@ def run() -> None:
         _render_anthropometry_tab()
     with tabs[4]:
         _render_scores_tab()
+        _render_osa_severity()
     with tabs[5]:
         _render_report_tab()

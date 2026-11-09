@@ -32,7 +32,7 @@ from src.signals.respiration import (
     RespiratorySignalGenerator,
     RespiratoryPattern,
     RespiratoryAnalyzer,
-    create_respiratory_summary
+    ImpossibleParameters,
 )
 
 # Consolidación Visual Tanda 3 (2026-09-21): `PALETTE`/`BADGES`/
@@ -41,6 +41,8 @@ from src.signals.respiration import (
 # `<style>` propio de este archivo (retirado más abajo) y los ~24
 # `st.metric()` a mano repartidos por las pestañas.
 from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_section_header
+from app.supermodules.respiratory_lab import views
+from clinical.calculators import NEWS2_CITATION  # noqa: F401  (la banda de FR vive en views.fr_band_text)
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE CONFIGURATION
@@ -132,6 +134,10 @@ with col2:
         help="Volumen de aire por respiración"
     )
 
+# Un ValueError por parámetros imposibles se muestra JUNTO al control afectado (sin st.stop(): las demás pestañas
+# se siguen dibujando). Cada ranura se rellena más abajo si la validación falla.
+slot_rr = st.sidebar.empty()
+
 col3, col4 = st.sidebar.columns(2)
 
 with col3:
@@ -158,11 +164,13 @@ with col4:
              "inspiración + espiración deben caber en el ciclo (60 / FR).",
     )
 
+slot_insp = st.sidebar.empty()
+
 # SpO2 parameters
 st.sidebar.markdown("### 🫀 Parámetros de Oxigenación")
 st.sidebar.caption(
-    "⛔ La SpO₂ simulada hoy es un artefacto del generador (cae en cada cruce por cero del flujo, "
-    "incluso con respiración normal): estos dos parámetros solo mueven ese artefacto."
+    f"{views.SPO2_PROVENANCE}. La SpO₂ es estable sin eventos; cada apnea produce una desaturación en el dedo "
+    "con retardo Tc (la latencia de las reservas de O₂ no está modelada)."
 )
 
 col5, col6 = st.sidebar.columns(2)
@@ -184,8 +192,19 @@ with col6:
         max_value=95,
         value=85,
         step=1,
-        help="Desaturación durante apnea"
+        help="Piso de la SpO₂ durante un evento (nunca baja de aquí)"
     )
+
+circulation_delay = st.sidebar.number_input(
+    "Retardo circulatorio Tc (s) — Valor BIOCORE",
+    min_value=5.0,
+    max_value=30.0,
+    value=15.0,
+    step=1.0,
+    help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Valor BIOCORE: la fuente (Hsia 2026) solo da el "
+         "límite normal < 20 s. Rango 5–30 s.",
+)
+slot_spo2 = st.sidebar.empty()
 
 duration = st.sidebar.slider(
     "⏱️ Duración Grabación (s)",
@@ -194,6 +213,7 @@ duration = st.sidebar.slider(
     value=120,
     step=10
 )
+slot_dur = st.sidebar.empty()
 
 st.sidebar.markdown("---")
 
@@ -201,51 +221,64 @@ st.sidebar.markdown("---")
 # MAIN CONTENT
 # ═══════════════════════════════════════════════════════════════
 
-# Generate respiratory signal
-@st.cache_data
-def generate_respiration_data(pattern, rr, tv, insp, exp, baseline, desaturated, duration):
-    generator = RespiratorySignalGenerator(sampling_rate=100)
-    
-    params = RespiratoryPattern(
+def _build_params(pattern, rr, tv, insp, exp, baseline, floor, tc):
+    return RespiratoryPattern(
         respiratory_rate=rr,
         tidal_volume=tv,
         inspiration_time=insp,
         expiration_time=(exp if exp > 0 else None),
         pattern_type=pattern,
         baseline_spo2=baseline,
-        desaturation_level=desaturated,
-        cheyne_stokes_cycle=60.0
+        desaturation_level=floor,
+        circulation_delay=tc,
+        cheyne_stokes_cycle=60.0,
     )
-    
-    respiration = generator.generate_respiration(duration=duration, params=params)
-    return respiration
+
+
+# Generate respiratory signal
+@st.cache_data
+def generate_respiration_data(pattern, rr, tv, insp, exp, baseline, floor, tc, duration):
+    generator = RespiratorySignalGenerator(sampling_rate=100)
+    params = _build_params(pattern, rr, tv, insp, exp, baseline, floor, tc)
+    return generator.generate_respiration(duration=duration, params=params)
 
 
 # Generate analysis
 @st.cache_data
 def analyze_respiration_data(airflow, time, spo2, chest):
     analyzer = RespiratoryAnalyzer(sampling_rate=100)
-    
+
     analysis = analyzer.analyze_respiration(
         airflow=airflow,
         time=time,
         spo2=spo2,
         respiratory_effort=chest
     )
-    
+
     return analysis
 
 
-# Generate data
-# Parámetros imposibles (p. ej. inspiración >= ciclo): el generador lanza ValueError y aquí se muestra
-# explícito, en vez de la señal sin espiración que se dibujaba en silencio.
+# Validación ANTES de generar: el error sale junto al control afectado y la vista clínica se omite sin detener el
+# resto de la página (ver VistaClinicaOmitida en pages.py).
+_params = _build_params(selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, circulation_delay)
 try:
-    respiration_data = generate_respiration_data(
-        selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, duration
-    )
-except ValueError as _err:
-    st.error(f"⛔ Parámetros respiratorios imposibles: {_err}")
-    st.stop()
+    RespiratorySignalGenerator.validate_parameters(_params, duration)
+except ImpossibleParameters as _err:
+    _slot = {
+        "respiratory_rate": slot_rr, "tidal_volume": slot_rr,
+        "inspiration_time": slot_insp, "expiration_time": slot_insp,
+        "circulation_delay": slot_spo2, "desaturation_level": slot_spo2, "desaturation_rate": slot_spo2,
+        "resaturation_rate": slot_spo2, "duration": slot_dur,
+    }.get(_err.control, slot_insp)
+    _slot.error(f"⛔ {_err}")
+    st.error("⛔ La vista clínica no se dibuja con estos parámetros: corrige el control marcado en la barra lateral.")
+    st.session_state.pop('_respiratory_lab_analysis', None)  # que Investigación no muestre un análisis de OTROS parámetros
+    from app.supermodules.respiratory_lab.pages import VistaClinicaOmitida
+    raise VistaClinicaOmitida(str(_err))
+
+respiration_data = generate_respiration_data(
+    selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, circulation_delay, duration
+)
 
 airflow = respiration_data['airflow']
 time_array = respiration_data['time']
@@ -256,72 +289,41 @@ abdomen = respiration_data['abdomen']
 # Perform analysis
 analysis = analyze_respiration_data(airflow, time_array, spo2, chest)
 
-# Puente de sesión (2026-08-21, Capa 2 Fase 2.2, Ejecución 2): expone el AHI/
-# eventos de apnea ya calculados aquí a la pestaña "Investigación" de
-# respiratory_lab/pages.py -- sin recalcular nada. `with tabs[0]:` (Clínica)
-# siempre corre en cada rerun de Streamlit, sea cual sea la pestaña activa, así
-# que este bloque ya se ejecutó antes de que se renderice "Investigación" en
-# el mismo run -- el dato existe garantizado cuando la otra pestaña lo lee.
+# Puente de sesión: expone el análisis ya calculado aquí a la pestaña "Investigación" de respiratory_lab/pages.py
+# (sin recalcular). `with tabs[0]:` (Clínica) corre en cada rerun, así que el dato existe cuando la otra pestaña lo lee.
 st.session_state['_respiratory_lab_analysis'] = {
     'analysis': analysis,
     'pattern_display': selected_pattern_display,
     'duration': duration,
 }
 
-# Consolidación Visual Tanda 3 (2026-09-21): el `# 💨 Laboratorio
-# Respiratorio` (h1) se retira -- duplicaba el `<h1>` que
-# `respiratory_lab/pages.py::render_views()` ya dibuja vía
-# `render_module_header("Respiratory Lab", icon="💨")` antes de invocar
-# este archivo por `runpy` (mismo bug que ya se corrigió en ECG-12/EEG
-# Neuro Lab, Tandas 1-2). "Patrón: X" sí es información genuina de
-# sub-sección (cambia con la selección del sidebar) -- se conserva como
-# `render_section_header()`, no un segundo título de módulo.
 render_section_header(f"Patrón: {selected_pattern_display}")
 
 # ═══════════════════════════════════════════════════════════════
 # METRICS ROW
 # ═══════════════════════════════════════════════════════════════
 
-col1, col2, col3, col4, col5 = st.columns(5)
+# Fase 3 (2026-11-07, Art. I): solo valores con golden test. Sin tarjetas de patrón ni severidad (ocultas).
+col1, col2, col3, col4 = st.columns(4)
 
-# Consolidación Visual Tanda 3 (2026-09-21): los 5 `st.metric()` de esta
-# fila -> `render_metric_card`. Todos son cálculo real de
-# `RespiratoryAnalyzer` sin un `classify_*()`/`*_CITATION` en
-# `src/signals/respiration` que los respalde -- `BADGES.HEURISTIC`,
-# criterio conservador por default. Sin `classification=`: no se fabrica
-# un semáforo de 3 niveles que nadie validó; el emoji de severidad
-# (`severity_colors`, cálculo ya existente, sin cambios) se conserva
-# dentro del texto del valor, igual que antes.
-# Tanda 1 de contención (2026-11-05, Art. I): FR y AHI se muestran marcados
-# "no fiable" (el analizador devuelve FR = 60.0 constante y AHI = 0 con cualquier
-# señal; ver RESPIRATORY_UNRELIABLE_NOTICE en pages.py) y se SUPRIMEN el patrón
-# y la severidad, que son clasificaciones derivadas de esos números. Sin badge
-# de procedencia en los valores no fiables: ni CLINICAL ni HEURISTIC les aplica.
 with col1:
-    render_metric_card(
-        "Frecuencia Respiratoria — ⛔ no fiable", f"{analysis.respiratory_rate:.1f} r/min (no usar)",
-    )
+    views.render_rate_cards(analysis)
 
 with col2:
-    render_metric_card(
-        "SpO2 Mínimo — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)",
-    )
+    if analysis.cycle_duration_s is None:
+        render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "sin FR disponible")
+    else:
+        render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
 
 with col3:
-    render_metric_card(
-        "Índice AHI — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} (no usar)",
-    )
+    if analysis.apnea_count is None:
+        render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
+    else:
+        render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}", provenance=BADGES.METHOD)
 
 with col4:
     render_metric_card(
-        "Patrón", None,
-        unavailable_reason="clasificación suprimida: depende de la detección de respiraciones, en corrección",
-    )
-
-with col5:
-    render_metric_card(
-        "Severidad", None,
-        unavailable_reason="suprimida: se deriva del AHI, que no es fiable todavía",
+        "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE,
     )
 
 st.markdown("---")
@@ -345,7 +347,7 @@ with tab1:
     fig = make_subplots(
         rows=3, cols=1,
         shared_xaxes=True,
-        subplot_titles=("Flujo de Aire (L/min)", "Pared Torácica", "Movimiento Abdominal"),
+        subplot_titles=("Flujo de Aire (L/min, escala del generador)", "Pared Torácica", "Movimiento Abdominal"),
         vertical_spacing=0.1
     )
     
@@ -408,61 +410,49 @@ with tab1:
     
     # Detected breaths summary
     st.markdown("#### 📊 Resumen de Respiraciones Detectadas")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
-    # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
-    # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real, sin cita
-    # clínica). "N/A" (sin respiraciones detectadas) -> `value=None` +
-    # `unavailable_reason` real, en vez de un string "N/A" opaco.
-    # Tanda 1.5 (2026-11-05, Art. I): TODO valor que sale del detector de
-    # respiraciones (conteo, duración, I:E) comparte el defecto de la FR: el
-    # detector no es fiable. Se muestran marcados, sin badge de procedencia.
+
     with col1:
-        render_metric_card(
-            "Total Respiraciones — ⛔ no fiable", f"{len(analysis.breaths)} (no usar)",
-        )
+        render_metric_card("Respiraciones detectadas", f"{len(analysis.breaths)}", provenance=BADGES.METHOD)
 
     with col2:
-        if len(analysis.breaths) > 0:
-            mean_duration = np.mean([b.duration_seconds for b in analysis.breaths])
-            render_metric_card("Duración Promedio — ⛔ no fiable", f"{mean_duration:.2f}s (no usar)")
+        if analysis.cycle_duration_s is None:
+            render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "menos de 3 respiraciones")
         else:
-            render_metric_card(
-                "Duración Promedio — ⛔ no fiable", None,
-                unavailable_reason="sin respiraciones detectadas; el detector está en corrección",
-            )
+            render_metric_card("Duración del ciclo (media de los intervalos entre inspiraciones)",
+                               f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
 
     with col3:
-        if len(analysis.breaths) > 0:
-            mean_ie = np.mean([b.i_e_ratio for b in analysis.breaths])
-            render_metric_card("Ratio I:E Promedio — ⛔ no fiable", f"{mean_ie:.2f} (no usar)")
+        if analysis.rr_variability is None:
+            render_metric_card("Variabilidad de los intervalos", None, unavailable_reason="menos de 3 respiraciones")
         else:
-            render_metric_card(
-                "Ratio I:E Promedio — ⛔ no fiable", None,
-                unavailable_reason="sin respiraciones detectadas; el detector está en corrección",
-            )
+            render_metric_card("Variabilidad de los intervalos (desviación estándar, descriptiva)",
+                               f"{analysis.rr_variability:.2f} s", provenance=BADGES.METHOD)
 
     with col4:
-        # Misma línea defectuosa que la FR (diferencias de índices de respiración,
-        # no de tiempos): siempre 0.00. Tanda 1 de contención, 2026-11-05.
-        render_metric_card("Variabilidad RR — ⛔ no fiable", f"{analysis.rr_variability:.2f} (no usar)")
+        band = views.fr_band_text(analysis)
+        if band is None:
+            render_metric_card("Banda NEWS2 de la FR", None, unavailable_reason=analysis.signal_status_detail or "FR no disponible")
+        else:
+            render_metric_card("Banda NEWS2 de la FR", band, provenance=BADGES.METHOD, citation=NEWS2_CITATION)
+
+    st.caption("La relación I:E no se muestra: todavía no tiene golden test ni criterio firmado.")
 
 with tab2:
     st.markdown("### 🫀 Monitoreo de Oximetría (SpO2)")
-    st.warning(
-        "⛔ **Artefacto del generador, no fiable (no usar).** La SpO₂ de esta pestaña no es una medición ni "
-        "un modelo fisiológico: el generador la deriva de |flujo| y por eso cae en cada cruce por cero de cada "
-        "respiración, incluso en respiración normal (con los valores por defecto, 'Tiempo <90 %' marca más de "
-        "50 s de 120). Se corrige en la fase 2b del arco respiratorio.",
-        icon="⛔",
+    st.info(
+        f"**{views.SPO2_PROVENANCE}.** Estable sin eventos (basal + ruido); cada apnea anotada desatura el dedo con retardo Tc "
+        "(nadir en el FIN del evento + Tc), profundidad r·T con r = 0.30 %/s y recuperación en rampa a 0.70 %/s. La latencia "
+        "de las reservas de O₂ no está modelada. Es una simulación, no una medición de un paciente.",
+        icon="🫀",
     )
-    
+
     # Create SpO2 visualization
     fig_spo2 = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
-        subplot_titles=("SpO2 simulada — ⛔ artefacto del generador, no fiable (no usar)", "Flujo de Aire (referencia)"),
+        subplot_titles=("SpO2 simulada — modelo BIOCORE (Tc valor BIOCORE; r y recuperación, Howarth 2026)", "Flujo de Aire (referencia)"),
         vertical_spacing=0.12,
         row_heights=[0.7, 0.3]
     )
@@ -523,38 +513,19 @@ with tab2:
     
     col1, col2, col3, col4 = st.columns(4)
     
-    # Consolidación Visual Tanda 3 (2026-09-21): `st.metric` crudo ->
-    # `render_metric_card`, `BADGES.HEURISTIC` (cálculo real sobre la señal
-    # de SpO2, sin cita clínica de umbral en este módulo).
-    # Contención 2 (2026-11-07, Art. I): las cuatro tarjetas leen la SpO2 del generador,
-    # que cae en cada cruce por cero del flujo (respiración normal, FR 15: media 90.2 %,
-    # 54 s de 120 bajo 90 %). Son un artefacto, no una medición.
-    with col1:
-        render_metric_card("SpO2 Basal — ⛔ artefacto del generador", f"{analysis.baseline_spo2:.1f}% (no usar)")
-
-    with col2:
-        render_metric_card("SpO2 Mínimo — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)")
-
-    with col3:
-        render_metric_card("Tiempo <90% — ⛔ artefacto del generador", f"{analysis.time_below_90:.1f}s (no usar)")
-
-    with col4:
-        render_metric_card("Tiempo <85% — ⛔ artefacto del generador", f"{analysis.time_below_85:.1f}s (no usar)")
+    views.render_spo2_cards(analysis)
 
 with tab3:
     st.markdown("### 📈 Análisis Avanzado")
-    # Tanda 1 de contención (2026-11-05, Art. I): se suprimen la tabla de eventos
-    # de apnea, la clasificación por AHI, el "✅ No se detectaron apneas" y la
-    # descripción del patrón respiratorio. El detector no cuenta apneas aunque la
-    # señal tenga pausas de ~20 s (mide 0 eventos en los patrones de apnea del
-    # propio generador), así que tanto "hay apnea" como "no hay apnea" serían (1.5: igual el conteo de respiraciones)
-    # afirmaciones sin respaldo. El cálculo no se tocó (arco propio).
-    st.info(
-        "Análisis avanzado **suprimido mientras el detector de apneas y de respiraciones está en "
-        "corrección**: no se muestran eventos de apnea, clasificación por AHI ni descripción del "
-        "patrón respiratorio. La señal (flujo, pared torácica, abdomen) se conserva; la oximetría es un "
-        "artefacto del generador y figura marcada como tal."
-    )
+    st.markdown("#### Apneas (≥ 10 s, caída ≥ 90 % respecto a la línea basal previa)")
+    views.render_apnea_cards(analysis)
+    views.render_events_table(analysis)
+    if analysis.event_period_s is not None:
+        st.caption(f"Los eventos se repiten cada ~{analysis.event_period_s:.0f} s (mediana de la separación entre inicios).")
+    if selected_pattern == "cheyne_stokes":
+        st.warning(analysis.cheyne_stokes_note)
+    views.render_calculator_link("resp_osa_link_clinical")
+    views.render_hidden_notice()
 
 with tab4:
     st.markdown("### 📚 Referencias Clínicas")
@@ -567,7 +538,6 @@ with tab4:
         
         - **Frecuencia Respiratoria:** 12-20 respiraciones/minuto
         - **Volumen Corriente:** 400-600 mL (0.4-0.6 L)
-        - **Ratio I:E Normal:** 1:2 a 1:3
         - **SpO2 Normal:** >95% en reposo
         - **Patrón:** Regular, rítmico
         
@@ -595,12 +565,10 @@ with tab4:
         - Movimiento paradójico pared-abdomen
         - Factor de riesgo: obesidad, edad, sexo masculino
         
-        #### 📏 Índice AHI
-        
-        - **Normal:** AHI <5 eventos/hora
-        - **Leve:** AHI 5-14 eventos/hora
-        - **Moderada:** AHI 15-29 eventos/hora
-        - **Severa:** AHI ≥30 eventos/hora
+        #### 📏 Severidad por índice de eventos por hora
+
+        Se calcula con la calculadora de **Calculadoras Clínicas → Escalas** (Epstein 2009): es un índice por hora de
+        sueño y este laboratorio solo registra minutos.
         """)
     
     st.markdown("---")
@@ -630,16 +598,42 @@ with tab5:
         [
             "Diferenciación Apnea",
             "Factores de Riesgo",
-            "Correlación ECG-Respiratoria"
+            "Correlación ECG-Respiratoria",
+            "Frecuencia de esta señal",
+            "Contar las apneas de esta señal",
         ]
     )
     
-    # Tanda 1 de contención (2026-11-05): se quitaron "Identificar Patrón" y
-    # "AHI y Severidad": su respuesta "correcta" salía de `analysis.breathing_pattern`
-    # y `analysis.apnea_hypopnea_index`, es decir del analizador en corrección
-    # (daba "✓ Periodic" para respiración normal). Las otras tres preguntas son
-    # texto fijo, sin dependencia del analizador.
-    if quiz_type == "Diferenciación Apnea":
+    # Fase 3 (2026-11-07): "Identificar Patrón" y la de severidad por índice siguen fuera (patrón oculto; la
+    # severidad vive en la calculadora). Se reactivan dos preguntas cuya respuesta SALE de un valor con golden test
+    # (FR y conteo de apneas); las otras tres son texto fijo.
+    if quiz_type == "Frecuencia de esta señal":
+        st.info("**Pregunta:** ¿Cuál es la frecuencia respiratoria de la señal actual (redondeada al entero)?")
+        correct = analysis.respiratory_rate_rounded
+        if correct is None:
+            st.warning("La frecuencia no está disponible en este registro: no hay pregunta que responder.")
+        else:
+            options = sorted({correct, correct + 4, max(1, correct - 4), correct + 9})
+            picked = st.radio("Tu respuesta (resp/min):", options, key="resp_quiz_fr")
+            if picked == correct:
+                st.success(f"✅ Correcto: {analysis.respiratory_rate:.1f}/min medida entre inspiraciones; {views.fr_band_text(analysis)}.")
+            else:
+                st.error("❌ Mide el tiempo entre dos inspiraciones consecutivas: FR = 60 / ese intervalo (s).")
+
+    elif quiz_type == "Contar las apneas de esta señal":
+        st.info("**Pregunta:** ¿Cuántas apneas (caída ≥ 90 % durante ≥ 10 s) hay en la señal actual?")
+        correct = analysis.apnea_count
+        if correct is None:
+            st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
+        else:
+            options = sorted({correct, correct + 1, correct + 2, max(0, correct - 1)})
+            picked = st.radio("Tu respuesta:", options, key="resp_quiz_apneas")
+            if picked == correct:
+                st.success(f"✅ Correcto: {correct} apnea(s) de ≥ 10 s en {analysis.record_duration_s:.0f} s de registro.")
+            else:
+                st.error("❌ Busca los tramos con flujo casi ausente (≥ 90 % de caída) y mídelos: solo cuentan los de ≥ 10 s.")
+
+    elif quiz_type == "Diferenciación Apnea":
         st.info("""
         **Pregunta:** ¿Cuál es la diferencia CLAVE entre apnea central y obstructiva?
         
@@ -699,29 +693,29 @@ st.markdown("---")
 
 st.markdown("### 📋 Resumen Clínico")
 
-# Tanda 1 de contención (2026-11-05, Art. I): el resumen conserva solo lo que no
-# depende del detector de respiraciones/apneas (oximetría y conteo bruto de
-# respiraciones detectadas, marcado "no fiable" en la Tanda 1.5). FR y AHI figuran como "no fiable"; patrón, eventos
-# de apnea y severidad se suprimen; las "notas clínicas" automáticas del
-# analizador ("Taquipnea…", "apnea del sueño…", "No apneas detected") no se
-# renderizan porque se generan a partir de esos mismos valores.
+# Fase 3 (2026-11-07, Art. I): el resumen muestra solo valores con golden test. Patrón, notas clínicas, hipopneas,
+# I:E y ODI siguen ocultos (ver el aviso de la pestaña Análisis Avanzado).
 col1, col2, col3 = st.columns(3)
 with col1:
-    render_metric_card("Frecuencia respiratoria — ⛔ no fiable", f"{analysis.respiratory_rate:.1f} breaths/min (no usar)")
-    render_metric_card("Patrón respiratorio", None, unavailable_reason="suprimido: en corrección")
-    render_metric_card("Eventos de apnea", None, unavailable_reason="suprimido: el detector no es fiable todavía")
+    views.render_rate_cards(analysis)
+    if analysis.cycle_duration_s is not None:
+        render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
 
 with col2:
-    render_metric_card("AHI estimado — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} eventos/h (no usar)")
-    render_metric_card("Severidad", None, unavailable_reason="suprimida: se deriva del AHI")
-    render_metric_card("Respiraciones detectadas — ⛔ no fiable", f"{len(analysis.breaths)} (no usar)")
+    if analysis.apnea_count is None:
+        render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
+    else:
+        render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}  ·  tiempo total {analysis.apnea_total_time_s:.1f} s",
+                           provenance=BADGES.METHOD)
+        render_metric_card("Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)",
+                           f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.METHOD)
 
 with col3:
-    render_metric_card("SpO2 basal — ⛔ artefacto del generador", f"{analysis.baseline_spo2:.1f}% (no usar)")
-    render_metric_card("SpO2 mínima — ⛔ artefacto del generador", f"{analysis.minimum_spo2:.1f}% (no usar)")
-    render_metric_card("Tiempo <90% — ⛔ artefacto del generador", f"{analysis.time_below_90:.1f} s (no usar)")
+    render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
+    render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
+    render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
 
-st.markdown("**Notas clínicas automáticas:** suprimidas mientras el analizador respiratorio está en corrección.")
+st.markdown("**Notas clínicas automáticas, patrón respiratorio e hipopneas:** no se muestran todavía (sin criterio firmado).")
 
 # ═══════════════════════════════════════════════════════════════
 # EDUCATIONAL SIDEBAR

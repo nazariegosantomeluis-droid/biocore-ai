@@ -160,7 +160,7 @@ def test_respiratory_lab_declares_no_validation_tier_while_in_correction():
     assert "American Academy of Sleep Medicine" not in src
 
 
-def test_respiratory_lab_header_shows_no_confidence_marker_but_the_correction_notice():
+def test_respiratory_lab_header_shows_no_confidence_marker_but_the_status_notice():
     def _script():
         import app.supermodules.respiratory_lab.pages as m
         m.run()
@@ -169,7 +169,7 @@ def test_respiratory_lab_header_shows_no_confidence_marker_but_the_correction_no
     at.run(timeout=30)
     markers = [md.value for md in at.main.markdown if "border-left:3px" in md.value]
     assert markers == [], f"no debe quedar marcador de validación: {markers}"
-    assert any("En corrección" in w.value for w in at.warning)
+    assert any("solo los valores con golden test" in i.value for i in at.info)
 
 
 def test_eeg_neuro_lab_header_shows_no_confidence_marker_deliberately(eeg_ups):

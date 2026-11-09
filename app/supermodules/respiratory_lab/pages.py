@@ -14,6 +14,7 @@ except ImportError:
     PLOTLY_GO, PLOTLY_OK = None, False
 
 from app.utils.design_system import BADGES, render_module_header, render_section_header, render_error_state, render_metric_card
+from app.supermodules.respiratory_lab import views
 
 # Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
 # antes apuntaba a app/pages_legacy/7_💨_Respiratory-Lab.py — mismo contenido,
@@ -22,19 +23,23 @@ MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
 # Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este
 # módulo (firma AASM de la Tanda Final) se RETIRÓ. El inventario del 2026-11-05
-# midió que `RespiratoryAnalyzer` devuelve FR = 60.0 constante y AHI = 0 con
+# midió que `RespiratoryAnalyzer` devolvía FR = 60.0 constante y 0 apneas con
 # cualquier señal (incluidos los patrones de apnea), así que la firma ya no
-# describe lo que el módulo calcula. El cálculo NO se tocó (arco propio);
-# aquí solo se deja de afirmar lo falso.
-RESPIRATORY_UNRELIABLE_NOTICE = (
-    "**En corrección.** La frecuencia respiratoria, su variabilidad, el AHI, los eventos de apnea y todo "
-    "lo que sale del detector de respiraciones (conteo, duración media, relación I:E) de "
-    "este laboratorio **no son fiables todavía** (el analizador devuelve valores que no dependen de la "
-    "señal). Por eso se muestran marcados como «no fiable», se suprimen las interpretaciones clínicas "
-    "derivadas de ellos (taquipnea, apnea del sueño, severidad, patrón) y este laboratorio **no escribe "
-    "al gemelo**. Se conserva la visualización de la señal (flujo, pared torácica, abdomen). La oximetría "
-    "también es un **artefacto del generador** (la SpO₂ cae en cada cruce por cero del flujo, incluso con "
-    "respiración normal) y se muestra marcada como no fiable."
+# describía lo que el módulo calculaba. En la fase 3 (2026-11-07) el detector se
+# reparó contra golden tests, pero la insignia NO se reactiva.
+class VistaClinicaOmitida(Exception):
+    """La vista clínica no se dibuja (parámetros imposibles). Se captura aquí para que las demás pestañas se
+    sigan dibujando, en vez del `st.stop()` que dejaba toda la página a medias."""
+
+
+RESPIRATORY_STATUS_NOTICE = (
+    "**Arco respiratorio, fase 3 (2026-11-07).** Se muestran solo los valores con golden test: frecuencia respiratoria "
+    "(60 / media de los intervalos entre inspiraciones; banda NEWS2), duración del ciclo y su variabilidad, apneas "
+    "(≥ 10 s con caída ≥ 90 %, Berry 2012; tipo por esfuerzo = Criterio BIOCORE), la tasa equivalente por hora de "
+    "**registro** (extrapolada, sin valor diagnóstico) y la SpO₂ del modelo BIOCORE (simulación). **Siguen ocultos:** "
+    "hipopneas, relación I:E, patrón respiratorio, notas clínicas, ODI y la categoría de severidad (que vive en "
+    "Calculadoras Clínicas). Este laboratorio **no escribe al gemelo** y **no lleva insignia de validado**. La señal es "
+    "simulada (se declara así); los resultados no son una medición de un paciente."
 )
 
 
@@ -53,11 +58,10 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    # Tanda 1 de contención (2026-11-05): `validation=None` EXPLÍCITO -- no un
-    # olvido. La insignia anterior (firma AASM) se retiró porque FR/AHI de
-    # este laboratorio no son fiables; ver `RESPIRATORY_UNRELIABLE_NOTICE`.
+    # `validation=None` EXPLÍCITO -- no un olvido: la insignia de validado NO se reactiva en la fase 3
+    # (decisión del arco: llegará, si llega, tras la validación experta); ver `RESPIRATORY_STATUS_NOTICE`.
     render_module_header("Respiratory Lab", icon="💨", validation=None)
-    st.warning(RESPIRATORY_UNRELIABLE_NOTICE, icon="🛠️")
+    st.info(RESPIRATORY_STATUS_NOTICE, icon="🫁")
     tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
 
     with tabs[0]:
@@ -65,6 +69,8 @@ def render_views():
         if os.path.exists(MODULE_EMOJI):
             try:
                 runpy.run_path(MODULE_EMOJI, run_name='__main__')
+            except VistaClinicaOmitida:
+                pass  # el error ya está junto al control afectado; las otras pestañas se siguen dibujando
             except Exception as e:
                 render_error_state(
                     "No se pudo renderizar la Vista Clínica de Respiratory Lab.",
@@ -81,17 +87,9 @@ def render_views():
 
 
 def _render_investigacion_tab():
-    """Vista Investigación -- Tanda 1 de contención (2026-11-05, Art. I).
-
-    Antes mostraba el AHI, la severidad, la tabla de eventos de apnea (con
-    exportación CSV) y el botón "Guardar al gemelo". El inventario del
-    2026-11-05 midió que el AHI es 0 con cualquier señal (el emparejamiento de
-    inicios/fines de apnea queda desalineado y el umbral de duración es de 1 s,
-    no de 10 s) y que la FR es 60.0 constante: esos números y todo lo derivado
-    (severidad, eventos, CSV) afirmaban algo falso. El AHI se sigue mostrando,
-    marcado "no fiable"; la severidad, la tabla y el CSV se suprimen; el cálculo
-    NO se tocó (arco propio). Lee el análisis que ya calculó la Vista Clínica."""
-    render_section_header("AHI y eventos de apnea (en corrección)")
+    """Vista Investigación (fase 3): eventos de apnea con su tabla, tiempo total y la tasa equivalente por hora de
+    REGISTRO (extrapolada, sin valor diagnóstico). Lee el análisis que ya calculó la Vista Clínica."""
+    render_section_header("Apneas y tasa equivalente por hora de registro")
 
     bridge = st.session_state.get('_respiratory_lab_analysis')
     if bridge is None:
@@ -106,13 +104,9 @@ def _render_investigacion_tab():
         f"Datos del análisis activo en Vista Clínica: patrón **{bridge['pattern_display']}**, "
         f"ventana de **{bridge['duration']}s**. Mismo cálculo, sin recalcular."
     )
-
-    # AHI: se muestra, pero declarado no fiable y sin badge de validación.
-    render_metric_card("Índice AHI — ⛔ no fiable", f"{analysis.apnea_hypopnea_index:.1f} (no usar)")
-    st.info(
-        "Severidad, eventos de apnea y exportación CSV **suprimidos**: dependen del detector de apneas, "
-        "que hoy no cuenta eventos aunque la señal tenga pausas de ~20 s (ver el aviso de arriba)."
-    )
+    views.render_apnea_cards(analysis)
+    views.render_events_table(analysis)
+    views.render_calculator_link("resp_osa_link_research")
 
     st.divider()
     _render_save_to_twin_disabled()
@@ -122,14 +116,15 @@ def _render_save_to_twin_disabled() -> None:
     """Guardar al gemelo -- DESACTIVADO (Tanda 1 de contención, 2026-11-05).
 
     El botón escribía `respiratory_rate=analysis.respiratory_rate` (siempre 60.0)
-    y `ahi=analysis.apnea_hypopnea_index` (siempre 0.0) al UPS con procedencia
+    y el índice de apneas por hora (siempre 0.0) al UPS con procedencia
     `SIMULACION`: una constante disfrazada de medición, que el narrador, el
     clasificador de riesgo y el cuerpo visual leerían como dato del paciente
     (Art. I). Este laboratorio no escribe al UPS por ninguna ruta mientras el
     analizador no se repare; no hay botón ni código de escritura aquí."""
     st.markdown("#### 🔗 Guardar estado al gemelo")
     st.caption(
-        "Desactivado: la frecuencia respiratoria y el AHI de este laboratorio no son fiables todavía."
+        "Desactivado: no se reactiva en esta fase. Volverá con su procedencia («Simulación — modelo BIOCORE») en la fase 4, "
+        "solo para los campos validados."
     )
 
 

@@ -16,10 +16,10 @@ def preprocess_respiration(signal: np.ndarray, fs: float, lowcut: float = 0.05, 
     b, a = butter(2, [low, high], btype='band')
     filtered = filtfilt(b, a, signal)
 
-    breath_cycles = np.sum(np.diff(np.signbit(filtered)) != 0)
+    # Arco respiratorio, fase 3 (2026-11-07): se enterró la "FR estimada" que vivía aquí (cruces por cero x 30 / n,
+    # SIN fs: daba una FR errónea por el factor fs y nadie la usaba). La FR se mide en `RespiratoryAnalyzer`.
     metrics = {
         'fs': fs,
         'signal_std': float(np.std(filtered)),
-        'estimated_rr': float(breath_cycles * 30 / len(filtered)) if len(filtered) > 0 else float('nan'),
     }
     return filtered, metrics

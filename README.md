@@ -16,7 +16,7 @@ BIOCORE se construyó sobre la regla opuesta, que gobierna toda su arquitectura:
 
 > **Cada dato declara su procedencia. Cuando el sistema no puede saber algo, lo dice — nunca rellena el hueco con algo plausible.**
 
-Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: hoy, **Respiratory Lab está en corrección** y muestra su frecuencia respiratoria, su AHI, el conteo de respiraciones y su oximetría (un artefacto del generador) como «no fiable».
+Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **referencia clínica citada**, **derivado** o **calculado por modelo**. Cuando falta señal para un cálculo, el sistema devuelve «no disponible» con el motivo. Cuando un módulo se sabe defectuoso, lo marca en pantalla en lugar de esconderlo: el **Respiratory Lab** muestra solo lo que pasó sus golden tests contra un generador con verdad conocida (frecuencia respiratoria, apneas, la SpO₂ del modelo BIOCORE), declara lo que sigue oculto (hipopneas, I:E, patrón, notas clínicas) y no lleva insignia de validado.
 
 ---
 
@@ -29,7 +29,7 @@ Cada valor sabe de dónde viene y lo declara: **medido**, **simulado**, **refere
 **Cuatro hubs, doce entradas de menú** (definidos en `HUBS`, `app/main.py`):
 - **Digital Twin OS** — el organismo simulado: órganos que reaccionan al UPS, escenarios, casos clínicos, línea de tiempo.
 - **Learning Hub** — Academia Clínica: quiz, casos clínicos ciegos y tabla de 12 derivaciones.
-- **Clinical Hub** — ECG Lab, Multisensor Fusion Lab, Respiratory Lab (en corrección), EEG Neuro Lab, EMG Muscle Lab, HRV Analysis, Biomarkers Lab, Calculadoras Clínicas y Patient Pipeline.
+- **Clinical Hub** — ECG Lab, Multisensor Fusion Lab, Respiratory Lab, EEG Neuro Lab, EMG Muscle Lab, HRV Analysis, Biomarkers Lab, Calculadoras Clínicas y Patient Pipeline.
 - **Laboratorio 3D** — «Crea tu modelo 3D»: reconstrucción desde TC/RM, anatomía de referencia no reactiva, mapa EEG y vectocardiograma, cada pestaña con su nivel de evidencia declarado.
 
 **Procesamiento de señal.** El detector de latidos del ECG Lab (frecuencia cardíaca por operador de Teager-Kaiser) se validó contra una cohorte de registros del MIT-BIH Arrhythmia Database en rondas con un experto; el detector de bloqueos de rama tiene una prueba contra 50 registros reales de PTB-XL. El EEG calcula potencia por bandas con cocientes citados y el exponente aperiódico (FOOOF). HRV sigue las métricas de la Task Force ESC/NASPE. En EMG, la frecuencia mediana es un cálculo real; la activación es la media/máximo de la señal filtrada (una heurística, no un porcentaje de la contracción máxima).

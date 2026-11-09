@@ -13,8 +13,6 @@ Fija cuatro cosas:
 No toca el detector (respiratory_analyzer.py) ni la fórmula de la SpO2 (fase 2b).
 """
 
-import warnings
-
 import numpy as np
 import pytest
 from scipy.ndimage import uniform_filter1d
@@ -79,6 +77,15 @@ def _quiet_segments(x, min_s=5.0):
     return segs
 
 
+def _fr_peaks(x):
+    """FR = 60 / media de los intervalos entre picos inspiratorios (prominencia relativa a la señal suavizada)."""
+    from scipy.signal import find_peaks
+
+    s = uniform_filter1d(x, int(0.25 * FS))
+    pk, _ = find_peaks(s, prominence=0.3 * np.percentile(np.abs(s), 95), distance=int(1.0 * FS))
+    return 60.0 / np.mean(np.diff(pk / FS))
+
+
 def _expected_fr(pattern, rr):
     if pattern == "tachypnea":
         return min(rr * 1.5, 40)
@@ -87,31 +94,41 @@ def _expected_fr(pattern, rr):
     return float(rr)
 
 
-# --- Huellas de la versión anterior (señales SIN ruido; congeladas antes de editar el generador) -----------
+# --- Huellas de flujo y tórax de la fase 2a (SIN ruido): NO deben cambiar (normal, taquipnea, bradipnea, apneas) ---
 LEGACY_FINGERPRINTS = [
-    ('normal', {'rr': 8, 'dur': 300}, {'airflow': (43289.242306, 84000.0, 4.0, -2.0), 'chest_wall': (9549.240735, 3750.0, 0.499995614, -0.499995614), 'spo2': (2691011.989161, 241441640.08055, 95.637019247, 87.413170702)}),
-    ('normal', {'rr': 15, 'dur': 300}, {'airflow': (89521.219323, 369140.625, 7.5, -3.75), 'chest_wall': (9549.100235, 3750.0, 0.5, -0.5), 'spo2': (2705474.951722, 244007518.446458, 95.637019247, 89.049435665)}),
-    ('normal', {'rr': 30, 'dur': 300}, {'airflow': (214841.501425, 2109375.0, 15.0, -7.5), 'chest_wall': (9548.511174, 3750.0, 0.5, -0.5), 'spo2': (2736463.246929, 249626796.504211, 95.637019247, 90.058052897)}),
-    ('tachypnea', {'rr': 8, 'dur': 300}, {'airflow': (37812.826719, 63180.0, 3.6, -1.8), 'chest_wall': (5729.502553, 1350.0, 0.3, -0.3), 'spo2': (2686869.519761, 240674113.594381, 94.603654165, 88.396539861)}),
-    ('tachypnea', {'rr': 15, 'dur': 300}, {'airflow': (76565.873472, 267259.71806, 6.75, -3.375), 'chest_wall': (5729.548499, 1350.0, 0.3, -0.3), 'spo2': (2697720.142829, 242591555.072001, 94.726151204, 89.721332069)}),
-    ('tachypnea', {'rr': 20, 'dur': 300}, {'airflow': (107413.092278, 531562.5, 9.0, -4.5), 'chest_wall': (5729.106705, 1350.0, 0.3, -0.3), 'spo2': (2705437.017844, 243980683.261534, 94.821182612, 89.96942343)}),
-    ('bradypnea', {'rr': 15, 'dur': 300}, {'airflow': (63846.397223, 186009.403668, 5.625, -2.8125), 'chest_wall': (14323.871247, 8437.5, 0.75, -0.75), 'spo2': (2697813.954103, 242698819.367104, 95.278439191, 87.262924576)}),
-    ('bradypnea', {'rr': 30, 'dur': 300}, {'airflow': (147711.852717, 1008544.921875, 11.25, -5.625), 'chest_wall': (14323.650353, 8437.5, 0.75, -0.75), 'spo2': (2721012.804409, 246862427.408225, 95.278439191, 89.119655198)}),
-    ('apnea_central', {'rr': 8, 'dur': 300}, {'airflow': (28848.581977, 56972.164125, 4.0, -2.0), 'chest_wall': (6415.679612, 2532.209922, 0.499995614, -0.499995614), 'spo2': (2644095.466749, 233221570.867481, 95.637019247, 85.0)}),
-    ('apnea_central', {'rr': 12, 'dur': 300}, {'airflow': (45835.209873, 144000.0, 6.0, -3.0), 'chest_wall': (6366.113948, 2500.0, 0.5, -0.5), 'spo2': (2649647.196714, 234204798.220893, 95.637019247, 85.0)}),
-    ('apnea_central', {'rr': 30, 'dur': 300}, {'airflow': (143227.667616, 1406250.0, 15.0, -7.5), 'chest_wall': (6365.674116, 2500.0, 0.5, -0.5), 'spo2': (2674468.22059, 238688587.363542, 95.637019247, 85.0)}),
-    ('apnea_obstructive', {'rr': 8, 'dur': 300}, {'airflow': (28848.581977, 56972.164125, 4.0, -2.0), 'chest_wall': (9549.240735, 3750.0, 0.499995614, -0.499995614), 'spo2': (2644095.466749, 233221570.867481, 95.637019247, 85.0)}),
-    ('apnea_obstructive', {'rr': 30, 'dur': 300}, {'airflow': (143227.667616, 1406250.0, 15.0, -7.5), 'chest_wall': (9548.511174, 3750.0, 0.5, -0.5), 'spo2': (2674468.22059, 238688587.363542, 95.637019247, 85.0)}),
-    ('cheyne_stokes', {'rr': 12, 'dur': 300}, {'airflow': (34376.407405, 72076.652392, 5.9, -2.802884989), 'chest_wall': (4774.585461, 1248.680714, 0.479348569, -0.479348569), 'spo2': (2626212.506161, 229973702.375418, 91.597973081, 85.064789617)}),
-    ('cheyne_stokes', {'rr': 30, 'dur': 300}, {'airflow': (107420.750712, 703006.26423, 14.75, -7.375), 'chest_wall': (4774.255587, 1249.788914, 0.491666667, -0.491666667), 'spo2': (2645143.307907, 233330739.175529, 92.264405664, 85.080453663)}),
-    ('normal', {'rr': 15, 'dur': 120, 'tv': 0.1}, {'airflow': (7161.697546, 5906.25, 1.5, -0.75), 'chest_wall': (763.928019, 60.0, 0.1, -0.1), 'spo2': (1082372.883627, 97636637.392318, 95.637019247, 89.049435665)}),
-    ('normal', {'rr': 15, 'dur': 120, 'tv': 1.5}, {'airflow': (107425.463187, 1328906.25, 22.5, -11.25), 'chest_wall': (11458.920282, 13500.0, 1.5, -1.5), 'spo2': (1082372.883627, 97636637.392318, 95.637019247, 89.049435665)}),
-    ('tachypnea', {'rr': 40, 'dur': 120}, {'airflow': (61102.931074, 432000.0, 12.0, -6.0), 'chest_wall': (2291.496068, 540.0, 0.299934205, -0.299934205), 'spo2': (1086465.015817, 98368046.45023, 94.946973138, 90.377208268)}),
-    ('cheyne_stokes', {'rr': 15, 'dur': 180, 'cs': 30.0}, {'airflow': (26856.365797, 73799.635446, 7.251420095, -3.632817291), 'chest_wall': (2868.20966, 752.026757, 0.5, -0.5), 'spo2': (1578612.460357, 138491670.881204, 91.681613171, 85.099734327)}),
-    ('apnea_central', {'rr': 15, 'dur': 120, 'b': 95, 'd': 70}, {'airflow': (23872.325153, 98437.5, 7.5, -3.75), 'chest_wall': (2546.426729, 1000.0, 0.5, -0.5), 'spo2': (920223.600488, 70851157.964475, 90.455806245, 70.0)}),
-    ('apnea_obstructive', {'rr': 20, 'dur': 100, 'tv': 0.3}, {'airflow': (20625.39676, 73800.0, 6.0, -3.0), 'chest_wall': (1912.046836, 450.896481, 0.3, -0.3), 'spo2': (894885.342379, 80135911.796737, 95.667353345, 85.0)}),
-    ('apnea_central', {'rr': 15, 'dur': 110}, {'airflow': (23872.325153, 98437.5, 7.5, -3.75), 'chest_wall': (2546.426729, 1000.0, 0.5, -0.5), 'spo2': (976716.272254, 86788454.776646, 95.637019247, 85.0)}),
-    ('apnea_central', {'rr': 15, 'dur': 45}, {'airflow': (11936.162576, 49218.75, 7.5, -3.75), 'chest_wall': (1273.213365, 500.0, 0.5, -0.5), 'spo2': (403526.923788, 36199985.822981, 95.637019247, 85.0)}),
+    ('normal', {'rr': 8, 'dur': 300}, {'airflow': (43289.242306, 84000.0, 4.0, -2.0), 'chest_wall': (9549.240735, 3750.0, 0.499995614, -0.499995614)}),
+    ('normal', {'rr': 15, 'dur': 300}, {'airflow': (89521.219323, 369140.625, 7.5, -3.75), 'chest_wall': (9549.100235, 3750.0, 0.5, -0.5)}),
+    ('normal', {'rr': 30, 'dur': 300}, {'airflow': (214841.501425, 2109375.0, 15.0, -7.5), 'chest_wall': (9548.511174, 3750.0, 0.5, -0.5)}),
+    ('tachypnea', {'rr': 8, 'dur': 300}, {'airflow': (37812.826719, 63180.0, 3.6, -1.8), 'chest_wall': (5729.502553, 1350.0, 0.3, -0.3)}),
+    ('tachypnea', {'rr': 15, 'dur': 300}, {'airflow': (76565.873472, 267259.71806, 6.75, -3.375), 'chest_wall': (5729.548499, 1350.0, 0.3, -0.3)}),
+    ('tachypnea', {'rr': 20, 'dur': 300}, {'airflow': (107413.092278, 531562.5, 9.0, -4.5), 'chest_wall': (5729.106705, 1350.0, 0.3, -0.3)}),
+    ('bradypnea', {'rr': 15, 'dur': 300}, {'airflow': (63846.397223, 186009.403668, 5.625, -2.8125), 'chest_wall': (14323.871247, 8437.5, 0.75, -0.75)}),
+    ('bradypnea', {'rr': 30, 'dur': 300}, {'airflow': (147711.852717, 1008544.921875, 11.25, -5.625), 'chest_wall': (14323.650353, 8437.5, 0.75, -0.75)}),
+    ('apnea_central', {'rr': 8, 'dur': 300}, {'airflow': (28848.581977, 56972.164125, 4.0, -2.0), 'chest_wall': (6415.679612, 2532.209922, 0.499995614, -0.499995614)}),
+    ('apnea_central', {'rr': 12, 'dur': 300}, {'airflow': (45835.209873, 144000.0, 6.0, -3.0), 'chest_wall': (6366.113948, 2500.0, 0.5, -0.5)}),
+    ('apnea_central', {'rr': 30, 'dur': 300}, {'airflow': (143227.667616, 1406250.0, 15.0, -7.5), 'chest_wall': (6365.674116, 2500.0, 0.5, -0.5)}),
+    ('apnea_obstructive', {'rr': 8, 'dur': 300}, {'airflow': (28848.581977, 56972.164125, 4.0, -2.0), 'chest_wall': (9549.240735, 3750.0, 0.499995614, -0.499995614)}),
+    ('apnea_obstructive', {'rr': 30, 'dur': 300}, {'airflow': (143227.667616, 1406250.0, 15.0, -7.5), 'chest_wall': (9548.511174, 3750.0, 0.5, -0.5)}),
+    ('normal', {'rr': 15, 'dur': 120, 'tv': 0.1}, {'airflow': (7161.697546, 5906.25, 1.5, -0.75), 'chest_wall': (763.928019, 60.0, 0.1, -0.1)}),
+    ('normal', {'rr': 15, 'dur': 120, 'tv': 1.5}, {'airflow': (107425.463187, 1328906.25, 22.5, -11.25), 'chest_wall': (11458.920282, 13500.0, 1.5, -1.5)}),
+    ('tachypnea', {'rr': 40, 'dur': 120}, {'airflow': (61102.931074, 432000.0, 12.0, -6.0), 'chest_wall': (2291.496068, 540.0, 0.299934205, -0.299934205)}),
+    ('apnea_central', {'rr': 15, 'dur': 120, 'b': 95, 'd': 70}, {'airflow': (23872.325153, 98437.5, 7.5, -3.75), 'chest_wall': (2546.426729, 1000.0, 0.5, -0.5)}),
+    ('apnea_obstructive', {'rr': 20, 'dur': 100, 'tv': 0.3}, {'airflow': (20625.39676, 73800.0, 6.0, -3.0), 'chest_wall': (1912.046836, 450.896481, 0.3, -0.3)}),
+    ('apnea_central', {'rr': 15, 'dur': 110}, {'airflow': (23872.325153, 98437.5, 7.5, -3.75), 'chest_wall': (2546.426729, 1000.0, 0.5, -0.5)}),
+    ('apnea_central', {'rr': 15, 'dur': 45}, {'airflow': (11936.162576, 49218.75, 7.5, -3.75), 'chest_wall': (1273.213365, 500.0, 0.5, -0.5)}),
+]
+
+# --- Huellas que CAMBIARON A PROPOSITO en la fase 2b (señales sin ruido, calculadas con el generador nuevo) ---
+# SpO2: ya no se deriva de |flujo| (modelo de eventos); Cheyne-Stokes: cada valle es una apnea central.
+CHANGED_ON_PURPOSE_FINGERPRINTS = [
+    ('normal', {'rr': 15, 'dur': 120}, {'spo2': (1176000.0, 115248000.0, 98.0, 98.0)}),
+    ('apnea_central', {'rr': 15, 'dur': 150}, {'spo2': (1452857.142, 140768571.28057, 98.0, 92.0)}),
+    ('apnea_obstructive', {'rr': 20, 'dur': 100, 'tv': 0.3}, {'spo2': (971428.571, 94394285.640285, 98.0, 92.0)}),
+    ('apnea_central', {'rr': 15, 'dur': 120, 'b': 95, 'd': 70}, {'spo2': (1131054.321, 106634980.590035, 95.0, 89.0)}),
+    ('apnea_central', {'rr': 15, 'dur': 110}, {'spo2': (1069428.571, 103998285.640285, 98.0, 92.0)}),
+    ('cheyne_stokes', {'rr': 12, 'dur': 300}, {'airflow': (22917.604936, 48114.978588, 5.850111898, -2.706723838), 'chest_wall': (3183.056974, 831.354404, 0.469166407, -0.469166407), 'spo2': (2905340.034, 281464163.43689, 98.0, 92.0)}),
+    ('cheyne_stokes', {'rr': 30, 'dur': 300}, {'airflow': (71613.833808, 468571.896345, 14.625279745, -7.312639872), 'chest_wall': (3182.837058, 833.016705, 0.487509325, -0.487509325), 'spo2': (2905340.034, 281464163.43689, 98.0, 92.0)}),
+    ('cheyne_stokes', {'rr': 15, 'dur': 180, 'cs': 45.0}, {'airflow': (14923.150993, 41038.442893, 7.5, -3.75), 'chest_wall': (1591.656325, 416.6668, 0.480665808, -0.480665808), 'spo2': (1737911.463, 167861877.796605, 98.0, 92.0)}),
 ]
 
 _SPEC_KEYS = {"rr": "respiratory_rate", "tv": "tidal_volume", "insp": "inspiration_time", "b": "baseline_spo2",
@@ -123,6 +140,19 @@ def test_default_parameters_reproduce_the_legacy_signal(no_noise, pattern, spec,
     kwargs = {_SPEC_KEYS[k]: v for k, v in spec.items() if k in _SPEC_KEYS}
     params = RespiratoryPattern(pattern_type=pattern, **kwargs)
     d = RespiratorySignalGenerator(FS).generate_respiration(duration=spec["dur"], params=params)
+    for key, (s_abs, s_sq, mx, mn) in fingerprint.items():
+        x = d[key]
+        assert np.sum(np.abs(x)) == pytest.approx(s_abs, rel=1e-8, abs=1e-5), (pattern, spec, key)
+        assert np.sum(x ** 2) == pytest.approx(s_sq, rel=1e-8, abs=1e-5), (pattern, spec, key)
+        assert x.max() == pytest.approx(mx, rel=1e-8, abs=1e-8), (pattern, spec, key)
+        assert x.min() == pytest.approx(mn, rel=1e-8, abs=1e-8), (pattern, spec, key)
+
+
+@pytest.mark.parametrize("pattern,spec,fingerprint", CHANGED_ON_PURPOSE_FINGERPRINTS)
+def test_intentionally_changed_signals_are_pinned(no_noise, pattern, spec, fingerprint):
+    """SpO2 (todos los patrones) y Cheyne-Stokes cambiaron A PROPÓSITO en la fase 2b; sus huellas nuevas quedan fijas."""
+    kwargs = {_SPEC_KEYS[k]: v for k, v in spec.items() if k in _SPEC_KEYS}
+    d = RespiratorySignalGenerator(FS).generate_respiration(duration=spec["dur"], params=RespiratoryPattern(pattern_type=pattern, **kwargs))
     for key, (s_abs, s_sq, mx, mn) in fingerprint.items():
         x = d[key]
         assert np.sum(np.abs(x)) == pytest.approx(s_abs, rel=1e-8, abs=1e-5), (pattern, spec, key)
@@ -163,7 +193,7 @@ def test_e21_annotated_events_match_the_silences_in_the_raw_flow(pattern, rr):
         assert ms == pytest.approx(ts, abs=0.5) and md == pytest.approx(td, abs=0.5)
 
 
-@pytest.mark.parametrize("pattern", ["normal", "tachypnea", "bradypnea", "cheyne_stokes", "ataxic"])
+@pytest.mark.parametrize("pattern", ["normal", "tachypnea", "bradypnea", "ataxic"])
 def test_patterns_without_apnea_annotate_no_events(pattern):
     assert _gen(pattern, 15, 300)["ground_truth"]["events"] == []
 
@@ -173,20 +203,25 @@ def test_patterns_without_apnea_annotate_no_events(pattern):
 def test_annotated_effective_rate_is_what_the_raw_flow_contains(pattern, rr):
     d = _gen(pattern, rr, 300)
     gt = d["ground_truth"]
-    assert gt["effective_respiratory_rate"] == pytest.approx(_expected_fr(pattern, rr))
     assert gt["requested_respiratory_rate"] == rr
-    assert _fr_spectrum(d["airflow"]) == pytest.approx(gt["effective_respiratory_rate"], abs=0.5)
-    if pattern != "ataxic":  # segundo método, independiente del primero
+    if pattern == "ataxic":  # frecuencia irregular: la FR efectiva es 60 / media de los ciclos anotados
+        assert _fr_peaks(d["airflow"]) == pytest.approx(gt["effective_respiratory_rate"], abs=0.5)
+        assert gt["effective_respiratory_rate"] == pytest.approx(rr, rel=0.15)  # la media de los ciclos ronda la FR pedida
+    else:
+        assert gt["effective_respiratory_rate"] == pytest.approx(_expected_fr(pattern, rr))
+        assert _fr_spectrum(d["airflow"]) == pytest.approx(gt["effective_respiratory_rate"], abs=0.5)
         assert _fr_crossings(d["airflow"]) == pytest.approx(gt["effective_respiratory_rate"], abs=0.5)
 
 
 def test_ground_truth_flags_what_it_does_not_claim():
     gt = _gen("cheyne_stokes", 15, 120, cheyne_stokes_cycle=45.0)["ground_truth"]
-    assert gt["modulation_period_s"] == 45.0 and gt["events"] == []
-    assert gt["spo2"]["is_ground_truth"] is False and gt["spo2"]["recovery_time_applied"] is False
+    assert gt["modulation_period_s"] == 45.0
+    assert [(e["start_s"], e["duration_s"], e["type"]) for e in gt["events"]] == [(25.0, 20.0, "central"), (70.0, 20.0, "central"), (115.0, 5.0, "central")]
+    assert gt["spo2"]["model"] == "BIOCORE_event_model_2b" and gt["spo2"]["buffer_latency_modeled"] is False
+    assert "L/min" in gt["airflow_units"]
     assert _gen("normal", 15, 60)["ground_truth"]["modulation_period_s"] is None
     atax = _gen("ataxic", 15, 120)["ground_truth"]
-    assert atax["pattern"] == "ataxic" and atax["rate_is_regular"] is True
+    assert atax["pattern"] == "ataxic" and atax["rate_is_regular"] is False and atax["irregularity_label"] == "HEURISTIC"
     assert _gen("no_existe", 15, 60)["ground_truth"]["pattern"] == "normal"  # el generador cae a 'normal'
 
 
@@ -290,9 +325,9 @@ def test_the_old_silent_failure_is_gone_and_valid_extremes_still_work():
     assert (d["airflow"] < -0.5).any()
 
 
-def test_recovery_time_is_declared_inert_instead_of_silently_ignored():
-    with pytest.warns(UserWarning, match="recovery_time no tiene efecto"):
-        _gen("apnea_central", 15, 60, recovery_time=60.0)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        _gen("apnea_central", 15, 60)  # el valor por defecto no avisa
+def test_recovery_time_is_retired_the_duration_now_comes_from_the_resaturation_rate():
+    with pytest.raises(TypeError):
+        RespiratoryPattern(recovery_time=20.0)
+    # la duración de la recuperación resulta de la profundidad y la tasa: 6 puntos a 0.70 %/s = 8.57 s
+    ev = _gen("apnea_central", 15, 120)["ground_truth"]["events"][0]
+    assert ev["spo2_recovered_time_s"] - ev["spo2_nadir_time_s"] == pytest.approx(6.0 / 0.70, abs=0.01)

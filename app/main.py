@@ -413,8 +413,8 @@ _ECG_VALIDATION_DETAIL = (
     "(Sensibilidad >99%). Filtros estándar AHA."
 )
 # NOTA: Respiratory Lab NO tiene constante de validación (Tanda 1, 2026-11-05):
-# su insignia se retiró porque FR/AHI no son fiables; ver
-# `RESPIRATORY_UNRELIABLE_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
+# su insignia se retiró y NO se reactivó tras la reparación del detector (fase 3, 2026-11-07);
+# ver `RESPIRATORY_STATUS_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
 _HRV_VALIDATION_DETAIL = (
     "Métricas de dominio temporal (SDNN, RMSSD) calculadas bajo los estándares de la Task Force "
     "de la European Society of Cardiology (ESC/NASPE)."

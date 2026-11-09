@@ -83,42 +83,12 @@ def test_respiratory_lab_pressing_every_button_writes_nothing_to_the_ups(temp_up
     at = _respiratory_app(sf, pid)
     assert at.exception == []
     assert not any("Guardar estado al gemelo" in b.label for b in at.button), "el botón de guardado debe haber desaparecido"
-    assert "Desactivado: la frecuencia respiratoria y el AHI de este laboratorio no son fiables todavía" in _all_text(at)
+    assert "Desactivado: no se reactiva en esta fase" in _all_text(at)
     for i in range(len(at.button)):
         fresh = _respiratory_app(sf, pid)
         fresh.button[i].click().run()
         assert fresh.exception == []
     assert _snapshot_count(sf) == 0
-
-
-def test_respiratory_lab_drops_validated_badge_and_says_in_correction(temp_ups):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid)
-    assert [md for md in at.main.markdown if "border-left:3px" in md.value] == [], "no debe quedar marcador de validación"
-    assert any("En corrección" in w.value for w in at.warning)
-    assert "American Academy of Sleep Medicine" not in _all_text(at)
-
-
-@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central", "Taquipnea (Breathing Fast)"])
-def test_respiratory_lab_suppresses_clinical_interpretations_but_keeps_the_signal(temp_ups, pattern):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid, pattern)
-    assert at.exception == []
-    text = _all_text(at)
-    assert f"Patrón: {pattern}" in text, "la selección de patrón debe haber surtido efecto (la prueba no es vacía)"
-    # se muestran, marcados
-    assert "Frecuencia Respiratoria — ⛔ no fiable" in text
-    assert "Índice AHI — ⛔ no fiable" in text
-    # nada derivado de FR/AHI/apneas
-    for forbidden in (
-        "Tachypnea", "Bradypnea", "Periodic breathing", "sleep apnea", "No apneas detected",
-        "No se detectaron apneas", "Eventos de Apnea Detectados", "Clasificación AHI", "AOS leve",
-        "Respiratory rate within normal range",
-    ):
-        assert forbidden not in text, f"sigue apareciendo: {forbidden!r}"
-    # la señal y la oximetría siguen (tabs presentes)
-    assert any("Señales Respiratorias" in t.label for t in at.tabs)
-    assert any("SpO2" in t.label for t in at.tabs)
 
 
 def test_respiratory_quiz_no_longer_derives_answers_from_the_analyzer(temp_ups):
@@ -218,30 +188,6 @@ def test_ui_source_has_no_shap_lime_real_or_ml_real_claims():
 
 # --- Tanda 1.5 (2026-11-05): cerrar la contencion + aislar la suite ------------
 
-_DETECTOR_LABELS = (
-    "Total Respiraciones", "Duración Promedio", "Ratio I:E Promedio", "Respiraciones detectadas",
-    "Variabilidad RR", "Frecuencia Respiratoria", "Frecuencia respiratoria", "Índice AHI", "AHI estimado",
-)
-
-
-@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central"])
-def test_every_value_from_the_respiration_detector_carries_the_unreliable_mark(temp_ups, pattern):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid, pattern)
-    assert at.exception == []
-    text = _all_text(at)
-    for label in _DETECTOR_LABELS:
-        occurrences = [m.start() for m in re.finditer(re.escape(label), text)]
-        assert occurrences, f"la etiqueta {label!r} ya no aparece: actualiza la lista si se retiró a propósito"
-        for pos in occurrences:
-            rest = text[pos + len(label):]
-            if rest.startswith((":**", "\n")):  # viñeta/encabezado de la referencia clínica (texto fijo), no un valor
-                continue
-            assert rest.startswith(" — ⛔ no fiable"), f"{label!r} sin la marca 'no fiable'"
-    # y el valor mismo dice "no usar" (el conteo sigue visible, pero declarado inservible)
-    assert text.count("(no usar)") >= 6
-
-
 def test_ecg12_quiz_no_longer_claims_ai_that_does_not_exist():
     for path in list(Path("app").rglob("*.py")):
         src = path.read_text(encoding="utf-8")
@@ -278,15 +224,6 @@ def test_suite_never_points_at_the_development_database():
 
 # --- Tanda 2 (2026-11-07): textos de UI que caducaron ---------------------------
 
-def test_respiratory_investigation_title_does_not_promise(temp_ups):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid)
-    assert at.exception == []
-    text = _all_text(at)
-    assert "AHI y eventos de apnea (en corrección)" in text
-    assert "Vista Investigación — Índice AHI" not in text
-
-
 def test_twin_os_causal_message_lists_the_domains_the_schema_models(temp_ups):
     from domain.physiology.state import DomainState, UnifiedPhysiologicalState
     from datetime import datetime, timezone
@@ -319,10 +256,6 @@ import json  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-_SPO2_LABELS = ("SpO2 Basal", "SpO2 Mínimo", "SpO2 basal", "SpO2 mínima", "Tiempo <90%", "Tiempo <85%")
-_ARTIFACT_MARK = " — ⛔ artefacto del generador"
-
-
 def _plotly_traces(chart):
     """{nombre: y} de un st.plotly_chart de AppTest (plotly puede codificar y en binario)."""
     spec = json.loads(chart.proto.spec)
@@ -342,32 +275,6 @@ def _number_input(at, label):
 def _clinical_flow(at):
     traces, _ = _plotly_traces(at.get("plotly_chart")[0])
     return traces["Flujo de Aire"]
-
-
-@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central"])
-def test_every_spo2_value_is_marked_as_a_generator_artifact(temp_ups, pattern):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid, pattern)
-    assert at.exception == []
-    text = _all_text(at)
-    for label in _SPO2_LABELS:
-        occurrences = [m.start() for m in re.finditer(re.escape(label), text)]
-        assert occurrences, f"la etiqueta {label!r} ya no aparece: actualiza la lista si se retiró a propósito"
-        for pos in occurrences:
-            assert text[pos + len(label):].startswith(_ARTIFACT_MARK), f"{label!r} sin la marca de artefacto"
-            assert "(no usar)" in text[pos: pos + 400], f"{label!r} sin '(no usar)' en el valor"
-    assert any("Artefacto del generador, no fiable (no usar)" in w.value for w in at.warning)
-    # el gráfico de SpO2 también lleva la marca en su título
-    spec_texts = [json.loads(pc.proto.spec)["layout"].get("annotations", []) for pc in at.get("plotly_chart")]
-    assert any("artefacto del generador" in a.get("text", "") for annots in spec_texts for a in annots)
-
-
-def test_the_page_notice_no_longer_says_the_oximetry_is_kept(temp_ups):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid)
-    notice = " ".join(w.value for w in at.warning)
-    assert "artefacto del generador" in notice
-    assert "la oximetría se conservan" not in notice
 
 
 def test_expiration_control_is_active_default_is_automatic_and_moves_the_signal(temp_ups):
@@ -414,13 +321,3 @@ def test_cycles_card_is_labeled_as_a_computed_target_not_a_measurement(temp_ups)
     text = _all_text(at)
     assert "Ciclos objetivo en 30 s (calculado de la FR elegida, no medido)" in text
     assert "Ciclos respiratorios en 30s" not in text
-
-
-def test_impossible_parameters_show_an_explicit_error_not_a_signal_without_expiration(temp_ups):
-    sf, pid = temp_ups
-    at = _respiratory_app(sf, pid)
-    _number_input(at, "Frecuencia Respiratoria (resp/min)").set_value(40)
-    _number_input(at, "Tiempo Inspiración (s)").set_value(3.0)
-    at.run()
-    assert at.exception == []
-    assert any("Parámetros respiratorios imposibles" in e.value and "no cabe en el ciclo" in e.value for e in at.error)

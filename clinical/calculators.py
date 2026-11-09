@@ -92,6 +92,12 @@ WHO_BMI_CITATION = (
     "Geneva: WHO; 2000 (clases de IMC del adulto y su riesgo de comorbilidades: sobrepeso "
     "aumentado, obesidad I moderado, II severo, III muy severo)"
 )
+OSA_SEVERITY_CITATION = (
+    "Epstein LJ, Kristo D, Strollo PJ Jr, et al. Clinical guideline for the evaluation, management and long-term care "
+    "of obstructive sleep apnea in adults. J Clin Sleep Med 2009;5(3):263–276 (severidad por índice de eventos "
+    "respiratorios por hora: leve ≥5 y <15, moderada ≥15 y ≤30, severa >30; consenso. Es un índice por hora de SUEÑO "
+    "en polisomnografía; con un monitor portátil se calcula por hora de registro y tiende a subestimar la severidad)"
+)
 MOSTELLER_CITATION = "Mosteller RD. Simplified calculation of body-surface area. N Engl J Med 1987;317:1098"
 DUBOIS_CITATION = (
     "Du Bois D, Du Bois EF. A formula to estimate the approximate surface area if height and weight "
@@ -368,6 +374,30 @@ def classify_bmi(bmi: Optional[float]) -> Classification:
     if bmi < 40.0:
         return ("severo", "obesidad clase II (35.0–39.9) — riesgo de comorbilidades severo", "🔴")
     return ("severo", "obesidad clase III (≥40) — riesgo de comorbilidades muy severo", "🔴")
+
+
+def event_index_per_hour(events: float, hours: float) -> float:
+    """Índice de eventos respiratorios por hora = eventos / horas (de sueño en polisomnografía, de registro en un
+    monitor portátil; `OSA_SEVERITY_CITATION`)."""
+    if events < 0 or not _positive(hours):
+        raise ValueError("los eventos no pueden ser negativos y las horas deben ser > 0")
+    return events / hours
+
+
+def classify_osa_severity(index_per_hour: Optional[float]) -> Classification:
+    """Severidad de la apnea del sueño según el índice por hora (`OSA_SEVERITY_CITATION`): leve ≥5 y <15,
+    moderada ≥15 y ≤30 (el 30 exacto es moderada), severa >30. Función pura: la lectura de un número, no un
+    diagnóstico, y solo válida para un índice por hora de sueño (o de registro largo), nunca para un registro de
+    minutos extrapolado."""
+    if index_per_hour is None or not math.isfinite(index_per_hour):
+        return _NOT_AVAILABLE
+    if index_per_hour < 5.0:
+        return ("normal", "por debajo de 5 eventos/h: sin apnea del sueño por este índice", "🟢")
+    if index_per_hour < 15.0:
+        return ("leve", "apnea del sueño leve (≥5 y <15 eventos/h)", "🟡")
+    if index_per_hour <= 30.0:
+        return ("leve", "apnea del sueño moderada (≥15 y ≤30 eventos/h)", "🟠")
+    return ("severo", "apnea del sueño severa (>30 eventos/h)", "🔴")
 
 
 def bsa_mosteller(height_cm: float, weight_kg: float) -> float:

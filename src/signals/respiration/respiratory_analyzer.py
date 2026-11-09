@@ -1,508 +1,339 @@
 """
-Respiratory Signal Analyzer - Clinical Interpretation
+Respiratory Signal Analyzer - fase 3 del arco respiratorio (2026-11-07, Art. I)
 
-Analyzes respiratory signals for:
-- Respiratory rate (RR) and variability
-- Apnea detection and duration
-- Pattern classification (normal, irregular, periodic)
-- SpO2 statistics (nadir, AUC, time below threshold)
-- Sleep apnea severity index
+Reescritura del detector contra los golden tests. Cumple los criterios firmados por Luis:
+
+- D1 FR: 60 / media de los intervalos entre inspiraciones (en segundos); >= 3 respiraciones o "no
+  disponible" (None, nunca 0). Antes de aplicar las bandas NEWS2 se redondea al entero con .5 hacia arriba
+  (`round_half_up`, explícito; NO `round()` de Python). La banda NEWS2 la calcula la UI con
+  `clinical.calculators._news2_rr` (no se copia la tabla aquí). Variabilidad = desviación estándar muestral
+  de los intervalos (s), descriptiva. Duración del ciclo = media de los intervalos.
+- D2 Apnea (Berry 2012, AASM): caída >= 90 % de la excursión pico respecto a la línea basal previa durante
+  >= 10 s. Basal según Berry/Chicago: media de las respiraciones estables de los 120 s previos, o media de las
+  3 mayores si el patrón es inestable; en registros cortos, la respiración disponible antes del evento,
+  DECLARADA en cada evento. Central/obstructiva: "esfuerzo ausente = caída >= 90 % del esfuerzo respecto a
+  su basal" (Criterio BIOCORE, nunca un umbral absoluto). Mixta: PENDING_VALIDATION (definición del manual
+  AASM sin verificar): se calcula y se marca pendiente.
+- D3 Hipopnea: no se detecta ni se muestra.
+- D4 Conteo de apneas, tiempo total de apnea y tasa equivalente por hora de REGISTRO (extrapolada, sin valor
+  diagnóstico). Sin categoría de severidad y sin la sigla del índice por hora de sueño.
+- D5 Se informa la duración del ciclo; no se mide I:E.
+- E11 Un evento ya en curso al inicio del registro (sin basal previa) es "no evaluable" y no cuenta; uno que
+  llega al final cuenta solo si tiene >= 10 s dentro del registro y se marca "recortado".
+
+Suprimidos (siguen sin calcularse hasta que Luis firme sus criterios): clasificador de patrón, notas
+clínicas, ODI y severidad. Quedan como None.
+
+Todo umbral técnico que NO está en los criterios firmados es HEURISTIC y está declarado en `HEURISTICS`
+con su calibración. Ninguna compuerta de amplitud es absoluta: la señal de flujo tiene la escala del
+generador (pico = volumen_corriente x FR), así que todo umbral es relativo a la amplitud de la propia señal o
+al ruido que se estima de ella.
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
-from scipy.signal import find_peaks, butter, filtfilt
+from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from scipy.signal import find_peaks
+from scipy.ndimage import uniform_filter1d, maximum_filter1d
+
+# --- Criterios firmados (no se reinterpretan) ---------------------------------------------------------------
+APNEA_DROP_FRACTION = 0.90          # Berry 2012: caída >= 90 % de la excursión pico
+APNEA_MIN_DURATION_S = 10.0         # Berry 2012: >= 10 s
+BASELINE_WINDOW_S = 120.0           # Berry 2012 / consenso de Chicago: 2 min previos
+MIN_BREATHS_FOR_RATE = 3            # D1
+STABLE_BREATHS_TO_AVERAGE = 3       # Berry: media de las 3 mayores si el patrón es inestable
+
+# --- HEURISTIC (fuera de los criterios firmados) -------------------------------------------------------------
+HEURISTICS = {
+    "breath_smoothing_s": (0.25, "media móvil para localizar los picos inspiratorios; calibrada con el prototipo de la fase 1 (error de FR <= 0.03/min)"),
+    "apnea_smoothing_s": (0.10, "media móvil para medir los bordes de un evento; con 0.25 s el borde se corre hasta 0.6 s y 9.5 s de silencio llega a contarse"),
+    "peak_prominence_noise_multiple": (8.0, "prominencia mínima de un pico = 8 x el ruido suavizado estimado; por debajo de eso un máximo local es ruido (flat/ruido blanco dan 0 respiraciones; SNR 2.5 detecta todas)"),
+    "peak_prominence_floor_of_signal": (0.02, "piso relativo: 2 % de la amplitud p95 de la señal (evita prominencia 0 en señales sin ruido)"),
+    "onset_fraction_of_crest": (0.10, "el inicio de la inspiración es el punto donde el flujo sube al 10 % de la cresta de ESA respiración (relativo a su profundidad); sirve para medir intervalos entre inspiraciones y no entre crestas (cresta a cresta atenúa la variabilidad: 3 s/5 s dan 3.5/4.5 s)"),
+    "min_breath_separation_s": (1.0, "separación mínima entre inspiraciones (limita la FR medible a 60/min, por encima de todo lo que genera el lab)"),
+    "baseline_stability_cv": (0.30, "CV máximo de las amplitudes para llamar 'estable' al patrón (Chicago distingue dos regímenes sin dar el corte)"),
+    "effort_present_fraction": (0.90, "fracción del evento con esfuerzo presente para llamarlo obstructivo (Criterio BIOCORE)"),
+    "effort_absent_fraction": (0.10, "fracción máxima con esfuerzo presente para llamarlo central (Criterio BIOCORE)"),
+    "effort_window_cycles": (0.6, "ventana del esfuerzo = 0.6 ciclos (>= medio ciclo garantiza ver una cresta de |seno|)"),
+    "effort_min_to_noise": (8.0, "el esfuerzo basal debe superar 8 x su ruido suavizado; si no, el tipo es 'sin esfuerzo medible'"),
+    "spo2_stable_cluster_points": (3.0, "SpO2 basal = mediana de las muestras a <= 3 puntos del p95 (3 % = umbral de desaturación de Berry 2012)"),
+}
+
+
+def round_half_up(x: float) -> int:
+    """Redondeo explícito al entero con .5 hacia arriba (NO `round()` de Python, que redondea .5 al par)."""
+    return int(np.floor(float(x) + 0.5))
 
 
 @dataclass
 class BreathDetection:
-    """Single breath detection result"""
+    """Una inspiración detectada (cresta del flujo)."""
     breath_num: int
-    inspiration_start_idx: int
-    inspiration_end_idx: int
-    expiration_end_idx: int
-    peak_amplitude: float  # mV or cm of movement
-    duration_seconds: float
-    inspiration_time: float
-    expiration_time: float
-    i_e_ratio: float  # Inspiration:Expiration ratio
+    peak_index: int
+    peak_time_s: float
+    peak_amplitude: float
+    onset_time_s: float = 0.0   # inicio de la inspiración (interpolado): los intervalos de D1 se miden entre inicios
 
 
 @dataclass
 class RespiratoryAnalysis:
-    """Complete respiratory analysis"""
-    respiratory_rate: float  # breaths/minute
-    rr_variability: float  # Standard deviation
+    """Resultado del análisis. Los campos suprimidos valen None hasta que Luis firme sus criterios."""
+    # D1
+    respiratory_rate: Optional[float]            # resp/min, None = no disponible
+    respiratory_rate_rounded: Optional[int]      # entero (.5 hacia arriba) para las bandas NEWS2
+    rr_variability: Optional[float]              # DE muestral de los intervalos entre inspiraciones (s)
+    cycle_duration_s: Optional[float]            # media de los intervalos (s)
     breaths: List[BreathDetection]
-    
-    # Apnea analysis
+    signal_status: str                           # 'ok' | 'sin_senal_respiratoria' | 'datos_insuficientes'
+    signal_status_detail: str
+
+    # D2 / D4
+    apnea_events: List[Dict]                     # eventos evaluables (cuentan)
+    non_evaluable_events: List[Dict]             # p. ej. ya en curso al inicio del registro (no cuentan)
+    apnea_count: Optional[int]                   # None si la señal no permite evaluar apneas
+    apnea_total_time_s: Optional[float]
+    equivalent_rate_per_hour: Optional[float]    # extrapolada, por hora de REGISTRO, sin valor diagnóstico
+    record_duration_s: float
     apnea_detected: bool
-    apnea_type: str  # "central", "obstructive", "none"
-    apnea_events: List[Dict]  # List of apnea events with duration and SpO2 drop
-    apnea_hypopnea_index: float  # AHI (events per hour)
-    
-    # Pattern classification
-    breathing_pattern: str  # "normal", "irregular", "periodic", "ataxic"
-    
-    # SpO2 analysis
+    apnea_type: str                              # tipo predominante o 'none'
+    event_period_s: Optional[float]              # mediana de la separación entre inicios de eventos (>= 2 eventos)
+    cheyne_stokes_evaluable: bool
+    cheyne_stokes_note: str
+
+    # SpO2 (la procedencia la declara la UI)
     baseline_spo2: float
     minimum_spo2: float
-    spo2_nadir_time: float  # Time of lowest SpO2
-    time_below_90: float  # Seconds below 90%
-    time_below_85: float  # Seconds below 85%
-    oxygen_desaturation_index: float  # ODI (dips >3% per hour)
-    
-    # Clinical interpretation
-    severity: str  # "normal", "mild", "moderate", "severe"
-    clinical_notes: List[str]
+    spo2_nadir_time: float
+    time_below_90: float
+    time_below_85: float
+
+    # Suprimidos
+    breathing_pattern: Optional[str] = None
+    severity: Optional[str] = None
+    clinical_notes: List[str] = field(default_factory=list)
+    oxygen_desaturation_index: Optional[float] = None
 
 
 class RespiratoryAnalyzer:
-    """Professional respiratory signal analyzer"""
-    
+    """Analizador respiratorio (fase 3)."""
+
     def __init__(self, sampling_rate: float = 100):
-        """
-        Initialize analyzer
-        
-        Args:
-            sampling_rate: Samples per second
-        """
         self.sampling_rate = sampling_rate
         self.sample_interval = 1.0 / sampling_rate
-    
+
+    # ------------------------------------------------------------------ utilidades
+    def _smooth(self, x: np.ndarray, seconds: float) -> np.ndarray:
+        return uniform_filter1d(x, max(1, int(round(seconds * self.sampling_rate))))
+
+    def _noise_sd(self, x: np.ndarray) -> float:
+        """Ruido blanco por muestra, robusto a la señal: MAD de la segunda diferencia (la respiración casi no tiene curvatura)."""
+        if len(x) < 8:
+            return 0.0
+        d2 = np.diff(x, 2)
+        return float(np.median(np.abs(d2 - np.median(d2))) / 0.6745 / np.sqrt(6.0))
+
+    # ------------------------------------------------------------------ API
     def analyze_respiration(
         self,
         airflow: np.ndarray,
         time: np.ndarray,
         spo2: np.ndarray,
-        respiratory_effort: Optional[np.ndarray] = None
+        respiratory_effort: Optional[np.ndarray] = None,
     ) -> RespiratoryAnalysis:
-        """
-        Perform complete respiratory analysis
-        
-        Args:
-            airflow: Airflow signal (L/min)
-            time: Time array (seconds)
-            spo2: SpO2 signal (%)
-            respiratory_effort: Optional chest/abdominal movement for apnea classification
-            
-        Returns:
-            RespiratoryAnalysis with all findings
-        """
-        # Preprocess signal
-        airflow_filtered = self._preprocess_airflow(airflow)
-        
-        # Detect individual breaths
-        breaths = self._detect_breaths(airflow_filtered, time)
-        
-        # Calculate respiratory rate and variability
-        rr, rr_variability = self._calculate_respiratory_rate(breaths)
-        
-        # Detect apneas
-        apnea_detected, apnea_type, apnea_events, ahi = self._detect_apneas(
-            airflow_filtered, 
-            time, 
-            breaths,
-            respiratory_effort
-        )
-        
-        # Classify breathing pattern
-        pattern = self._classify_breathing_pattern(breaths, time)
-        
-        # Analyze SpO2
-        baseline, minimum, nadir_time, t_below_90, t_below_85, odi = self._analyze_spo2(
-            spo2, 
-            time
-        )
-        
-        # Determine severity
-        severity = self._assess_severity(ahi, odi, minimum, pattern)
-        
-        # Generate clinical notes
-        clinical_notes = self._generate_clinical_notes(
-            rr, 
-            pattern, 
-            apnea_detected,
-            apnea_type,
-            minimum,
-            ahi
-        )
-        
+        airflow = np.asarray(airflow, dtype=float)
+        n = len(airflow)
+        fs = self.sampling_rate
+        record_s = n / fs
+
+        s_breath = self._smooth(airflow, HEURISTICS["breath_smoothing_s"][0])
+        s_apnea = self._smooth(airflow, HEURISTICS["apnea_smoothing_s"][0])
+        window = max(1, int(round(HEURISTICS["breath_smoothing_s"][0] * fs)))
+        noise_s = self._noise_sd(airflow) / np.sqrt(window)
+        a95 = float(np.percentile(np.abs(s_breath), 95)) if n else 0.0
+
+        breaths = self._detect_breaths(s_breath, noise_s, a95)
+        status, detail = self._signal_status(breaths, a95, noise_s)
+
+        events, non_eval, evaluable = [], [], status != "sin_senal_respiratoria"
+        if evaluable and len(breaths) >= 1:
+            events, non_eval = self._detect_apneas(s_apnea, time, breaths, respiratory_effort)
+
+        rr, rr_rounded, sd, cycle = self._respiratory_rate(breaths, events)
+        if rr is None and status == "ok":
+            status, detail = "datos_insuficientes", f"se detectaron {len(breaths)} respiraciones; D1 exige al menos {MIN_BREATHS_FOR_RATE}"
+
+        count = len(events) if evaluable and len(breaths) >= 1 else None
+        total = float(sum(e["duration"] for e in events)) if count is not None else None
+        rate_h = (count * 3600.0 / record_s) if count is not None and record_s > 0 else None
+        types = [e["type"] for e in events]
+        starts = [e["start_time"] for e in events]
+        baseline, minimum, nadir_time, t90, t85 = self._analyze_spo2(np.asarray(spo2, dtype=float), np.asarray(time, dtype=float))
+
         return RespiratoryAnalysis(
-            respiratory_rate=rr,
-            rr_variability=rr_variability,
-            breaths=breaths,
-            apnea_detected=apnea_detected,
-            apnea_type=apnea_type,
-            apnea_events=apnea_events,
-            apnea_hypopnea_index=ahi,
-            breathing_pattern=pattern,
-            baseline_spo2=baseline,
-            minimum_spo2=minimum,
-            spo2_nadir_time=nadir_time,
-            time_below_90=t_below_90,
-            time_below_85=t_below_85,
-            oxygen_desaturation_index=odi,
-            severity=severity,
-            clinical_notes=clinical_notes
+            respiratory_rate=rr, respiratory_rate_rounded=rr_rounded, rr_variability=sd, cycle_duration_s=cycle,
+            breaths=breaths, signal_status=status, signal_status_detail=detail,
+            apnea_events=events, non_evaluable_events=non_eval, apnea_count=count, apnea_total_time_s=total,
+            equivalent_rate_per_hour=rate_h, record_duration_s=record_s, apnea_detected=bool(events),
+            apnea_type=(max(set(types), key=types.count) if types else "none"),
+            event_period_s=(float(np.median(np.diff(starts))) if len(starts) >= 2 else None),
+            cheyne_stokes_evaluable=False,
+            cheyne_stokes_note=(
+                "Un registro de este tamaño no es evaluable como respiración de Cheyne-Stokes: Berry 2012 (AASM) "
+                "exige >= 3 eventos centrales consecutivos con ciclo >= 40 s y >= 5 eventos por hora "
+                "en un mínimo de 2 horas de monitoreo."),
+            baseline_spo2=baseline, minimum_spo2=minimum, spo2_nadir_time=nadir_time,
+            time_below_90=t90, time_below_85=t85,
         )
-    
-    def _preprocess_airflow(self, airflow: np.ndarray) -> np.ndarray:
-        """Preprocess airflow signal (filter and normalize)"""
-        
-        # High-pass filter to remove DC offset and slow drift
-        b, a = butter(2, 0.1, 'highpass', fs=self.sampling_rate)
-        airflow_filt = filtfilt(b, a, airflow)
-        
-        # Normalize
-        max_amp = np.max(np.abs(airflow_filt))
-        if max_amp > 0:
-            airflow_norm = airflow_filt / max_amp
+
+    # ------------------------------------------------------------------ respiraciones
+    def _detect_breaths(self, s: np.ndarray, noise_s: float, a95: float) -> List[BreathDetection]:
+        if len(s) < 3 or a95 <= 0:
+            return []
+        prom = max(HEURISTICS["peak_prominence_noise_multiple"][0] * noise_s,
+                   HEURISTICS["peak_prominence_floor_of_signal"][0] * a95)
+        distance = int(HEURISTICS["min_breath_separation_s"][0] * self.sampling_rate)
+        pk, _ = find_peaks(s, prominence=prom, distance=max(1, distance))
+        frac = HEURISTICS["onset_fraction_of_crest"][0]
+        out = []
+        for i, p in enumerate(pk):
+            thr = frac * s[p]
+            j = int(p)
+            while j > 0 and s[j] > thr:
+                j -= 1
+            if j == 0 and s[0] > thr:
+                onset = 0.0
+            else:  # interpolación lineal entre j y j+1
+                onset = (j + (thr - s[j]) / (s[j + 1] - s[j])) / self.sampling_rate if s[j + 1] != s[j] else j / self.sampling_rate
+            out.append(BreathDetection(i, int(p), float(p / self.sampling_rate), float(s[p]), float(onset)))
+        return out
+
+    def _signal_status(self, breaths, a95: float, noise_s: float):
+        if not breaths:
+            return "sin_senal_respiratoria", "ninguna excursión supera el ruido de la propia señal"
+        return "ok", ""
+
+    def _respiratory_rate(self, breaths, events):
+        if len(breaths) < MIN_BREATHS_FOR_RATE:
+            return None, None, None, None
+        t = np.array([b.onset_time_s for b in breaths])
+        iv, lo, hi = np.diff(t), t[:-1], t[1:]
+        keep = np.ones(len(iv), dtype=bool)
+        for e in events:  # los intervalos que contienen una apnea no son respiraciones consecutivas
+            keep &= ~((lo < e["end_time"]) & (hi > e["start_time"]))
+        iv = iv[keep]
+        if len(iv) < 2:
+            return None, None, None, None
+        mean = float(np.mean(iv))
+        rr = 60.0 / mean
+        return rr, round_half_up(rr), float(np.std(iv, ddof=1)), mean
+
+    # ------------------------------------------------------------------ apneas
+    def _runs(self, mask: np.ndarray):
+        d = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
+        return list(zip(np.where(d == 1)[0], np.where(d == -1)[0]))  # [a, b) semiabierto
+
+    def _baseline(self, breaths, a_idx: int):
+        """Línea basal previa al evento (Berry/Chicago). Devuelve (amplitud, n, ventana_s, regla) o None."""
+        fs = self.sampling_rate
+        t_a = a_idx / fs
+        prev = [b for b in breaths if t_a - BASELINE_WINDOW_S <= b.peak_time_s < t_a]
+        if not prev:
+            return None
+        amps = np.array([b.peak_amplitude for b in prev])
+        cv = float(np.std(amps) / np.mean(amps)) if len(amps) > 1 and np.mean(amps) > 0 else 0.0
+        if len(amps) > STABLE_BREATHS_TO_AVERAGE and cv > HEURISTICS["baseline_stability_cv"][0]:
+            value, rule = float(np.mean(np.sort(amps)[-STABLE_BREATHS_TO_AVERAGE:])), "media de las 3 mayores (patrón inestable)"
         else:
-            airflow_norm = airflow_filt
-        
-        return airflow_norm
-    
-    def _detect_breaths(
-        self,
-        airflow: np.ndarray,
-        time: np.ndarray
-    ) -> List[BreathDetection]:
-        """Detect individual breaths from airflow signal"""
-        
-        breaths = []
-        
-        # Find inspiration peaks (positive)
-        inspiration_peaks, _ = find_peaks(
-            airflow,
-            distance=int(self.sampling_rate * 1.5)  # Min 1.5s between peaks
-        )
-        
-        # Find expiration valleys (negative)
-        expiration_peaks, _ = find_peaks(
-            -airflow,
-            distance=int(self.sampling_rate * 1.5)
-        )
-        
-        # Pair inspirations and expirations
-        for i, insp_idx in enumerate(inspiration_peaks[:-1]):
-            # Find next expiration after this inspiration
-            exp_indices = expiration_peaks[expiration_peaks > insp_idx]
-            
-            if len(exp_indices) > 0:
-                exp_idx = exp_indices[0]
-                
-                # Find next inspiration or end of breath cycle
-                next_insp = inspiration_peaks[i + 1] if i + 1 < len(inspiration_peaks) else len(airflow)
-                
-                # Calculate metrics
-                insp_duration = (exp_idx - insp_idx) / self.sampling_rate
-                exp_duration = (next_insp - exp_idx) / self.sampling_rate
-                total_duration = (next_insp - insp_idx) / self.sampling_rate
-                
-                ie_ratio = insp_duration / exp_duration if exp_duration > 0 else 0
-                peak_amplitude = airflow[insp_idx]
-                
-                breath = BreathDetection(
-                    breath_num=i,
-                    inspiration_start_idx=insp_idx,
-                    inspiration_end_idx=exp_idx,
-                    expiration_end_idx=next_insp,
-                    peak_amplitude=peak_amplitude,
-                    duration_seconds=total_duration,
-                    inspiration_time=insp_duration,
-                    expiration_time=exp_duration,
-                    i_e_ratio=ie_ratio
-                )
-                
-                breaths.append(breath)
-        
-        return breaths
-    
-    def _calculate_respiratory_rate(
-        self,
-        breaths: List[BreathDetection]
-    ) -> Tuple[float, float]:
-        """Calculate respiratory rate and variability"""
-        
-        if len(breaths) < 2:
-            return 0, 0
-        
-        # Calculate RR intervals (time between breaths)
-        rr_intervals = [
-            breaths[i + 1].breath_num - breaths[i].breath_num
-            for i in range(len(breaths) - 1)
-        ]
-        
-        # Convert to breaths per minute
-        mean_interval = np.mean(rr_intervals)
-        rr = 60.0 / mean_interval if mean_interval > 0 else 0
-        
-        # Variability (coefficient of variation)
-        rr_std = np.std(rr_intervals)
-        
-        return rr, rr_std
-    
-    def _detect_apneas(
-        self,
-        airflow: np.ndarray,
-        time: np.ndarray,
-        breaths: List[BreathDetection],
-        respiratory_effort: Optional[np.ndarray] = None
-    ) -> Tuple[bool, str, List[Dict], float]:
-        """
-        Detect apneas and classify type
-        
-        Central apnea: No airflow + No respiratory effort
-        Obstructive apnea: No airflow but WITH respiratory effort
-        """
-        
-        apnea_events = []
-        apnea_threshold = 10.0  # 10 seconds
-        
-        # Define apnea windows (periods without meaningful airflow)
-        apnea_mask = np.abs(airflow) < 0.1  # Low airflow threshold
-        
-        # Find continuous segments of apnea
-        apnea_transitions = np.diff(apnea_mask.astype(int))
-        apnea_starts = np.where(apnea_transitions == 1)[0]
-        apnea_ends = np.where(apnea_transitions == -1)[0]
-        
-        # Match starts and ends
-        for start, end in zip(apnea_starts, apnea_ends):
-            duration = (end - start) / self.sampling_rate
-            
-            if duration >= (apnea_threshold / 10):  # Minimum apnea detection
-                # Classify as central or obstructive
-                if respiratory_effort is not None:
-                    # Check if there's respiratory effort during apnea
-                    effort_during_apnea = respiratory_effort[start:end]
-                    mean_effort = np.mean(np.abs(effort_during_apnea))
-                    
-                    if mean_effort > 0.3:  # Significant effort
-                        apnea_type = "obstructive"
-                    else:
-                        apnea_type = "central"
-                else:
-                    apnea_type = "unknown"
-                
-                apnea_event = {
-                    'start_time': time[start],
-                    'end_time': time[end],
-                    'duration': duration,
-                    'type': apnea_type
-                }
-                
-                apnea_events.append(apnea_event)
-        
-        # Calculate Apnea-Hypopnea Index (AHI)
-        total_time_hours = time[-1] / 3600.0
-        ahi = len(apnea_events) / total_time_hours if total_time_hours > 0 else 0
-        
-        apnea_detected = len(apnea_events) > 0
-        
-        # Determine predominant apnea type
-        if apnea_detected:
-            types = [e['type'] for e in apnea_events]
-            predominant_type = max(set(types), key=types.count) if types else "unknown"
+            value, rule = float(np.mean(amps)), "media de las respiraciones previas (patrón estable)"
+        return value, len(prev), float(t_a - prev[0].peak_time_s), rule
+
+    def _detect_apneas(self, s, time, breaths, effort):
+        fs = self.sampling_rate
+        n = len(s)
+        amps = np.array([b.peak_amplitude for b in breaths])
+        b_max = float(np.max(amps))
+        events, non_eval = [], []
+        a_abs = np.abs(s)
+        # candidatos generosos (umbral sobre la mayor cresta); se refinan con la basal previa de cada evento
+        for a, b in self._runs(a_abs < (1.0 - APNEA_DROP_FRACTION) * b_max):
+            if (b - a) / fs < APNEA_MIN_DURATION_S - 2.0:  # los bordes se afinan abajo; el piso evita revisar ruido
+                continue
+            if a == 0:
+                non_eval.append({"start_time": float(time[0]), "end_time": float(time[0]) + (b - a) / fs,
+                                 "duration": (b - a) / fs, "reason": "ya en curso al inicio del registro (sin basal previa)"})
+                continue
+            base = self._baseline(breaths, a)
+            if base is None:
+                non_eval.append({"start_time": float(time[a]), "end_time": float(time[0]) + b / fs, "duration": (b - a) / fs,
+                                 "reason": "sin respiración previa que sirva de basal"})
+                continue
+            value, n_prev, win_s, rule = base
+            thr = (1.0 - APNEA_DROP_FRACTION) * value
+            # run real con la basal del evento, alrededor del candidato
+            mid = (a + b) // 2
+            if a_abs[mid] >= thr:
+                continue
+            lo = mid
+            while lo > 0 and a_abs[lo - 1] < thr:
+                lo -= 1
+            hi = mid
+            while hi < n - 1 and a_abs[hi + 1] < thr:
+                hi += 1
+            truncated = hi == n - 1
+            dur = (hi + 1 - lo) / fs
+            if lo == 0:
+                non_eval.append({"start_time": float(time[0]), "end_time": float(time[0]) + dur, "duration": dur,
+                                 "reason": "ya en curso al inicio del registro (sin basal previa)"})
+                continue
+            if dur < APNEA_MIN_DURATION_S:
+                continue
+            ev = {
+                "start_time": float(time[lo]), "end_time": float(time[0]) + (hi + 1) / fs, "duration": dur,
+                "truncated": bool(truncated),
+                "baseline": {"amplitude": value, "n_breaths": n_prev, "window_s": win_s, "rule": rule,
+                             "declared_short": bool(win_s < BASELINE_WINDOW_S - 1.0)},
+            }
+            ev.update(self._classify(ev, lo, hi, breaths, effort, s_effort_cache=None))
+            events.append(ev)
+        events.sort(key=lambda e: e["start_time"])
+        return events, non_eval
+
+    def _classify(self, ev, lo, hi, breaths, effort, s_effort_cache):
+        """Tipo por esfuerzo (Criterio BIOCORE). Mixta: PENDING_VALIDATION."""
+        if effort is None:
+            return {"type": "unknown", "type_detail": "sin canal de esfuerzo", "type_label": "Criterio BIOCORE", "mixed_pending": False}
+        fs = self.sampling_rate
+        eff = np.abs(self._smooth(np.asarray(effort, dtype=float), HEURISTICS["breath_smoothing_s"][0]))  # suavizar CON signo y luego |.|: promediar |ruido| lo dejaría en 0.8 sd
+        noise = self._noise_sd(np.asarray(effort, dtype=float)) / np.sqrt(max(1, int(round(HEURISTICS["breath_smoothing_s"][0] * fs))))
+        pre_a = max(0, lo - int(BASELINE_WINDOW_S * fs))
+        pre = eff[pre_a:lo]
+        # la basal de esfuerzo se toma de las cimas previas (p95 del esfuerzo suavizado)
+        e_base = float(np.percentile(pre, 95)) if len(pre) else 0.0
+        if e_base < HEURISTICS["effort_min_to_noise"][0] * noise:
+            return {"type": "unknown", "type_detail": "esfuerzo basal no medible", "type_label": "Criterio BIOCORE", "mixed_pending": False}
+        cyc = ev_cycle = None
+        t = np.array([b.peak_time_s for b in breaths if b.peak_time_s < lo / fs])
+        cycle = float(np.median(np.diff(t))) if len(t) >= 3 else 4.0
+        w = max(int(HEURISTICS["effort_window_cycles"][0] * cycle * fs), int(1.0 * fs))
+        env = maximum_filter1d(eff, w)
+        a_i, b_i = lo + w // 2, hi + 1 - w // 2
+        seg = env[a_i:b_i] if b_i > a_i else env[lo:hi + 1]
+        present = float(np.mean(seg >= (1.0 - APNEA_DROP_FRACTION) * e_base))
+        if present >= HEURISTICS["effort_present_fraction"][0]:
+            kind = "obstructive"
+        elif present <= HEURISTICS["effort_absent_fraction"][0]:
+            kind = "central"
         else:
-            predominant_type = "none"
-        
-        return apnea_detected, predominant_type, apnea_events, ahi
-    
-    def _classify_breathing_pattern(
-        self,
-        breaths: List[BreathDetection],
-        time: np.ndarray
-    ) -> str:
-        """Classify breathing pattern"""
-        
-        if len(breaths) < 3:
-            return "insufficient_data"
-        
-        # Calculate cycle regularity (coefficient of variation of cycle times)
-        cycle_times = [b.duration_seconds for b in breaths]
-        cv = np.std(cycle_times) / np.mean(cycle_times) if np.mean(cycle_times) > 0 else 0
-        
-        # Calculate I:E ratio regularity
-        ie_ratios = [b.i_e_ratio for b in breaths]
-        ie_cv = np.std(ie_ratios) / np.mean(ie_ratios) if np.mean(ie_ratios) > 0 else 0
-        
-        if cv < 0.15 and ie_cv < 0.20:
-            return "regular"
-        elif cv > 0.50 and ie_cv > 0.40:
-            return "irregular"
-        elif time[-1] > 60 and cv < 0.40:
-            # Periodic if longer record and moderate variability
-            return "periodic"
-        else:
-            return "normal"
-    
-    def _analyze_spo2(
-        self,
-        spo2: np.ndarray,
-        time: np.ndarray
-    ) -> Tuple[float, float, float, float, float, float]:
-        """Analyze SpO2 statistics"""
-        
-        baseline = np.percentile(spo2, 90)  # 90th percentile as baseline
-        minimum = np.min(spo2)
-        nadir_idx = np.argmin(spo2)
-        nadir_time = time[nadir_idx]
-        
-        # Time below thresholds
-        t_below_90 = np.sum(spo2 < 90) / self.sampling_rate
-        t_below_85 = np.sum(spo2 < 85) / self.sampling_rate
-        
-        # Oxygen Desaturation Index (ODI): dips >3%
-        # Simplified: count drops >3% from baseline
-        baseline_for_odi = np.percentile(spo2, 95)
-        dips = baseline_for_odi - spo2
-        significant_dips = np.sum(dips > 3)
-        
-        total_time_hours = time[-1] / 3600.0
-        odi = significant_dips / total_time_hours if total_time_hours > 0 else 0
-        
-        return baseline, minimum, nadir_time, t_below_90, t_below_85, odi
-    
-    def _assess_severity(
-        self,
-        ahi: float,
-        odi: float,
-        spo2_min: float,
-        pattern: str
-    ) -> str:
-        """Assess overall sleep apnea severity"""
-        
-        # AASM Sleep Apnea Severity Classification
-        if ahi < 5:
-            return "normal"
-        elif ahi < 15:
-            if spo2_min < 85:
-                return "moderate"
-            else:
-                return "mild"
-        elif ahi < 30:
-            return "moderate"
-        else:
-            return "severe"
-    
-    def _generate_clinical_notes(
-        self,
-        rr: float,
-        pattern: str,
-        apnea_detected: bool,
-        apnea_type: str,
-        spo2_min: float,
-        ahi: float
-    ) -> List[str]:
-        """Generate clinical interpretation notes"""
-        
-        notes = []
-        
-        # Respiratory rate assessment
-        if 12 <= rr <= 20:
-            notes.append("✅ Respiratory rate within normal range")
-        elif rr > 20:
-            notes.append(f"⚠️ Tachypnea detected (RR {rr:.0f}/min)")
-        elif rr < 12:
-            notes.append(f"⚠️ Bradypnea detected (RR {rr:.0f}/min)")
-        
-        # Pattern assessment
-        if pattern == "regular":
-            notes.append("✅ Regular, orderly breathing pattern")
-        elif pattern == "irregular":
-            notes.append("⚠️ Irregular breathing pattern - may indicate sleep instability")
-        elif pattern == "periodic":
-            notes.append("⚠️ Periodic breathing detected - characteristic of sleep apnea")
-        
-        # Apnea assessment
-        if apnea_detected:
-            notes.append(f"🔴 {apnea_type.upper()} apnea detected (AHI {ahi:.1f} events/hour)")
-            if ahi > 30:
-                notes.append("🔴 SEVERE sleep apnea - cardiology referral recommended")
-            elif ahi > 15:
-                notes.append("⚠️ Moderate sleep apnea - CPAP therapy consideration")
-        else:
-            notes.append("✅ No apneas detected")
-        
-        # SpO2 assessment
-        if spo2_min >= 95:
-            notes.append("✅ SpO2 maintained >95% - adequate oxygenation")
-        elif spo2_min >= 90:
-            notes.append(f"⚠️ SpO2 drops to {spo2_min:.0f}% - mild hypoxemia during events")
-        elif spo2_min >= 85:
-            notes.append(f"🔴 SpO2 drops to {spo2_min:.0f}% - significant hypoxemia")
-        else:
-            notes.append(f"🔴 CRITICAL: SpO2 drops to {spo2_min:.0f}% - severe hypoxemia")
-        
-        return notes
+            kind = "mixed"
+        return {"type": kind, "type_detail": f"esfuerzo presente en {present:.0%} del evento", "type_label": "Criterio BIOCORE",
+                "mixed_pending": kind == "mixed"}
 
-
-def create_respiratory_summary(analysis: RespiratoryAnalysis) -> str:
-    """Create readable clinical summary"""
-    
-    summary = f"""
-╔════════════════════════════════════════════════════════╗
-║         RESPIRATORY ANALYSIS CLINICAL SUMMARY          ║
-╚════════════════════════════════════════════════════════╝
-
-RESPIRATORY MECHANICS:
-  Respiratory Rate: {analysis.respiratory_rate:.1f} breaths/min (variability: {analysis.rr_variability:.2f})
-  Breathing Pattern: {analysis.breathing_pattern.upper()}
-  Total Breaths Detected: {len(analysis.breaths)}
-
-APNEA ANALYSIS:
-  Apneas Detected: {"YES" if analysis.apnea_detected else "NO"}
-  Type: {analysis.apnea_type.upper()}
-  Events: {len(analysis.apnea_events)}
-  AHI (Apnea-Hypopnea Index): {analysis.apnea_hypopnea_index:.1f} events/hour
-
-OXYGENATION:
-  Baseline SpO2: {analysis.baseline_spo2:.1f}%
-  Minimum SpO2: {analysis.minimum_spo2:.1f}%
-  Time <90%: {analysis.time_below_90:.1f} seconds
-  Time <85%: {analysis.time_below_85:.1f} seconds
-  ODI (Desaturation Index): {analysis.oxygen_desaturation_index:.1f} events/hour
-
-SEVERITY: {analysis.severity.upper()}
-
-CLINICAL NOTES:
-{"".join([f"  • {note}" for note in analysis.clinical_notes])}
-
-════════════════════════════════════════════════════════
-
-    ⚠️ Correlation with patient symptoms essential ⚠️
-    Consider: clinical presentation, daytime sleepiness,
-              BMI, age, comorbidities, medication effects
-════════════════════════════════════════════════════════
-"""
-    return summary
-
-
-if __name__ == "__main__":
-    from respiratory_generator import RespiratorySignalGenerator, RespiratoryPattern
-    
-    print("Testing respiratory analyzer...")
-    
-    # Generate test signal
-    generator = RespiratorySignalGenerator(sampling_rate=100)
-    params = RespiratoryPattern(
-        respiratory_rate=15,
-        pattern_type="apnea_obstructive"
-    )
-    respiration = generator.generate_respiration(duration=120, params=params)
-    
-    # Analyze
-    analyzer = RespiratoryAnalyzer(sampling_rate=100)
-    analysis = analyzer.analyze_respiration(
-        airflow=respiration['airflow'],
-        time=respiration['time'],
-        spo2=respiration['spo2'],
-        respiratory_effort=respiration['chest_wall']
-    )
-    
-    # Display results
-    summary = create_respiratory_summary(analysis)
-    print(summary)
+    # ------------------------------------------------------------------ SpO2
+    def _analyze_spo2(self, spo2: np.ndarray, time: np.ndarray):
+        fs = self.sampling_rate
+        p95 = np.percentile(spo2, 95)
+        cluster = spo2[spo2 >= p95 - HEURISTICS["spo2_stable_cluster_points"][0]]
+        baseline = float(np.median(cluster))
+        minimum = float(np.min(spo2))
+        nadir_time = float(time[int(np.argmin(spo2))])
+        return baseline, minimum, nadir_time, float(np.sum(spo2 < 90) / fs), float(np.sum(spo2 < 85) / fs)

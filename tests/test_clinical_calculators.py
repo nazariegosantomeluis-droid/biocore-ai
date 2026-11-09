@@ -385,7 +385,7 @@ def test_page_shows_every_citation():
     assert not at.exception, at.exception
     text = _text(at)
     citations = {n: getattr(c, n) for n in dir(c) if n.endswith("_CITATION")}
-    assert len(citations) == 20
+    assert len(citations) == 21  # 20 + OSA_SEVERITY_CITATION (arco respiratorio, 2026-11-07)
     missing = [n for n, v in citations.items() if v not in text]
     assert not missing, missing
 
@@ -439,3 +439,35 @@ def test_no_unaudited_art_in_the_calculators():
     for path in ("clinical/calculators.py", "app/supermodules/calculators/pages.py"):
         src = (root / path).read_text(encoding="utf-8")
         assert "visualization.art" not in src and "render_plate(" not in src and "ollama" not in src.lower(), path
+
+
+# ═══ Severidad de la apnea del sueño (arco respiratorio, E18, 2026-11-07) ═══════════════════════════════════
+# Esperado: los cortes de Epstein 2009 transcritos como literal (leve ≥5 y <15, moderada ≥15 y ≤30, severa >30).
+
+@pytest.mark.parametrize("index,level,word", [
+    (0.0, "normal", "sin apnea"), (4.99, "normal", "sin apnea"),
+    (5.0, "leve", "leve"), (14.99, "leve", "leve"),
+    (15.0, "leve", "moderada"), (30.0, "leve", "moderada"),      # el 30 exacto es MODERADA (≤30)
+    (30.01, "severo", "severa"), (80.0, "severo", "severa"),
+])
+def test_e18_osa_severity_boundaries_follow_epstein_2009(index, level, word):
+    got_level, text, _ = c.classify_osa_severity(index)
+    assert got_level == level and word in text
+
+
+def test_osa_severity_is_not_available_without_a_number_and_has_its_citation():
+    assert c.classify_osa_severity(None)[0] == "no_disponible"
+    assert c.classify_osa_severity(float("nan"))[0] == "no_disponible"
+    assert "Epstein" in c.OSA_SEVERITY_CITATION and "J Clin Sleep Med 2009;5(3):263" in c.OSA_SEVERITY_CITATION
+    assert "hora de SUEÑO" in c.OSA_SEVERITY_CITATION  # advierte de qué hora es el índice
+
+
+def test_event_index_per_hour_is_events_over_hours_and_rejects_nonsense():
+    assert c.event_index_per_hour(12, 2.0) == pytest.approx(6.0)   # 12 eventos en 2 h = 6 por hora
+    assert c.event_index_per_hour(0, 7.0) == 0.0
+    for bad in ((-1, 2.0), (3, 0.0), (3, -1.0)):
+        with pytest.raises(ValueError):
+            c.event_index_per_hour(*bad)
+    # el mismo número de eventos en un registro de 2 minutos NO se convierte aquí en una categoría: la calculadora
+    # no sabe de ventanas; el laboratorio respiratorio no la usa para sus registros de minutos (ver su prueba)
+    assert c.event_index_per_hour(1, 2 / 60) == pytest.approx(30.0)
