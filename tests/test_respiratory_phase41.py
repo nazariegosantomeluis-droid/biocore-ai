@@ -65,22 +65,22 @@ def test_epsilon_of_the_edge_uncertainty_is_the_measured_p95_of_the_baseline_err
 
 
 def test_u_covers_the_real_duration_error_of_the_gradual_edge_events_and_flat_events_stay_precise(pairs):
-    bord = [(g, e) for g, e in pairs if e["borderline"]]
-    flat = [(g, e) for g, e in pairs if not e["borderline"]]
+    bord = [(g, e) for g, e in pairs if e["gradual_edge"]]
+    flat = [(g, e) for g, e in pairs if not e["gradual_edge"]]
     assert len(bord) >= 3 and max(e["edge_uncertainty_s"] for _, e in bord) > 1.0      # la medición no es vacía
     for g, e in bord:
         # U es la sensibilidad medida; cubre el error real de la duración (con la resolución de una muestra)
         assert abs(e["duration"] - g["duration_s"]) <= e["edge_uncertainty_s"] + 2.0 / FS
     for g, e in flat:
-        assert e["edge_uncertainty_s"] <= HEURISTICS["edge_borderline_uncertainty_s"][0]
-        assert abs(e["duration"] - g["duration_s"]) <= 0.5          # lo no borderline conserva la precisión de E7
+        assert e["edge_uncertainty_s"] <= HEURISTICS["gradual_edge_uncertainty_s"][0]
+        assert abs(e["duration"] - g["duration_s"]) <= 0.5          # lo no gradual_edge conserva la precisión de E7
 
 
 def test_calendar_apneas_have_abrupt_edges_and_negligible_u():
     for pattern in ("apnea_central", "apnea_obstructive"):
         for rr in (8, 15, 30):
             _, a = _run(pattern, rr, 300)
-            assert a.apnea_events and all(not e["borderline"] and e["edge_uncertainty_s"] < 0.1 for e in a.apnea_events)
+            assert a.apnea_events and all(not e["gradual_edge"] and e["edge_uncertainty_s"] < 0.1 for e in a.apnea_events)
             assert all(e["duration_criterion"] == DURATION_CRITERION_LABEL for e in a.apnea_events)
 
 
@@ -89,8 +89,8 @@ def test_the_duration_criterion_label_is_the_signed_one():
 
 
 def test_duration_text_shows_the_uncertainty_only_for_gradual_edges():
-    assert views.duration_text({"duration": 20.04, "borderline": False}) == "20.0 s"
-    assert views.duration_text({"duration": 24.86, "borderline": True, "edge_uncertainty_s": 2.45}) == "≈ 24.9 s, borde gradual ± 2.5 s"
+    assert views.duration_text({"duration": 20.04, "gradual_edge": False}) == "20.0 s"
+    assert views.duration_text({"duration": 24.86, "gradual_edge": True, "edge_uncertainty_s": 2.45}) == "≈ 24.9 s, borde gradual ± 2.5 s"
 
 
 def _events_table_app():
@@ -108,7 +108,7 @@ def _events_table_app():
     return AppTest.from_function(_script, default_timeout=60).run()
 
 
-def test_the_events_table_shows_borderline_durations_as_approximate_with_u():
+def test_the_events_table_shows_gradual_edge_durations_as_approximate_with_u():
     at = _events_table_app()
     assert at.exception == []
     rows = at.dataframe[0].value.to_dict("records")

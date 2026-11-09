@@ -38,7 +38,7 @@ def _overlaps(det, ann):
 def test_decision_1_detected_events_are_the_annotated_ones_in_120_records(irregularity):
     """120 registros por irregularidad (FR 8/15/30 x 40 semillas): ni un solo evento claro sin ver, ni una sola
     'falsa apnea' (todo lo detectado está anotado) y, en lo emparejado, inicio y duración a ±0.5 s."""
-    annotated = borderline = clear_found = false_events = 0
+    annotated = near_threshold = clear_found = false_events = 0
     records = 0
     for rr in (8, 15, 30):
         for seed in range(40):
@@ -50,22 +50,22 @@ def test_decision_1_detected_events_are_the_annotated_ones_in_120_records(irregu
             for ann in truth:
                 assert ann["origin"] == "emergente" and ann["type"] == "central"
                 hits = [i for i, det in enumerate(a.apnea_events) if _overlaps(det, ann)]
-                if ann["borderline"]:
-                    borderline += 1
+                if ann["near_threshold"]:
+                    near_threshold += 1
                 if hits:
                     det = a.apnea_events[hits[0]]
                     matched.add(hits[0])
                     assert det["start_time"] == pytest.approx(ann["start_s"], abs=TOL), (irregularity, rr, seed)
                     assert det["duration"] == pytest.approx(ann["duration_s"], abs=TOL), (irregularity, rr, seed)
                     assert det["type"] == ann["type"], (irregularity, rr, seed)
-                    clear_found += not ann["borderline"]
+                    clear_found += not ann["near_threshold"]
                 else:
-                    assert ann["borderline"], f"evento claro sin detectar: {(irregularity, rr, seed, ann)}"
+                    assert ann["near_threshold"], f"evento claro sin detectar: {(irregularity, rr, seed, ann)}"
             false_events += len(a.apnea_events) - len(matched)
-            if not any(e["borderline"] for e in truth):
+            if not any(e["near_threshold"] for e in truth):
                 assert a.apnea_count == len(truth), (irregularity, rr, seed)   # de aquí sale la respuesta del cuestionario
     assert records == 120 and false_events == 0
-    assert clear_found == annotated - borderline
+    assert clear_found == annotated - near_threshold
     if irregularity == 0.20:
         assert annotated == 0          # con el valor por defecto la atáxica no produce apneas: el ground truth lo dice
     else:
@@ -83,7 +83,7 @@ def test_emergent_events_declare_their_origin_baseline_and_margin():
     d, _ = _record(0.40, 8, 22)
     events = d["ground_truth"]["events"]
     assert events and all(e["origin"] == "emergente" for e in events)
-    assert all({"baseline_amplitude", "excursion_margin", "borderline", "spo2_nadir_time_s"} <= set(e) for e in events)
+    assert all({"baseline_amplitude", "excursion_margin", "near_threshold", "spo2_nadir_time_s"} <= set(e) for e in events)
     assert all(e["duration_s"] >= 10.0 for e in events)
     rule = d["ground_truth"]["event_rule"]
     assert rule["drop_fraction"] == 0.90 and rule["min_duration_s"] == 10.0 and "emergente" in rule["origins"]

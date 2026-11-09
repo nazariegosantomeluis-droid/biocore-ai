@@ -58,7 +58,7 @@ HEURISTICS = {
     "effort_window_cycles": (0.6, "ventana del esfuerzo = 0.6 ciclos (>= medio ciclo garantiza ver una cresta de |seno|)"),
     "effort_min_to_noise": (8.0, "el esfuerzo basal debe superar 8 x su ruido suavizado; si no, el tipo es 'sin esfuerzo medible'"),
     "edge_baseline_relative_error": (0.02, "incertidumbre relativa de la basal con que el detector fija el umbral del 10 %: p95 = 1.96 % (mediana 0.5 %, máx 3.6 %) del error |basal detectada - basal de la construcción| en 138 eventos (atáxica 0.30/0.40 y Cheyne-Stokes, FR 8-30); medición reproducible en tests/test_respiratory_phase41.py"),
-    "edge_borderline_uncertainty_s": (0.5, "un evento es 'borde gradual' si mover el umbral +-2 % cambia su duración más de 0.5 s (la precisión que el laboratorio reclama para una duración: tolerancia de E7); con bordes abruptos el cambio medido es < 0.1 s y con las colas de Cheyne-Stokes llega a varios segundos"),
+    "gradual_edge_uncertainty_s": (0.5, "un evento es 'borde gradual' si mover el umbral +-2 % cambia su duración más de 0.5 s (la precisión que el laboratorio reclama para una duración: tolerancia de E7); con bordes abruptos el cambio medido es < 0.1 s y con las colas de Cheyne-Stokes llega a varios segundos"),
     "spo2_stable_cluster_points": (3.0, "SpO2 basal = mediana de las muestras a <= 3 puntos del p95 (3 % = umbral de desaturación de Berry 2012)"),
 }
 
@@ -284,7 +284,7 @@ class RespiratoryAnalyzer:
                 ev = {
                     "duration_criterion": DURATION_CRITERION_LABEL,
                     "edge_uncertainty_s": u,
-                    "borderline": bool(u > HEURISTICS["edge_borderline_uncertainty_s"][0]),
+                    "gradual_edge": bool(u > HEURISTICS["gradual_edge_uncertainty_s"][0]),
                     "start_time": float(time[lo]), "end_time": float(time[0]) + (hi + 1) / fs, "duration": dur,
                     "truncated": bool(hi == n - 1),
                     "baseline": {"amplitude": value, "n_breaths": n_prev, "window_s": win_s, "rule": rule,

@@ -336,7 +336,7 @@ def test_cheyne_stokes_valley_duration_matches_the_annotation_within_2_seconds()
     anotación ya no es la ventana de flujo cero que pidió el patrón (20 s) sino el tramo que cumple la regla firmada
     (excursión < 10 % de la basal de Berry), calculado desde la construcción sin usar el detector.
 
-    Los eventos que el propio generador marca `borderline` (una respiración somera interior a < 5 % del umbral) no
+    Los eventos que el propio generador marca `near_threshold` (una respiración somera interior a < 5 % del umbral) no
     entran en la comparación de duración: ahí la envolvente cruza el 10 % muy despacio y 1 % de ruido o de basal mueve
     el borde 1-3 s (medido: hasta 2.8 s). Se exige que el detector los vea y se declara cuántos son."""
     compared = skipped = 0
@@ -349,9 +349,9 @@ def test_cheyne_stokes_valley_duration_matches_the_annotation_within_2_seconds()
             assert det["type"] in ("central", "mixed")                  # 'mixed' = esfuerzo >= 10 % en las colas (PENDING_VALIDATION)
             assert det["mixed_pending"] == (det["type"] == "mixed")
             # control independiente de la anotación: el tramo detectado contiene la ventana de flujo cero del patrón
-            assert det["start_time"] <= ann["construction_start_s"] + 0.5 or ann["borderline"]
-            assert det["end_time"] >= ann["construction_start_s"] + ann["construction_duration_s"] - 0.5 or ann["borderline"] or det["truncated"]
-            if ann["borderline"]:
+            assert det["start_time"] <= ann["construction_start_s"] + 0.5 or ann["near_threshold"]
+            assert det["end_time"] >= ann["construction_start_s"] + ann["construction_duration_s"] - 0.5 or ann["near_threshold"] or det["truncated"]
+            if ann["near_threshold"]:
                 skipped += 1
                 continue
             compared += 1

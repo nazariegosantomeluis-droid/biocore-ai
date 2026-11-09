@@ -73,7 +73,7 @@ BASELINE_STABILITY_CV = 0.30      # HEURISTIC: CV de las amplitudes a partir del
 # HEURISTIC: un evento está "al límite" si una respiración somera interior llega a >= 95 % del umbral del 10 % de la
 # basal, o si dura menos de 10.5 s. Calibrado con 360 registros atáxicos: los 3 eventos que el detector no ve tenían
 # un margen de 0.1-0.6 %; el ruido de la señal y de la basal (~1 %) decide ahí, no el algoritmo.
-BORDERLINE_MARGIN = 0.05
+NEAR_THRESHOLD_MARGIN = 0.05
 
 
 class ImpossibleParameters(ValueError):
@@ -334,10 +334,10 @@ class RespiratorySignalGenerator:
                 # ¿dura casi lo mínimo? Un evento así está al límite: el ruido de cualquier medición decide si se ve.
                 interior = a_abs[lo + int(fs):hi + 1 - int(fs)]
                 excursion_margin = 1.0 - float(interior.max()) / ((1.0 - APNEA_DROP_FRACTION) * base) if len(interior) else 1.0
-                borderline = excursion_margin < BORDERLINE_MARGIN or dur < APNEA_MIN_DURATION_S * (1.0 + BORDERLINE_MARGIN)
+                near_threshold = excursion_margin < NEAR_THRESHOLD_MARGIN or dur < APNEA_MIN_DURATION_S * (1.0 + NEAR_THRESHOLD_MARGIN)
                 ev = {"start_s": start, "duration_s": float(dur), "type": "central", "truncated": bool(hi == n - 1),
                       "origin": "emergente", "baseline_amplitude": float(base),
-                      "borderline": bool(borderline), "excursion_margin": float(excursion_margin)}
+                      "near_threshold": bool(near_threshold), "excursion_margin": float(excursion_margin)}
                 window = next((c for c in calendar if c["start_s"] < start + dur and c["start_s"] + c["duration_s"] > start), None)
                 if window is not None:
                     ev["origin"] = "calendario"

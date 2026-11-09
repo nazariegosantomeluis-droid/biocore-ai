@@ -8,7 +8,7 @@ Features:
 - SpO2 integration and monitoring
 - Sleep apnea severity assessment
 - Interactive educational content
-- ECG-Respiratory correlation
+- Cardiovascular correlation (only what the cited guidelines say)
 """
 
 import streamlit as st
@@ -121,7 +121,7 @@ with col1:
         max_value=40,
         value=15,
         step=1,
-        help="Rango normal: 12-20 resp/min"
+        help="12–20 resp/min puntúa 0 en NEWS2 (RCP 2017)"
     )
 
 with col2:
@@ -518,23 +518,22 @@ with tab4:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
-        #### 🫁 Parámetros Respiratorios Normales
-        
-        - **Frecuencia Respiratoria:** 12-20 respiraciones/minuto
-        - **Volumen Corriente:** 400-600 mL (0.4-0.6 L)
-        - **SpO2 Normal:** >95% en reposo
-        - **Patrón:** Regular, rítmico
-        
-        #### 📊 Patrones Anormales
-        
-        - **Taquipnea:** >20 resp/min (fiebre, ansiedad, dolor)
-        - **Bradipnea:** <12 resp/min (depresión SNC, fármacos)
-        - **Apnea:** >10 segundos sin flujo de aire
+        st.markdown(f"""
+        #### 🫁 Frecuencia respiratoria y SpO₂ según NEWS2
+
+        Puntos NEWS2 de la FR: **12–20 resp/min: 0**; 9–11: 1; 21–24: 2; ≤ 8: 3; ≥ 25: 3. Puntos de la SpO₂ (escala 1):
+        **≥ 96 %: 0**; 94–95: 1; 92–93: 2; ≤ 91: 3. Es una puntuación de alerta, no una etiqueta diagnóstica: fuera de 12–20
+        se dice «fuera de 12–20 (NEWS2)».
+
+        *Fuente: {NEWS2_CITATION}*
+
+        #### 📊 Patrones
+
+        - **Apnea (Berry 2012, AASM):** caída ≥ 90 % de la excursión del flujo respecto a la línea basal previa durante ≥ 10 s
         - **Cheyne-Stokes:** Ciclos periódicos de creciente-decreciente
         - **Atáxica:** Completamente irregular (lesión tronco cerebral)
         """)
-    
+
     with col2:
         st.markdown("""
         #### 😴 Apnea del Sueño - Clasificación AASM
@@ -580,7 +579,7 @@ with tab5:
         [
             "Diferenciación Apnea",
             "Factores de Riesgo",
-            "Correlación ECG-Respiratoria",
+            "Correlación cardiovascular (guía AASM)",
             "Frecuencia de esta señal",
             "Contar las apneas de esta señal",
         ]
@@ -635,37 +634,46 @@ with tab5:
     
     elif quiz_type == "Factores de Riesgo":
         st.info("""
-        **Pregunta:** ¿Cuál es el factor de riesgo MODIFICABLE más importante para AOS?
+        **Pregunta:** Según la guía de la AASM (Epstein 2009), ¿cuál de estos pacientes pertenece a un grupo de ALTO RIESGO
+        que debe evaluarse para apnea obstructiva del sueño?
         """)
-        
+
         answer = st.radio("Tu respuesta:", [
-            "✓ Obesidad (IMC >30)",
-            "Edad avanzada",
-            "Sexo masculino",
-            "Genética familiar"
+            "✓ Una persona con obesidad (IMC > 35)",
+            "Una persona de 25 años con IMC 22, sin síntomas ni otras condiciones",
+            "Una persona sana que viaja como pasajera",
         ])
-        
+
         if answer.startswith("✓"):
-            st.success("✅ ¡Correcto! La pérdida de peso es el tratamiento más efectivo en la mayoría de casos.")
+            st.success("✅ Correcto: la guía lista como alto riesgo la obesidad (IMC > 35), la insuficiencia cardíaca congestiva, la "
+                       "fibrilación auricular, la hipertensión refractaria al tratamiento, la diabetes tipo 2, el ACV, las "
+                       "disritmias nocturnas, la hipertensión pulmonar, las poblaciones de conducción de alto riesgo y la "
+                       "evaluación previa a cirugía bariátrica.")
         else:
-            st.error("❌ Aunque otros son factores de riesgo, la OBESIDAD es el modificable más importante")
-    
-    else:  # Correlación ECG-Respiratoria
+            st.error("❌ Esa persona no figura en la lista de alto riesgo de la guía (obesidad con IMC > 35, insuficiencia "
+                     "cardíaca congestiva, fibrilación auricular, hipertensión refractaria, diabetes tipo 2, ACV, disritmias "
+                     "nocturnas, hipertensión pulmonar, conducción de alto riesgo, cirugía bariátrica).")
+
+    else:  # Correlación cardiovascular (antes «ECG-Respiratoria»: sus afirmaciones no tenían fuente)
         st.info("""
-        **Pregunta:** Durante una apnea prolongada con desaturación importante, ¿qué cambios esperas en el ECG?
+        **Pregunta:** ¿Qué condiciones del ritmo cardíaco figuran entre los pacientes de alto riesgo que la guía de la AASM
+        (Epstein 2009) pide evaluar para apnea obstructiva del sueño?
         """)
-        
+
         answer = st.radio("Tu respuesta:", [
-            "✓ Bradicardia, potencial aumento de arritmias, cambios ST",
-            "Taquicardia sostenida",
-            "Cambios isoelétricos sin importancia",
-            "Alteraciones de onda P únicamente"
+            "✓ Fibrilación auricular y disritmias nocturnas",
+            "Ninguna: la guía no menciona alteraciones del ritmo cardíaco",
+            "Solo la taquicardia sostenida",
         ])
-        
+
         if answer.startswith("✓"):
-            st.success("✅ ¡Correcto! La hipoxia crónica causa bradicardia vagal e incrementa arritmias (incluyendo FA).")
+            st.success("✅ Correcto: la fibrilación auricular y las disritmias nocturnas figuran en la lista de alto riesgo de la guía. "
+                       "Berry 2012 añade que un estudio con la definición de hipopnea de ≥ 3 % de desaturación encontró asociación "
+                       "entre el índice de eventos y la fibrilación auricular o la ectopia ventricular compleja en hombres mayores "
+                       "sin insuficiencia cardíaca declarada.")
         else:
-            st.error("❌ La respuesta correcta incluye bradicardia y potencial para arritmias por hipoxia")
+            st.error("❌ La guía sí las menciona: la fibrilación auricular y las disritmias nocturnas están en su lista de pacientes "
+                     "de alto riesgo.")
 
 st.markdown("---")
 
@@ -712,7 +720,7 @@ with st.sidebar:
         "Introducción",
         "Patrones Clínicos",
         "Apnea del Sueño",
-        "Correlación Cardio-Respiratoria"
+        "Correlación cardiovascular (guía AASM)"
     ], key="edu_sidebar")
     
     if edu_section == "Introducción":
@@ -731,58 +739,42 @@ with st.sidebar:
     
     elif edu_section == "Patrones Clínicos":
         st.markdown("""
-        #### 🫁 Patrones Respiratorios
-        
-        **Normal:**
-        - 12-20 resp/min
-        - Regular, rítmico
-        
-        **Taquipnea:**
-        - >20 resp/min
-        - Estrés, fiebre, dolor
-        
-        **Bradipnea:**
-        - <12 resp/min
-        - Depresión SNC
-        
-        **Cheyne-Stokes:**
-        - Creciente-decreciente
-        - Insuficiencia cardíaca
+        #### 🫁 Frecuencia respiratoria (NEWS2)
+
+        - 12–20 resp/min: 0 puntos
+        - 9–11 resp/min: 1 punto; 21–24: 2 puntos
+        - ≤ 8 o ≥ 25 resp/min: 3 puntos
+        - Fuera de 12–20 se dice «fuera de 12–20 (NEWS2)», sin etiqueta diagnóstica
+
+        **Cheyne-Stokes (Berry 2012):**
+        - Se puntúa con ≥ 3 apneas/hipopneas centrales consecutivas con ciclo ≥ 40 s y ≥ 5 por hora en ≥ 2 h de registro
+        - Puede reflejar una insuficiencia cardíaca congestiva no reconocida
         """)
-    
+
     elif edu_section == "Apnea del Sueño":
         st.markdown("""
-        #### 😴 Datos Importantes
-        
-        - **Prevalencia:** 10-30% adultos
-        - **No diagnosticada:** 80% casos
-        - **Complicaciones:** ↑ CV 3-4x
-        
-        **Síntomas:**
+        #### 😴 Datos de la guía AASM (Epstein 2009)
+
+        - **Prevalencia:** al menos 2–4 % de la población adulta
+        - **Condiciones secundarias que la guía pide evaluar:** hipertensión, ACV, infarto de miocardio, cor pulmonale,
+          menor alerta diurna y accidentes de tráfico
+
+        **Síntomas que la guía pide evaluar:**
+        - Apneas presenciadas
         - Ronquido
-        - Somnolencia
-        - Pausas respiratorias
-        - Despertar abrupto
-        - Sudoración nocturna
-        
-        **Gold Standard:** Polisomnografía
+        - Ahogo o asfixia nocturnos
+        - Somnolencia excesiva no explicada por otros factores
+
+        **Diagnóstico:** la guía acepta dos métodos objetivos: polisomnografía en laboratorio y monitores portátiles en casa
         """)
-    
+
     else:  # Correlación
         st.markdown("""
-        #### 💓 ECG-Respiration
-        
-        **Arritmias por Apnea:**
-        - Hipoxia → ↑ Simpático
-        - Apnea → Bradicardia vagal
-        - Reoxigenación → Taquicardia
-        
-        **Resultado:**
-        - ↑ Variabilidad FC
-        - ↑ Fibrilación Auricular
-        - ↑ Muerte Súbita Nocturna
-        
-        **Conclusión:**
-        Integrar análisis ECG y
-        respiratorio es ESENCIAL
+        #### 💓 Correlación cardiovascular (guía AASM)
+
+        - La apnea obstructiva del sueño se acompaña de fragmentación del sueño, hipoxemia, hipercapnia, grandes oscilaciones
+          de la presión intratorácica y aumento de la actividad simpática (Epstein 2009)
+        - La fibrilación auricular y las disritmias nocturnas figuran entre los pacientes de alto riesgo que se evalúan para AOS
+        - Berry 2012 cita un estudio que asoció el índice de eventos con fibrilación auricular o ectopia ventricular compleja
+          en hombres mayores sin insuficiencia cardíaca declarada
         """)

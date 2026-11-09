@@ -132,9 +132,9 @@ def clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> List[str]:
 
 
 def duration_text(event) -> str:
-    """Duración de un evento. Con borde gradual (`borderline`) NO se da un número preciso: «≈ X s, borde gradual ± U s»,
+    """Duración de un evento. Con borde gradual (`gradual_edge`) NO se da un número preciso: «≈ X s, borde gradual ± U s»,
     con U = cuánto cambia la duración si la basal se mueve ±2 % (medido; ver `HEURISTICS` del analizador)."""
-    if event.get("borderline"):
+    if event.get("gradual_edge"):
         return f"≈ {event['duration']:.1f} s, borde gradual ± {event['edge_uncertainty_s']:.1f} s"
     return f"{event['duration']:.1f} s"
 
@@ -176,7 +176,7 @@ def render_apnea_cards(analysis) -> None:
         render_metric_card("Apneas (≥ 10 s, caída ≥ 90 %)", f"{analysis.apnea_count}{detail}",
                            provenance=BADGES.CLINICAL, citation=APNEA_CITATION)
     with c2:
-        approx = "≈ " if any(e.get("borderline") for e in analysis.apnea_events) else ""
+        approx = "≈ " if any(e.get("gradual_edge") for e in analysis.apnea_events) else ""
         render_metric_card("Tiempo total de apnea", f"{approx}{analysis.apnea_total_time_s:.1f} s",
                            provenance=BADGES.CLINICAL, citation=APNEA_CITATION)
     with c3:
@@ -214,9 +214,11 @@ def render_events_table(analysis) -> None:
             f"{BADGES.METHOD} Tipo: «esfuerzo ausente» = caída ≥ 90 % del esfuerzo respecto a su basal (Criterio BIOCORE)."
         )
         st.caption(f"{BADGES.METHOD} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
-        if any(e.get("borderline") for e in analysis.apnea_events):
-            st.caption("«≈ X s, borde gradual ± U s»: el evento termina en una cola gradual; U es cuánto cambia su duración si la "
-                       "basal se mueve ±2 % (error p95 medido de la basal del detector). No es un número preciso.")
+        if any(e.get("gradual_edge") for e in analysis.apnea_events):
+            st.caption("«≈ X s, borde gradual ± U s»: U es cuánto cambia la duración del evento si la basal (y con ella el umbral "
+                       "del 10 %) se mueve un 2 %, el p95 medido del error de la basal del detector. Puede ser grande en un borde "
+                       "gradual: la señal cruza el 10 % de la basal muy despacio (cola de la modulación o respiración somera "
+                       "cercana al umbral) y un cambio pequeño del umbral mueve el borde varios segundos. No es un número preciso.")
     else:
         st.success("No se detectaron apneas de ≥ 10 s en este registro (no descarta apneas en otros registros).")
     for e in analysis.non_evaluable_events:
