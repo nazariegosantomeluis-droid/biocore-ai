@@ -120,6 +120,8 @@ LEGACY_FINGERPRINTS = [
 
 # --- Huellas que CAMBIARON A PROPOSITO en la fase 2b (señales sin ruido, calculadas con el generador nuevo) ---
 # SpO2: ya no se deriva de |flujo| (modelo de eventos); Cheyne-Stokes: cada valle es una apnea central.
+# Fase 4.1 (decisión 2): el tórax de Cheyne-Stokes cambió a propósito (esfuerzo ausente en TODO el evento central);
+# su flujo es idéntico a la fase 4 (misma huella de 'airflow').
 # Fase 4 (decisión 7): la SpO2 de Cheyne-Stokes cambió otra vez porque la duración del evento que la gobierna ahora se
 # mide con la regla firmada (24-29 s según la FR), no con la ventana de flujo cero de 20 s; el flujo y el esfuerzo no cambiaron.
 CHANGED_ON_PURPOSE_FINGERPRINTS = [
@@ -128,9 +130,9 @@ CHANGED_ON_PURPOSE_FINGERPRINTS = [
     ('apnea_obstructive', {'rr': 20, 'dur': 100, 'tv': 0.3}, {'spo2': (971428.571, 94394285.640285, 98.0, 92.0)}),
     ('apnea_central', {'rr': 15, 'dur': 120, 'b': 95, 'd': 70}, {'spo2': (1131054.321, 106634980.590035, 95.0, 89.0)}),
     ('apnea_central', {'rr': 15, 'dur': 110}, {'spo2': (1069428.571, 103998285.640285, 98.0, 92.0)}),
-    ('cheyne_stokes', {'rr': 12, 'dur': 300}, {'airflow': (22917.604936, 48114.978588, 5.850111898, -2.706723838), 'chest_wall': (3183.056974, 831.354404, 0.469166407, -0.469166407), 'spo2': (2865389.268, 273927807.118796, 98.0, 89.222)}),
-    ('cheyne_stokes', {'rr': 30, 'dur': 300}, {'airflow': (71613.833808, 468571.896345, 14.625279745, -7.312639872), 'chest_wall': (3182.837058, 833.016705, 0.487509325, -0.487509325), 'spo2': (2883202.242, 277273961.149484, 98.0, 90.344)}),
-    ('cheyne_stokes', {'rr': 15, 'dur': 180, 'cs': 45.0}, {'airflow': (14923.150993, 41038.442893, 7.5, -3.75), 'chest_wall': (1591.656325, 416.6668, 0.480665808, -0.480665808), 'spo2': (1725696.283, 165546208.298861, 98.0, 90.431)}),
+    ('cheyne_stokes', {'rr': 12, 'dur': 300}, {'airflow': (22917.604936, 48114.978588, 5.850111898, -2.706723838), 'chest_wall': (3026.837571, 821.648158, 0.469166407, -0.469166407), 'spo2': (2865389.268, 273927807.118796, 98.0, 89.222)}),
+    ('cheyne_stokes', {'rr': 30, 'dur': 300}, {'airflow': (71613.833808, 468571.896345, 14.625279745, -7.312639872), 'chest_wall': (3128.677694, 831.129279, 0.487509325, -0.487509325), 'spo2': (2883202.242, 277273961.149484, 98.0, 90.344)}),
+    ('cheyne_stokes', {'rr': 15, 'dur': 180, 'cs': 45.0}, {'airflow': (14923.150993, 41038.442893, 7.5, -3.75), 'chest_wall': (1544.876843, 414.051984, 0.480665808, -0.480665808), 'spo2': (1725696.283, 165546208.298861, 98.0, 90.431)}),
 ]
 
 _SPEC_KEYS = {"rr": "respiratory_rate", "tv": "tidal_volume", "insp": "inspiration_time", "b": "baseline_spo2",

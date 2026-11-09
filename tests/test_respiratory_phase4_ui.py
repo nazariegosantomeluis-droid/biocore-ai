@@ -160,7 +160,7 @@ def test_the_spo2_chart_has_no_unsourced_hypoxemia_lines_and_the_flow_axis_is_re
     assert at.exception == []
     specs = " ".join(str(c.proto.spec) for c in at.get("plotly_chart"))
     assert "Hipoxemia leve" not in specs and "Hipoxemia grave" not in specs
-    assert "Normal" in specs                                                            # la línea de 95 % se conserva
+    assert "Normal" not in specs                                                        # fase 4.1: tampoco la línea de 95 %
     assert "unidades relativas: la escala absoluta no corresponde al volumen corriente elegido" in specs
     assert "L/min" not in specs
     for path in Path("app/supermodules/respiratory_lab").glob("*.py"):

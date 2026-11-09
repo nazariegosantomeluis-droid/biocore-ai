@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from app.supermodules.respiratory_lab import views
+
 LAB = Path("app/supermodules/respiratory_lab")
 CALC_PAGE = "🧮 Calculadoras Clínicas"
 PROVENANCE = "Simulación — modelo BIOCORE: Tc valor BIOCORE; r y recuperación, Howarth 2026"
@@ -130,7 +132,7 @@ def test_a_normal_record_says_no_apneas_without_ruling_them_out_elsewhere(temp_u
 def test_hidden_values_stay_hidden(temp_ups, pattern):
     sf, pid = temp_ups
     at = _app(sf, pid, pattern)
-    text = _text(at)
+    text = _text(at).replace(views.EDUCATION_CITATION, "")        # el título inglés de la guía citada no es texto antiguo
     cards = _cards(at)
     for hidden in ("Ratio I:E Promedio", "Patrón respiratorio", "Severidad", "Clasificación", "Índice", "ODI", "Hipopnea"):
         assert not any(hidden in label for label in cards), hidden

@@ -57,8 +57,13 @@ HEURISTICS = {
     "effort_absent_fraction": (0.10, "fracción máxima con esfuerzo presente para llamarlo central (Criterio BIOCORE)"),
     "effort_window_cycles": (0.6, "ventana del esfuerzo = 0.6 ciclos (>= medio ciclo garantiza ver una cresta de |seno|)"),
     "effort_min_to_noise": (8.0, "el esfuerzo basal debe superar 8 x su ruido suavizado; si no, el tipo es 'sin esfuerzo medible'"),
+    "edge_baseline_relative_error": (0.02, "incertidumbre relativa de la basal con que el detector fija el umbral del 10 %: p95 = 1.96 % (mediana 0.5 %, máx 3.6 %) del error |basal detectada - basal de la construcción| en 138 eventos (atáxica 0.30/0.40 y Cheyne-Stokes, FR 8-30); medición reproducible en tests/test_respiratory_phase41.py"),
+    "edge_borderline_uncertainty_s": (0.5, "un evento es 'borde gradual' si mover el umbral +-2 % cambia su duración más de 0.5 s (la precisión que el laboratorio reclama para una duración: tolerancia de E7); con bordes abruptos el cambio medido es < 0.1 s y con las colas de Cheyne-Stokes llega a varios segundos"),
     "spo2_stable_cluster_points": (3.0, "SpO2 basal = mediana de las muestras a <= 3 puntos del p95 (3 % = umbral de desaturación de Berry 2012)"),
 }
+
+
+DURATION_CRITERION_LABEL = "Criterio BIOCORE: operacionalización de Berry a nivel de muestra"
 
 
 def round_half_up(x: float) -> int:
@@ -105,8 +110,6 @@ class RespiratoryAnalysis:
     baseline_spo2: float
     minimum_spo2: float
     spo2_nadir_time: float
-    time_below_90: float
-    time_below_85: float
 
 
 class RespiratoryAnalyzer:
@@ -162,7 +165,7 @@ class RespiratoryAnalyzer:
         rate_h = (count * 3600.0 / record_s) if count is not None and record_s > 0 else None
         types = [e["type"] for e in events]
         starts = [e["start_time"] for e in events]
-        baseline, minimum, nadir_time, t90, t85 = self._analyze_spo2(np.asarray(spo2, dtype=float), np.asarray(time, dtype=float))
+        baseline, minimum, nadir_time = self._analyze_spo2(np.asarray(spo2, dtype=float), np.asarray(time, dtype=float))
 
         return RespiratoryAnalysis(
             respiratory_rate=rr, respiratory_rate_rounded=rr_rounded, rr_variability=sd, cycle_duration_s=cycle,
@@ -177,7 +180,6 @@ class RespiratoryAnalyzer:
                 "exige >= 3 eventos centrales consecutivos con ciclo >= 40 s y >= 5 eventos por hora "
                 "en un mínimo de 2 horas de monitoreo."),
             baseline_spo2=baseline, minimum_spo2=minimum, spo2_nadir_time=nadir_time,
-            time_below_90=t90, time_below_85=t85,
         )
 
     # ------------------------------------------------------------------ respiraciones
@@ -278,7 +280,11 @@ class RespiratoryAnalyzer:
                 dur = (hi + 1 - lo) / fs
                 if dur < APNEA_MIN_DURATION_S:
                     continue
+                u = self._edge_uncertainty(a_abs, lo, hi, thr)
                 ev = {
+                    "duration_criterion": DURATION_CRITERION_LABEL,
+                    "edge_uncertainty_s": u,
+                    "borderline": bool(u > HEURISTICS["edge_borderline_uncertainty_s"][0]),
                     "start_time": float(time[lo]), "end_time": float(time[0]) + (hi + 1) / fs, "duration": dur,
                     "truncated": bool(hi == n - 1),
                     "baseline": {"amplitude": value, "n_breaths": n_prev, "window_s": win_s, "rule": rule,
@@ -288,6 +294,29 @@ class RespiratoryAnalyzer:
                 events.append(ev)
         events.sort(key=lambda e: e["start_time"])
         return events, non_eval
+
+    def _edge_uncertainty(self, a_abs: np.ndarray, lo: int, hi: int, thr: float) -> float:
+        """Incertidumbre U (s) de la duración medida: cuánto cambia el tramo contiguo bajo el umbral si la basal
+        (y con ella el 10 %) se mueve +-`edge_baseline_relative_error`. Con un corte abrupto el borde casi no se
+        mueve; con la cola gradual de una modulación se mueve segundos. Si a umbral menor el punto medio deja de
+        estar bajo el umbral, la duración allí es 0 (el evento se rompe) y U lo refleja."""
+        fs, n = self.sampling_rate, len(a_abs)
+        eps = HEURISTICS["edge_baseline_relative_error"][0]
+        mid = (lo + hi) // 2
+        base = (hi + 1 - lo) / fs
+        worst = 0.0
+        for factor in (1.0 + eps, 1.0 - eps):
+            t = thr * factor
+            if a_abs[mid] >= t:
+                worst = max(worst, base)
+                continue
+            left, right = mid, mid
+            while left > 0 and a_abs[left - 1] < t:
+                left -= 1
+            while right < n - 1 and a_abs[right + 1] < t:
+                right += 1
+            worst = max(worst, abs((right + 1 - left) / fs - base))
+        return float(worst)
 
     def _effort_baseline(self, eff: np.ndarray, breaths, a_idx: int, cycle: float) -> float:
         """Basal del esfuerzo: la misma regla de Berry/Chicago que `_baseline`, sobre la cresta de esfuerzo que rodea
@@ -341,10 +370,9 @@ class RespiratoryAnalyzer:
 
     # ------------------------------------------------------------------ SpO2
     def _analyze_spo2(self, spo2: np.ndarray, time: np.ndarray):
-        fs = self.sampling_rate
         p95 = np.percentile(spo2, 95)
         cluster = spo2[spo2 >= p95 - HEURISTICS["spo2_stable_cluster_points"][0]]
         baseline = float(np.median(cluster))
         minimum = float(np.min(spo2))
         nadir_time = float(time[int(np.argmin(spo2))])
-        return baseline, minimum, nadir_time, float(np.sum(spo2 < 90) / fs), float(np.sum(spo2 < 85) / fs)
+        return baseline, minimum, nadir_time

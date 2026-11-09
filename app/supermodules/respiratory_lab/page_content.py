@@ -455,9 +455,6 @@ with tab2:
         row_heights=[0.7, 0.3]
     )
     
-    # SpO2 trace
-    spo2_color = np.where(spo2 < 90, "#ff6b6b", "#51cf66")
-    
     fig_spo2.add_trace(
         go.Scatter(
             x=time_array,
@@ -469,10 +466,6 @@ with tab2:
         ),
         row=1, col=1
     )
-    
-    # Reference lines
-    fig_spo2.add_hline(y=95, line_dash="dash", line_color="#51cf66", row=1, col=1, 
-                       annotation_text="Normal")
     
     # Airflow reference
     fig_spo2.add_trace(
@@ -504,8 +497,6 @@ with tab2:
     
     # SpO2 Statistics
     st.markdown("#### 📊 Estadísticas de Oxigenación")
-    
-    col1, col2, col3, col4 = st.columns(4)
     
     views.render_spo2_cards(analysis)
 
@@ -567,21 +558,18 @@ with tab4:
     
     st.markdown("---")
     
-    st.markdown("""
-    #### 💡 Implicaciones Clínicas
-    
-    La apnea del sueño es factor de riesgo independiente para:
-    - Hipertensión arterial
-    - Cardiopatía isquémica
-    - Arritmias (especialmente fibrilación auricular)
-    - Enfermedad cerebrovascular
-    - Accidentes (somnolencia diurna)
-    
-    **Tratamiento:**
-    - CPAP (Presión Positiva Continua en Vía Aérea)
-    - Cambios de estilo de vida (peso, posición, alcohol)
-    - Dispositivos orales
-    - Cirugía en casos seleccionados
+    st.markdown(f"""
+    #### 💡 Implicaciones clínicas (texto educativo; no se deriva de la señal simulada)
+
+    La guía de práctica clínica de la AASM pide evaluar, en una persona con apnea obstructiva del sueño, las condiciones
+    secundarias que pueden aparecer como resultado de ella: hipertensión, accidente cerebrovascular, infarto de
+    miocardio, cor pulmonale, menor alerta diurna y accidentes de tráfico.
+
+    **Opciones de tratamiento que enumera la guía** (la estrategia la decide un clínico con la persona, caso a caso):
+    dispositivos de presión positiva en la vía aérea (CPAP), dispositivos orales, tratamientos conductuales (pérdida de
+    peso, ejercicio, terapia posicional, evitar alcohol y sedantes antes de dormir), cirugía y tratamientos adyuvantes.
+
+    *Fuente: {views.EDUCATION_CITATION}*
     """)
 
 with tab5:
@@ -707,7 +695,6 @@ with col2:
 with col3:
     render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
     render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
-    render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f} s", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
 
 st.markdown(f"**Patrón** ({BADGES.HEURISTIC} heurística): {views.pattern_description(analysis)}")
 views.render_clinical_notes(analysis, circulation_delay)

@@ -494,6 +494,15 @@ class RespiratorySignalGenerator:
             # los bordes de cada valle se miden con la regla firmada, no con la ventana de flujo cero que se pidió
             crest_t, crest_a = self._crests_per_cycle(airflow, time, 60.0 / params.respiratory_rate, params.inspiration_time)
             events, non_evaluable = self._annotate_events_by_rule(airflow, time, crest_t, crest_a, calendar=events)
+            # Fase 4.1: un evento CENTRAL tiene el esfuerzo ausente durante TODO el evento (no solo en la ventana de
+            # flujo cero): en las colas que añade la regla el esfuerzo (seno con otra fase que el flujo) llegaba al 16 %
+            # de su basal y el detector lo leía 'mixta'. El flujo no cambia (el evento se midió con él); cambian tórax y
+            # abdomen dentro de cada evento anotado.
+            for ev in events:
+                inside = (time >= ev["start_s"]) & (time < ev["start_s"] + ev["duration_s"])
+                chest[inside] = 0.0
+                abdomen[inside] = 0.0
+                ev["effort"] = "ausente en todo el evento (construcción)"
         elif params.pattern_type == "ataxic":
             schedule = self._ataxic_schedule(duration, params, rng)
             airflow, chest, abdomen = self._generate_ataxic_respiration(time, params, schedule)

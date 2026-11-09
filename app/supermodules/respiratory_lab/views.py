@@ -19,8 +19,13 @@ import streamlit as st
 
 from app.utils.design_system import BADGES, render_metric_card
 from clinical.calculators import NEWS2_CITATION, news2_respiratory_rate_score
+from src.signals.respiration.respiratory_analyzer import DURATION_CRITERION_LABEL
 
 SPO2_PROVENANCE = "Simulación — modelo BIOCORE: Tc valor BIOCORE; r y recuperación, Howarth 2026"
+EDUCATION_CITATION = (
+    "Epstein LJ, Kristo D, Strollo PJ Jr, et al. Clinical guideline for the evaluation, management and long-term care of "
+    "obstructive sleep apnea in adults. J Clin Sleep Med 2009;5(3):263–276 (AASM)"
+)
 APNEA_CITATION = "Berry RB et al. J Clin Sleep Med 2012;8(5):597–619 (AASM): caída ≥ 90 % de la excursión durante ≥ 10 s"
 TC_LABEL = "Valor BIOCORE (la fuente, Hsia 2026, solo da el límite normal < 20 s)"
 EVENT_TYPE_LABELS = {
@@ -126,6 +131,14 @@ def clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> List[str]:
     return notes
 
 
+def duration_text(event) -> str:
+    """Duración de un evento. Con borde gradual (`borderline`) NO se da un número preciso: «≈ X s, borde gradual ± U s»,
+    con U = cuánto cambia la duración si la basal se mueve ±2 % (medido; ver `HEURISTICS` del analizador)."""
+    if event.get("borderline"):
+        return f"≈ {event['duration']:.1f} s, borde gradual ± {event['edge_uncertainty_s']:.1f} s"
+    return f"{event['duration']:.1f} s"
+
+
 # ------------------------------------------------------------------------------------------------------------ tarjetas
 def render_rate_cards(analysis) -> None:
     """FR y su banda NEWS2, cada una con su insignia; con su motivo cuando no están disponibles (nunca 0)."""
@@ -163,7 +176,8 @@ def render_apnea_cards(analysis) -> None:
         render_metric_card("Apneas (≥ 10 s, caída ≥ 90 %)", f"{analysis.apnea_count}{detail}",
                            provenance=BADGES.CLINICAL, citation=APNEA_CITATION)
     with c2:
-        render_metric_card("Tiempo total de apnea", f"{analysis.apnea_total_time_s:.1f} s",
+        approx = "≈ " if any(e.get("borderline") for e in analysis.apnea_events) else ""
+        render_metric_card("Tiempo total de apnea", f"{approx}{analysis.apnea_total_time_s:.1f} s",
                            provenance=BADGES.CLINICAL, citation=APNEA_CITATION)
     with c3:
         render_metric_card(
@@ -184,7 +198,7 @@ def render_events_table(analysis) -> None:
             kind = EVENT_TYPE_LABELS.get(e["type"], e["type"])
             rows.append({
                 "Inicio (s)": round(e["start_time"], 1),
-                "Duración (s)": round(e["duration"], 1),
+                "Duración": duration_text(e),
                 "Tipo (Criterio BIOCORE)": (f"{BADGES.PENDING} {kind}" if e["mixed_pending"] else f"{BADGES.METHOD} {kind}"),
                 "Borde": "recortado por el final del registro" if e["truncated"] else "completo",
                 "Línea basal": f"{b['n_breaths']} respiraciones previas, {b['window_s']:.0f} s; {b['rule']}"
@@ -199,6 +213,10 @@ def render_events_table(analysis) -> None:
             "(Berry 2012, AASM). "
             f"{BADGES.METHOD} Tipo: «esfuerzo ausente» = caída ≥ 90 % del esfuerzo respecto a su basal (Criterio BIOCORE)."
         )
+        st.caption(f"{BADGES.METHOD} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
+        if any(e.get("borderline") for e in analysis.apnea_events):
+            st.caption("«≈ X s, borde gradual ± U s»: el evento termina en una cola gradual; U es cuánto cambia su duración si la "
+                       "basal se mueve ±2 % (error p95 medido de la basal del detector). No es un número preciso.")
     else:
         st.success("No se detectaron apneas de ≥ 10 s en este registro (no descarta apneas en otros registros).")
     for e in analysis.non_evaluable_events:
@@ -236,19 +254,15 @@ def render_calculator_link(key: str) -> None:
         st.rerun()
 
 
-def render_spo2_cards(analysis, *, include_below_85: bool = True) -> None:
-    """SpO2 del modelo de eventos (fase 2b): se muestra con su procedencia de simulación."""
+def render_spo2_cards(analysis) -> None:
+    """SpO2 basal y mínima del modelo de eventos (fase 2b): con su procedencia de simulación. Las métricas «Tiempo <90 %»
+    y «<85 %» se retiraron (fase 4.1): sus umbrales no tenían cita."""
     kw = dict(provenance=BADGES.METHOD, citation=SPO2_PROVENANCE)
-    cols = st.columns(4 if include_below_85 else 3)
+    cols = st.columns(2)
     with cols[0]:
         render_metric_card("SpO2 Basal", f"{analysis.baseline_spo2:.1f}%", **kw)
     with cols[1]:
         render_metric_card("SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", **kw)
-    with cols[2]:
-        render_metric_card("Tiempo <90%", f"{analysis.time_below_90:.1f}s", **kw)
-    if include_below_85:
-        with cols[3]:
-            render_metric_card("Tiempo <85%", f"{analysis.time_below_85:.1f}s", **kw)
 
 
 def render_hidden_notice() -> None:
