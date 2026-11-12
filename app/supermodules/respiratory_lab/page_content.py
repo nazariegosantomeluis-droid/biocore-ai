@@ -63,11 +63,12 @@ from clinical.calculators import NEWS2_CITATION  # noqa: F401  (la banda de FR v
 st.markdown(f"""
     <div style='padding: 16px; border-radius: 16px; background: {PALETTE.BACKGROUND}; border: 1px solid #1f2937; margin-bottom: 24px;'>
         <h2 id="panel-respiratorio" style='color: {PALETTE.ACCENT_ON_DARK};'>💨 Laboratorio Respiratorio</h2>
-        <p>Experimenta con patrones de respiración, monitorea SpO2 y aprende a reconocer señales de apnea y respiración irregular.</p>
+        <p>Experimenta con patrones de una respiración <strong>simulada</strong>, mira la SpO2 del modelo BIOCORE y compara lo que
+        mide el detector con lo que el generador sabe que produjo.</p>
         <ul>
-            <li><strong>Normal:</strong> respiración estable y oxigenación saludable.</li>
-            <li><strong>Apnea:</strong> pausas en el flujo de aire y desaturaciones.</li>
-            <li><strong>Taquipnea:</strong> ritmo respiratorio acelerado.</li>
+            <li><strong>Normal (simulación):</strong> respiración regular con SpO2 estable.</li>
+            <li><strong>Apnea (simulación):</strong> el flujo cae ≥ 90 % durante ≥ 10 s y el modelo BIOCORE produce una desaturación.</li>
+            <li><strong>Taquipnea / Bradipnea (simulación):</strong> el generador multiplica la FR pedida por 1.5 (tope 40/min) o por 0.5 (piso 6/min).</li>
         </ul>
     </div>
 """,
@@ -131,7 +132,7 @@ with col2:
         max_value=1.5,
         value=0.5,
         step=0.1,
-        help="Volumen de aire por respiración"
+        help="Volumen corriente que pide la simulación (la escala de la señal no está calibrada)"
     )
 
 # Un ValueError por parámetros imposibles se muestra JUNTO al control afectado (sin st.stop(): las demás pestañas
@@ -182,7 +183,7 @@ with col5:
         max_value=100,
         value=98,
         step=1,
-        help="Saturación de oxígeno en reposo"
+        help="SpO₂ basal que simula el modelo BIOCORE"
     )
 
 with col6:
@@ -530,31 +531,36 @@ with tab4:
         #### 📊 Patrones
 
         - **Apnea (Berry 2012, AASM):** caída ≥ 90 % de la excursión del flujo respecto a la línea basal previa durante ≥ 10 s
-        - **Cheyne-Stokes:** Ciclos periódicos de creciente-decreciente
-        - **Atáxica:** Completamente irregular (lesión tronco cerebral)
+        - **Cheyne-Stokes (Berry 2012):** ≥ 3 apneas/hipopneas centrales consecutivas separadas por un cambio creciente y decreciente
+          de la amplitud, con ciclo ≥ 40 s (típicamente 45–90 s) y ≥ 5 por hora en ≥ 2 h de registro
+        - **Atáxica (descripción de la simulación):** el generador sortea la duración y la profundidad de cada respiración
+          (irregularidad 0.20, HEURISTIC); no hay afirmación clínica sobre su causa
         """)
 
     with col2:
-        st.markdown("""
-        #### 😴 Apnea del Sueño - Clasificación AASM
-        
-        **Central Sleep Apnea:**
-        - SIN flujo de aire
-        - SIN esfuerzo respiratorio
-        - Asociada a: insuficiencia cardíaca, Parkinson
-        
-        **Obstructive Sleep Apnea:**
-        - SIN flujo de aire pero CON esfuerzo
-        - Oclusión de vía aérea superior
-        - Movimiento paradójico pared-abdomen
-        - Factor de riesgo: obesidad, edad, sexo masculino
-        
+        st.markdown(f"""
+        #### 😴 Clasificación de la apnea por esfuerzo
+
+        Berry 2012 (§4.1.1, AASM): la clasificación de una apnea como obstructiva, mixta o central **se basa en el esfuerzo
+        respiratorio**. Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).
+
+        - **Central (Criterio BIOCORE):** esfuerzo ausente (caída ≥ 90 % del esfuerzo respecto a su basal)
+        - **Obstructiva (Criterio BIOCORE):** esfuerzo presente; Berry 2012 señala que el movimiento paradójico del tórax y el
+          abdomen se observa a menudo durante una apnea u hipopnea obstructiva
+        - **Mixta:** ⏳ PENDING_VALIDATION (se calcula y se marca; la definición del manual no está verificada)
+        - **Obesidad:** Epstein 2009 incluye la obesidad (IMC > 35) entre los pacientes de alto riesgo que deben evaluarse
+          para apnea obstructiva del sueño
+        - **Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo del colapso
+          repetitivo de la vía aérea superior
+
         #### 📏 Severidad por índice de eventos por hora
 
         Se calcula con la calculadora de **Calculadoras Clínicas → Escalas** (Epstein 2009): es un índice por hora de
         sueño y este laboratorio solo registra minutos.
+
+        *Fuente: {views.EDUCATION_CITATION}*
         """)
-    
+
     st.markdown("---")
     
     st.markdown(f"""
@@ -616,22 +622,25 @@ with tab5:
 
     elif quiz_type == "Diferenciación Apnea":
         st.info("""
-        **Pregunta:** ¿Cuál es la diferencia CLAVE entre apnea central y obstructiva?
-        
-        Pista: Mira la pared torácica y el movimiento abdominal durante las apneas.
+        **Pregunta:** Según Berry 2012 (AASM), ¿en qué se basa la clasificación de una apnea como obstructiva, mixta o central?
+
+        Pista: mira la pared torácica y el movimiento abdominal durante las apneas.
         """)
-        
+
         answer = st.radio("Tu respuesta:", [
-            "✓ Central: SIN flujo + SIN esfuerzo | Obstructiva: SIN flujo + CON esfuerzo",
-            "Central tiene apneas más largas",
-            "Obstructiva es más común en niños"
+            "✓ En el esfuerzo respiratorio",
+            "En la duración: las centrales duran 10 s o más y las obstructivas menos",
+            "En la caída del flujo: las centrales caen ≥ 90 % y las obstructivas ≥ 30 %",
         ])
-        
+
         if answer.startswith("✓"):
-            st.success("✅ ¡Correcto! Este es el hallazgo diagnóstico clave.")
+            st.success("✅ Correcto: Berry 2012 (§4.1.1) clasifica la apnea según el esfuerzo respiratorio. En este laboratorio, "
+                       "central = esfuerzo ausente y obstructiva = esfuerzo presente (Criterio BIOCORE); la mixta queda "
+                       "⏳ PENDING_VALIDATION.")
         else:
-            st.error("❌ La respuesta correcta es: Central tiene ausencia de esfuerzo respiratorio, Obstructiva tiene esfuerzo persistente")
-    
+            st.error("❌ Todas las apneas cumplen la misma regla: caída ≥ 90 % de la excursión del flujo durante ≥ 10 s (Berry 2012); "
+                     "una caída de ≥ 30 % es el criterio de hipopnea, no de apnea. Lo que las separa es el esfuerzo respiratorio.")
+
     elif quiz_type == "Factores de Riesgo":
         st.info("""
         **Pregunta:** Según la guía de la AASM (Epstein 2009), ¿cuál de estos pacientes pertenece a un grupo de ALTO RIESGO
@@ -645,12 +654,12 @@ with tab5:
         ])
 
         if answer.startswith("✓"):
-            st.success("✅ Correcto: la guía lista como alto riesgo la obesidad (IMC > 35), la insuficiencia cardíaca congestiva, la "
+            st.success("✅ Correcto: la guía de la AASM (Epstein 2009) lista como alto riesgo la obesidad (IMC > 35), la insuficiencia cardíaca congestiva, la "
                        "fibrilación auricular, la hipertensión refractaria al tratamiento, la diabetes tipo 2, el ACV, las "
                        "disritmias nocturnas, la hipertensión pulmonar, las poblaciones de conducción de alto riesgo y la "
                        "evaluación previa a cirugía bariátrica.")
         else:
-            st.error("❌ Esa persona no figura en la lista de alto riesgo de la guía (obesidad con IMC > 35, insuficiencia "
+            st.error("❌ Esa persona no figura en la lista de alto riesgo de la guía de la AASM (Epstein 2009: obesidad con IMC > 35, insuficiencia "
                      "cardíaca congestiva, fibrilación auricular, hipertensión refractaria, diabetes tipo 2, ACV, disritmias "
                      "nocturnas, hipertensión pulmonar, conducción de alto riesgo, cirugía bariátrica).")
 
@@ -672,7 +681,7 @@ with tab5:
                        "entre el índice de eventos y la fibrilación auricular o la ectopia ventricular compleja en hombres mayores "
                        "sin insuficiencia cardíaca declarada.")
         else:
-            st.error("❌ La guía sí las menciona: la fibrilación auricular y las disritmias nocturnas están en su lista de pacientes "
+            st.error("❌ La guía de la AASM (Epstein 2009) sí las menciona: la fibrilación auricular y las disritmias nocturnas están en su lista de pacientes "
                      "de alto riesgo.")
 
 st.markdown("---")
@@ -725,18 +734,15 @@ with st.sidebar:
     
     if edu_section == "Introducción":
         st.markdown("""
-        #### ¿Qué es la Respiración?
-        
-        Es el proceso de intercambio gaseoso:
-        - **Inspiración:** Entrada de O₂
-        - **Espiración:** Salida de CO₂
-        
-        El flujo de aire se detecta con:
-        - Sensor de flujo (termistor)
-        - Correas de esfuerzo respiratorio
-        - Pulsioximetría (SpO2)
+        #### ¿Cómo se mide? (Berry 2012, AASM)
+
+        - **Flujo de aire:** sensor térmico oronasal (termistor, termopar o PVDF)
+        - **Esfuerzo respiratorio:** cinturones toracoabdominales
+        - **Oxígeno:** pulsioximetría (SpO2)
+
+        En este laboratorio las tres señales son **simuladas**.
         """)
-    
+
     elif edu_section == "Patrones Clínicos":
         st.markdown("""
         #### 🫁 Frecuencia respiratoria (NEWS2)
@@ -772,8 +778,9 @@ with st.sidebar:
         st.markdown("""
         #### 💓 Correlación cardiovascular (guía AASM)
 
-        - La apnea obstructiva del sueño se acompaña de fragmentación del sueño, hipoxemia, hipercapnia, grandes oscilaciones
-          de la presión intratorácica y aumento de la actividad simpática (Epstein 2009)
+        - Epstein 2009: las consecuencias de la apnea obstructiva del sueño son resultado directo de las alteraciones que produce
+          el colapso repetitivo de la vía aérea superior: fragmentación del sueño, hipoxemia, hipercapnia, grandes oscilaciones
+          de la presión intratorácica y aumento de la actividad simpática
         - La fibrilación auricular y las disritmias nocturnas figuran entre los pacientes de alto riesgo que se evalúan para AOS
         - Berry 2012 cita un estudio que asoció el índice de eventos con fibrilación auricular o ectopia ventricular compleja
           en hombres mayores sin insuficiencia cardíaca declarada

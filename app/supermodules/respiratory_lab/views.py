@@ -247,7 +247,7 @@ def render_clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> None:
 def render_calculator_link(key: str) -> None:
     """Enlace a la calculadora de severidad (el lab no categoriza: su registro dura minutos)."""
     st.caption(
-        "La severidad de la apnea del sueño se calcula con un índice **por hora de sueño**; este laboratorio no la "
+        "La severidad de la apnea del sueño se calcula con un índice **por hora de sueño** (Epstein 2009); este laboratorio no la "
         "muestra porque su registro dura minutos."
     )
     if st.button("Abrir la calculadora de severidad (Calculadoras Clínicas → Escalas)", key=key):

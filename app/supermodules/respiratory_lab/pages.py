@@ -124,7 +124,7 @@ def _render_simulacion_tab():
     render_section_header("Vista Simulación — Generador respiratorio paramétrico")
     st.write(
         "Ajusta frecuencia respiratoria y volumen corriente (profundidad) y observa la señal "
-        "real regenerada por `RespiratorySignalGenerator` (patrón normal) -- el mismo motor que "
+        "simulada y regenerada por `RespiratorySignalGenerator` (patrón normal) -- el mismo motor que "
         "usa la Vista Clínica, no una animación separada."
     )
 
