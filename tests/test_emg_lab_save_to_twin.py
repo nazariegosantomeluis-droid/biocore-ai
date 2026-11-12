@@ -110,9 +110,11 @@ def test_emg_lab_writes_analyzed_activation_not_slider(ups, monkeypatch):
     assert muscular["median_frequency"].value == pytest.approx(expected.median_frequency_hz)
     assert muscular["median_frequency"].provenance == Provenance.SIMULACION
 
-    # derivados DERIVADO, sin fatigue_index, sin fantasma
+    # C0 (2026-11-12, Art. I): el EMG Lab solo envía activation + median_frequency; `efficiency` y `fatigue_index` los
+    # defaultea el organismo (70/20), así que NO se escribe ningún derivado (antes: 4 derivados con esos defaults).
+    assert set(muscular) == {"activation", "median_frequency"}
     for d in ("health_score", "risk_score", "neuromuscular_efficiency", "movement_smoothness"):
-        assert muscular[d].provenance == Provenance.DERIVADO
+        assert d not in muscular
     assert "fatigue_index" not in muscular
     assert "recruitment_pattern" not in muscular
     assert "motor_symmetry" not in muscular

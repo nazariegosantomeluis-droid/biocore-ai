@@ -86,9 +86,13 @@ def test_create_patient_write_state_and_recover_across_sessions(db_path):
 
     # Los valores calculados por el organismo (no medidos/simulados) siempre
     # se marcan como derivados, sin importar la procedencia del resto.
-    health_score = recovered.cardiovascular.get("health_score")
-    assert health_score is not None
-    assert health_score.provenance == Provenance.DERIVADO
+    # C0 (2026-11-12, Art. I): solo se escribe el derivado cuyas entradas llegaron TODAS. `risk_score` usa FC y HRV
+    # (llegaron); `health_score` exige además `complexity`, que ningún escritor envía: no se escribe (antes salía con
+    # complexity=50 por defecto). Contrato completo en tests/test_ups_derived_contract.py.
+    risk_score = recovered.cardiovascular.get("risk_score")
+    assert risk_score is not None
+    assert risk_score.provenance == Provenance.DERIVADO
+    assert recovered.cardiovascular.get("health_score") is None
 
 
 def test_temporal_query_hrv_between_two_moments(db_path):
@@ -240,17 +244,17 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.cardiovascular.descriptors == {}  # corazón NO fabricado
         assert eeg_state.respiratory.descriptors == {}  # pulmón NO fabricado
 
-        # Los 5 band power + `bar`/`dar`/`tbr` (Neuro DAR+TBR, 2026-09-10,
-        # mismo patrón de ratio adimensional) + los 5 detail +
-        # health_score/risk_score = 15.
+        # Los 5 band power + `bar`/`dar`/`tbr` (Neuro DAR+TBR, 2026-09-10, mismo patrón de ratio adimensional) +
+        # `mental_workload` (su única entrada, `beta_power`, llegó). C0 (2026-11-12, Art. I): ya NO health_score,
+        # risk_score, cognitive_fatigue, attention, stress_perception ni sleepiness -- sus entradas (`relaxation_level`,
+        # `stress_level`) las defaultea el organismo (65/35); un EEG de potencias no las trae.
         assert set(eeg_state.neurological.descriptors.keys()) == {
             "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar", "dar", "tbr",
-            "health_score", "risk_score",
-            "mental_workload", "cognitive_fatigue", "attention", "stress_perception", "sleepiness",
+            "mental_workload",
         }
         assert eeg_state.neurological.get("alpha_power").value == pytest.approx(12.5)
         assert eeg_state.neurological.get("alpha_power").provenance == Provenance.SIMULACION
-        assert eeg_state.neurological.get("health_score").provenance == Provenance.DERIVADO
+        assert eeg_state.neurological.get("mental_workload").provenance == Provenance.DERIVADO
         # `bar` = beta/alpha = 7.2/12.5, con la MISMA procedencia que las band
         # power de origen (cociente de dos señales primarias, no un índice
         # derivado por el organismo).

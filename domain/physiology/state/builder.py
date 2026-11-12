@@ -8,7 +8,8 @@ band power EEG) llevan la procedencia que indique el llamador; los
 valores que el organismo ya calcula a partir de esos (health_score,
 riesgos, rhythm_stability, ...) siempre se marcan `Provenance.DERIVADO`,
 sin importar la procedencia de origen — es una cantidad distinta,
-calculada, no observada.
+calculada, no observada. C0 (2026-11-12, Art. I): un derivado solo se
+escribe si TODAS sus entradas llegaron (contrato en `derived_contract.py`, único punto de verdad; ver `_add_derived()`).
 
 Los eventos usan los mismos umbrales que ya vive en
 `DigitalTwinOrganism._update_heart` / `_update_lungs` / `_update_brain`,
@@ -41,6 +42,7 @@ from src.signals.eeg.eeg_analyzer import (
 )
 from src.signals.eeg.spectral_model import CHI_APERIODIC_CITATION, CHI_CITATION
 
+from .derived_contract import SPECTRAL_BANDS, accepted_band_powers, derived_is_writable
 from .schema import (
     DomainState,
     EventSeverity,
@@ -54,6 +56,16 @@ from .schema import (
 
 if TYPE_CHECKING:
     from app.engines.digital_twin_organism import DigitalTwinOrganism
+
+
+def _add_derived(descriptors, domain, signals, candidates, confidence, source_detail) -> None:
+    """ÚNICO camino por el que un valor derivado del organismo entra al UPS: lo filtra el contrato
+    (`derived_contract.derived_is_writable`) según las entradas que REALMENTE llegaron en `signals`."""
+    for name, value, unit in candidates:
+        if derived_is_writable(domain, name, signals):
+            descriptors[name] = PhysiologicalDescriptor(
+                name, float(value), unit, Provenance.DERIVADO, confidence, source_detail
+            )
 
 
 def _cardiovascular_state(
@@ -94,23 +106,17 @@ def _cardiovascular_state(
             "hrv", float(signals["hrv"]), "ms", provenance, confidence, source_detail
         )
 
+    # Contrato de derivados (C0, 2026-11-12, Art. I): el gate de arriba decide si hay corazón que escribir; QUÉ derivados
+    # se escriben lo decide `derived_contract.py` (solo con TODAS sus entradas presentes; `rhythm_stability` y
+    # `cardiac_output` nunca). Con solo `heart_rate`, el dominio contiene solo `heart_rate`.
     if has_real_cardiac_input:
-        descriptors["health_score"] = PhysiologicalDescriptor(
-            "health_score", float(heart.metrics.health_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
-        descriptors["risk_score"] = PhysiologicalDescriptor(
-            "risk_score", float(heart.metrics.risk_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
+        candidates = [
+            ("health_score", heart.metrics.health_score, "0-100"),
+            ("risk_score", heart.metrics.risk_score, "0-100"),
+        ]
         if detail is not None:
-            descriptors["rhythm_stability"] = PhysiologicalDescriptor(
-                "rhythm_stability", float(detail.rhythm_stability), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["myocardial_stress"] = PhysiologicalDescriptor(
-                "myocardial_stress", float(detail.myocardial_stress), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["cardiac_output"] = PhysiologicalDescriptor(
-                "cardiac_output", float(detail.cardiac_output), "L/min", Provenance.DERIVADO, confidence, source_detail
-            )
+            candidates.append(("myocardial_stress", detail.myocardial_stress, "0-100"))
+        _add_derived(descriptors, "cardiovascular", signals, candidates, confidence, source_detail)
 
     return DomainState(domain="cardiovascular", descriptors=descriptors)
 
@@ -160,23 +166,17 @@ def _respiratory_state(
             "ahi", float(signals["ahi"]), "eventos/h", provenance, confidence, source_detail
         )
 
+    # Contrato de derivados (C0): ver `derived_contract.py`. Sin `ahi` (el organismo lo defaultea a 0) no se escriben
+    # `health_score`, `risk_score` ni `apnea_risk`; `tissue_oxygenation` (= SpO2 con otro nombre) nunca.
     if has_real_respiratory_input:
-        descriptors["health_score"] = PhysiologicalDescriptor(
-            "health_score", float(lungs.metrics.health_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
-        descriptors["risk_score"] = PhysiologicalDescriptor(
-            "risk_score", float(lungs.metrics.risk_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
+        candidates = [
+            ("health_score", lungs.metrics.health_score, "0-100"),
+            ("risk_score", lungs.metrics.risk_score, "0-100"),
+        ]
         if detail is not None:
-            descriptors["hypoxia_risk"] = PhysiologicalDescriptor(
-                "hypoxia_risk", float(detail.hypoxia_risk), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["apnea_risk"] = PhysiologicalDescriptor(
-                "apnea_risk", float(detail.apnea_risk), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["tissue_oxygenation"] = PhysiologicalDescriptor(
-                "tissue_oxygenation", float(detail.tissue_oxygenation), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
+            candidates.append(("hypoxia_risk", detail.hypoxia_risk, "0-100"))
+            candidates.append(("apnea_risk", detail.apnea_risk, "0-100"))
+        _add_derived(descriptors, "respiratory", signals, candidates, confidence, source_detail)
 
     return DomainState(domain="respiratory", descriptors=descriptors)
 
@@ -213,12 +213,16 @@ def _neurological_state(
     # solo la señal primaria del órgano). Sin ninguna de las dos, el
     # dominio neurológico se escribe vacío -- nunca un cerebro sano por
     # defecto indistinguible de uno medido.
-    has_real_neuro_input = "alpha_power" in signals or "beta_power" in signals
+    # Contrato (C0, 2026-11-12): una potencia de banda se acepta como medición solo si llegó con >= 2 bandas (un
+    # espectro, no una banda aislada). Twin OS envía SOLA `alpha_power = 70 - 0.5*estrés` (slider): fabricada, no se
+    # escribe -- y, al no quedar banda aceptada, el gate deja el dominio vacío. Ver `derived_contract.py`.
+    bands = accepted_band_powers(signals)
+    has_real_neuro_input = "alpha_power" in bands or "beta_power" in bands
 
-    for band in ("delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power"):
-        if band in signals:
+    for band in SPECTRAL_BANDS:
+        if band in bands:
             descriptors[band] = PhysiologicalDescriptor(
-                band, float(signals[band]), "power (u.a.)", provenance, confidence, source_detail
+                band, float(bands[band]), "power (u.a.)", provenance, confidence, source_detail
             )
 
     # BAR (Ratio Beta/Alfa) -- Acoplamientos Sub-fase B (2026-09-06). El
@@ -232,8 +236,8 @@ def _neurological_state(
     # sobre dos mediciones/simulaciones). Sin ritmo alfa medible
     # (`alpha_power` ~0) el cociente es indefinido -> no se persiste (mismo
     # criterio que el gate: solo se escribe lo que realmente hay).
-    if "alpha_power" in signals and "beta_power" in signals:
-        bar_value = beta_alpha_ratio(float(signals["beta_power"]), float(signals["alpha_power"]))
+    if "alpha_power" in bands and "beta_power" in bands:
+        bar_value = beta_alpha_ratio(float(bands["beta_power"]), float(bands["alpha_power"]))
         if bar_value is not None:
             descriptors["bar"] = PhysiologicalDescriptor(
                 "bar", bar_value, "ratio (adimensional)", provenance, confidence,
@@ -257,8 +261,8 @@ def _neurological_state(
     # definido sobre el motor de banda Welch ACTUAL -- un cambio de motor de
     # señal (FOOOF/CWT) reabriría esta validación, no la hereda; ver
     # CHANGELOG.md.
-    if "delta_power" in signals and "alpha_power" in signals:
-        dar_value = delta_alpha_ratio(float(signals["delta_power"]), float(signals["alpha_power"]))
+    if "delta_power" in bands and "alpha_power" in bands:
+        dar_value = delta_alpha_ratio(float(bands["delta_power"]), float(bands["alpha_power"]))
         if dar_value is not None:
             descriptors["dar"] = PhysiologicalDescriptor(
                 "dar", dar_value, "ratio (adimensional)", provenance, confidence,
@@ -272,8 +276,8 @@ def _neurological_state(
     # fatiga cognitiva en adultos, no el discriminante de TDAH pediátrico de
     # la Tanda 1 (ver `eeg_analyzer.py` para la nota completa). Mismo umbral
     # sobre el motor Welch actual, misma barandilla de re-validación futura.
-    if "theta_power" in signals and "beta_power" in signals:
-        tbr_value = theta_beta_ratio(float(signals["theta_power"]), float(signals["beta_power"]))
+    if "theta_power" in bands and "beta_power" in bands:
+        tbr_value = theta_beta_ratio(float(bands["theta_power"]), float(bands["beta_power"]))
         if tbr_value is not None:
             descriptors["tbr"] = PhysiologicalDescriptor(
                 "tbr", tbr_value, "ratio (adimensional)", provenance, confidence,
@@ -312,36 +316,25 @@ def _neurological_state(
             f"VALIDADO_POR_FUENTE | {CHI_APERIODIC_CITATION} | {CHI_CITATION}",
         )
 
+    # Contrato de derivados (C0): ver `derived_contract.py`. `health_score`/`cognitive_fatigue` exigen `relaxation_level` y
+    # `stress_level` (el organismo los defaultea a 65/35), `attention`/`sleepiness` exigen `attention` o `relaxation_level`
+    # + `alpha_power`, etc. `frontal_activity`/`temporal_activity` (NUNCA asignados en `_update_brain`) se omiten a
+    # propósito: persistirlos sería una constante disfrazada de medición.
     if has_real_neuro_input:
-        descriptors["health_score"] = PhysiologicalDescriptor(
-            "health_score", float(brain.metrics.health_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
-        descriptors["risk_score"] = PhysiologicalDescriptor(
-            "risk_score", float(brain.metrics.risk_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
+        candidates = [
+            ("health_score", brain.metrics.health_score, "0-100"),
+            ("risk_score", brain.metrics.risk_score, "0-100"),
+        ]
         if detail is not None:
-            # NOTA: `frontal_activity`/`temporal_activity` (NeurologicalDetail)
-            # NUNCA se asignan en `_update_brain()` -- confirmado por lectura
-            # completa del método -- se quedan para siempre en su default de
-            # dataclass (55.0/45.0). Escribirlos al UPS sería persistir una
-            # constante disfrazada de medición -- el mismo patrón de "campo
-            # fantasma" que ya se evitó con `trend`/`status` en Fase 1/2. Se
-            # omiten a propósito; solo los 5 campos que sí computa cada vez.
-            descriptors["mental_workload"] = PhysiologicalDescriptor(
-                "mental_workload", float(detail.mental_workload), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["cognitive_fatigue"] = PhysiologicalDescriptor(
-                "cognitive_fatigue", float(detail.cognitive_fatigue), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["attention"] = PhysiologicalDescriptor(
-                "attention", float(detail.attention), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["stress_perception"] = PhysiologicalDescriptor(
-                "stress_perception", float(detail.stress_perception), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["sleepiness"] = PhysiologicalDescriptor(
-                "sleepiness", float(detail.sleepiness), "0-100", Provenance.DERIVADO, confidence, source_detail
-            )
+            candidates += [
+                ("mental_workload", detail.mental_workload, "0-100"),
+                ("cognitive_fatigue", detail.cognitive_fatigue, "0-100"),
+                ("attention", detail.attention, "0-100"),
+                ("stress_perception", detail.stress_perception, "0-100"),
+                ("sleepiness", detail.sleepiness, "0-100"),
+            ]
+        present = {k for k in signals if k not in SPECTRAL_BANDS} | set(bands)  # una banda NO aceptada no cuenta como entrada
+        _add_derived(descriptors, "neurological", present, candidates, confidence, source_detail)
 
     return DomainState(domain="neurological", descriptors=descriptors)
 
@@ -399,31 +392,20 @@ def _muscular_state(
     # propósito declarado. Esto es ausencia DELIBERADA, no olvido -- ver el
     # diagnóstico del dominio muscular y la Tanda 1 (lado señal).
 
+    # Contrato de derivados (C0): ver `derived_contract.py`. Con solo `activation`/`median_frequency` (EMG Lab) no se
+    # escribe ningún derivado: `efficiency` y `fatigue_index` no llegaron (el organismo los defaultea a 70/20).
+    # `recruitment_pattern`/`motor_symmetry`/`power_output` (NUNCA asignados en `_update_muscles`) se omiten a propósito.
     if has_real_muscular_input:
-        descriptors["health_score"] = PhysiologicalDescriptor(
-            "health_score", float(muscles.metrics.health_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
-        descriptors["risk_score"] = PhysiologicalDescriptor(
-            "risk_score", float(muscles.metrics.risk_score), "0-100", Provenance.DERIVADO, confidence, source_detail
-        )
+        candidates = [
+            ("health_score", muscles.metrics.health_score, "0-100"),
+            ("risk_score", muscles.metrics.risk_score, "0-100"),
+        ]
         if detail is not None:
-            # NOTA: `recruitment_pattern`/`motor_symmetry`/`power_output`
-            # (MusculoskeletalDetail) NUNCA se asignan en `_update_muscles()`
-            # -- confirmado por lectura completa del método -- se quedan
-            # para siempre en su default de dataclass (50.0/90.0/100.0).
-            # Escribirlos al UPS sería persistir una constante disfrazada de
-            # medición -- el análogo EXACTO de `frontal_activity`/
-            # `temporal_activity` que `_neurological_state()` excluye por lo
-            # mismo. Se omiten a propósito; solo los 2 campos que sí computa
-            # cada vez.
-            descriptors["neuromuscular_efficiency"] = PhysiologicalDescriptor(
-                "neuromuscular_efficiency", float(detail.neuromuscular_efficiency), "0-100",
-                Provenance.DERIVADO, confidence, source_detail
-            )
-            descriptors["movement_smoothness"] = PhysiologicalDescriptor(
-                "movement_smoothness", float(detail.movement_smoothness), "0-100",
-                Provenance.DERIVADO, confidence, source_detail
-            )
+            candidates += [
+                ("neuromuscular_efficiency", detail.neuromuscular_efficiency, "0-100"),
+                ("movement_smoothness", detail.movement_smoothness, "0-100"),
+            ]
+        _add_derived(descriptors, "muscular", signals, candidates, confidence, source_detail)
 
     return DomainState(domain="muscular", descriptors=descriptors)
 

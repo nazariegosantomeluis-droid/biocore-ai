@@ -86,11 +86,10 @@ def test_muscular_domain_persists_only_the_honest_descriptors(db_path):
         })
         state = from_digital_twin_organism(organism, patient_id, Provenance.SIMULACION, 0.9)
 
-        assert set(state.muscular.descriptors.keys()) == {
-            "activation", "median_frequency",
-            "health_score", "risk_score",
-            "neuromuscular_efficiency", "movement_smoothness",
-        }
+        # C0 (2026-11-12, Art. I): con `efficiency` pero SIN `fatigue_index` solo se escribe `neuromuscular_efficiency`
+        # (su única entrada llegó); health_score/risk_score/movement_smoothness exigen `fatigue_index`, que el organismo
+        # defaultea a 20. Con ambas entradas se escriben las cuatro (abajo).
+        assert set(state.muscular.descriptors.keys()) == {"activation", "median_frequency", "neuromuscular_efficiency"}
 
         # Señales primarias: procedencia del llamador, unidad honesta.
         assert state.muscular.get("activation").value == pytest.approx(45.0)
@@ -101,10 +100,16 @@ def test_muscular_domain_persists_only_the_honest_descriptors(db_path):
         assert state.muscular.get("median_frequency").unit == "Hz"
 
         # Derivados por el organismo: DERIVADO, sin importar la procedencia de origen.
-        assert state.muscular.get("health_score").provenance == Provenance.DERIVADO
-        assert state.muscular.get("risk_score").provenance == Provenance.DERIVADO
         assert state.muscular.get("neuromuscular_efficiency").provenance == Provenance.DERIVADO
-        assert state.muscular.get("movement_smoothness").provenance == Provenance.DERIVADO
+
+        full = DigitalTwinOrganism()
+        full.update_from_sensors({"emg": {"activation": 45.0, "efficiency": 72.0, "fatigue_index": 15.0}})
+        full_state = from_digital_twin_organism(full, patient_id, Provenance.SIMULACION, 0.9)
+        assert set(full_state.muscular.descriptors.keys()) == {
+            "activation", "health_score", "risk_score", "neuromuscular_efficiency", "movement_smoothness",
+        }
+        for name in ("health_score", "risk_score", "neuromuscular_efficiency", "movement_smoothness"):
+            assert full_state.muscular.get(name).provenance == Provenance.DERIVADO
 
 
 def test_fatigue_index_is_deferred_even_when_present_in_signals(db_path):

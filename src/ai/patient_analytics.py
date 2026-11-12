@@ -26,7 +26,7 @@ class PatientRiskPredictor:
                             heart_rate: Optional[float] = None,
                             systolic_bp: Optional[float] = None,
                             diastolic_bp: Optional[float] = None,
-                            ecg_pattern: str = 'normal',
+                            ecg_pattern: Optional[str] = None,
                             hrv_sdnn: Optional[float] = None,
                             trend_data: List[float] = None) -> Dict[str, Any]:
         """
@@ -47,7 +47,8 @@ class PatientRiskPredictor:
             heart_rate: Current heart rate in bpm (None si no hay una fuente real)
             systolic_bp: Systolic blood pressure in mmHg (None si no hay una fuente real)
             diastolic_bp: Diastolic blood pressure in mmHg (None si no hay una fuente real)
-            ecg_pattern: ECG classification (siempre 'normal' u otro patrón real, nunca None)
+            ecg_pattern: patrón de ECG realmente medido/registrado (None si no hay ninguno: el factor no existe, NO
+                se rellena con 'normal' -- C0, 2026-11-12, Art. I)
             hrv_sdnn: Heart rate variability (SDNN in ms, None si no hay una fuente real)
             trend_data: Historical heart rate trend (last 7 measurements)
 
@@ -84,7 +85,9 @@ class PatientRiskPredictor:
         else:
             omitted.append('blood_pressure')
 
-        # ECG pattern risk — siempre presente (default 'normal' es un patrón real, no un placeholder)
+        # ECG pattern risk -- C0 (2026-11-12, Art. I): ya NO es "siempre presente". 'normal' era un default que entraba al
+        # promedio ponderado aun sin ningun dato cardiaco (paciente solo respiratorio -> "0 % / bajo riesgo"). Sin un patron
+        # realmente registrado el factor no existe y se omite, como cualquier otro sin fuente.
         ecg_risk_map = {
             'normal': 0.0,
             'arrhythmia': 0.4,
@@ -93,7 +96,10 @@ class PatientRiskPredictor:
             'af': 0.5,
             'unknown': 0.3,
         }
-        scores['ecg_pattern'] = ecg_risk_map.get(ecg_pattern.lower(), 0.3)
+        if ecg_pattern is not None:
+            scores['ecg_pattern'] = ecg_risk_map.get(ecg_pattern.lower(), 0.3)
+        else:
+            omitted.append('ecg_pattern')
 
         # HRV risk (lower HRV = higher risk)
         if hrv_sdnn is not None:
@@ -109,8 +115,8 @@ class PatientRiskPredictor:
         else:
             omitted.append('hrv')
 
-        # Trend analysis risk
-        if trend_data:
+        # Trend analysis risk -- C0: una tendencia exige >= 2 puntos reales (con 1 no hay pendiente: antes entraba como 0.0)
+        if trend_data and len(trend_data) >= 2:
             scores['trend'] = self._calculate_trend_risk(trend_data)
         else:
             omitted.append('trend')
@@ -120,12 +126,12 @@ class PatientRiskPredictor:
         if used_weight_sum <= 0:
             return {
                 'total_risk': None,
-                'risk_level': "⚪ Datos insuficientes",
+                'risk_level': "⚪ No evaluable: ningún factor cardiovascular real disponible en el UPS",
                 'color': "#94a3b8",
                 'contributing_factors': {},
                 'factors_used': [],
                 'factors_omitted': omitted,
-                'recommendations': ["No hay suficientes datos reales para calcular un score de riesgo."],
+                'recommendations': ["No evaluable: no hay ningún factor real para calcular un score de riesgo (no se muestra 0 %)."],
             }
         total_risk = sum(scores[key] * self.risk_weights[key] for key in scores) / used_weight_sum
 

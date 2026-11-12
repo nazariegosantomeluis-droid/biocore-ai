@@ -1499,8 +1499,10 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
 
         organism = DigitalTwinOrganism()
         organism.update_from_sensors({"ecg": {"heart_rate": float(hr)}})
+        # C0 (2026-11-12, Art. I): la confianza que CALCULO el detector (`estimate_heart_rate_with_confidence`)
+        # es la que se escribe, no el punto medio fijo de la banda (0.75) que ignoraba lo medido.
         state = from_digital_twin_organism(
-            organism, patient_id, provenance=provenance,
+            organism, patient_id, provenance=provenance, confidence=float(confidence),
             source_detail=f"ecg_lab:{source_label}",
         )
         with session_factory() as session:

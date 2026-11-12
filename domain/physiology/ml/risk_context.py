@@ -65,7 +65,7 @@ class RiskFeatures:
 
     heart_rate: Optional[float]
     hrv_sdnn: Optional[float]  # el UPS solo modela un "hrv" genérico en ms — se usa como proxy de SDNN
-    ecg_pattern: str  # derivado de eventos reales del UPS (nunca fabricado): 'arrhythmia' o 'normal'
+    ecg_pattern: Optional[str]  # 'arrhythmia' SOLO si el UPS registró ese evento; None si no hay patrón registrado (C0: nunca 'normal' por defecto)
     trend_data: List[float] = field(default_factory=list)  # historial real de heart_rate
 
     # El UPS (Fase 1.1) no modela demografía en absoluto -- age se deja
@@ -90,7 +90,7 @@ def build_risk_features(session: Session, patient_id: str) -> Optional[RiskFeatu
     hr_desc = cardio.get("heart_rate")
     hrv_desc = cardio.get("hrv")
 
-    ecg_pattern = "normal"
+    ecg_pattern: Optional[str] = None  # C0 (2026-11-12, Art. I): el UPS no registra un patrón "normal"; su ausencia no es un patrón
     for event in state.events:
         if event.domain == "cardiovascular" and event.event_type == EventType.ARRHYTHMIA_RISK_HR_EXTREME:
             ecg_pattern = "arrhythmia"
