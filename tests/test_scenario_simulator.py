@@ -47,7 +47,9 @@ def test_taquicardia_estres_trajectory_is_monotonic_and_persisted(tmp_path):
     for step in steps:
         hr = step.state.cardiovascular.get("heart_rate")
         assert hr.provenance == Provenance.SIMULACION
-        assert step.state.cardiovascular.get("health_score").provenance == Provenance.DERIVADO
+        # Fase 1: `health_score` cardiaco retirado; el derivado son los puntos NEWS2 del pulso.
+        assert step.state.cardiovascular.get("news2_pulse_points").provenance == Provenance.DERIVADO
+        assert step.state.cardiovascular.get("health_score") is None
 
     # Trayectoria determinista y fisiológicamente coherente: HR sube, HRV baja
     # de forma monótona (interpolación de waypoints, no ruido aleatorio).

@@ -4,6 +4,13 @@ BIOCORE AI — Digital Twin Organism
 El corazón inteligente de la plataforma.
 Representación viva y computacional del cuerpo humano.
 Centro absoluto que integra todas las señales biomédicas.
+
+Frente cardiovascular, Fase 1 (2026-11-12, Art. I): el organismo NO calcula con valores por defecto. Cada métrica se
+calcula solo si llegaron sus entradas; si no, es `None` («sin dato») y así se muestra. Decisiones firmadas por Luis:
+(1) se retiran `health_score` cardiaco y `myocardial_stress`; (2) se descartan `complexity` y `rhythm_stability`;
+(3) `cardiac_output` no lo calcula el organismo («no modelado»); (4) el riesgo cardiaco son los puntos NEWS2 del pulso
+(`clinical.calculators.news2_pulse_score`), sin umbrales caseros; (5) dato faltante = «sin dato», nunca «BAJO», 0 ni 50;
+(7) `CardiacDetail` se eliminó entero: ninguno de sus 10 campos lo calculaba nadie.
 """
 
 from __future__ import annotations
@@ -11,8 +18,19 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import json
+import math
 import numpy as np
 from datetime import datetime, timedelta
+
+from clinical.calculators import news2_pulse_score
+
+NO_DATA = "sin dato"            # texto único para «el dato falta» (tarjetas, resumen, exportes)
+NO_DATA_COLOR = "#64748b"       # gris: el MISMO que usa el Cuerpo Digital (ups_body_visual.NEUTRAL_COLOR)
+NOT_MODELED = "no modelado"     # lo que el organismo no calcula (nadie lo calcula): se declara, no se rellena
+
+
+def _is_num(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 class OrganHealthStatus(Enum):
@@ -25,30 +43,22 @@ class OrganHealthStatus(Enum):
 
 @dataclass
 class OrganMetrics:
-    """Métricas de un órgano/sistema"""
-    health_score: float = 50.0  # 0-100
-    activity_level: float = 50.0  # 0-100
-    risk_score: float = 0.0  # 0-100
-    trend: str = "stable"  # rising, stable, falling
+    """Métricas de un órgano/sistema. Todo arranca en `None` = «sin dato» (antes 50/50/0, que eran números inventados)."""
+    health_score: Optional[float] = None  # 0-100
+    activity_level: Optional[float] = None  # 0-100
+    risk_score: Optional[float] = None  # 0-100 (heurístico; el corazón NO lo usa: ver risk_points)
+    risk_points: Optional[int] = None  # puntos NEWS2 del pulso (0-3), solo corazón: clinical.calculators.news2_pulse_score
+    trend: Optional[str] = None  # rising, stable, falling -- nunca se asigna en ningún sitio: «no modelado»
     affected_by: List[str] = field(default_factory=list)  # Otros órganos que lo afectan
     affects: List[str] = field(default_factory=list)  # Órganos que afecta
     predictions: Dict[str, float] = field(default_factory=dict)
     signals: Dict[str, float] = field(default_factory=dict)
-
-
-@dataclass
-class CardiacDetail:
-    """Detalle cardíaco de alta fidelidad (electrofisiología, hemodinámica)."""
-    cardiac_output: float = 5.0  # L/min
-    stroke_volume: float = 70.0  # ml
-    qrs_duration: float = 0.08  # seg
-    pr_interval: float = 0.16  # seg
-    qt_interval: float = 0.40  # seg
-    rhythm_stability: float = 85.0  # 0-100
-    myocardial_stress: float = 30.0  # 0-100
-    ventricular_ejection_fraction: float = 60.0  # %
-    sa_node_rate: float = 60.0  # bpm
-    av_conduction_delay: float = 0.12  # seg
+    # Cuándo llegaron `signals`. `signals_seq` = número de la llamada a `update_from_sensors()` que las trajo
+    # (0 = nunca llegó nada); `signals_at` = su hora. Una entrada solo cuenta como actual si llegó en la actualización
+    # ACTUAL (`signals_seq == organismo._update_seq`); una anterior solo puede usarse como ARRASTRE_TEMPORAL dentro de
+    # la compuerta temporal del compositor, y pasada esa compuerta no existe.
+    signals_seq: int = 0
+    signals_at: Optional[datetime] = None
 
 
 @dataclass
@@ -101,27 +111,27 @@ class AutonomicDetail:
 
 @dataclass
 class StressState:
-    """Estado de respuesta al estrés (transversal, no un órgano anatómico)."""
-    cortisol_level: float = 10.0  # μg/dL
-    acute_stress: float = 20.0  # 0-100
-    chronic_stress: float = 35.0  # 0-100
-    inflammatory_markers: float = 40.0  # 0-100
+    """Estado de respuesta al estrés (transversal, no un órgano anatómico). `None` = sin dato / no modelado."""
+    cortisol_level: Optional[float] = None  # μg/dL -- nunca se calcula: no modelado
+    acute_stress: Optional[float] = None  # 0-100
+    chronic_stress: Optional[float] = None  # 0-100
+    inflammatory_markers: Optional[float] = None  # 0-100 -- nunca se calcula: no modelado
 
 
 @dataclass
 class RecoveryState:
-    """Capacidad de recuperación (transversal)."""
-    recovery_capacity: float = 75.0  # 0-100
-    circadian_alignment: float = 80.0  # 0-100
+    """Capacidad de recuperación (transversal). `None` = sin dato / no modelado."""
+    recovery_capacity: Optional[float] = None  # 0-100
+    circadian_alignment: Optional[float] = None  # 0-100 -- nunca se calcula: no modelado
 
 
 @dataclass
 class PerformanceState:
-    """Capacidad de desempeño físico/cognitivo (transversal, derivado)."""
-    physical_capacity: float = 80.0  # 0-100
-    cognitive_capacity: float = 75.0  # 0-100
-    focus_level: float = 70.0  # 0-100
-    peak_performance_window: str = "optimal"  # suboptimal, optimal, overreached
+    """Capacidad de desempeño físico/cognitivo (transversal, derivado). `None` = sin dato / no modelado."""
+    physical_capacity: Optional[float] = None  # 0-100
+    cognitive_capacity: Optional[float] = None  # 0-100
+    focus_level: Optional[float] = None  # 0-100
+    peak_performance_window: Optional[str] = None  # nunca se calcula: no modelado
 
 
 @dataclass
@@ -142,12 +152,14 @@ class OrganSystem:
     metrics: OrganMetrics = field(default_factory=OrganMetrics)
     education: Dict[str, str] = field(default_factory=dict)  # Contenido educativo
     pathologies: List[str] = field(default_factory=list)  # Patologías conocidas
-    detail: Optional[Any] = None  # CardiacDetail / NeurologicalDetail / etc. — high-fidelity parameters
+    detail: Optional[Any] = None  # NeurologicalDetail / etc. (el corazón no tiene: CardiacDetail se eliminó)
 
     @property
-    def status(self) -> OrganHealthStatus:
-        """Determina estado actual"""
+    def status(self) -> Optional[OrganHealthStatus]:
+        """Estado actual según `health_score`; `None` si no hay (órgano sin alimentar o sin índice: «sin dato»)."""
         score = self.metrics.health_score
+        if score is None:
+            return None
         if score >= 80:
             return OrganHealthStatus.OPTIMAL
         elif score >= 60:
@@ -156,7 +168,7 @@ class OrganSystem:
             return OrganHealthStatus.ALERT
         else:
             return OrganHealthStatus.CRITICAL
-    
+
     @property
     def icon(self) -> str:
         """Icono representativo"""
@@ -170,17 +182,25 @@ class OrganSystem:
             "respiratory": "🫁",
         }
         return icons.get(self.organ_id, "●")
-    
+
     @property
     def color(self) -> str:
-        """Color basado en estado"""
+        """Color: gris si no hay dato (mismo gris que el Cuerpo Digital); el corazón se colorea por sus puntos NEWS2."""
+        if self.organ_id == "heart":
+            points = self.metrics.risk_points
+            if points is None:
+                return NO_DATA_COLOR
+            return {0: "#39ffbe", 1: "#ffd700", 2: "#ffd700", 3: "#ff3333"}[points]
+        status = self.status
+        if status is None:
+            return NO_DATA_COLOR
         status_colors = {
             OrganHealthStatus.CRITICAL: "#ff3333",
             OrganHealthStatus.ALERT: "#ffd700",
             OrganHealthStatus.NORMAL: "#39ffbe",
             OrganHealthStatus.OPTIMAL: "#00ff00",
         }
-        return status_colors.get(self.status, "#808080")
+        return status_colors.get(status, NO_DATA_COLOR)
 
 
 class DigitalTwinOrganism:
@@ -199,6 +219,9 @@ class DigitalTwinOrganism:
         self.current_scenario: Optional[str] = None
         self.simulation_mode: bool = False
         self.timeline_events: List[Dict] = []
+        self._update_seq: int = 0  # número de la última llamada a update_from_sensors() (ver OrganMetrics.signals_seq)
+        self.derived_signals: Dict[str, Dict[str, float]] = {}  # hrv_modulation, recovery_need: derivados, NO entradas
+        self.input_provenance: Optional[str] = None  # de dónde vienen las entradas (p. ej. «simulación: sliders de Twin OS»)
 
         # Cross-cutting physiological states (not tied to a single anatomical organ).
         # Ported from the legacy DigitalTwinMultisystem during engine consolidation.
@@ -206,6 +229,7 @@ class DigitalTwinOrganism:
         self.recovery = RecoveryState()
         self.performance = PerformanceState()
         self.interactions: List[PhysiologicalInteraction] = self._initialize_interactions()
+        self._compute_global_state()  # todo en «sin dato» desde el nacimiento (antes global_state = {} y la UI inventaba 50/BAJO)
     
     def _initialize_organs(self) -> Dict[str, OrganSystem]:
         """Inicializa los sistemas de órganos principales"""
@@ -233,7 +257,7 @@ class DigitalTwinOrganism:
                     "pathophysiology": "Disfunción cardíaca reduce oxigenación y causa deterioro multisistémico.",
                 },
                 pathologies=["Infarto", "Arritmia", "Insuficiencia", "Hipertensión"],
-                detail=CardiacDetail(),
+                detail=None,  # CardiacDetail se eliminó (Fase 1, decisión 7): ninguno de sus campos lo calculaba nadie
             ),
             "lungs": OrganSystem(
                 name="Pulmones",
@@ -315,21 +339,27 @@ class DigitalTwinOrganism:
             'temperature': {'mean_temp': 37.0, ...},
         }
         """
+        self._update_seq += 1
+
         # Actualizar Corazón desde ECG
         if 'ecg' in sensor_data:
             self._update_heart(sensor_data['ecg'])
+            self._stamp_inputs("heart")
         
         # Actualizar Cerebro desde EEG
         if 'eeg' in sensor_data:
             self._update_brain(sensor_data['eeg'])
+            self._stamp_inputs("brain")
         
         # Actualizar Pulmones desde Respiración + SpO2
         if 'respiratory' in sensor_data:
             self._update_lungs(sensor_data['respiratory'])
+            self._stamp_inputs("lungs")
         
         # Actualizar Músculos desde EMG
         if 'emg' in sensor_data:
             self._update_muscles(sensor_data['emg'])
+            self._stamp_inputs("muscles")
         
         # Propagar efectos entre órganos (causalidad)
         self._propagate_physiological_effects()
@@ -362,35 +392,31 @@ class DigitalTwinOrganism:
         now = datetime.now()
         self.timestamp = now if now > self.timestamp else self.timestamp + timedelta(microseconds=1)
     
+    def _stamp_inputs(self, organ_id: str) -> None:
+        """Marca las señales del órgano como llegadas en la actualización ACTUAL."""
+        metrics = self.organs[organ_id].metrics
+        metrics.signals_seq = self._update_seq
+        metrics.signals_at = datetime.now()
+
+    def inputs_are_current(self, organ_id: str) -> bool:
+        """True si las señales del órgano llegaron en la última actualización (no son de una anterior)."""
+        metrics = self.organs[organ_id].metrics
+        return bool(metrics.signals) and metrics.signals_seq == self._update_seq
+
     def _update_heart(self, ecg_data: Dict[str, float]) -> None:
-        """Actualiza estado cardíaco desde ECG"""
+        """Actualiza el corazón desde el ECG: SIN defaults (Fase 1, 2026-11-12). `signals` es EXACTAMENTE lo que llegó.
+        La única métrica cardiaca son los puntos NEWS2 del pulso (decisión 4), con una sola entrada, `heart_rate`; si no
+        llegó, es `None` («sin dato»). Se retiraron `health_score`, `myocardial_stress`, `rhythm_stability`/`complexity`
+        (decisiones 1-2), la «actividad» (= FC/100, sin fuente) y los umbrales caseros 40/120 y `hrv < 20` (decisión 4)."""
         heart = self.organs["heart"]
-        
-        hr = ecg_data.get("heart_rate", 70)
-        hrv = ecg_data.get("hrv", 50)
-        complexity = ecg_data.get("complexity", 50)
-        
-        # Health score: HR normal (60-100), HRV alto (>30)
-        hr_penalty = abs(hr - 70) / 70 * 0.3
-        hrv_bonus = min(100, (hrv / 100) * 100) * 0.5
-        complexity_bonus = complexity * 0.2
-        
-        heart.metrics.health_score = min(100.0, max(0.0, 100 - hr_penalty * 100 + hrv_bonus + complexity_bonus))
-        heart.metrics.activity_level = min(100, (hr / 100) * 100)
-        heart.metrics.signals = ecg_data.copy()
+        heart.metrics.signals = dict(ecg_data)
 
-        # Risk assessment
-        if hr > 120 or hr < 40:
-            heart.metrics.risk_score = 75.0
-        elif hrv < 20:
-            heart.metrics.risk_score = 50.0
-        else:
-            heart.metrics.risk_score = 0.0
+        hr = ecg_data.get("heart_rate")
+        heart.metrics.health_score = None
+        heart.metrics.activity_level = None
+        heart.metrics.risk_score = None
+        heart.metrics.risk_points = news2_pulse_score(float(hr)) if _is_num(hr) else None
 
-        if heart.detail is not None:
-            heart.detail.myocardial_stress = min(100.0, max(0.0, 100.0 - heart.metrics.health_score))
-            heart.detail.rhythm_stability = min(100.0, max(0.0, complexity))
-    
     def _update_brain(self, eeg_data: Dict[str, float]) -> None:
         """Actualiza estado cerebral desde EEG"""
         brain = self.organs["brain"]
@@ -476,37 +502,50 @@ class DigitalTwinOrganism:
             muscles.detail.neuromuscular_efficiency = min(100.0, max(0.0, efficiency))
             muscles.detail.movement_smoothness = min(100.0, max(0.0, 100.0 - fatigue))
     
+    def current_signals(self, organ_id: str) -> Dict[str, float]:
+        """Señales del órgano SOLO si llegaron en la actualización actual; si no, `{}` (una entrada vieja no cuenta)."""
+        return self.organs[organ_id].metrics.signals if self.inputs_are_current(organ_id) else {}
+
     def _propagate_physiological_effects(self) -> None:
-        """Propaga efectos causales entre órganos"""
-        # Brain stress → Heart: reduce HRV
-        brain_stress = 100 - self.organs["brain"].metrics.health_score
-        self.organs["heart"].metrics.signals["hrv_modulation"] = -brain_stress * 0.3
-        
-        # Heart dysfunction → Lungs: aumenta RR
-        heart_risk = self.organs["heart"].metrics.risk_score
-        self.organs["lungs"].metrics.signals["rr_modulation"] = heart_risk * 0.2
-        
-        # Low SpO2 → Brain: afecta cognición
-        spo2 = self.organs["lungs"].metrics.signals.get("spo2", 98)
-        if spo2 < 90:
-            self.organs["brain"].metrics.health_score *= 0.8
-        
-        # Muscle fatigue → Autonomic: requiere recuperación
-        muscle_fatigue = self.organs["muscles"].metrics.signals.get("fatigue_index", 0)
-        self.organs["autonomic"].metrics.signals["recovery_need"] = muscle_fatigue * 0.6
-    
+        """Propaga efectos causales entre órganos, SOLO con entradas actuales y sin defaults. Lo derivado vive en
+        `self.derived_signals` (campo propio), ya NO dentro de `signals`: no son entradas. Se retiró `rr_modulation`
+        (dependía del riesgo cardiaco casero, retirado en la decisión 4)."""
+        self.derived_signals = {}
+        brain = self.organs["brain"]
+        lungs_signals = self.current_signals("lungs")
+        muscle_signals = self.current_signals("muscles")
+
+        # Brain stress → Heart: modulación de HRV (solo si el cerebro tiene un índice calculado con entradas actuales)
+        if self.inputs_are_current("brain") and brain.metrics.health_score is not None:
+            self.derived_signals.setdefault("heart", {})["hrv_modulation"] = -(100 - brain.metrics.health_score) * 0.3
+
+        # Low SpO2 → Brain: afecta cognición (solo con una SpO2 que LLEGÓ)
+        spo2 = lungs_signals.get("spo2")
+        if _is_num(spo2) and spo2 < 90 and brain.metrics.health_score is not None:
+            brain.metrics.health_score *= 0.8
+
+        # Muscle fatigue → Autonomic: requiere recuperación (solo con una fatiga que LLEGÓ)
+        fatigue = muscle_signals.get("fatigue_index")
+        if _is_num(fatigue):
+            self.derived_signals.setdefault("autonomic", {})["recovery_need"] = fatigue * 0.6
+
     def _update_autonomic_state(self) -> None:
-        """Actualiza estado autonómico basado en otros sistemas"""
+        """Estado autonómico: depende de la HRV (corazón) y del estrés (cerebro), ambas ACTUALES. Sin ellas, «sin dato»
+        (antes `hrv = 50` y `brain.health = 50` por defecto fabricaban un balance autonómico)."""
         autonomic = self.organs["autonomic"]
-        
-        # Autonomic balance from HRV and stress
-        hrv = self.organs["heart"].metrics.signals.get("hrv", 50)
-        brain_stress = 100 - self.organs["brain"].metrics.health_score
-        
+        hrv = self.current_signals("heart").get("hrv")
+        brain_health = self.organs["brain"].metrics.health_score if self.inputs_are_current("brain") else None
+
+        if not _is_num(hrv) or brain_health is None:
+            autonomic.metrics.health_score = None
+            autonomic.metrics.signals = {}
+            return
+
+        brain_stress = 100 - brain_health
         # HRV alto + bajo stress = parasimpático (bueno)
         # HRV bajo + alto stress = simpático dominante (malo)
         parasympathetic_tone = (hrv / 100) * (1 - brain_stress / 100)
-        
+
         autonomic.metrics.health_score = max(0, parasympathetic_tone * 100)
         autonomic.metrics.signals = {
             "hrv": hrv,
@@ -519,37 +558,57 @@ class DigitalTwinOrganism:
             autonomic.detail.parasympathetic_activity = min(100.0, max(0.0, parasympathetic_tone * 100))
 
     def _update_cross_cutting_states(self) -> None:
-        """
-        Deriva estados transversales (estrés, recuperación, desempeño) del resto del
-        organismo. Ported from the legacy DigitalTwinMultisystem during consolidation.
-        """
+        """Estados transversales (estrés, recuperación, desempeño): cada uno se calcula solo si llegaron sus entradas
+        en la actualización actual; si no, `None` (antes arrancaban en 20/35/75/80/70... sin que nadie los calculara).
+        Cortisol, marcadores inflamatorios, alineación circadiana y ventana de desempeño NO se calculan nunca."""
         brain = self.organs["brain"]
         muscles = self.organs["muscles"]
-        autonomic = self.organs["autonomic"]
+        brain_signals = self.current_signals("brain")
+        muscle_signals = self.current_signals("muscles")
 
-        stress_level = brain.metrics.signals.get("stress_level", 100.0 - brain.metrics.health_score)
-        self.stress.acute_stress = min(100.0, max(0.0, stress_level))
-        self.stress.chronic_stress = min(100.0, max(0.0, self.stress.chronic_stress * 0.9 + self.stress.acute_stress * 0.1))
+        stress_level = brain_signals.get("stress_level")
+        if not _is_num(stress_level) and self.inputs_are_current("brain") and brain.metrics.health_score is not None:
+            stress_level = 100.0 - brain.metrics.health_score
+        if _is_num(stress_level):
+            self.stress.acute_stress = min(100.0, max(0.0, stress_level))
+            previous = self.stress.chronic_stress
+            self.stress.chronic_stress = min(100.0, max(0.0, (
+                self.stress.acute_stress if previous is None else previous * 0.9 + self.stress.acute_stress * 0.1
+            )))
+        else:
+            self.stress.acute_stress = None
 
-        fatigue_index = muscles.metrics.signals.get("fatigue_index", 20.0)
-        self.recovery.recovery_capacity = min(100.0, max(0.0, 100.0 - fatigue_index))
+        fatigue_index = muscle_signals.get("fatigue_index")
+        self.recovery.recovery_capacity = (
+            min(100.0, max(0.0, 100.0 - fatigue_index)) if _is_num(fatigue_index) else None
+        )
 
-        self.performance.physical_capacity = min(100.0, max(0.0, 100.0 - muscles.metrics.risk_score))
-        self.performance.cognitive_capacity = brain.metrics.health_score
-        self.performance.focus_level = min(100.0, max(0.0, 100.0 - self.stress.acute_stress))
+        self.performance.physical_capacity = (
+            min(100.0, max(0.0, 100.0 - muscles.metrics.risk_score))
+            if self.inputs_are_current("muscles") and muscles.metrics.risk_score is not None else None
+        )
+        self.performance.cognitive_capacity = brain.metrics.health_score if self.inputs_are_current("brain") else None
+        self.performance.focus_level = (
+            min(100.0, max(0.0, 100.0 - self.stress.acute_stress)) if self.stress.acute_stress is not None else None
+        )
 
     def _compute_global_state(self) -> None:
-        """Calcula el estado fisiológico global"""
+        """Estado fisiológico global. Fase 1 (Art. I): un índice global solo tiene número si TODOS los órganos de los que
+        depende tienen su valor; si alguno falta o fue retirado (el `health_score` cardiaco, decisión 1), el índice es
+        `None` («sin dato»). Prohibido promediar órganos sin alimentar. El destino de cada índice (retirarlo o darle
+        fuente) lo decide Luis: aquí solo se vuelven honestos."""
         scores = [organ.metrics.health_score for organ in self.organs.values()]
         risks = [organ.metrics.risk_score for organ in self.organs.values()]
+        complete_scores = all(s is not None for s in scores)
+        complete_risks = all(r is not None for r in risks)
 
         self.global_state = {
-            "global_health_score": float(np.mean(scores)),
-            "global_risk_score": float(np.max(risks)),
+            "global_health_score": float(np.mean(scores)) if complete_scores else None,
+            "global_risk_score": float(np.max(risks)) if complete_risks else None,
             "system_coherence": self._compute_system_coherence(),
             "resilience_index": self._compute_resilience(),
             "cognitive_state": self.organs["brain"].metrics.health_score,
-            "cardiac_state": self.organs["heart"].metrics.health_score,
+            "cardiac_state": None,  # el health_score cardiaco se retiró (decisión 1)
             "respiratory_state": self.organs["lungs"].metrics.health_score,
             "muscular_state": self.organs["muscles"].metrics.health_score,
             "autonomic_balance": self.organs["autonomic"].metrics.health_score,
@@ -562,18 +621,11 @@ class DigitalTwinOrganism:
         self.global_state["alerts"] = alerts
 
     @staticmethod
-    def _compute_risk_level(global_risk_score: float) -> str:
-        # Fase 1 (idioma, 2026-08-30): CRÍTICO/ALTO/MODERADO/BAJO -- antes
-        # Critical/High/Medium/Low. Corrección sobre el diagnóstico original:
-        # este método (el que alimenta `global_state["risk_level"]`, leído
-        # en `render_ambient_header()`, "Riesgo: {risk}") SÍ estaba en
-        # inglés -- el diagnóstico lo había confundido con el bloque de
-        # texto de exportación más abajo en este archivo (Nivel de Riesgo:
-        # ...), que ya era español pero es un método distinto y no
-        # alimenta este campo. Único consumidor de `global_state["risk_level"]`
-        # en todo el repo: `twin_shell/pages.py::render_ambient_header()` --
-        # sin ninguna comparación lógica contra este valor (confirmado por
-        # grep), solo se muestra. Ver CHANGELOG.md.
+    def _compute_risk_level(global_risk_score: Optional[float]) -> str:
+        """Nivel de riesgo global; sin puntaje -> «sin dato» (nunca «BAJO» por falta de datos). Único consumidor de
+        `global_state["risk_level"]`: `twin_shell/pages.py::render_ambient_header()`, que solo lo muestra."""
+        if global_risk_score is None:
+            return NO_DATA
         if global_risk_score >= 70:
             return "CRÍTICO"
         elif global_risk_score >= 40:
@@ -583,10 +635,9 @@ class DigitalTwinOrganism:
         return "BAJO"
 
     def _detect_anomalies(self) -> Tuple[List[str], List[str], List[str]]:
-        """
-        Detecta anomalías y genera recomendaciones/alertas a partir del estado de cada órgano.
-        Ported from the legacy PhysiologicalFusionEngine during engine consolidation.
-        """
+        """Anomalías, recomendaciones y alertas desde lo que SÍ hay. Cada regla exige su entrada (sin `get(..., 0)`).
+        Las frases se enrutan a un órgano por subcadena (`ORGAN_KEYWORDS` en twin_shell/pages.py). Fase 1: la alerta
+        cardiaca ya no sale de un `health_score` (retirado) sino de la banda de 3 puntos NEWS2 del pulso."""
         anomalies: List[str] = []
         recommendations: List[str] = []
         alerts: List[str] = []
@@ -596,111 +647,96 @@ class DigitalTwinOrganism:
         lungs = self.organs["lungs"].metrics
         muscles = self.organs["muscles"].metrics
 
-        # Fase 1 (idioma, 2026-08-30): traducidas a español -- eran texto
-        # generado mostrado directamente al usuario (st.warning/st.error en
-        # twin_shell/pages.py), no claves. ÚNICO cuidado real: estas frases
-        # se enrutan a un órgano por coincidencia de subcadena
-        # (`ORGAN_KEYWORDS` en twin_shell/pages.py, sobre palabras
-        # compuestas como "cardiorespiratory"/"neurocardiac") -- cada
-        # traducción se verificó para que produzca EXACTAMENTE el mismo
-        # conjunto de órganos que la original en inglés (ver CHANGELOG.md
-        # para la tabla de verificación). "corazón-aliento" en vez de
-        # "corazón-respiración" es deliberado: preserva que este alert NO
-        # se enrute a Pulmones, igual que el original ("breath", no
-        # "breathing", no calzaba con el keyword de pulmones).
-        if heart.health_score < 40:
-            anomalies.append("Estrés cardiovascular detectado")
-            alerts.append("⚠️ Anomalía en el ritmo o la frecuencia del corazón")
+        if heart.risk_points == 3 and self.inputs_are_current("heart"):
+            anomalies.append("Pulso en la banda de 3 puntos NEWS2 (corazón)")
+            alerts.append("⚠️ Pulso en la banda de 3 puntos NEWS2 (≤ 40 o ≥ 131 lpm) — corazón")
 
-        if brain.signals.get("stress_level", 0) > 75:
+        brain_stress = self.current_signals("brain").get("stress_level")
+        if _is_num(brain_stress) and brain_stress > 75:
             anomalies.append("Estado de estrés elevado detectado")
             recommendations.append("Considera técnicas de relajación")
             alerts.append("⚠️ Niveles de estrés elevados")
 
-        if brain.health_score < 30:
+        if brain.health_score is not None and brain.health_score < 30:
             anomalies.append("Somnolencia severa o deterioro cognitivo detectado")
             recommendations.append("Toma un descanso o duerme")
             alerts.append("⚠️ Alerta baja - riesgo de fatiga")
 
-        if lungs.health_score < 40:
+        if lungs.health_score is not None and lungs.health_score < 40:
             anomalies.append("Anomalía respiratoria detectada")
             alerts.append("⚠️ SpO₂ bajo o respiración irregular")
 
-        if muscles.health_score < 40:
+        if muscles.health_score is not None and muscles.health_score < 40:
             anomalies.append("Fatiga muscular severa detectada")
             recommendations.append("Se necesita descanso y recuperación")
 
-        if self.global_state.get("neurocardiac_coupling", 1.0) < 0.3:
+        neurocardiac = self.global_state.get("neurocardiac_coupling")
+        if neurocardiac is not None and neurocardiac < 0.3:
             anomalies.append("Desacoplamiento neurocardíaco detectado")
             alerts.append("⚠️ Coordinación cerebro-corazón afectada")
 
-        if self.global_state.get("cardiorespiratory_coupling", 1.0) < 0.3:
+        cardiorespiratory = self.global_state.get("cardiorespiratory_coupling")
+        if cardiorespiratory is not None and cardiorespiratory < 0.3:
             anomalies.append("Desincronización cardiorrespiratoria")
             alerts.append("⚠️ Sincronización corazón-aliento perdida")
 
         return anomalies, recommendations, alerts
 
-    def _compute_couplings(self) -> Dict[str, float]:
-        """
-        Acoplamientos inter-sistémicos (neurocardiaco, cardiorespiratorio, neuromuscular).
-        Ported from the legacy PhysiologicalFusionEngine (app/engines/physiological_fusion.py)
-        during engine consolidation — same formulas, adapted to organ-signal dicts.
-        """
-        heart_signals = self.organs["heart"].metrics.signals
-        brain_signals = self.organs["brain"].metrics.signals
-        lungs_signals = self.organs["lungs"].metrics.signals
-        muscles_signals = self.organs["muscles"].metrics.signals
+    def _compute_couplings(self) -> Dict[str, Optional[float]]:
+        """Acoplamientos inter-sistémicos (neurocardiaco, cardiorespiratorio, neuromuscular). Fase 1: la compuerta exige
+        entradas REALES de AMBOS órganos en la actualización actual; sin ellas el acoplamiento es `None` («sin dato»).
+        Se eliminaron la base 0.5 y los defaults (`hr 70`, `rr 16`, `hrv 50`, `alpha 50`, `fatigue 50`); la compuerta
+        ya no es «hay algo en signals» (que `hrv_modulation` volvía siempre verdadera)."""
+        heart_signals = self.current_signals("heart")
+        brain_signals = self.current_signals("brain")
+        lungs_signals = self.current_signals("lungs")
+        muscles_signals = self.current_signals("muscles")
 
-        couplings = {
-            "neurocardiac_coupling": 0.5,
-            "cardiorespiratory_coupling": 0.5,
-            "neuromuscular_coupling": 0.5,
+        couplings: Dict[str, Optional[float]] = {
+            "neurocardiac_coupling": None,
+            "cardiorespiratory_coupling": None,
+            "neuromuscular_coupling": None,
         }
 
-        if brain_signals and heart_signals:
-            alpha = brain_signals.get("alpha_power", 50)
-            hrv = heart_signals.get("hrv", 50)
+        alpha, hrv = brain_signals.get("alpha_power"), heart_signals.get("hrv")
+        if _is_num(alpha) and _is_num(hrv):
             expected_hrv_from_relaxation = 50 + (alpha / 100) * 50
             coupling = 1.0 - abs(hrv - expected_hrv_from_relaxation) / 100
             couplings["neurocardiac_coupling"] = max(0.0, min(1.0, coupling))
 
-        if heart_signals and lungs_signals:
-            hr = heart_signals.get("heart_rate", 70)
-            rr = lungs_signals.get("respiratory_rate", 16)
+        hr, rr = heart_signals.get("heart_rate"), lungs_signals.get("respiratory_rate")
+        if _is_num(hr) and _is_num(rr):
             optimal_ratio = 4.0
             actual_ratio = hr / (rr + 1e-6)
             coupling = 1.0 - abs(actual_ratio - optimal_ratio) / optimal_ratio
             couplings["cardiorespiratory_coupling"] = max(0.0, min(1.0, coupling))
 
-        if brain_signals and muscles_signals:
-            cognitive_state = self.organs["brain"].metrics.health_score
-            emg_fatigue = muscles_signals.get("fatigue_index", 50)
+        cognitive_state = self.organs["brain"].metrics.health_score if self.inputs_are_current("brain") else None
+        emg_fatigue = muscles_signals.get("fatigue_index")
+        if cognitive_state is not None and _is_num(emg_fatigue):
             expected_fatigue = cognitive_state * 0.7
             coupling = 1.0 - abs(emg_fatigue - expected_fatigue) / 100
             couplings["neuromuscular_coupling"] = max(0.0, min(1.0, coupling))
 
         return couplings
-    
-    def _compute_system_coherence(self) -> float:
-        """Mide cuán bien trabajanintegrados los sistemas"""
-        # Si todos los órganos tienen health scores similares, hay coherencia
+
+    def _compute_system_coherence(self) -> Optional[float]:
+        """Coherencia = 100 - desviación estándar de los `health_score` de TODOS los órganos; sin el de alguno, `None`."""
         scores = [organ.metrics.health_score for organ in self.organs.values()]
-        std = np.std(scores)
-        # Coherencia es inversa a la varianza
-        coherence = max(0, 100 - std)
-        return float(coherence)
-    
-    def _compute_resilience(self) -> float:
-        """Mide capacidad de recuperación del organismo"""
-        # Resilience = capacidad de mantener homeostasis bajo estrés
-        global_health = self.global_state.get("global_health_score", 50)
-        global_risk = self.global_state.get("global_risk_score", 0)
-        hrv = self.organs["heart"].metrics.signals.get("hrv", 50)
-        
-        # Buena salud + bajo riesgo + alto HRV = alta resiliencia
+        if any(s is None for s in scores):
+            return None
+        return float(max(0, 100 - np.std(scores)))
+
+    def _compute_resilience(self) -> Optional[float]:
+        """Resiliencia = 0.4·salud global + 0.3·(100 − riesgo global) + 0.3·HRV; si falta alguno de los tres, `None`."""
+        global_health = self.global_state.get("global_health_score")
+        global_risk = self.global_state.get("global_risk_score")
+        hrv = self.current_signals("heart").get("hrv")
+        if global_health is None or global_risk is None or not _is_num(hrv):
+            return None
         resilience = (global_health * 0.4 + (100 - global_risk) * 0.3 + (hrv / 100) * 100 * 0.3)
         return float(np.clip(resilience, 0, 100))
-    
+
     def _add_to_history(self) -> None:
         """Agrega estado actual a historia"""
         snapshot = {
@@ -710,6 +746,7 @@ class DigitalTwinOrganism:
                 organ_id: {
                     "health": organ.metrics.health_score,
                     "risk": organ.metrics.risk_score,
+                    "risk_points": organ.metrics.risk_points,
                     "activity": organ.metrics.activity_level,
                 }
                 for organ_id, organ in self.organs.items()
@@ -754,30 +791,28 @@ class DigitalTwinOrganism:
         return None
     
     def explain_state(self) -> str:
-        """Explicación en lenguaje natural del estado actual"""
-        global_health = self.global_state.get("global_health_score", 0)
-        global_risk = self.global_state.get("global_risk_score", 0)
-        
-        if global_risk > 70:
-            risk_level = "CRÍTICO"
-        elif global_risk > 40:
-            risk_level = "ALTO"
-        elif global_risk > 20:
-            risk_level = "MODERADO"
-        else:
-            risk_level = "BAJO"
-        
+        """Explicación en lenguaje natural del estado actual; lo que falta dice «sin dato» (nunca 0 ni «BAJO»)."""
+        g = self.global_state
+
+        def fmt(value: Optional[float], suffix: str) -> str:
+            return NO_DATA if value is None else f"{value:.0f}{suffix}"
+
         return (
-            f"Estado Fisiológico Global: {global_health:.0f}/100\n"
-            f"Nivel de Riesgo: {risk_level}\n"
-            f"Coherencia Sistémica: {self.global_state.get('system_coherence', 0):.0f}%\n"
-            f"Resiliencia: {self.global_state.get('resilience_index', 0):.0f}/100"
+            f"Estado Fisiológico Global: {fmt(g.get('global_health_score'), '/100')}\n"
+            f"Nivel de Riesgo: {g.get('risk_level', NO_DATA)}\n"
+            f"Coherencia Sistémica: {fmt(g.get('system_coherence'), '%')}\n"
+            f"Resiliencia: {fmt(g.get('resilience_index'), '/100')}"
         )
+
+    def _refresh_heart_points(self) -> None:
+        hr = self.organs["heart"].metrics.signals.get("heart_rate")
+        self.organs["heart"].metrics.risk_points = news2_pulse_score(float(hr)) if _is_num(hr) else None
 
     def simulate_intervention(self, intervention: str, intensity: float = 0.5) -> Dict[str, float]:
         """
         Simula una intervención médica sobre el organismo (no toca el estado real del
-        paciente — solo esta instancia simulada). Ported from DigitalTwinMultisystem.
+        paciente — solo esta instancia simulada). Fase 1 (Art. I): cada efecto se aplica solo si existe el valor
+        sobre el que actúa (sin `get(..., 70/98/16/20)`); lo que no existe no se inventa para poder modificarlo.
 
         Args:
             intervention: "oxygen", "sedation", "exercise" o "rest".
@@ -787,149 +822,155 @@ class DigitalTwinOrganism:
             self.organs["heart"], self.organs["lungs"], self.organs["brain"], self.organs["muscles"]
         )
         changes: Dict[str, float] = {}
+        hr = heart.metrics.signals.get("heart_rate")
+        spo2 = lungs.metrics.signals.get("spo2")
+        rr = lungs.metrics.signals.get("respiratory_rate")
+        fatigue = muscles.metrics.signals.get("fatigue_index")
 
         if intervention == "oxygen":
-            if lungs.detail is not None:
-                lungs.detail.tissue_oxygenation = min(100.0, lungs.detail.tissue_oxygenation + intensity * 15)
-            new_spo2 = min(100.0, lungs.metrics.signals.get("spo2", 98.0) + intensity * 8)
-            lungs.metrics.signals["spo2"] = new_spo2
-            if brain.detail is not None:
+            if _is_num(spo2):
+                if lungs.detail is not None:
+                    lungs.detail.tissue_oxygenation = min(100.0, lungs.detail.tissue_oxygenation + intensity * 15)
+                new_spo2 = min(100.0, spo2 + intensity * 8)
+                lungs.metrics.signals["spo2"] = new_spo2
+                changes['spo2'] = new_spo2
+            if brain.detail is not None and brain.metrics.health_score is not None:
                 brain.detail.cognitive_fatigue = max(0.0, brain.detail.cognitive_fatigue - intensity * 10)
-            changes['spo2'] = new_spo2
 
         elif intervention == "sedation":
-            new_stress = max(0.0, self.stress.acute_stress - intensity * 40)
-            self.stress.acute_stress = new_stress
-            if self.organs["autonomic"].detail is not None:
-                self.organs["autonomic"].detail.sympathetic_activity = max(
-                    0.0, self.organs["autonomic"].detail.sympathetic_activity - intensity * 30
-                )
-            heart.metrics.signals["heart_rate"] = max(50.0, heart.metrics.signals.get("heart_rate", 70.0) - intensity * 20)
-            changes['stress'] = new_stress
+            if self.stress.acute_stress is not None:
+                new_stress = max(0.0, self.stress.acute_stress - intensity * 40)
+                self.stress.acute_stress = new_stress
+                changes['stress'] = new_stress
+            autonomic = self.organs["autonomic"]
+            if autonomic.detail is not None and autonomic.metrics.health_score is not None:
+                autonomic.detail.sympathetic_activity = max(0.0, autonomic.detail.sympathetic_activity - intensity * 30)
+            if _is_num(hr):
+                heart.metrics.signals["heart_rate"] = max(50.0, hr - intensity * 20)
 
         elif intervention == "exercise":
-            new_hr = min(180.0, heart.metrics.signals.get("heart_rate", 70.0) + intensity * 40)
-            heart.metrics.signals["heart_rate"] = new_hr
-            muscles.metrics.signals["fatigue_index"] = min(
-                100.0, muscles.metrics.signals.get("fatigue_index", 20.0) + intensity * 30
-            )
-            lungs.metrics.signals["respiratory_rate"] = lungs.metrics.signals.get("respiratory_rate", 16.0) + intensity * 8
-            changes['heart_rate'] = new_hr
+            if _is_num(hr):
+                new_hr = min(180.0, hr + intensity * 40)
+                heart.metrics.signals["heart_rate"] = new_hr
+                changes['heart_rate'] = new_hr
+            if _is_num(fatigue):
+                muscles.metrics.signals["fatigue_index"] = min(100.0, fatigue + intensity * 30)
+            if _is_num(rr):
+                lungs.metrics.signals["respiratory_rate"] = rr + intensity * 8
 
         elif intervention == "rest":
-            new_recovery = min(100.0, self.recovery.recovery_capacity + intensity * 20)
-            self.recovery.recovery_capacity = new_recovery
-            self.stress.acute_stress = max(0.0, self.stress.acute_stress - intensity * 30)
-            muscles.metrics.signals["fatigue_index"] = max(
-                0.0, muscles.metrics.signals.get("fatigue_index", 20.0) - intensity * 15
-            )
-            changes['recovery'] = new_recovery
+            if self.recovery.recovery_capacity is not None:
+                new_recovery = min(100.0, self.recovery.recovery_capacity + intensity * 20)
+                self.recovery.recovery_capacity = new_recovery
+                changes['recovery'] = new_recovery
+            if self.stress.acute_stress is not None:
+                self.stress.acute_stress = max(0.0, self.stress.acute_stress - intensity * 30)
+            if _is_num(fatigue):
+                muscles.metrics.signals["fatigue_index"] = max(0.0, fatigue - intensity * 15)
 
+        self._refresh_heart_points()
         self._propagate_physiological_effects()
         self._compute_global_state()
         return changes
 
-    def predict_physiological_events(self, horizon_minutes: int = 60) -> Dict[str, Dict[str, Any]]:
-        """Predicciones fisiológicas simples con horizonte.
-
-        Sin `confidence` por predicción (retirado 2026-08-14, Art. I --
-        confianza simulada, mismo gemelo que `PredictionEngine.assess_*_risk`
-        y el clasificador ECG): eran constantes fijas (0.75/0.70/0.65/
-        0.80/0.85) que no reaccionaban a ningún dato. Confirmado por grep
-        antes de retirarlas: este método no tiene ningún llamador vivo --
-        solo aparece en `_archive/` -- así que además de fachada, estaba
-        muerto; no hay ningún consumidor que se rompa."""
-        muscles = self.organs["muscles"]
-        fatigue_index = muscles.metrics.signals.get("fatigue_index", 20.0)
-        fatigue_progression = fatigue_index + (horizon_minutes / 60.0 * 5.0)
-
-        recovery_trajectory = self.recovery.recovery_capacity - (horizon_minutes / 120.0 * 2.0)
-
-        stress_trend = (
-            self.stress.acute_stress if self.stress.acute_stress > 50
-            else max(0.0, self.stress.acute_stress - 5.0)
-        )
-
-        heart = self.organs["heart"]
-        lungs = self.organs["lungs"]
-        hr = heart.metrics.signals.get("heart_rate", 70.0)
-        spo2 = lungs.metrics.signals.get("spo2", 98.0)
-        cardiovascular_risk = "HIGH" if (hr > 120 or spo2 < 90) else "LOW"
-
-        return {
-            'fatigue': {'predicted': min(100.0, fatigue_progression)},
-            'recovery': {'predicted': max(0.0, recovery_trajectory)},
-            'stress': {'predicted': stress_trend},
-            'cardiovascular_instability': {'risk': cardiovascular_risk},
-        }
-
     def generate_clinical_summary(self) -> str:
-        """Genera un resumen clínico legible del estado completo del organismo."""
+        """Resumen clínico legible del organismo. Lo que falta dice «sin dato» (antes `0.0 bpm`, `5.0 L/min`, `85 %`);
+        lo que nadie calcula dice «no modelado»; cada número lleva su procedencia entre corchetes."""
         heart, brain, lungs, muscles, autonomic = (
             self.organs["heart"], self.organs["brain"], self.organs["lungs"],
             self.organs["muscles"], self.organs["autonomic"],
         )
-        cd, nd, rd, md, ad = heart.detail, brain.detail, lungs.detail, muscles.detail, autonomic.detail
+
+        def num(value: Any, unit: str = "", tag: str = "", digits: int = 1) -> str:
+            if not _is_num(value):
+                return NO_DATA
+            return f"{value:.{digits}f}{unit}" + (f"  [{tag}]" if tag else "")
+
+        fed = lambda organ: organ.metrics.health_score is not None   # detalle solo si el órgano tiene un índice calculado
+        nd, rd, md, ad = brain.detail, lungs.detail, muscles.detail, autonomic.detail
+        entrada = "entrada"
+        heur = "heurístico BIOCORE"
+        hr_signal = heart.metrics.signals.get("heart_rate")
+        points = heart.metrics.risk_points
+        stress = self.stress.acute_stress if self.stress.acute_stress is not None else None
 
         return f"""
 ╔════════════════════════════════════════════════════════════════════════════╗
 ║                    RESUMEN CLÍNICO DEL GEMELO DIGITAL                      ║
 ║                          {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}                              ║
 ╚════════════════════════════════════════════════════════════════════════════╝
+Procedencia de las entradas: {self.input_provenance or 'sin declarar'}
 
 🫀 SISTEMA CARDIOVASCULAR:
-   • Frecuencia Cardíaca: {heart.metrics.signals.get('heart_rate', 0):.1f} bpm
-   • Variabilidad (HRV): {heart.metrics.signals.get('hrv', 0):.1f} ms
-   • Estabilidad de Ritmo: {cd.rhythm_stability if cd else 0:.1f}%
-   • Estrés Miocárdico: {cd.myocardial_stress if cd else 0:.1f}%
-   • Gasto Cardíaco: {cd.cardiac_output if cd else 0:.1f} L/min
+   • Frecuencia Cardíaca: {num(hr_signal, ' bpm', entrada)}
+   • Variabilidad (HRV): {num(heart.metrics.signals.get('hrv'), ' ms', entrada)}
+   • Puntos NEWS2 del pulso: {NO_DATA if points is None else f'{points} de 3  [NEWS2, RCP 2017]'}
+   • Gasto Cardíaco: {NOT_MODELED}
 
 🧠 SISTEMA NEUROLÓGICO:
-   • Salud General: {brain.metrics.health_score:.1f}%
-   • Carga Cognitiva: {nd.mental_workload if nd else 0:.1f}%
-   • Fatiga Cognitiva: {nd.cognitive_fatigue if nd else 0:.1f}%
+   • Salud General: {num(brain.metrics.health_score, '%', heur)}
+   • Carga Cognitiva: {num(nd.mental_workload if fed(brain) else None, '%', heur)}
+   • Fatiga Cognitiva: {num(nd.cognitive_fatigue if fed(brain) else None, '%', heur)}
 
 💨 SISTEMA RESPIRATORIO / OXIGENACIÓN:
-   • Frecuencia Respiratoria: {lungs.metrics.signals.get('respiratory_rate', 0):.1f} resp/min
-   • SpO₂: {lungs.metrics.signals.get('spo2', 0):.1f}%
-   • Riesgo de Apnea: {rd.apnea_risk if rd else 0:.1f}%
-   • Riesgo de Hipoxia: {rd.hypoxia_risk if rd else 0:.1f}%
+   • Frecuencia Respiratoria: {num(lungs.metrics.signals.get('respiratory_rate'), ' resp/min', entrada)}
+   • SpO₂: {num(lungs.metrics.signals.get('spo2'), '%', entrada)}
+   • Riesgo de Apnea: {num(rd.apnea_risk if fed(lungs) else None, '%', heur)}
+   • Riesgo de Hipoxia: {num(rd.hypoxia_risk if fed(lungs) else None, '%', heur)}
 
 🦾 SISTEMA MUSCULOESQUELÉTICO:
-   • Índice de Fatiga: {muscles.metrics.signals.get('fatigue_index', 0):.1f}%
-   • Eficiencia Neuromuscular: {md.neuromuscular_efficiency if md else 0:.1f}%
+   • Índice de Fatiga: {num(muscles.metrics.signals.get('fatigue_index'), '%', entrada)}
+   • Eficiencia Neuromuscular: {num(md.neuromuscular_efficiency if fed(muscles) else None, '%', heur)}
 
 🔄 SISTEMA AUTONÓMICO:
-   • Actividad Simpática: {ad.sympathetic_activity if ad else 0:.1f}%
-   • Actividad Parasimpática: {ad.parasympathetic_activity if ad else 0:.1f}%
+   • Actividad Simpática: {num(ad.sympathetic_activity if fed(autonomic) else None, '%', heur)}
+   • Actividad Parasimpática: {num(ad.parasympathetic_activity if fed(autonomic) else None, '%', heur)}
 
 ⚡ RECUPERACIÓN Y RENDIMIENTO:
-   • Capacidad de Recuperación: {self.recovery.recovery_capacity:.1f}%
-   • Estrés Agudo: {self.stress.acute_stress:.1f}%
-   • Desempeño Físico: {self.performance.physical_capacity:.1f}%
-   • Desempeño Cognitivo: {self.performance.cognitive_capacity:.1f}%
+   • Capacidad de Recuperación: {num(self.recovery.recovery_capacity, '%', heur)}
+   • Estrés Agudo: {num(stress, '%', heur)}
+   • Desempeño Físico: {num(self.performance.physical_capacity, '%', heur)}
+   • Desempeño Cognitivo: {num(self.performance.cognitive_capacity, '%', heur)}
 
 ════════════════════════════════════════════════════════════════════════════════
 """
 
     def to_json(self) -> str:
-        """Convierte el estado completo (órganos + estados transversales) a JSON."""
+        """Estado completo (órganos + estados transversales) a JSON. Lo que falta se exporta como «sin dato» y lo que
+        nadie calcula como «no modelado» (antes salían los defaults: 5.0, 85.0, 50.0...)."""
+
+        def clean(value: Any) -> Any:
+            if value is None:
+                return NO_DATA
+            if isinstance(value, dict):
+                return {k: clean(v) for k, v in value.items()}
+            return value
+
         state = {
             'timestamp': self.timestamp.isoformat(),
-            'global_state': self.global_state,
+            'input_provenance': self.input_provenance or "sin declarar",
+            'global_state': clean(self.global_state),
             'organs': {
                 organ_id: {
                     'health_score': organ.metrics.health_score,
                     'risk_score': organ.metrics.risk_score,
+                    'risk_points_news2': organ.metrics.risk_points,
                     'signals': organ.metrics.signals,
-                    'detail': organ.detail.__dict__ if organ.detail is not None else None,
+                    'detail': (organ.detail.__dict__ if organ.metrics.health_score is not None else NO_DATA)
+                    if organ.detail is not None else NOT_MODELED,
                 }
                 for organ_id, organ in self.organs.items()
             },
+            'derived_signals': self.derived_signals,
             'stress': self.stress.__dict__,
             'recovery': self.recovery.__dict__,
             'performance': self.performance.__dict__,
         }
+        state['organs'] = {k: clean(v) for k, v in state['organs'].items()}
+        for key in ('stress', 'recovery', 'performance'):
+            state[key] = clean(state[key])
+        state['stress']['cortisol_level'] = state['stress']['inflammatory_markers'] = NOT_MODELED
+        state['recovery']['circadian_alignment'] = state['performance']['peak_performance_window'] = NOT_MODELED
         return json.dumps(state, indent=2, default=str)
 
     def create_patient_scenario(self, scenario: str) -> None:
@@ -972,32 +1013,30 @@ class DigitalTwinOrganism:
         self.update_from_sensors(config)
 
     def apply_arrhythmia(self, type_key: str, seed: int = 0) -> str:
-        """Aplica un tipo de arritmia de la fuente única (`src/signals/ecg/arrhythmia_types.py`):
-        solo la FC de la instancia (tipo, semilla) en el horizonte inicial; HRV y el resto del
-        organismo no se tocan. Devuelve el texto de variabilidad declarada (rango, semilla, FC)
-        para que la UI lo muestre."""
+        """Aplica un tipo de arritmia de la fuente única (`src/signals/ecg/arrhythmia_types.py`): solo la FC de la
+        instancia (tipo, semilla) en el horizonte inicial. Devuelve el texto de variabilidad declarada (rango, semilla,
+        FC) para que la UI lo muestre. Fase 1: la FC es la ÚNICA entrada de esta actualización; ya no se reenvían las
+        señales vigentes (HRV...) como si fueran nuevas -- una entrada anterior no se vuelve actual por reenviarla."""
         from src.signals.ecg.arrhythmia_types import declare_instance, instance_hr
 
         self.current_scenario = f"arrhythmia_{type_key}"
-        # `_update_heart` sustituye las señales del órgano por lo recibido: se reenvían las vigentes (HRV...)
-        # para que solo cambie la FC.
-        ecg = {**self.organs['heart'].metrics.signals, 'heart_rate': instance_hr(type_key, seed)}
-        self.update_from_sensors({'ecg': ecg})
+        self.input_provenance = "simulación (instancia de la fuente única de arritmias)"
+        self.update_from_sensors({'ecg': {'heart_rate': instance_hr(type_key, seed)}})
         return declare_instance(type_key, seed, (0,))
 
     def apply_sepsis(self, horizon: str = 'now') -> str:
         """Aplica un PUNTO de la trayectoria canónica de sepsis (`src/clinical/sepsis_trajectory.py`) --
-        FC, HRV, FR, SpO2 y estrés de ese horizonte, el mismo valor que el `SimulationEngine` da en él --
-        conservando el resto de las señales de cada órgano. Devuelve la fase del punto y su declaración
-        de PA para que la UI la muestre."""
+        FC, HRV, FR, SpO2 y estrés de ese horizonte, el mismo valor que el `SimulationEngine` da en él.
+        Devuelve la fase del punto y su declaración de PA para que la UI la muestre. Fase 1: solo se envía lo que el
+        horizonte define; ya no se reenvían las demás señales vigentes como si fueran nuevas."""
         from src.clinical import sepsis_trajectory as sepsis
 
         v = sepsis.horizon_vitals(horizon)
-        signals = lambda organ: self.organs[organ].metrics.signals
         self.current_scenario = f"sepsis:{horizon}"
+        self.input_provenance = "simulación (trayectoria canónica de sepsis)"
         self.update_from_sensors({
-            'ecg': {**signals('heart'), 'heart_rate': v['hr'], 'hrv': v['hrv']},
-            'respiratory': {**signals('lungs'), 'respiratory_rate': v['respiratory_rate'], 'spo2': v['spo2']},
-            'eeg': {**signals('brain'), 'stress_level': v['stress_level']},
+            'ecg': {'heart_rate': v['hr'], 'hrv': v['hrv']},
+            'respiratory': {'respiratory_rate': v['respiratory_rate'], 'spo2': v['spo2']},
+            'eeg': {'stress_level': v['stress_level']},
         })
         return f"Sepsis, horizonte {horizon} (fase {sepsis.phase_of(horizon)}): {sepsis.pa_phase_note(sepsis.phase_of(horizon))}"

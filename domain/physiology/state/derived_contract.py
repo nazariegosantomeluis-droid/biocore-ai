@@ -7,6 +7,12 @@ su fórmula llegaron medidas o simuladas en ESE snapshot. Si alguna entrada sali
 por defecto no es una medición. Una cantidad que el organismo nunca calcula (constante de dataclass) o que no es más que
 otro nombre de un valor ya escrito NO se escribe nunca.
 
+Fase 1 (2026-11-12, decisiones firmadas por Luis): (1) se retiran `health_score` cardiaco y `myocardial_stress`; (2) se
+descartan `complexity` y `rhythm_stability`; (3) `cardiac_output` NO lo calcula el organismo: solo podría escribirlo el
+motor hemodinámico base con procedencia `MODELO_HEMODINAMICO` y su estado de validación visible (hoy ese motor recibe el
+flujo como ENTRADA y devuelve presiones; no lo calcula: no se escribe); (4) el riesgo cardiaco son los puntos NEWS2 de
+pulso, con una sola entrada (`heart_rate`); (6) un derivado hereda la MENOR confianza de sus entradas.
+
 Este módulo es el ÚNICO punto de verdad de la regla: la tabla `DERIVED_CONTRACT` (campo -> entradas requeridas, deducidas
 de la fórmula real de `app/engines/digital_twin_organism.py`, con archivo:línea) y las dos funciones que la aplican. Solo
 `builder.from_digital_twin_organism()` la consulta; ningún laboratorio ni ruta decide por su cuenta qué derivado escribir.
@@ -20,7 +26,7 @@ Cambiar la tabla es una decisión del contrato (con su prueba en `tests/test_ups
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
 __all__ = [
     "DerivedRule",
@@ -28,6 +34,7 @@ __all__ = [
     "SPECTRAL_BANDS",
     "MIN_SPECTRAL_BANDS",
     "derived_is_writable",
+    "derived_confidence",
     "accepted_band_powers",
     "contract_rows",
 ]
@@ -42,6 +49,7 @@ class DerivedRule:
     inputs: Tuple[Tuple[str, ...], ...]
     formula: str
     never_reason: Optional[str] = None
+    only_from: Optional[str] = None  # fuente única permitida distinta del organismo (p. ej. el motor hemodinámico)
 
 
 _ORG = "app/engines/digital_twin_organism.py"
@@ -49,19 +57,29 @@ _NEVER: Tuple[Tuple[str, ...], ...] = ()
 
 DERIVED_CONTRACT: Dict[str, Dict[str, DerivedRule]] = {
     "cardiovascular": {
-        # _update_heart: hr/hrv/complexity con default 70/50/50 (L369-371); fórmulas L374-392.
-        "health_score": DerivedRule((("heart_rate", "hrv", "complexity"),), f"{_ORG}:374-378"),
-        "risk_score": DerivedRule((("heart_rate", "hrv"),), f"{_ORG}:383-388"),
-        "myocardial_stress": DerivedRule((("heart_rate", "hrv", "complexity"),), f"{_ORG}:391 (= 100 - health_score)"),
+        # Riesgo cardiaco = puntos NEWS2 del pulso (decisión 4): única entrada `heart_rate`, sin `get(..., default)`.
+        # Reemplaza a `risk_score` (umbrales caseros 40/120 y hrv < 20, purgados del organismo).
+        "news2_pulse_points": DerivedRule(
+            (("heart_rate",),), "clinical/calculators.py:news2_pulse_score (NEWS2_CITATION, RCP 2017)"
+        ),
+        "health_score": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)",
+            "decisión 1: fórmula sin cita (pesos 0.3/0.5/0.2) que satura en 100 entre FC 35 y 150; retirado",
+        ),
+        "myocardial_stress": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)", "decisión 1: era 100 - health_score; retirado con él",
+        ),
         "rhythm_stability": DerivedRule(
-            _NEVER, f"{_ORG}:392",
-            "es el eco de `complexity` (default 50): ningún laboratorio mide esa entrada; con ella ausente es un default "
-            "disfrazado de estabilidad de ritmo",
+            _NEVER, f"{_ORG} (retirado)",
+            "decisión 2: era el eco de `complexity` (default 50); «estabilidad del ritmo» no significa lo mismo que "
+            "entropía; ningún laboratorio mide esa entrada",
         ),
         "cardiac_output": DerivedRule(
-            _NEVER, f"{_ORG}:42 (nunca se asigna)",
-            "constante de dataclass (5.0 L/min): `_update_heart` jamás la calcula; el SimulationEngine da otro valor por "
-            "escenario (sepsis 4.0 -> 2.0)",
+            _NEVER, f"{_ORG} (retirado)",
+            "decisión 3: no modelado por el organismo. Ni el SimulationEngine (literales por escenario, sin "
+            "hemodinámica) ni el motor RCR base (recibe el flujo como entrada, devuelve presiones) lo calculan; solo "
+            "podría escribirlo el motor hemodinámico base como MODELO_HEMODINAMICO con su estado de validación",
+            only_from="motor hemodinámico base (MODELO_HEMODINAMICO)",
         ),
     },
     "respiratory": {
@@ -120,13 +138,32 @@ def accepted_band_powers(signals: Dict[str, float]) -> Dict[str, float]:
     return present if len(present) >= MIN_SPECTRAL_BANDS else {}
 
 
+def derived_confidence(
+    domain: str,
+    field: str,
+    present: Iterable[str],
+    input_confidence: Optional[Mapping[str, float]],
+    default: float,
+) -> float:
+    """Confianza de un derivado = la MENOR confianza de las entradas de su fórmula (propagación conservadora, decisión
+    6), no una constante. Usa la primera alternativa de entradas completa (el orden de las alternativas es el de la
+    fórmula del organismo); una entrada sin confianza propia hereda `default` (la del escritor)."""
+    rule = DERIVED_CONTRACT[domain][field]
+    have = set(present)
+    for alternative in rule.inputs:
+        if all(name in have for name in alternative):
+            conf = input_confidence or {}
+            return min(float(conf.get(name, default)) for name in alternative)
+    raise ValueError(f"{domain}.{field} no es escribible con las entradas presentes: {sorted(have)}")
+
+
 def contract_rows() -> List[Tuple[str, str, str, str]]:
     """Filas (dominio, campo, entradas requeridas, fórmula/razón) para pruebas y documentación."""
     rows = []
     for domain, fields in DERIVED_CONTRACT.items():
         for field, rule in fields.items():
             if rule.never_reason:
-                needs = "NUNCA"
+                needs = f"SOLO {rule.only_from}" if rule.only_from else "NUNCA"
                 why = f"{rule.formula} — {rule.never_reason}"
             else:
                 needs = " ó ".join(" + ".join(alt) for alt in rule.inputs)

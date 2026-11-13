@@ -30,7 +30,9 @@ ancla firmada por el experto para la regla de acoplamiento arousal->↑FC."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Mapping, Optional, Tuple
+
+from clinical.calculators import NEWS2_CITATION, news2_pulse_score
 
 from src.signals.eeg.eeg_analyzer import (
     BAR_CITATION,
@@ -42,7 +44,8 @@ from src.signals.eeg.eeg_analyzer import (
 )
 from src.signals.eeg.spectral_model import CHI_APERIODIC_CITATION, CHI_CITATION
 
-from .derived_contract import SPECTRAL_BANDS, accepted_band_powers, derived_is_writable
+from .composer import DEFAULT_MAX_HR_CARRY_AGE_S
+from .derived_contract import SPECTRAL_BANDS, accepted_band_powers, derived_confidence, derived_is_writable
 from .schema import (
     DomainState,
     EventSeverity,
@@ -58,74 +61,88 @@ if TYPE_CHECKING:
     from app.engines.digital_twin_organism import DigitalTwinOrganism
 
 
-def _add_derived(descriptors, domain, signals, candidates, confidence, source_detail) -> None:
+def _usable_inputs(
+    organism: "DigitalTwinOrganism", organ_id: str, provenance: Provenance, source_detail: Optional[str]
+) -> Tuple[dict, Provenance, Optional[str], bool]:
+    """Qué entradas del órgano puede usar el UPS y con qué procedencia (Fase 1, 2026-11-12, Art. I).
+
+    - ACTUAL: llegaron en la última actualización del organismo -> procedencia del llamador; los derivados se permiten.
+    - ARRASTRADA: llegaron en una actualización anterior pero dentro de la compuerta temporal del compositor
+      (`DEFAULT_MAX_HR_CARRY_AGE_S`, la MISMA constante) -> solo valores medidos, con `ARRASTRE_TEMPORAL` y su edad
+      declarada; NUNCA derivados.
+    - VENCIDA o inexistente: la entrada no existe (dominio vacío).
+    Devuelve (señales usables, procedencia, source_detail, ¿se permiten derivados?)."""
+    metrics = organism.organs[organ_id].metrics
+    if not metrics.signals or metrics.signals_seq == 0:
+        return {}, provenance, source_detail, False
+    if organism.inputs_are_current(organ_id):
+        return metrics.signals, provenance, source_detail, True
+    age_s = (organism.timestamp - metrics.signals_at).total_seconds() if metrics.signals_at else float("inf")
+    if age_s > DEFAULT_MAX_HR_CARRY_AGE_S:
+        return {}, provenance, source_detail, False
+    detail = f"{source_detail + ' | ' if source_detail else ''}arrastrada de una actualización anterior (edad {age_s:.0f} s)"
+    return metrics.signals, Provenance.ARRASTRE_TEMPORAL, detail, False
+
+
+def _current_signals(organism: "DigitalTwinOrganism", organ_id: str) -> dict:
+    """Señales del órgano SOLO si llegaron en la actualización actual (los eventos no se derivan de entradas viejas)."""
+    return organism.organs[organ_id].metrics.signals if organism.inputs_are_current(organ_id) else {}
+
+
+def _add_derived(descriptors, domain, signals, candidates, confidence, source_detail, input_confidence=None) -> None:
     """ÚNICO camino por el que un valor derivado del organismo entra al UPS: lo filtra el contrato
-    (`derived_contract.derived_is_writable`) según las entradas que REALMENTE llegaron en `signals`."""
-    for name, value, unit in candidates:
+    (`derived_contract.derived_is_writable`) según las entradas que REALMENTE llegaron en `signals`, y su confianza
+    es la MENOR de las de sus entradas (`derived_confidence`, decisión 6). Un candidato puede traer su propio detalle."""
+    for candidate in candidates:
+        name, value, unit = candidate[:3]
         if derived_is_writable(domain, name, signals):
             descriptors[name] = PhysiologicalDescriptor(
-                name, float(value), unit, Provenance.DERIVADO, confidence, source_detail
+                name, float(value), unit, Provenance.DERIVADO,
+                derived_confidence(domain, name, signals, input_confidence, confidence),
+                candidate[3] if len(candidate) > 3 else source_detail,
             )
 
 
 def _cardiovascular_state(
-    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str]
+    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str],
+    input_confidence: Optional[Mapping[str, float]] = None,
 ) -> DomainState:
-    heart = organism.organs["heart"]
-    signals = heart.metrics.signals
-    detail = heart.detail
+    """Cardiovascular. Fase 1 (2026-11-12, decisiones firmadas): solo se escribe lo medido (`heart_rate`, `hrv`) y UN
+    derivado, los puntos NEWS2 del pulso (`news2_pulse_points`, única entrada `heart_rate`, con su cita). Sin
+    `health_score`, `myocardial_stress`, `rhythm_stability` ni `cardiac_output` (ver `derived_contract.py`). El corazón
+    fantasma (2026-08-22) sigue vetado: sin `heart_rate` no hay derivado."""
+    signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "heart", provenance, source_detail)
+    ic = input_confidence or {}
 
     descriptors = {}
-
-    # Corazón fantasma (2026-08-22, Capa 2 Fase 2.4, Art. I): `heart.detail`
-    # nace poblado con defaults de aspecto plausible (CardiacDetail(),
-    # digital_twin_organism.py `_initialize_organs()` -- cardiac_output=5.0,
-    # rhythm_stability=85.0, myocardial_stress=30.0) ANTES de que
-    # `_update_heart()` corra ni una vez, y `heart.metrics.health_score`/
-    # `risk_score` arrancan en 50.0/0.0 por el mismo motivo (OrganMetrics,
-    # misma clase). Antes, health_score/risk_score/detail.* se escribían
-    # aquí SIN el gate que sí protegía a heart_rate/hrv -- cualquier llamador
-    # que pasara `update_from_sensors({"respiratory": {...}})` sin `"ecg"`
-    # (el caso de Respiratory Lab, Fase 2.4; ya reproducible hoy vía Twin OS:
-    # botón "🔴 EPOC" -- create_patient_scenario("copd"), que solo toca
-    # lungs -- seguido de cualquiera de los 3 botones "snapshot bajo
-    # demanda") persistía un corazón sano, completo, Provenance.DERIVADO,
-    # indistinguible de uno medido. Gate simétrico al de heart_rate/hrv: sin
-    # dato cardíaco real de entrada, el dominio cardiovascular se escribe
-    # vacío -- "sin datos", nunca "corazón sano por defecto". Diagnóstico de
-    # consumidores (Paso 1) confirmó que ninguno asume presencia incondicional
-    # de estos 5 descriptores -- ver CHANGELOG.md.
-    has_real_cardiac_input = "heart_rate" in signals
-
     if "heart_rate" in signals:
         descriptors["heart_rate"] = PhysiologicalDescriptor(
-            "heart_rate", float(signals["heart_rate"]), "bpm", provenance, confidence, source_detail
+            "heart_rate", float(signals["heart_rate"]), "bpm", provenance, ic.get("heart_rate", confidence), source_detail
         )
     if "hrv" in signals:
         descriptors["hrv"] = PhysiologicalDescriptor(
-            "hrv", float(signals["hrv"]), "ms", provenance, confidence, source_detail
+            "hrv", float(signals["hrv"]), "ms", provenance, ic.get("hrv", confidence), source_detail
         )
 
-    # Contrato de derivados (C0, 2026-11-12, Art. I): el gate de arriba decide si hay corazón que escribir; QUÉ derivados
-    # se escriben lo decide `derived_contract.py` (solo con TODAS sus entradas presentes; `rhythm_stability` y
-    # `cardiac_output` nunca). Con solo `heart_rate`, el dominio contiene solo `heart_rate`.
-    if has_real_cardiac_input:
-        candidates = [
-            ("health_score", heart.metrics.health_score, "0-100"),
-            ("risk_score", heart.metrics.risk_score, "0-100"),
-        ]
-        if detail is not None:
-            candidates.append(("myocardial_stress", detail.myocardial_stress, "0-100"))
-        _add_derived(descriptors, "cardiovascular", signals, candidates, confidence, source_detail)
+    if derived_ok and "heart_rate" in signals:
+        points = news2_pulse_score(float(signals["heart_rate"]))
+        _add_derived(
+            descriptors, "cardiovascular", signals,
+            [("news2_pulse_points", points, "puntos NEWS2 (0-3)",
+              f"{source_detail + ' | ' if source_detail else ''}news2_pulse_score | {NEWS2_CITATION}")],
+            confidence, source_detail, input_confidence,
+        )
 
     return DomainState(domain="cardiovascular", descriptors=descriptors)
 
 
 def _respiratory_state(
-    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str]
+    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str],
+    input_confidence: Optional[Mapping[str, float]] = None,
 ) -> DomainState:
     lungs = organism.organs["lungs"]
-    signals = lungs.metrics.signals
+    signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "lungs", provenance, source_detail)
+    ic = input_confidence or {}
     detail = lungs.detail
 
     descriptors = {}
@@ -144,11 +161,11 @@ def _respiratory_state(
 
     if "respiratory_rate" in signals:
         descriptors["respiratory_rate"] = PhysiologicalDescriptor(
-            "respiratory_rate", float(signals["respiratory_rate"]), "resp/min", provenance, confidence, source_detail
+            "respiratory_rate", float(signals["respiratory_rate"]), "resp/min", provenance, ic.get("respiratory_rate", confidence), source_detail
         )
     if "spo2" in signals:
         descriptors["spo2"] = PhysiologicalDescriptor(
-            "spo2", float(signals["spo2"]), "%", provenance, confidence, source_detail
+            "spo2", float(signals["spo2"]), "%", provenance, ic.get("spo2", confidence), source_detail
         )
     # Fase 2 (2026-08-12), fisiología real de apnea/EPOC: `ahi` ya llegaba a
     # `lungs.metrics.signals` (copiado íntegro por `_update_lungs()`, ver
@@ -163,12 +180,12 @@ def _respiratory_state(
     # perdía nada antes, solo apnea necesitaba que esto existiera).
     if "ahi" in signals:
         descriptors["ahi"] = PhysiologicalDescriptor(
-            "ahi", float(signals["ahi"]), "eventos/h", provenance, confidence, source_detail
+            "ahi", float(signals["ahi"]), "eventos/h", provenance, ic.get("ahi", confidence), source_detail
         )
 
     # Contrato de derivados (C0): ver `derived_contract.py`. Sin `ahi` (el organismo lo defaultea a 0) no se escriben
     # `health_score`, `risk_score` ni `apnea_risk`; `tissue_oxygenation` (= SpO2 con otro nombre) nunca.
-    if has_real_respiratory_input:
+    if has_real_respiratory_input and derived_ok:
         candidates = [
             ("health_score", lungs.metrics.health_score, "0-100"),
             ("risk_score", lungs.metrics.risk_score, "0-100"),
@@ -176,13 +193,14 @@ def _respiratory_state(
         if detail is not None:
             candidates.append(("hypoxia_risk", detail.hypoxia_risk, "0-100"))
             candidates.append(("apnea_risk", detail.apnea_risk, "0-100"))
-        _add_derived(descriptors, "respiratory", signals, candidates, confidence, source_detail)
+        _add_derived(descriptors, "respiratory", signals, candidates, confidence, source_detail, input_confidence)
 
     return DomainState(domain="respiratory", descriptors=descriptors)
 
 
 def _neurological_state(
-    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str]
+    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str],
+    input_confidence: Optional[Mapping[str, float]] = None,
 ) -> DomainState:
     """Capa 5A, Sub-fase 1 (2026-08-30): tercer dominio, mismo patrón que
     `_cardiovascular_state()`/`_respiratory_state()` de arriba, incluido el
@@ -195,7 +213,8 @@ def _neurological_state(
     existe una en este slice, igual que corazón/pulmón no citan sus PESOS
     de fórmula, solo su punto de referencia)."""
     brain = organism.organs["brain"]
-    signals = brain.metrics.signals
+    signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "brain", provenance, source_detail)
+    ic = input_confidence or {}
     detail = brain.detail
 
     descriptors = {}
@@ -222,7 +241,7 @@ def _neurological_state(
     for band in SPECTRAL_BANDS:
         if band in bands:
             descriptors[band] = PhysiologicalDescriptor(
-                band, float(bands[band]), "power (u.a.)", provenance, confidence, source_detail
+                band, float(bands[band]), "power (u.a.)", provenance, ic.get(band, confidence), source_detail
             )
 
     # BAR (Ratio Beta/Alfa) -- Acoplamientos Sub-fase B (2026-09-06). El
@@ -320,7 +339,7 @@ def _neurological_state(
     # `stress_level` (el organismo los defaultea a 65/35), `attention`/`sleepiness` exigen `attention` o `relaxation_level`
     # + `alpha_power`, etc. `frontal_activity`/`temporal_activity` (NUNCA asignados en `_update_brain`) se omiten a
     # propósito: persistirlos sería una constante disfrazada de medición.
-    if has_real_neuro_input:
+    if has_real_neuro_input and derived_ok:
         candidates = [
             ("health_score", brain.metrics.health_score, "0-100"),
             ("risk_score", brain.metrics.risk_score, "0-100"),
@@ -334,13 +353,14 @@ def _neurological_state(
                 ("sleepiness", detail.sleepiness, "0-100"),
             ]
         present = {k for k in signals if k not in SPECTRAL_BANDS} | set(bands)  # una banda NO aceptada no cuenta como entrada
-        _add_derived(descriptors, "neurological", present, candidates, confidence, source_detail)
+        _add_derived(descriptors, "neurological", present, candidates, confidence, source_detail, input_confidence)
 
     return DomainState(domain="neurological", descriptors=descriptors)
 
 
 def _muscular_state(
-    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str]
+    organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, source_detail: Optional[str],
+    input_confidence: Optional[Mapping[str, float]] = None,
 ) -> DomainState:
     """Capa 5A, dominio muscular Tanda 2 (2026-09-10): cuarto dominio,
     patrón COPIADO LITERAL de `_neurological_state()` de arriba, incluido
@@ -351,7 +371,8 @@ def _muscular_state(
     `median_frequency` (MDF del PSD de Welch, marcador de fatiga estándar).
     Ambas son cantidades reales de la señal, no invenciones de la app."""
     muscles = organism.organs["muscles"]
-    signals = muscles.metrics.signals
+    signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "muscles", provenance, source_detail)
+    ic = input_confidence or {}
     detail = muscles.detail
 
     descriptors = {}
@@ -373,11 +394,11 @@ def _muscular_state(
 
     if "activation" in signals:
         descriptors["activation"] = PhysiologicalDescriptor(
-            "activation", float(signals["activation"]), "%", provenance, confidence, source_detail
+            "activation", float(signals["activation"]), "%", provenance, ic.get("activation", confidence), source_detail
         )
     if "median_frequency" in signals:
         descriptors["median_frequency"] = PhysiologicalDescriptor(
-            "median_frequency", float(signals["median_frequency"]), "Hz", provenance, confidence, source_detail
+            "median_frequency", float(signals["median_frequency"]), "Hz", provenance, ic.get("median_frequency", confidence), source_detail
         )
 
     # `fatigue_index` DIFERIDO -- NO se persiste en esta tanda. La fórmula
@@ -395,7 +416,7 @@ def _muscular_state(
     # Contrato de derivados (C0): ver `derived_contract.py`. Con solo `activation`/`median_frequency` (EMG Lab) no se
     # escribe ningún derivado: `efficiency` y `fatigue_index` no llegaron (el organismo los defaultea a 70/20).
     # `recruitment_pattern`/`motor_symmetry`/`power_output` (NUNCA asignados en `_update_muscles`) se omiten a propósito.
-    if has_real_muscular_input:
+    if has_real_muscular_input and derived_ok:
         candidates = [
             ("health_score", muscles.metrics.health_score, "0-100"),
             ("risk_score", muscles.metrics.risk_score, "0-100"),
@@ -405,7 +426,7 @@ def _muscular_state(
                 ("neuromuscular_efficiency", detail.neuromuscular_efficiency, "0-100"),
                 ("movement_smoothness", detail.movement_smoothness, "0-100"),
             ]
-        _add_derived(descriptors, "muscular", signals, candidates, confidence, source_detail)
+        _add_derived(descriptors, "muscular", signals, candidates, confidence, source_detail, input_confidence)
 
     return DomainState(domain="muscular", descriptors=descriptors)
 
@@ -413,15 +434,17 @@ def _muscular_state(
 def _detect_events(
     organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, timestamp: datetime
 ) -> List[PhysiologicalEvent]:
-    """Umbrales idénticos a los ya usados en
-    DigitalTwinOrganism._update_heart / _update_lungs — el evento es una
-    lectura distinta del mismo criterio clínico, no uno nuevo."""
+    """Eventos desde las entradas ACTUALES (nunca de una entrada vieja). Umbrales idénticos a los que usaba
+    `DigitalTwinOrganism._update_heart` / `_update_lungs`. OJO (Fase 1, 2026-11-12): el organismo purgó los umbrales
+    caseros del corazón (decisión 4) pero estos EVENTOS del UPS los conservan a propósito: cambiarlos arrastra las
+    declaraciones `ups_hr_event` de los tipos de arritmia y el color del Cuerpo Digital, y no estaba en la lista de purga
+    (organismo y PredictionEngine). Queda como hallazgo para la firma de Luis."""
 
     events: List[PhysiologicalEvent] = []
-    heart_signals = organism.organs["heart"].metrics.signals
-    lungs_signals = organism.organs["lungs"].metrics.signals
-    brain_signals = organism.organs["brain"].metrics.signals
-    muscle_signals = organism.organs["muscles"].metrics.signals
+    heart_signals = _current_signals(organism, "heart")
+    lungs_signals = _current_signals(organism, "lungs")
+    brain_signals = _current_signals(organism, "brain")
+    muscle_signals = _current_signals(organism, "muscles")
 
     hr = heart_signals.get("heart_rate")
     hrv = heart_signals.get("hrv")
@@ -536,6 +559,7 @@ def from_digital_twin_organism(
     provenance: Provenance = Provenance.SIMULACION,
     confidence: Optional[float] = None,
     source_detail: Optional[str] = None,
+    input_confidence: Optional[Mapping[str, float]] = None,
 ) -> UnifiedPhysiologicalState:
     """Construye un `UnifiedPhysiologicalState` a partir del estado actual
     de un `DigitalTwinOrganism` (cardiovascular + respiratorio +
@@ -547,6 +571,11 @@ def from_digital_twin_organism(
     `Provenance.DERIVADO`. Si no se pasa `confidence`, se toma el punto
     medio de la banda de referencia de `provenance` (`CONFIDENCE_REFERENCE`)
     en lugar de un número arbitrario.
+
+    Fase 1 (2026-11-12): `input_confidence` = confianza propia de cada entrada (por nombre: `{"heart_rate": 0.84}`); una
+    entrada sin ella hereda `confidence`. Un derivado hereda la MENOR confianza de sus entradas (propagación
+    conservadora, decisión 6). Las entradas que no llegaron en la actualización actual del organismo solo entran como
+    `ARRASTRE_TEMPORAL` dentro de la compuerta del compositor, y pasada esa compuerta no existen.
     """
     if confidence is None:
         confidence = default_confidence(provenance)
@@ -560,10 +589,10 @@ def from_digital_twin_organism(
         timestamp = timestamp.astimezone()
     timestamp = timestamp.astimezone(timezone.utc)
 
-    cardiovascular = _cardiovascular_state(organism, provenance, confidence, source_detail)
-    respiratory = _respiratory_state(organism, provenance, confidence, source_detail)
-    neurological = _neurological_state(organism, provenance, confidence, source_detail)
-    muscular = _muscular_state(organism, provenance, confidence, source_detail)
+    cardiovascular = _cardiovascular_state(organism, provenance, confidence, source_detail, input_confidence)
+    respiratory = _respiratory_state(organism, provenance, confidence, source_detail, input_confidence)
+    neurological = _neurological_state(organism, provenance, confidence, source_detail, input_confidence)
+    muscular = _muscular_state(organism, provenance, confidence, source_detail, input_confidence)
     events = _detect_events(organism, provenance, confidence, timestamp)
 
     return UnifiedPhysiologicalState(

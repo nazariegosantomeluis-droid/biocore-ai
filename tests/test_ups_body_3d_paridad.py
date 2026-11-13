@@ -108,7 +108,9 @@ def test_the_four_rows_that_used_to_diverge_now_match_the_ups(case, expected):
 
 def test_no_sensor_is_grey_no_data_not_the_fabricated_alert():
     org = DigitalTwinOrganism()
-    assert org.organs["heart"].status == OrganHealthStatus.ALERT, "el puntaje por defecto 50 = 'alerta'"
+    # Fase 1: el organismo sin alimentar NO tiene puntaje (antes 50 = «alerta»): sin dato, en gris, sin estado.
+    assert org.organs["heart"].metrics.health_score is None and org.organs["heart"].status is None
+    assert org.organs["heart"].color == U.NEUTRAL_COLOR
     visual = U.organ_visual_state(_state())["heart"]
     assert visual == (U.NEUTRAL_COLOR, "sin dato", False, None)
     color, label = visual[:2]

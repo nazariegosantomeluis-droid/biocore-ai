@@ -64,8 +64,9 @@ def test_build_context_includes_temporal_comparison_after_trajectory(tmp_path):
     assert hr.provenance == Provenance.SIMULACION.value
     assert 0.0 <= hr.confidence <= 1.0
 
-    health_score = next(d for d in context.descriptors if d.name == "health_score")
-    assert health_score.provenance == Provenance.DERIVADO.value
+    points = next(d for d in context.descriptors if d.name == "news2_pulse_points")   # Fase 1: sustituye a health_score
+    assert points.provenance == Provenance.DERIVADO.value
+    assert not any(d.name == "health_score" and d.domain == "cardiovascular" for d in context.descriptors)
 
     # Los eventos de este escenario (HR/HRV extremos) deben estar presentes
     # y citables por su event_type exacto.

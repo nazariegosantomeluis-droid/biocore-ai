@@ -130,8 +130,10 @@ def test_apply_arrhythmia_touches_only_the_heart_rate():
     before = dict(heart), dict(lungs)
     organism.apply_arrhythmia("svt", 2)
     heart, lungs = organism.organs["heart"].metrics.signals, organism.organs["lungs"].metrics.signals
-    # Entradas medidas intactas (HRV, FR, SpO2); lo derivado (p. ej. rr_modulation) lo recalcula el organismo.
-    assert heart["hrv"] == before[0]["hrv"]
+    # Fase 1 (2026-11-12): la FC es la ÚNICA entrada de esta actualización; la HRV anterior ya no se reenvía como si
+    # fuera nueva (una entrada vieja no se vuelve actual por reenviarla). Los otros órganos quedan intactos.
+    assert heart == {"heart_rate": pytest.approx(instance_hr("svt", 2))}
+    assert organism.inputs_are_current("heart") and not organism.inputs_are_current("lungs")
     assert lungs["respiratory_rate"] == before[1]["respiratory_rate"] and lungs["spo2"] == before[1]["spo2"]
     assert heart["heart_rate"] == pytest.approx(instance_hr("svt", 2))
 

@@ -78,15 +78,22 @@ def _press(ups, hub, page, key, before=None):
 # ------------------------------------------------------------------------------------------------ la tabla del contrato
 def test_the_contract_table_declares_what_is_never_written_and_cites_the_organism_formula():
     never = {(d, f) for d, fields in DERIVED_CONTRACT.items() for f, r in fields.items() if r.never_reason}
+    # Fase 1 (decisiones 1-3): health_score, myocardial_stress, rhythm_stability y cardiac_output ya no se escriben desde
+    # el organismo; tissue_oxygenation (= SpO2 con otro nombre) tampoco.
     assert never == {
-        ("cardiovascular", "cardiac_output"), ("cardiovascular", "rhythm_stability"), ("respiratory", "tissue_oxygenation"),
+        ("cardiovascular", "health_score"), ("cardiovascular", "myocardial_stress"),
+        ("cardiovascular", "rhythm_stability"), ("cardiovascular", "cardiac_output"),
+        ("respiratory", "tissue_oxygenation"),
     }
     for domain, field, needs, why in contract_rows():
-        assert "digital_twin_organism.py:" in why, (domain, field)          # archivo:línea de la fórmula real
+        assert "digital_twin_organism.py" in why or "calculators.py" in why, (domain, field)   # fórmula o cita
         assert needs, (domain, field)
-    assert derived_is_writable("cardiovascular", "health_score", {"heart_rate", "hrv", "complexity"})
-    assert not derived_is_writable("cardiovascular", "health_score", {"heart_rate", "hrv"})
-    assert not derived_is_writable("cardiovascular", "cardiac_output", {"heart_rate", "hrv", "complexity", "cardiac_output"})
+    # riesgo cardiaco = puntos NEWS2 del pulso, única entrada `heart_rate`
+    assert derived_is_writable("cardiovascular", "news2_pulse_points", {"heart_rate"})
+    assert not derived_is_writable("cardiovascular", "news2_pulse_points", {"hrv"})
+    for retired in ("health_score", "myocardial_stress", "rhythm_stability", "cardiac_output"):
+        assert not derived_is_writable("cardiovascular", retired, {"heart_rate", "hrv", "complexity", retired})
+    assert DERIVED_CONTRACT["cardiovascular"]["cardiac_output"].only_from.startswith("motor hemodinámico")
     assert derived_is_writable("neurological", "attention", {"attention"})                      # alternativa 1
     assert derived_is_writable("neurological", "attention", {"relaxation_level", "alpha_power"})  # alternativa 2
     assert not derived_is_writable("neurological", "attention", {"relaxation_level"})
@@ -115,18 +122,18 @@ def test_every_derived_descriptor_the_builder_can_emit_is_in_the_contract_and_ne
 
 
 def test_presence_is_decided_by_what_arrived_not_by_the_resulting_value():
-    # 70/50/50 enviados de verdad (una medición puede valer 70): el derivado SÍ se escribe...
-    sent = _state_from({"ecg": {"heart_rate": 70, "hrv": 50, "complexity": 50}})
-    assert {"health_score", "risk_score", "myocardial_stress"} <= set(sent.cardiovascular.descriptors)
-    # ...y con los MISMOS valores pero sin enviarlos (defaults del organismo) no.
-    defaulted = _state_from({"ecg": {"heart_rate": 70}})
-    assert set(defaulted.cardiovascular.descriptors) == {"heart_rate"}
-    assert defaulted.cardiovascular.get("heart_rate").value == pytest.approx(70.0)
+    # FC = 70 enviada de verdad (una medición puede valer 70): el derivado NEWS2 SÍ se escribe...
+    sent = _state_from({"ecg": {"heart_rate": 70, "hrv": 50}})
+    assert set(sent.cardiovascular.descriptors) == {"heart_rate", "hrv", "news2_pulse_points"}
+    assert sent.cardiovascular.get("news2_pulse_points").value == 0
+    # ...y sin FC (solo HRV) no hay derivado: el organismo ya no inventa un hr = 70.
+    only_hrv = _state_from({"ecg": {"hrv": 50}})
+    assert set(only_hrv.cardiovascular.descriptors) == {"hrv"}
 
 
-def test_an_organism_fed_only_with_heart_rate_writes_only_heart_rate():
+def test_an_organism_fed_only_with_heart_rate_writes_heart_rate_and_its_news2_points_and_nothing_else():
     state = _state_from({"ecg": {"heart_rate": 72.0}})
-    assert _fields(state) == {"cardiovascular": {"heart_rate"}}
+    assert _fields(state) == {"cardiovascular": {"heart_rate", "news2_pulse_points"}}
 
 
 def test_an_isolated_band_power_is_not_a_spectrum_and_a_real_spectrum_is_accepted():
@@ -138,17 +145,17 @@ def test_an_isolated_band_power_is_not_a_spectrum_and_a_real_spectrum_is_accepte
 
 
 # ------------------------------------------------------------------------------------------- ruta -> campos (exactos)
-def test_route_hrv_lab_writes_heart_rate_hrv_and_risk_score_but_no_health_score_nor_rhythm_stability(ups):
+def test_route_hrv_lab_writes_heart_rate_hrv_and_news2_points_but_no_health_score_nor_rhythm_stability(ups):
     _, state = _press(ups, "Clinical Hub", "📈 HRV Analysis", "hrv_lab_save_to_ups")
-    assert _fields(state) == {"cardiovascular": {"heart_rate", "hrv", "risk_score"}}
-    assert state.cardiovascular.get("risk_score").provenance == Provenance.DERIVADO
+    assert _fields(state) == {"cardiovascular": {"heart_rate", "hrv", "news2_pulse_points"}}
+    assert state.cardiovascular.get("news2_pulse_points").provenance == Provenance.DERIVADO
 
 
 def test_route_patient_pipeline_without_ahi_has_no_apnea_risk_and_no_cardiac_derivatives(ups):
     _, state = _press(ups, "Clinical Hub", "👥 Patient Pipeline", "patient_pipeline_save_state")
     # `hypoxia_risk` sale de la SpO2 sola (digital_twin_organism.py:450): su única entrada SÍ llegó -> se escribe.
     assert _fields(state) == {
-        "cardiovascular": {"heart_rate"},
+        "cardiovascular": {"heart_rate", "news2_pulse_points"},
         "respiratory": {"respiratory_rate", "spo2", "hypoxia_risk"},
     }
     resp = state.respiratory.descriptors
@@ -158,7 +165,7 @@ def test_route_patient_pipeline_without_ahi_has_no_apnea_risk_and_no_cardiac_der
 def test_route_twin_os_checkpoint_writes_no_fabricated_alpha_and_no_neurological_domain(ups):
     _, state = _press(ups, "Digital Twin OS", "🧬 Digital Twin OS", "twin_shell_body_sync")
     assert _fields(state) == {
-        "cardiovascular": {"heart_rate", "hrv", "risk_score"},
+        "cardiovascular": {"heart_rate", "hrv", "news2_pulse_points"},
         "respiratory": {"respiratory_rate", "spo2", "hypoxia_risk"},
     }
     assert state.neurological.descriptors == {} and state.muscular.descriptors == {}
@@ -191,12 +198,13 @@ def test_route_ecg_lab_writes_only_heart_rate_with_the_confidence_the_detector_c
         [x for x in at.sidebar.selectbox if x.label == "Diagnóstico primario"][0].set_value("I°AV").run()
 
     at, state = _press(ups, "Clinical Hub", "🫀 ECG Lab", "ecg_lab_save_to_ups", before=choose_sinus_case)
-    assert _fields(state) == {"cardiovascular": {"heart_rate"}}
+    assert _fields(state) == {"cardiovascular": {"heart_rate", "news2_pulse_points"}}
     hr = state.cardiovascular.get("heart_rate")
     shown = re.search(r"confianza=([0-9.]+)", " ".join(s.value for s in at.success))
     assert shown, [s.value for s in at.success]
     assert hr.confidence == pytest.approx(float(shown.group(1)), abs=0.006)     # la calculada (p. ej. 0.84)...
     assert hr.confidence != pytest.approx(0.75)                                  # ...no el punto medio fijo de la banda
+    assert state.cardiovascular.get("news2_pulse_points").confidence == pytest.approx(hr.confidence)   # derivado: la MENOR
 
 
 def test_all_routes_together_never_write_the_never_fields(ups):
@@ -226,7 +234,7 @@ def test_sepsis_simulator_does_not_write_cardiac_output_nor_a_derived_value_with
     assert len(steps) == 6
     for step in steps:
         cardio = step.state.cardiovascular.descriptors
-        assert set(cardio) == {"heart_rate", "hrv", "risk_score"}
+        assert set(cardio) == {"heart_rate", "hrv", "news2_pulse_points"}
         assert "cardiac_output" not in cardio and "rhythm_stability" not in cardio
         # ahi SÍ llega en el simulador rico -> los derivados respiratorios con ahi real se conservan
         assert {"respiratory_rate", "spo2", "ahi", "health_score", "risk_score", "hypoxia_risk", "apnea_risk"} == set(
@@ -245,18 +253,19 @@ def test_clinical_case_bank_writes_no_default_derived_values(ups):
         case = generate_case(session, rng=random.Random(7))
         state = get_latest_state(session, case.patient_id)
     assert not (NEVER_WRITTEN & {n for ds in state.all_domains().values() for n in ds.descriptors})
-    assert set(state.cardiovascular.descriptors) <= {"heart_rate", "hrv", "risk_score"}
+    assert set(state.cardiovascular.descriptors) <= {"heart_rate", "hrv", "news2_pulse_points"}
 
 
-def test_legacy_scenario_with_real_complexity_still_writes_its_cardiac_derivatives(ups):
+def test_legacy_scenario_with_complexity_no_longer_writes_health_score_or_myocardial_stress(ups):
     from domain.physiology.scenarios import run_scenario
 
     sf, pid = ups
     with sf() as session:
         steps = list(run_scenario(session, pid, "taquicardia_estres", steps=3, organism=DigitalTwinOrganism()))
     cardio = set(steps[0].state.cardiovascular.descriptors)
-    assert {"heart_rate", "hrv", "health_score", "risk_score", "myocardial_stress"} == cardio   # `complexity` SÍ llegó
-    assert "rhythm_stability" not in cardio and "cardiac_output" not in cardio                   # nunca
+    # Fase 1: aunque `complexity` llegue, health_score/myocardial_stress/rhythm_stability se retiraron (decisiones 1-2)
+    assert {"heart_rate", "hrv", "news2_pulse_points"} == cardio
+    assert not ({"health_score", "myocardial_stress", "rhythm_stability", "cardiac_output"} & cardio)
 
 
 # ----------------------------------------------------------------------------------------------------------- narrador
@@ -281,9 +290,9 @@ def test_narrator_context_has_no_cardiac_output_nor_rhythm_stability_in_sepsis_a
     sepsis_names = {d.name for d in sepsis_ctx.descriptors}
     assert "heart_rate" in sepsis_names and not (NEVER_WRITTEN & sepsis_names)
     sepsis_cardio = {d.name for d in sepsis_ctx.descriptors if d.domain == "cardiovascular"}
-    assert sepsis_cardio == {"heart_rate", "hrv", "risk_score"}     # sin `complexity` -> sin health_score cardíaco
+    assert sepsis_cardio == {"heart_rate", "hrv", "news2_pulse_points"}   # sin health_score cardiaco (retirado)
     ecg_names = {d.name for d in ecg_ctx.descriptors}
-    assert ecg_names == {"heart_rate"}                              # solo ECG: el contexto contiene solo la FC
+    assert ecg_names == {"heart_rate", "news2_pulse_points"}        # solo ECG: la FC y sus puntos NEWS2, nada más
 
 
 # -------------------------------------------------------------------------------------- índice de riesgo heurístico

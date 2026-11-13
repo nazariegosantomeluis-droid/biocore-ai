@@ -552,18 +552,30 @@ def _news2_sbp(sbp: float) -> int:
     return 3
 
 
-def _news2_pulse(hr: float) -> int:
-    if hr <= 40:
+def news2_pulse_score(hr: float) -> int:
+    """Puntos NEWS2 del pulso (lat/min). Redondea a entero con .5 hacia arriba (`floor(hr + 0.5)`, no el redondeo
+    bancario de Python) y puntúa: ≤ 40 → 3; 41–50 → 1; 51–90 → 0; 91–110 → 1; 111–130 → 2; ≥ 131 → 3. Fuente:
+    `NEWS2_CITATION` (Royal College of Physicians, NEWS2, Londres 2017, gráfico 1 «Physiological parameters», fila
+    «Pulse (per minute)»), contrastada con la tabla reproducida en PMC8244393 («≤40 · 41–50 · 51–90 · 91–110 ·
+    111–130 · ≥131»). Es la única copia de la tabla: `news2_score`, el organismo del gemelo y el motor de riesgo la
+    llaman, nadie la reescribe. Es UN componente de un puntaje; no es un diagnóstico."""
+    if hr is None or not math.isfinite(hr):
+        raise ValueError("pulso inválido")
+    n = math.floor(hr + 0.5)
+    if n <= 40:
         return 3
-    if hr <= 50:
+    if n <= 50:
         return 1
-    if hr <= 90:
+    if n <= 90:
         return 0
-    if hr <= 110:
+    if n <= 110:
         return 1
-    if hr <= 130:
+    if n <= 130:
         return 2
     return 3
+
+
+_news2_pulse = news2_pulse_score   # la tabla vive en un solo sitio
 
 
 def _news2_temp(temp_c: float) -> int:

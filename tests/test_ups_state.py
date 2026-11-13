@@ -86,13 +86,14 @@ def test_create_patient_write_state_and_recover_across_sessions(db_path):
 
     # Los valores calculados por el organismo (no medidos/simulados) siempre
     # se marcan como derivados, sin importar la procedencia del resto.
-    # C0 (2026-11-12, Art. I): solo se escribe el derivado cuyas entradas llegaron TODAS. `risk_score` usa FC y HRV
-    # (llegaron); `health_score` exige además `complexity`, que ningún escritor envía: no se escribe (antes salía con
-    # complexity=50 por defecto). Contrato completo en tests/test_ups_derived_contract.py.
-    risk_score = recovered.cardiovascular.get("risk_score")
-    assert risk_score is not None
-    assert risk_score.provenance == Provenance.DERIVADO
+    # C0 + Fase 1 (Art. I): el único derivado cardíaco son los puntos NEWS2 del pulso (entrada: `heart_rate`);
+    # `health_score` se retiró (decisión 1). Contrato completo en tests/test_ups_derived_contract.py.
+    points = recovered.cardiovascular.get("news2_pulse_points")
+    assert points is not None
+    assert points.provenance == Provenance.DERIVADO
+    assert points.value == 0                     # 72 lpm: banda 51-90 -> 0 puntos
     assert recovered.cardiovascular.get("health_score") is None
+    assert recovered.cardiovascular.get("risk_score") is None
 
 
 def test_temporal_query_hrv_between_two_moments(db_path):
