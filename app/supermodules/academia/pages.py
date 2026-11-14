@@ -212,7 +212,10 @@ def render_lessons_quizzes_tab() -> None:
             choice_key = f"academia_quiz_choice_{current}"
 
             if not quiz_state["answered_current"]:
-                selected = st.radio("Opciones", q.choices, key=choice_key)
+                # 2026-11-14 (Art. I): sin opción elegida de inicio (antes quedaba marcada la primera y
+                # «Responder» sin tocar nada contaba como respuesta) y con las opciones en el orden de
+                # `display_choices()`, que reparte el lugar de la correcta.
+                selected = st.radio("Opciones", q.display_choices(), index=None, key=choice_key)
 
                 if not narrator_is_configured():
                     render_ai_feedback_off_notice()
@@ -222,7 +225,10 @@ def render_lessons_quizzes_tab() -> None:
                 # aunque la respuesta correcta la decide el banco (código),
                 # nunca el modelo. Ahora se califica siempre; solo la
                 # narración del feedback depende de la clave.
-                if st.button("Responder", key=f"academia_quiz_submit_{current}"):
+                clicked = st.button("Responder", key=f"academia_quiz_submit_{current}")
+                if clicked and selected is None:
+                    st.warning("Elige una opción antes de responder.")
+                elif clicked:
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
                     quiz_state["feedback"] = None
@@ -263,10 +269,12 @@ def render_lessons_quizzes_tab() -> None:
                 else:
                     st.error(f"❌ Elegiste **{q.choices[idx]}** — la respuesta correcta es **{q.choices[q.answer]}**")
 
-                # Solo las preguntas que YA traían explicación de origen la
-                # muestran (texto existente del banco, no redactado aquí).
+                # 2026-11-14: cada pregunta del banco trae su explicación y su fuente
+                # (`educational/quiz_bank.py`, leídas del documento original).
                 if q.explanation:
                     st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
+                if q.source:
+                    st.caption(f"Fuente: {q.source}")
 
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:

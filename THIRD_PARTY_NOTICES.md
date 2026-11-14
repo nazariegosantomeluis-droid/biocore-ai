@@ -173,6 +173,8 @@ Referencias tal como las cita el código. Estos métodos se implementaron en BIO
 
 Las fórmulas y escalas clínicas de `clinical/calculators.py` llevan su propia cita en la constante `*_CITATION` de cada una; no se repiten aquí.
 
+Las preguntas de los cuestionarios (`educational/quiz_bank.py`) llevan su fuente en el campo `source` de cada una, leída del documento original el 2026-11-14; no se repiten aquí.
+
 ---
 
 ## 6. PENDIENTE (no se pudo obtener de su fuente original)

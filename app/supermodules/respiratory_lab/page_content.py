@@ -42,6 +42,7 @@ from src.signals.respiration import (
 # `st.metric()` a mano repartidos por las pestañas.
 from app.utils.design_system import BADGES, PALETTE, render_metric_card, render_section_header
 from app.supermodules.respiratory_lab import views
+from educational.quiz_bank import QuizQuestion, balance_positions, numeric_choices
 from clinical.calculators import NEWS2_CITATION  # noqa: F401  (la banda de FR vive en views.fr_band_text)
 
 # ═══════════════════════════════════════════════════════════════
@@ -594,15 +595,39 @@ with tab5:
     # Fase 3 (2026-11-07): "Identificar Patrón" y la de severidad por índice siguen fuera (patrón oculto; la
     # severidad vive en la calculadora). Se reactivan dos preguntas cuya respuesta SALE de un valor con golden test
     # (FR y conteo de apneas); las otras tres son texto fijo.
+    # 2026-11-14 (Art. I): ninguna respuesta viene elegida de inicio (antes la primera opción ya mostraba
+    # «Correcto» o «Incorrecto» sin contestar); las de texto perdieron la marca «✓» que delataba la correcta,
+    # siempre primera, y salen en el orden de `display_choices()`; en las numéricas el lugar de la correcta ya
+    # no es siempre el segundo (`numeric_choices`). El contenido y sus citas no cambian.
+    text_questions = balance_positions([
+        QuizQuestion("Diferenciación Apnea", [
+            "En el esfuerzo respiratorio",
+            "En la duración: las centrales duran 10 s o más y las obstructivas menos",
+            "En la caída del flujo: las centrales caen ≥ 90 % y las obstructivas ≥ 30 %",
+        ], 0),
+        QuizQuestion("Factores de Riesgo", [
+            "Una persona con obesidad (IMC > 35)",
+            "Una persona de 25 años con IMC 22, sin síntomas ni otras condiciones",
+            "Una persona sana que viaja como pasajera",
+        ], 0),
+        QuizQuestion("Correlación cardiovascular (guía AASM)", [
+            "Fibrilación auricular y disritmias nocturnas",
+            "Ninguna: la guía no menciona alteraciones del ritmo cardíaco",
+            "Solo la taquicardia sostenida",
+        ], 0),
+    ], "respiratory_lab")
+    text_question = {q.prompt: q for q in text_questions}
     if quiz_type == "Frecuencia de esta señal":
         st.info("**Pregunta:** ¿Cuál es la frecuencia respiratoria de la señal actual (redondeada al entero)?")
         correct = analysis.respiratory_rate_rounded
         if correct is None:
             st.warning("La frecuencia no está disponible en este registro: no hay pregunta que responder.")
         else:
-            options = sorted({correct, correct + 4, max(1, correct - 4), correct + 9})
-            picked = st.radio("Tu respuesta (resp/min):", options, key="resp_quiz_fr")
-            if picked == correct:
+            options = numeric_choices(correct, 4, f"fr:{correct}", minimum=1)
+            picked = st.radio("Tu respuesta (resp/min):", options, index=None, key="resp_quiz_fr")
+            if picked is None:
+                pass
+            elif picked == correct:
                 st.success(f"✅ Correcto: {analysis.respiratory_rate:.1f}/min medida entre inspiraciones; {views.fr_band_text(analysis)}.")
             else:
                 st.error("❌ Mide el tiempo entre dos inspiraciones consecutivas: FR = 60 / ese intervalo (s).")
@@ -613,9 +638,11 @@ with tab5:
         if correct is None:
             st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
         else:
-            options = sorted({correct, correct + 1, correct + 2, max(0, correct - 1)})
-            picked = st.radio("Tu respuesta:", options, key="resp_quiz_apneas")
-            if picked == correct:
+            options = numeric_choices(correct, 1, f"apneas:{correct}", minimum=0)
+            picked = st.radio("Tu respuesta:", options, index=None, key="resp_quiz_apneas")
+            if picked is None:
+                pass
+            elif picked == correct:
                 st.success(f"✅ Correcto: {correct} apnea(s) de ≥ 10 s en {analysis.record_duration_s:.0f} s de registro.")
             else:
                 st.error("❌ Busca los tramos con flujo casi ausente (≥ 90 % de caída) y mídelos: solo cuentan los de ≥ 10 s.")
@@ -627,13 +654,12 @@ with tab5:
         Pista: mira la pared torácica y el movimiento abdominal durante las apneas.
         """)
 
-        answer = st.radio("Tu respuesta:", [
-            "✓ En el esfuerzo respiratorio",
-            "En la duración: las centrales duran 10 s o más y las obstructivas menos",
-            "En la caída del flujo: las centrales caen ≥ 90 % y las obstructivas ≥ 30 %",
-        ])
+        question = text_question["Diferenciación Apnea"]
+        answer = st.radio("Tu respuesta:", question.display_choices(), index=None)
 
-        if answer.startswith("✓"):
+        if answer is None:
+            pass
+        elif question.is_correct(answer):
             st.success("✅ Correcto: Berry 2012 (§4.1.1) clasifica la apnea según el esfuerzo respiratorio. En este laboratorio, "
                        "central = esfuerzo ausente y obstructiva = esfuerzo presente (Criterio BIOCORE); la mixta queda "
                        "⏳ PENDING_VALIDATION.")
@@ -647,13 +673,12 @@ with tab5:
         que debe evaluarse para apnea obstructiva del sueño?
         """)
 
-        answer = st.radio("Tu respuesta:", [
-            "✓ Una persona con obesidad (IMC > 35)",
-            "Una persona de 25 años con IMC 22, sin síntomas ni otras condiciones",
-            "Una persona sana que viaja como pasajera",
-        ])
+        question = text_question["Factores de Riesgo"]
+        answer = st.radio("Tu respuesta:", question.display_choices(), index=None)
 
-        if answer.startswith("✓"):
+        if answer is None:
+            pass
+        elif question.is_correct(answer):
             st.success("✅ Correcto: la guía de la AASM (Epstein 2009) lista como alto riesgo la obesidad (IMC > 35), la insuficiencia cardíaca congestiva, la "
                        "fibrilación auricular, la hipertensión refractaria al tratamiento, la diabetes tipo 2, el ACV, las "
                        "disritmias nocturnas, la hipertensión pulmonar, las poblaciones de conducción de alto riesgo y la "
@@ -669,13 +694,12 @@ with tab5:
         (Epstein 2009) pide evaluar para apnea obstructiva del sueño?
         """)
 
-        answer = st.radio("Tu respuesta:", [
-            "✓ Fibrilación auricular y disritmias nocturnas",
-            "Ninguna: la guía no menciona alteraciones del ritmo cardíaco",
-            "Solo la taquicardia sostenida",
-        ])
+        question = text_question["Correlación cardiovascular (guía AASM)"]
+        answer = st.radio("Tu respuesta:", question.display_choices(), index=None)
 
-        if answer.startswith("✓"):
+        if answer is None:
+            pass
+        elif question.is_correct(answer):
             st.success("✅ Correcto: la fibrilación auricular y las disritmias nocturnas figuran en la lista de alto riesgo de la guía. "
                        "Berry 2012 añade que un estudio con la definición de hipopnea de ≥ 3 % de desaturación encontró asociación "
                        "entre el índice de eventos y la fibrilación auricular o la ectopia ventricular compleja en hombres mayores "

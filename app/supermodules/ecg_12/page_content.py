@@ -8,7 +8,7 @@ except ImportError:
 import sys
 import os
 import io
-from typing import Dict, List
+from typing import Dict
 # Rutas ajustadas (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
 # este archivo vivía en app/pages_legacy/ (2 niveles bajo la raíz del repo) y ahora
 # vive en app/supermodules/ecg_12/ (3 niveles) — un nivel más de profundidad, así
@@ -22,6 +22,8 @@ from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgPar
 from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
 from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
 from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM, get_type
+from clinical.calculators import QRS_AXIS_CITATION
+from educational.quiz_bank import ECG12_QUESTIONS, KUSUMOTO_2018, RAUTAHARJU_2009, SURAWICZ_2009, WAGNER_2009
 
 # Unificación 1 y 3: la FC de estas condiciones sale de la fuente única de tipos de ritmo, no de un
 # número propio de esta página (antes: FA 112 fijo, flutter 150 fijo, y "Bradicardia"/"Taquicardia
@@ -580,138 +582,36 @@ if "ecg_data" in st.session_state:
     # Educational quiz
     st.markdown("## 🎓 Desafío Educativo")
 
-    ECG_QUIZ_BANK: List[Dict[str, str]] = [
-        {
-            'question': '¿Cuál es la derivación que normalmente muestra mayor amplitud de R en un ECG estándar?',
-            'options': ['V1', 'V2', 'V4', 'V6'],
-            'correct': 'V4',
-            'explanation': 'En la zona de transición, V4 suele mostrar R máxima en ECG normal.'
-        },
-        {
-            'question': 'Elevación ST en V1-V4 sugiere infarto en territorio de:',
-            'options': ['RCA', 'LAD', 'LCx', 'Posterior'],
-            'correct': 'LAD',
-            'explanation': 'V1-V4 corresponde a la porción anterior del ventrículo izquierdo.'
-        },
-        {
-            'question': 'Un eje QRS de -45° se clasifica como:',
-            'options': ['Normal', 'LAD', 'RAD', 'Indeterminado'],
-            'correct': 'LAD',
-            'explanation': 'Un eje entre -30° y -90° indica desviación izquierda.'
-        },
-        {
-            'question': '¿Qué patrón es característico de RBBB?',
-            'options': ['RSR’ en V1-V2', 'QS en V1', 'Delta wave', 'QT prolongado'],
-            'correct': 'RSR’ en V1-V2',
-            'explanation': 'RBBB muestra patrón RSR’ en las derivaciones precordiales derechas.'
-        },
-        {
-            'question': 'Una onda delta y PR corto son signos de:',
-            'options': ['AF', 'Flutter', 'WPW', 'LBBB'],
-            'correct': 'WPW',
-            'explanation': 'El síndrome de Wolff-Parkinson-White se caracteriza por delta wave y PR corto.'
-        },
-        {
-            'question': 'Ausencia de ondas P y ritmo irregular indican:',
-            'options': ['AF', 'Flutter', 'VT', 'QB'],
-            'correct': 'AF',
-            'explanation': 'La fibrilación auricular presenta ritmo irregularmente irregular sin P reconocible.'
-        },
-        {
-            'question': 'Un QT corregido > 500 ms sugiere riesgo de:',
-            'options': ['Bloqueo AV', 'Taquicardia ventricular polimórfica', 'Infarto inferior', 'Pericarditis'],
-            'correct': 'Taquicardia ventricular polimórfica',
-            'explanation': 'QT largo incrementa el riesgo de torsades de pointes.'
-        },
-        {
-            'question': 'Territorio lateral incluye estas derivaciones:',
-            'options': ['II, III, aVF', 'V1-V2', 'I, aVL, V5-V6', 'V3-V4'],
-            'correct': 'I, aVL, V5-V6',
-            'explanation': 'Las derivaciones laterales son I, aVL y V5-V6.'
-        },
-        {
-            'question': '¿Cuál es el rango normal del PR?',
-            'options': ['80-120 ms', '120-200 ms', '200-300 ms', '300-400 ms'],
-            'correct': '120-200 ms',
-            'explanation': 'El intervalo PR normal es 120-200 ms.'
-        },
-        {
-            'question': 'La desviación derecha del eje se define en:',
-            'options': ['-30° a +90°', '+90° a +180°', '-90° a -30°', '+180° a -180°'],
-            'correct': '+90° a +180°',
-            'explanation': 'RAD se encuentra entre +90° y +180°.'
-        },
-        {
-            'question': 'Patrón de ST depresivo difuso con PR elevado sugiere:',
-            'options': ['Pericarditis', 'Infarto anterior', 'WPW', 'LBBB'],
-            'correct': 'Pericarditis',
-            'explanation': 'Pericarditis aguda suele mostrar ST elevado difuso y PR deprimido.'
-        },
-        {
-            'question': 'Una señal de ECG cargada desde dispositivo con solo derivación II puede:',
-            'options': ['permitir análisis completo de todas las derivaciones', 'generar inferencias usando derivadas sintéticas', 'no servir para diagnóstico', 'ser útil solo para frecuencia'],
-            'correct': 'generar inferencias usando derivadas sintéticas',
-            'explanation': 'Se puede crear una representación 12-lead sintética a partir de una derivación de referencia.'
-        },
-        {
-            'question': 'El parámetro QRS > 120 ms en V1-V6 sugiere:',
-            'options': ['Bloqueo de rama', 'AF', 'Hipertrofia ventricular', 'Bradicardia'],
-            'correct': 'Bloqueo de rama',
-            'explanation': 'QRS ancho es característico de bloqueos de rama y aberrancia ventricular.'
-        },
-        {
-            'question': 'En un ECG de dispositivo real, ¿qué valor de SNR es preferible?',
-            'options': ['Mayor a 10', 'Menor a 1', 'Entre 0.1 y 0.5', 'Cero'],
-            'correct': 'Mayor a 10',
-            'explanation': 'Un SNR alto indica señal limpia para análisis clínico.'
-        },
-        {
-            'question': '¿Qué representa el segmento ST?',
-            'options': ['Tiempo entre QRS y comienzo de T', 'Duración de la onda P', 'Intervalo RR', 'Longitud de QRS'],
-            'correct': 'Tiempo entre QRS y comienzo de T',
-            'explanation': 'El segmento ST es el periodo isoeléctrico entre QRS y T.'
-        },
-        {
-            'question': '¿Cuál es la utilidad del análisis automático por reglas de umbral en ECG 12-lead?',
-            'options': ['Señalar patrones candidatos para que los confirme el clínico', 'Sustituir completamente al médico', 'Reducir la frecuencia cardiaca', 'Medir la SpO2'],
-            'correct': 'Señalar patrones candidatos para que los confirme el clínico',
-            'explanation': 'El análisis aplica reglas fijas de umbral (no un modelo de aprendizaje): señala hallazgos candidatos, no reemplaza la evaluación clínica.'
-        },
-        {
-            'question': 'En un ECG normal, la onda T debe ser:',
-            'options': ['Positiva en V5-V6', 'Negativa en V5-V6', 'Ausente', 'Delta'],
-            'correct': 'Positiva en V5-V6',
-            'explanation': 'La onda T suele ser positiva en las derivaciones laterales normales.'
-        },
-        {
-            'question': 'Un pseudo-infarcto por LVH se identifica por:',
-            'options': ['QRS alto con ST negativo en V5-V6', 'Delta wave', 'QT corto', 'RBBB'],
-            'correct': 'QRS alto con ST negativo en V5-V6',
-            'explanation': 'LVH puede causar altos voltajes y cambios secundarios de ST/T.'
-        },
-        {
-            'question': 'Los ritmos que esta página puede simular y analizar con reglas de umbral incluyen:',
-            'options': ['AF, Flutter, WPW, Long QT', 'Solo bradicardia', 'Solo infartos', 'Solo hipertrofia'],
-            'correct': 'AF, Flutter, WPW, Long QT',
-            'explanation': 'El laboratorio simula estos ritmos y los interpreta con reglas fijas de umbral; no usa un modelo de IA entrenado.'
-        }
-    ]
-
+    # 2026-11-14 (Art. I): el banco vive en `educational/quiz_bank.py`, cada pregunta con su
+    # explicación y su fuente. Antes estaba aquí, sin fuentes y con errores (la pericarditis al revés,
+    # «derivadas sintéticas» desde una sola derivación, un SNR sin unidades, el patrón de HVI llamado
+    # «pseudo-infarto»): ver CHANGELOG.md. La respuesta empieza sin elegir (antes quedaba marcada la
+    # primera opción) y las opciones salen en el orden de `display_choices()`.
     question_index = st.selectbox(
         "Selecciona la pregunta:",
-        list(range(1, len(ECG_QUIZ_BANK) + 1)),
-        format_func=lambda x: f"Pregunta {x}"
+        list(range(1, len(ECG12_QUESTIONS) + 1)),
+        format_func=lambda x: f"Pregunta {x}",
+        key="ecglab_12_quiz_question",
     )
-    current_question = ECG_QUIZ_BANK[question_index - 1]
+    current_question = ECG12_QUESTIONS[question_index - 1]
 
-    st.write(f"**Pregunta {question_index}:** {current_question['question']}")
-    selected_answer = st.radio("Respuesta:", current_question['options'], key=f"quiz_{question_index}")
+    st.write(f"**Pregunta {question_index}:** {current_question.prompt}")
+    selected_answer = st.radio(
+        "Respuesta:", current_question.display_choices(), index=None, key=f"ecglab_12_quiz_{question_index}"
+    )
 
-    if st.button("Verificar respuesta", key="verify_quiz"):
-        if selected_answer == current_question['correct']:
-            st.success(f"✅ Correcto! {current_question['explanation']}")
+    if st.button("Verificar respuesta", key="ecglab_12_quiz_verify"):
+        if selected_answer is None:
+            st.warning("Elige una respuesta antes de verificar.")
         else:
-            st.error(f"❌ Incorrecto. {current_question['explanation']}")
+            if current_question.is_correct(selected_answer):
+                st.success(f"✅ Correcto. {current_question.explanation}")
+            else:
+                st.error(
+                    f"❌ Incorrecto: la respuesta es **{current_question.correct_choice}**. "
+                    f"{current_question.explanation}"
+                )
+            st.caption(f"Fuente: {current_question.source}")
 
 with col2:
     st.markdown("## 📊 Métricas")
@@ -750,24 +650,32 @@ with col2:
 
     st.markdown("### 📚 Información Clínica")
 
+    # 2026-11-14 (Art. I): antes «QT: <440 ms (♂) <460 ms (♀)» (no decía QTc y el corte de hombres no
+    # era el de la AHA/ACCF/HRS 2009) y «QRS: 60-120 ms» (de 110 a 119 ms ya es bloqueo incompleto o
+    # trastorno inespecífico). Cada valor lleva ahora su fuente.
     st.info("""
-    **Referencia Normal (Adulto):**
-    - FC: 60-100 bpm
-    - PR: 120-200 ms
-    - QRS: 60-120 ms
-    - QT: <440 ms (♂) <460 ms (♀)
+    **Referencia del adulto:**
+    - FC: 60-100 lpm (convención docente; la guía ACC/AHA/HRS 2018 define la bradicardia sinusal como < 50 lpm)
+    - PR: 120-200 ms (< 120 ms es criterio de preexcitación; > 200 ms, bloqueo AV de primer grado)
+    - QRS: hasta 110 ms (110-119 ms: bloqueo incompleto o trastorno inespecífico; ≥ 120 ms: bloqueo de rama completo)
+    - QTc prolongado: ≥ 450 ms (♂), ≥ 460 ms (♀); QT corto: ≤ 390 ms
     - Eje: -30° a +90°
     """)
+    st.caption(f"Fuentes: {KUSUMOTO_2018}; {SURAWICZ_2009}; {RAUTAHARJU_2009}; {QRS_AXIS_CITATION}")
 
     st.markdown("---")
 
     st.markdown("### 🔍 Territorios Vasculares")
+    # 2026-11-14 (Art. I): antes «LAD (Anterior): V1-V4 · LCx (Lateral): I, aVL, V5-V6 · RCA (Inferior):
+    # II, III, aVF · Posterior: V1-V2 (reciprocal)», en inglés y sin fuente. La parte VI dice que II, III
+    # y aVF solos pueden ser de la coronaria derecha o de la circunfleja, y no asigna la cara lateral a una
+    # arteria; queda solo lo que dice.
     st.write("""
-    - **LAD** (Anterior): V1-V4
-    - **LCx** (Lateral): I, aVL, V5-V6
-    - **RCA** (Inferior): II, III, aVF
-    - **Posterior**: V1-V2 (reciprocal)
+    - **Descendente anterior (DA), cara anterior:** elevación del ST en algunas o todas de V1–V6; si la oclusión es proximal, en V1–V4, I, aVL y a menudo aVR
+    - **II, III y aVF solos (cara inferior):** coronaria derecha (CD) o circunfleja (Cx)
+    - **Depresión del ST en V1–V2:** infarto posterior o lateral con elevación del ST
     """)
+    st.caption(f"Fuente: {WAGNER_2009}")
 
     st.markdown("---")
 

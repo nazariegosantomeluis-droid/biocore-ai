@@ -26,6 +26,7 @@ import shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
+from educational.quiz_bank import EEG_QUESTIONS, KANE_2017
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -827,59 +828,48 @@ with col2:
 
     st.markdown("---")
     st.markdown("## 📚 Referencias EEG")
-    st.write("**Banda Delta:** sueño profundo, 0.5-4 Hz")
-    st.write("**Banda Theta:** somnolencia, 4-8 Hz")
-    st.write("**Banda Alpha:** relajación con ojos cerrados, 8-12 Hz")
-    st.write("**Banda Beta:** alerta y concentración, 13-30 Hz")
-    st.write("**Banda Gamma:** procesamiento cognitivo integrado, 30-45 Hz")
+    # 2026-11-14 (Art. I): antes cinco líneas sin fuente («Gamma: procesamiento cognitivo integrado»,
+    # «Beta: alerta y concentración»...). Ahora: el glosario IFCN 2017 al lado de los bordes que de verdad
+    # usa este laboratorio (`EegAnalyzer._band_powers`), que difieren un poco del glosario.
+    st.markdown(
+        "| Banda | Glosario IFCN 2017 | Este laboratorio |\n"
+        "|---|---|---|\n"
+        "| Delta | 0.1 a menos de 4 Hz | 0.5–3.5 Hz |\n"
+        "| Theta | 4 a menos de 8 Hz | 4–7.5 Hz |\n"
+        "| Alfa | 8–13 Hz | 8–12 Hz |\n"
+        "| Beta | 14–30 Hz | 13–30 Hz |\n"
+        "| Gamma | más de 30, hasta 80 Hz | 30–45 Hz |"
+    )
+    st.markdown(
+        "- **Delta:** el sueño profundo (NREM N3) está dominado (≥ 20 %) por ondas delta de 0.5–2 Hz y "
+        "más de 75 µV. En la práctica, el límite inferior es 0.5 Hz.\n"
+        "- **Alfa:** ritmo de vigilia sobre las regiones posteriores; se ve mejor con los ojos cerrados y se "
+        "bloquea con la atención, sobre todo visual.\n"
+        "- **Beta:** en vigilia, sobre todo fronto-central; si es difuso puede deberse a fármacos (alcohol, "
+        "barbitúricos, benzodiacepinas, anestésicos intravenosos)."
+    )
+    st.caption(f"Fuente: {KANE_2017}")
 
     with st.expander("🧪 Quiz interactivo EEG"):
-        quiz_questions = [
-            {
-                "question": "¿Qué banda EEG se asocia con sueño profundo?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Delta",
-                "explanation": "Delta es la banda más lenta y se observa en sueño profundo."
-            },
-            {
-                "question": "¿Qué banda es típica en un estado de concentración y alerta?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Beta",
-                "explanation": "Beta aumenta durante la atención activa y la cognición."
-            },
-            {
-                "question": "¿Cuál es la banda predominante en relajación con los ojos cerrados?",
-                "options": ["Alpha", "Beta", "Theta", "Gamma"],
-                "answer": "Alpha",
-                "explanation": "Alpha es común con ojos cerrados y estados relajados."
-            },
-            {
-                "question": "¿Qué patrón EEG puede corresponder a una crisis epiléptica simulada?",
-                "options": ["Alpha", "Sleep Spindle", "Seizure", "Artifact"],
-                "answer": "Seizure",
-                "explanation": "Las espigas de alto voltaje y frecuencia son típicas de crisis."
-            },
-            {
-                "question": "¿Qué banda se relaciona con somnolencia ligera y transición al sueño?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Theta",
-                "explanation": "Theta se observa en somnolencia y sueño ligero."
-            }
-        ]
-
+        # 2026-11-14 (Art. I): el banco vive en `educational/quiz_bank.py`, con su fuente. Antes: sin
+        # fuentes, la pregunta de crisis se respondía sola («crisis epiléptica» → «Seizure») y cada radio
+        # empezaba en la primera opción, así que «Calcular puntuación» sin contestar ya sumaba aciertos.
         user_answers = []
-        for idx, item in enumerate(quiz_questions, start=1):
-            user_answers.append(st.radio(item["question"], item["options"], key=f"quiz_{idx}"))
+        for idx, item in enumerate(EEG_QUESTIONS, start=1):
+            user_answers.append(st.radio(item.prompt, item.display_choices(), index=None, key=f"eeg_quiz_{idx}"))
 
         if st.button("Calcular puntuación", key="submit_eeg_quiz"):
-            score = sum(1 for answer, item in zip(user_answers, quiz_questions) if answer == item["answer"])
-            st.success(f"Has respondido {score} de {len(quiz_questions)} correctamente.")
-            for item, answer in zip(quiz_questions, user_answers):
-                correct = item["answer"]
-                st.write(f"**Pregunta:** {item['question']}")
-                st.write(f"- Tu respuesta: {answer}")
-                st.write(f"- Correcta: {correct}")
-                st.write(f"- Explicación: {item['explanation']}")
+            score = sum(1 for answer, item in zip(user_answers, EEG_QUESTIONS) if item.is_correct(answer))
+            unanswered = sum(1 for answer in user_answers if answer is None)
+            st.success(f"Has respondido {score} de {len(EEG_QUESTIONS)} correctamente.")
+            if unanswered:
+                st.warning(f"{unanswered} pregunta(s) sin responder: cuentan como no acertadas.")
+            for item, answer in zip(EEG_QUESTIONS, user_answers):
+                st.write(f"**Pregunta:** {item.prompt}")
+                st.write(f"- Tu respuesta: {answer if answer is not None else 'sin responder'}")
+                st.write(f"- Correcta: {item.correct_choice}")
+                st.write(f"- Explicación: {item.explanation}")
+                st.caption(f"Fuente: {item.source}")
                 st.write("---")
 
 st.markdown("---")

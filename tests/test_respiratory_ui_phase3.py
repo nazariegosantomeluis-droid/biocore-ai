@@ -225,9 +225,13 @@ def test_the_quiz_reactivates_only_questions_answered_by_validated_values(temp_u
     quiz.set_value("Frecuencia de esta señal").run()
     answer = next(r for r in at.radio if r.key == "resp_quiz_fr")
     assert "15" in [str(o) for o in answer.options]
+    assert answer.value is None                                               # nada elegido de inicio (2026-11-14)
+    assert not any("medida entre inspiraciones" in x.value for x in at.success)
+    assert not any("FR = 60" in x.value for x in at.error)
     answer.set_value(15).run()
     assert any("Correcto" in s.value and "NEWS2" in s.value for s in at.success)
-    next(r for r in at.radio if r.key == "resp_quiz_fr").set_value(19).run()
+    wrong = next(o for o in answer.options if str(o) != "15")
+    next(r for r in at.radio if r.key == "resp_quiz_fr").set_value(int(wrong)).run()
     assert any("FR = 60" in e.value for e in at.error)
 
 
@@ -238,7 +242,8 @@ def test_the_apnea_counting_question_takes_its_answer_from_the_detector(temp_ups
     answer = next(r for r in at.radio if r.key == "resp_quiz_apneas")
     answer.set_value(2).run()
     assert any("Correcto" in s.value and "2 apnea" in s.value for s in at.success)
-    next(r for r in at.radio if r.key == "resp_quiz_apneas").set_value(3).run()
+    wrong = next(o for o in answer.options if str(o) != "2")
+    next(r for r in at.radio if r.key == "resp_quiz_apneas").set_value(int(wrong)).run()
     assert any("solo cuentan los de ≥ 10 s" in e.value for e in at.error)
 
 
