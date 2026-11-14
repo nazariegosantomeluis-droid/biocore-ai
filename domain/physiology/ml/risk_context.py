@@ -92,7 +92,7 @@ def build_risk_features(session: Session, patient_id: str) -> Optional[RiskFeatu
 
     ecg_pattern: Optional[str] = None  # C0 (2026-11-12, Art. I): el UPS no registra un patrón "normal"; su ausencia no es un patrón
     for event in state.events:
-        if event.domain == "cardiovascular" and event.event_type == EventType.ARRHYTHMIA_RISK_HR_EXTREME:
+        if event.domain == "cardiovascular" and event.event_type == EventType.PULSE_NEWS2_3_POINTS:   # fase 0: banda de 3 puntos
             ecg_pattern = "arrhythmia"
             break
 

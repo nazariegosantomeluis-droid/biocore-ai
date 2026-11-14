@@ -9,7 +9,6 @@ try:
         DigitalTwinOrganism,
         OrganSystem,
         OrganMetrics,
-        OrganHealthStatus,
     )
 except ImportError as e:
     print(f"Warning: Could not import DigitalTwinOrganism: {e}")
@@ -55,7 +54,6 @@ __all__ = [
     'DigitalTwinOrganism',
     'OrganSystem',
     'OrganMetrics',
-    'OrganHealthStatus',
 
     # Simulation Engine
     'SimulationEngine',

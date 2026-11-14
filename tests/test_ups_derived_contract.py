@@ -89,7 +89,7 @@ def test_the_contract_table_declares_what_is_never_written_and_cites_the_organis
         ("cardiovascular", "health_score"), ("cardiovascular", "myocardial_stress"),
         ("cardiovascular", "rhythm_stability"), ("cardiovascular", "cardiac_output"),
         ("respiratory", "tissue_oxygenation"), ("respiratory", "risk_score"), ("respiratory", "hypoxia_risk"),
-        ("respiratory", "apnea_risk"),
+        ("respiratory", "apnea_risk"), ("respiratory", "health_score"),
     } | {("neurological", f) for f in DERIVED_CONTRACT["neurological"]} | {("muscular", f) for f in DERIVED_CONTRACT["muscular"]}
     for domain, field, needs, why in contract_rows():
         assert "digital_twin_organism.py" in why or "calculators.py" in why, (domain, field)   # fórmula o cita
@@ -122,7 +122,7 @@ def test_every_derived_descriptor_the_builder_can_emit_is_in_the_contract_and_ne
                 seen += 1
                 assert name in DERIVED_CONTRACT[domain], (domain, name)
                 assert not DERIVED_CONTRACT[domain][name].never_reason, (domain, name)
-    assert seen == 4                                                # news2 pulso, news2 FR, news2 SpO₂, índice pulmonar
+    assert seen == 3                                                # news2 pulso, news2 FR, news2 SpO₂ (índice pulmonar retirado, tanda 0.1)
     assert not (NEVER_WRITTEN & {n for ds in state.all_domains().values() for n in ds.descriptors})
 
 
@@ -242,7 +242,7 @@ def test_sepsis_simulator_does_not_write_cardiac_output_nor_a_derived_value_with
         assert set(cardio) == {"heart_rate", "hrv", "news2_pulse_points"}
         assert "cardiac_output" not in cardio and "rhythm_stability" not in cardio
         # ahi SÍ llega en el simulador rico -> el índice pulmonar (FR + SpO₂ + AHI) y los puntos NEWS2 se escriben
-        assert {"respiratory_rate", "spo2", "ahi", "health_score", "news2_respiratory_rate_points",
+        assert {"respiratory_rate", "spo2", "ahi", "news2_respiratory_rate_points",
                 "news2_spo2_scale1_points"} == set(step.state.respiratory.descriptors)
         assert step.state.neurological.descriptors == {}
 

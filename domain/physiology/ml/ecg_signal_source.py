@@ -15,7 +15,7 @@ params.heart_rate` al espaciado real de los latidos.
 La onda solo refleja lo que el UPS realmente detecta hoy: la frecuencia
 cardíaca real. No se fabrican patrones (STEMI, bloqueos, fibrilación...)
 que el UPS no ha detectado — el único evento cardiovascular que el UPS
-dispara por ritmo/frecuencia es `ARRHYTHMIA_RISK_HR_EXTREME`, y ese ya
+dispara por frecuencia es `PULSE_NEWS2_3_POINTS` (fase 0), y ese ya
 queda reflejado con solo pasar el `heart_rate` real (una FC de 155 bpm ya
 genera un trazado taquicárdico vía el espaciado RR correcto, sin necesitar
 un flag de "patrón de arritmia" aparte que fabricaría una morfología que el
@@ -75,7 +75,7 @@ def build_synthetic_ecg_from_ups(
         return None
 
     arrhythmia_active = any(
-        e.domain == "cardiovascular" and e.event_type == EventType.ARRHYTHMIA_RISK_HR_EXTREME
+        e.domain == "cardiovascular" and e.event_type == EventType.PULSE_NEWS2_3_POINTS
         for e in state.events
     )
 

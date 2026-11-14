@@ -354,10 +354,6 @@ _NEWS2_SPO2_HELP = (
     f"{PROVENANCE_CLINICAL_BADGE} Puntos NEWS2 de la SpO₂, escala 1 (RCP 2017): ≤91 → 3; 92–93 → 2; 94–95 → 1; ≥96 → 0. "
     "La escala 2 (insuficiencia respiratoria hipercápnica) exige saber si hay oxígeno suplementario: no modelada."
 )
-_LUNG_HEALTH_HELP = (
-    f"{PROVENANCE_HEURISTIC_BADGE} Índice de salud pulmonar: centros de referencia FR 16 y SpO₂ 100 %, AHI 30 = 100 %; los "
-    f"pesos 0.5/0.3/0.4 son propios ({PROVENANCE_HEURISTIC_LABEL}). Solo se calcula con FR, SpO₂ y AHI, los tres actuales."
-)
 _NO_CRITERION_HELP = (
     "Sin criterio con fuente: la plataforma no tiene una escala publicada que puntúe este sistema; los índices propios "
     "sin cita se retiraron (fase 0). Lo medido se muestra como lo que es."
@@ -407,7 +403,12 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
         cols = st.columns(4 if mode == "Researcher" else 3)
         cols[0].metric("Frecuencia cardíaca", _metric_value(hr, ".0f", " lpm"), help=entrada)
         cols[1].metric("🟢 Puntos NEWS2 del pulso", _points_value(points), help=_NEWS2_PULSE_HELP)
-        cols[2].metric("Gasto cardíaco", NOT_MODELED, help="Ningún cálculo del gemelo lo modela (decisión firmada).")
+        cols[2].metric(
+            "Gasto cardíaco", organism.cardiac_output_label(),
+            help=("En la sepsis el motor hemodinámico de lazo cerrado SÍ lo calcula (volumen sistólico × FC); la cifra está "
+                  "en revisión clínica y no se muestra hasta la firma. El contrato del UPS no lo escribe."
+                  if organism.cardiac_output_label() != NOT_MODELED else "Ningún cálculo del gemelo lo modela (decisión firmada)."),
+        )
         if mode == "Researcher":
             cols[3].metric("HRV", _metric_value(signals.get("hrv"), ".0f", " ms"), help=entrada)
             st.markdown("**Parámetros de alta fidelidad:**")
@@ -426,11 +427,7 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
         if mode != "Student":
             cols = st.columns(3)
             cols[0].metric("AHI", _metric_value(signals.get("ahi"), ".0f", " eventos/h"), help=entrada)
-            cols[1].metric(
-                "🔵 Índice de salud pulmonar",
-                NO_DATA if m.health_score is None else f"{m.health_score:.0f}/100",
-                help=_LUNG_HEALTH_HELP + ("" if m.health_score is not None else " Hoy: sin dato (falta el AHI)."),
-            )
+            cols[1].metric("Índice de salud pulmonar", "retirado", help=_NO_CRITERION_HELP + " Pesos 0.5/0.3/0.4 sin cita (tanda 0.1).")
             cols[2].metric("SpO₂ escala 2", NOT_MODELED, help="Exige saber si el paciente recibe oxígeno suplementario.")
     elif organ_id == "brain":
         stress = signals.get("stress_level")
@@ -654,6 +651,18 @@ def _tail_is_plateaued(values: list, tail_len: int = 2) -> bool:
     return (max(clean_values) - min(clean_values)) > _PLATEAU_TOLERANCE
 
 
+SEPSIS_MODEL_DECLARATION = """**Qué calcula el modelo y qué está prescrito (sepsis)**
+
+- **Prescrito (viene de una tabla, no se calcula):** la frecuencia cardíaca de cada horizonte (trayectoria canónica, FC 100 → 150) y los parámetros de vasoplejía del shock: techo de resistencia 0,5× y ganancia del barorreflejo 0,3× (validados por el experto, Ronda 2) y la **capacitancia venosa 2× — Criterio BIOCORE, sin cita (en revisión clínica)**.
+- **Calculado por el motor hemodinámico (lazo cerrado RCR):** el retorno venoso, el volumen sistólico (Frank‑Starling), el **gasto cardíaco** (volumen sistólico × FC; calculado por el motor — en revisión clínica, sin cifra hasta la firma) y la **presión arterial** (sistólica, diastólica y PAM), solo en la fase de shock (24h, 7d); fuera de ella la PA se declina.
+- **Referencia clínica (no es un cálculo):** 85/55 y PAM 65 mmHg son el umbral de shock séptico de Sepsis‑3 (Singer 2016), adjuntos como referencia para comparar."""
+
+
+def render_sepsis_model_declaration() -> None:
+    """Tanda 0.1: declaración honesta del escenario de sepsis, en lenguaje para el estudiante (Parte A de la fase 0)."""
+    st.markdown(SEPSIS_MODEL_DECLARATION)
+
+
 def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
     """Fase 1.2 + Tanda 3 (2026-07-03): simulador único conectado al UPS.
 
@@ -701,6 +710,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
             st.info(SimulationEngine(seed=arrhythmia_seed).instance_declaration(scenario_key))
         if scenario_key == SimulationScenario.SEPSIS:
             st.info(sepsis_trajectory.declare_trajectory())
+            render_sepsis_model_declaration()
         start_mode = st.radio(
             "Punto de partida:",
             ["Estado actual del paciente", "Basal genérica (caso didáctico)"],
@@ -1838,7 +1848,7 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 signal, fs = synth.signal, synth.fs
                 provenance_label = "SIMULACIÓN"
                 arrhythmia_note = (
-                    " — evento de arritmia activo en el estado actual (ARRHYTHMIA_RISK_HR_EXTREME)"
+                    " — pulso en la banda de 3 puntos NEWS2 en el estado actual (PULSE_NEWS2_3_POINTS)"
                     if synth.arrhythmia_event_active else ""
                 )
                 meta_caption = f"FC real de tu estado actual: {synth.heart_rate:.0f} bpm{arrhythmia_note}"

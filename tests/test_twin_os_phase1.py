@@ -219,7 +219,7 @@ def test_with_only_respiratory_data_only_the_lungs_have_numbers_and_they_carry_t
     metrics = {label: value for label, value, _ in t["metric"]}
     assert metrics["Razón FC:FR"] == NO_DATA                                                # FR sin FC actual
     assert metrics["🟢 NEWS2 FR"] == "0 de 3" and metrics["🟢 NEWS2 SpO₂ (escala 1)"] == "0 de 3"
-    assert metrics["🔵 Índice de salud pulmonar"] == NO_DATA and metrics["AHI"] == NO_DATA     # sin AHI: no se calcula con 0
+    assert metrics["Índice de salud pulmonar"] == "retirado" and metrics["AHI"] == NO_DATA
     assert metrics["SpO₂ escala 2"] == NOT_MODELED
     cardio = next(m for m in t["md"] if "Cardiovascular**" in m)
     assert cardio.endswith(f"— {NO_DATA}") and "rutinario" not in " ".join(t["cap"]).lower()
@@ -247,6 +247,8 @@ def test_an_applied_scenario_is_not_overwritten_by_the_sliders_until_the_student
     assert "FC 150 lpm" in heart and "NEWS2 pulso 3/3" in heart and "trayectoria canónica de sepsis" in heart
     assert "Pulso 3" in _header(t) and "Frecuencia respiratoria 3" in _header(t) and "SpO₂ (escala 1) 3" in _header(t)
     assert any("3 puntos NEWS2" in w for w in t["warn"])
+    metrics = {label: value for label, value, _ in t["metric"]}
+    assert metrics["Gasto cardíaco"] == "calculado por el motor — en revisión clínica"      # tanda 0.1: sin cifra
     # control explícito para volver a los sliders
     at.button(key="twin_shell_back_to_sliders").click().run()
     assert at.exception == [] and "twin_shell_input_source" not in at.session_state

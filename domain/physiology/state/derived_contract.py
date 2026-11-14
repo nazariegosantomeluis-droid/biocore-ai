@@ -90,14 +90,16 @@ DERIVED_CONTRACT: Dict[str, Dict[str, DerivedRule]] = {
     "respiratory": {
         # Fase 0 (2026-11-13, decisión 6): `risk_score` y `hypoxia_risk` se sustituyen por los puntos NEWS2 de la FR y de
         # la SpO₂ (escala 1), cada uno con su única entrada; `apnea_risk` era `ahi` × 3.33 (eco lineal de un valor que ya
-        # se escribe); el índice de salud pulmonar (pesos propios) exige FR + SpO₂ + AHI, los tres (sin `ahi = 0`).
+        # se escribe); el índice de salud pulmonar se retiró en la tanda 0.1 (pesos sin cita).
         "news2_respiratory_rate_points": DerivedRule(
             (("respiratory_rate",),), "clinical/calculators.py:news2_respiratory_rate_score (NEWS2_CITATION, RCP 2017)"
         ),
         "news2_spo2_scale1_points": DerivedRule(
             (("spo2",),), "clinical/calculators.py:news2_spo2_scale1_score (NEWS2_CITATION, RCP 2017; escala 2 no modelada)"
         ),
-        "health_score": DerivedRule((("respiratory_rate", "spo2", "ahi"),), f"{_ORG}:_update_lungs (heurístico, pesos 0.5/0.3/0.4)"),
+        "health_score": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)", "tanda 0.1 (decisión 2): pesos 0.5/0.3/0.4 sin cita; retirado",
+        ),
         "risk_score": DerivedRule(
             _NEVER, f"{_ORG} (retirado)",
             "decisión 6: umbrales propios (SpO₂ 90/95, AHI 5/20) sustituidos por los puntos NEWS2 de SpO₂ y FR",

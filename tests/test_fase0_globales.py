@@ -101,8 +101,8 @@ def test_the_hr_event_is_the_news2_3_point_band_at_the_boundaries(hr, fires):
 def test_the_hrv_event_and_the_old_hr_event_are_never_emitted_anymore():
     for hr, hrv in ((72.0, 5.0), (125.0, 10.0), (36.0, 50.0)):
         state = from_digital_twin_organism(_fed({"ecg": {"heart_rate": hr, "hrv": hrv}}), "p", provenance=Provenance.SIMULACION)
-        types = {e.event_type for e in state.events}
-        assert EventType.LOW_HRV_AUTONOMIC_STRESS not in types and EventType.ARRHYTHMIA_RISK_HR_EXTREME not in types
+        types = {e.event_type.value for e in state.events}
+        assert "low_hrv_autonomic_stress" not in types and "arrhythmia_risk_hr_extreme" not in types
     builder = Path("domain/physiology/state/builder.py").read_text(encoding="utf-8")
     code = re.sub(r'"""[\s\S]*?"""', "", builder)
     for gone in ("LOW_HRV_AUTONOMIC_STRESS", "ARRHYTHMIA_RISK_HR_EXTREME", "hr > 120", "hr < 40", "hr > 150", "hrv < 20"):

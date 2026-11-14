@@ -31,7 +31,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Mapping, Optional, Tuple
 
-from clinical.calculators import NEWS2_CITATION, news2_pulse_score
+from clinical.calculators import NEWS2_CITATION, news2_pulse_score, news2_spo2_scale1_score
 
 from src.signals.eeg.eeg_analyzer import (
     BAR_CITATION,
@@ -182,11 +182,11 @@ def _respiratory_state(
         )
 
     # Contrato de derivados (C0 + fase 0, decisión 6): ver `derived_contract.py`. Puntos NEWS2 de la FR y de la SpO₂
-    # (escala 1), cada uno con su única entrada y su cita; el índice de salud pulmonar solo con FR + SpO₂ + AHI reales.
+    # (escala 1), cada uno con su única entrada y su cita. `health_score` (pesos 0.5/0.3/0.4 sin cita, tanda 0.1),
     # `risk_score`, `hypoxia_risk`, `apnea_risk` y `tissue_oxygenation` NUNCA (retirados).
     if has_real_respiratory_input and derived_ok:
         cite = f"{source_detail + ' | ' if source_detail else ''}"
-        candidates = [("health_score", lungs.metrics.health_score, "0-100")]
+        candidates = []
         if lungs.metrics.rr_points is not None:
             candidates.append(("news2_respiratory_rate_points", lungs.metrics.rr_points, "puntos NEWS2 (0-3)",
                                f"{cite}news2_respiratory_rate_score | {NEWS2_CITATION}"))
@@ -412,8 +412,8 @@ def _detect_events(
     Fase 0 (2026-11-13, decisión 5 de Luis): el evento de FC es la banda de 3 puntos NEWS2 del pulso (≤ 40 o ≥ 131 lpm,
     `news2_pulse_score`, RCP 2017), nombrado por lo que mide (`PULSE_NEWS2_3_POINTS`); se retiraron el evento por
     umbrales propios (40/120, crítico 35/150) y el de `hrv < 20`. Severidad única (WARNING): NEWS2 no gradúa un pulso
-    aislado como crítico; eso lo hace el total, que el gemelo no tiene. Los eventos de SpO₂ (90/95) y de estrés/fatiga
-    conservan sus umbrales (fuera del alcance firmado)."""
+    aislado como crítico; eso lo hace el total, que el gemelo no tiene. Tanda 0.1: el evento de SpO₂ es la banda de 3
+    puntos NEWS2 escala 1 (≤ 91 %) y el de estrés > 75 se retiró; el de fatiga > 80 conserva su umbral (sin firma)."""
 
     events: List[PhysiologicalEvent] = []
     heart_signals = _current_signals(organism, "heart")
@@ -436,53 +436,20 @@ def _detect_events(
             )
         )
 
+    # Tanda 0.1 (decisión 1): banda de 3 puntos NEWS2 escala 1 (≤ 91 %), misma tabla que el organismo; se retiraron
+    # los umbrales 90/95 (sin cita) y el evento de estrés > 75 (sin fuente).
     spo2 = lungs_signals.get("spo2")
-    if spo2 is not None and spo2 < 90:
+    if spo2 is not None and news2_spo2_scale1_score(float(spo2)) == 3:
         events.append(
             PhysiologicalEvent(
-                event_type=EventType.HYPOXIA_SPO2_CRITICAL,
-                domain="respiratory",
-                severity=EventSeverity.CRITICAL,
-                description=f"SpO2 crítico: {spo2:.0f}%",
-                provenance=provenance,
-                confidence=confidence,
-                timestamp=timestamp,
-                related_descriptor="spo2",
-            )
-        )
-    elif spo2 is not None and spo2 < 95:
-        events.append(
-            PhysiologicalEvent(
-                event_type=EventType.HYPOXIA_SPO2_LOW,
+                event_type=EventType.SPO2_NEWS2_3_POINTS,
                 domain="respiratory",
                 severity=EventSeverity.WARNING,
-                description=f"SpO2 bajo lo esperado: {spo2:.0f}%",
+                description=f"SpO₂ en la banda de 3 puntos NEWS2, escala 1 (≤ 91 %): {spo2:.0f} %",
                 provenance=provenance,
                 confidence=confidence,
                 timestamp=timestamp,
-                related_descriptor="spo2",
-            )
-        )
-
-    # Capa 5A, Sub-fase 1 (2026-08-30): único evento neuro, mismo umbral
-    # que YA usa `_update_brain()` para su propio `risk_score` (el tier más
-    # alto que ese método define, `stress_level > 75`) -- no se inventa un
-    # umbral clínico nuevo. `stress_level` no se persiste como descriptor
-    # crudo (solo band power + los 5 campos derivados) -- el evento lee la
-    # señal cruda del organismo directamente, igual que arriba HR/HRV/SpO2
-    # se leen de `*_signals`, no de descriptores ya construidos.
-    stress_level = brain_signals.get("stress_level")
-    if stress_level is not None and stress_level > 75:
-        events.append(
-            PhysiologicalEvent(
-                event_type=EventType.HIGH_STRESS_EEG,
-                domain="neurological",
-                severity=EventSeverity.WARNING,
-                description=f"Estrés elevado según EEG: nivel {stress_level:.0f}/100",
-                provenance=provenance,
-                confidence=confidence,
-                timestamp=timestamp,
-                related_descriptor=None,  # `stress_perception` se retiró (fase 0); `stress_level` no se persiste
+                related_descriptor="news2_spo2_scale1_points",
             )
         )
 

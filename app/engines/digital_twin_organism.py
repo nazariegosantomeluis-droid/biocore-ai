@@ -30,7 +30,6 @@ Cierre de la fase 0 (2026-11-13, Art. I), con la misma lógica en los demás ór
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-from enum import Enum
 import json
 import math
 from datetime import datetime, timedelta
@@ -50,6 +49,7 @@ NO_DATA = "sin dato"            # texto único para «el dato falta» (tarjetas,
 NO_DATA_COLOR = "#64748b"       # gris: el MISMO que usa el Cuerpo Digital (ups_body_visual.NEUTRAL_COLOR)
 HAS_DATA_COLOR = "#39d98a"      # verde del Cuerpo Digital (ups_body_visual.STABLE_COLOR): hay entrada, sin criterio que la puntúe
 NOT_MODELED = "no modelado"     # lo que el organismo no calcula (nadie lo calcula): se declara, no se rellena
+CARDIAC_OUTPUT_IN_REVIEW = "calculado por el motor — en revisión clínica"   # sepsis: el lazo cerrado lo calcula; sin cifra hasta la firma
 
 # Puntos NEWS2 (0-3) -> color de órgano. Un solo mapa para pulso, FR y SpO₂.
 NEWS2_POINTS_COLOR = {0: "#39ffbe", 1: "#ffd700", 2: "#ffd700", 3: "#ff3333"}
@@ -59,20 +59,11 @@ def _is_num(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-class OrganHealthStatus(Enum):
-    """Estados de salud de órganos (hoy solo los pulmones tienen un índice que clasificar)."""
-    CRITICAL = "critical"
-    ALERT = "alert"
-    NORMAL = "normal"
-    OPTIMAL = "optimal"
-
-
 @dataclass
 class OrganMetrics:
     """Métricas de un órgano/sistema. Todo arranca en `None` = «sin dato» (antes 50/50/0, que eran números inventados).
-    No hay `risk_score`, `activity_level`, `trend` ni `detail`: eran heurísticas sin cita, copias de una entrada o
-    campos que nadie asignaba (retirados en la fase 0)."""
-    health_score: Optional[float] = None  # 0-100; SOLO pulmones (FR + SpO₂ + AHI, los tres presentes)
+    No hay `health_score`, `risk_score`, `activity_level`, `trend` ni `detail`: eran heurísticas sin cita, copias de una
+    entrada o campos que nadie asignaba (retirados en la fase 0 y la tanda 0.1)."""
     risk_points: Optional[int] = None  # puntos NEWS2 del pulso (0-3), solo corazón: clinical.calculators.news2_pulse_score
     rr_points: Optional[int] = None  # puntos NEWS2 de la FR (0-3), solo pulmones: news2_respiratory_rate_score
     spo2_points: Optional[int] = None  # puntos NEWS2 de la SpO₂ escala 1 (0-3), solo pulmones: news2_spo2_scale1_score
@@ -105,21 +96,6 @@ class OrganSystem:
     metrics: OrganMetrics = field(default_factory=OrganMetrics)
     education: Dict[str, str] = field(default_factory=dict)  # Contenido educativo
     pathologies: List[str] = field(default_factory=list)  # Patologías conocidas
-
-    @property
-    def status(self) -> Optional[OrganHealthStatus]:
-        """Estado según `health_score` (solo pulmones); `None` si no hay («sin dato»)."""
-        score = self.metrics.health_score
-        if score is None:
-            return None
-        if score >= 80:
-            return OrganHealthStatus.OPTIMAL
-        elif score >= 60:
-            return OrganHealthStatus.NORMAL
-        elif score >= 40:
-            return OrganHealthStatus.ALERT
-        else:
-            return OrganHealthStatus.CRITICAL
 
     @property
     def icon(self) -> str:
@@ -353,25 +329,15 @@ class DigitalTwinOrganism:
 
     def _update_lungs(self, resp_data: Dict[str, float]) -> None:
         """Actualiza los pulmones: SIN defaults (`ahi = 0`, `rr = 16`, `spo2 = 98` fuera). Puntos NEWS2 de la FR y de
-        la SpO₂ (escala 1), cada uno con su única entrada; el índice de salud (pesos propios, sin cita) solo si llegaron
-        FR, SpO₂ y AHI, los tres. Se retiraron `risk_score` (umbrales 90/95 y AHI 5/20 propios), `hypoxia_risk`
+        la SpO₂ (escala 1), cada uno con su única entrada. Se retiraron el índice de salud pulmonar (pesos 0.5/0.3/0.4
+        sin cita; tanda 0.1), `risk_score` (umbrales 90/95 y AHI 5/20 propios), `hypoxia_risk`
         (sustituido por los puntos de SpO₂) y `RespiratoryDetail` (`apnea_risk` = AHI × 3.33, `perfusion_index`/
         `tissue_oxygenation` = SpO₂ con otro nombre, y 4 campos nunca asignados)."""
         lungs = self.organs["lungs"]
         lungs.metrics.signals = dict(resp_data)
-        rr, spo2, ahi = resp_data.get("respiratory_rate"), resp_data.get("spo2"), resp_data.get("ahi")
-
+        rr, spo2 = resp_data.get("respiratory_rate"), resp_data.get("spo2")
         lungs.metrics.rr_points = news2_respiratory_rate_score(math.floor(float(rr) + 0.5)) if _is_num(rr) else None
         lungs.metrics.spo2_points = news2_spo2_scale1_score(float(spo2)) if _is_num(spo2) else None
-
-        if _is_num(rr) and _is_num(spo2) and _is_num(ahi):
-            # Heurística BIOCORE (sin cita en los pesos): centros de referencia FR 16 y SpO₂ 100 %, AHI 30 = 100 %.
-            rr_penalty = abs(rr - 16) / 16 * 0.3
-            spo2_score = min(100, (spo2 / 100) * 100)
-            ahi_penalty = min(100, ahi / 30 * 100) * 0.4
-            lungs.metrics.health_score = max(0, (spo2_score * 0.5 + (100 - rr_penalty * 100) * 0.3 - ahi_penalty))
-        else:
-            lungs.metrics.health_score = None
 
     def _update_muscles(self, emg_data: Dict[str, float]) -> None:
         """Actualiza los músculos desde el EMG: `signals` es EXACTAMENTE lo que llegó (`activation` y
@@ -423,7 +389,7 @@ class DigitalTwinOrganism:
 
     def _detect_anomalies(self) -> Tuple[List[str], List[str], List[str]]:
         """Anomalías, recomendaciones y alertas desde lo que SÍ hay y tiene fuente: la banda de 3 puntos NEWS2 del pulso,
-        de la FR y de la SpO₂ (escala 1), y el estrés > 75 (mismo umbral que el evento `HIGH_STRESS_EEG` del UPS).
+        de la FR y de la SpO₂ (escala 1). Tanda 0.1: la alerta de estrés > 75 (sin fuente) se retiró.
         Las frases se enrutan a un órgano por subcadena (`ORGAN_KEYWORDS` en twin_shell/pages.py)."""
         anomalies: List[str] = []
         recommendations: List[str] = []
@@ -443,12 +409,6 @@ class DigitalTwinOrganism:
             if lungs.spo2_points == 3:
                 anomalies.append("SpO₂ en la banda de 3 puntos NEWS2, escala 1 (respiratorio)")
                 alerts.append("⚠️ SpO₂ ≤ 91 % (3 puntos NEWS2, escala 1) — pulmones")
-
-        brain_stress = self.current_signals("brain").get("stress_level")
-        if _is_num(brain_stress) and brain_stress > 75:
-            anomalies.append("Estado de estrés elevado detectado")
-            recommendations.append("Considera técnicas de relajación")
-            alerts.append("⚠️ Niveles de estrés elevados")
 
         return anomalies, recommendations, alerts
 
@@ -498,6 +458,12 @@ class DigitalTwinOrganism:
                     queue.append((neighbor, path + [neighbor]))
 
         return None
+
+    def cardiac_output_label(self) -> str:
+        """Gasto cardiaco. Tanda 0.1: en la sepsis SÍ lo calcula el motor hemodinámico de lazo cerrado (SV × FC, ver
+        CHANGELOG, Parte A de la fase 0), pero la cifra queda en revisión clínica hasta la firma de Luis: se declara
+        `CARDIAC_OUTPUT_IN_REVIEW`, SIN número. Fuera de la sepsis, el organismo no lo calcula: «no modelado»."""
+        return CARDIAC_OUTPUT_IN_REVIEW if (self.current_scenario or "").startswith("sepsis") else NOT_MODELED
 
     def news2_partial_text(self) -> str:
         """Texto único del NEWS2 parcial (resumen, `explain_state`, exportes): componentes disponibles y lo que falta.
@@ -590,7 +556,6 @@ class DigitalTwinOrganism:
             return NO_DATA if value is None else f"{value} de 3  [NEWS2, RCP 2017]"
 
         entrada = "entrada"
-        heur = "heurístico BIOCORE"
         ratio = self.global_state.get("hr_rr_ratio")
         bands = {k: v for k, v in brain.metrics.signals.items() if k.endswith("_power")}
         bands_txt = ", ".join(f"{k.replace('_power', '')} {v:.2f}" for k, v in bands.items()) if bands else NO_DATA
@@ -606,7 +571,7 @@ Procedencia de las entradas: {self.input_provenance or 'sin declarar'}
    • Frecuencia Cardíaca: {num(heart.metrics.signals.get('heart_rate'), ' bpm', entrada)}
    • Variabilidad (HRV): {num(heart.metrics.signals.get('hrv'), ' ms', entrada)}
    • Puntos NEWS2 del pulso: {points(heart.metrics.risk_points)}
-   • Gasto Cardíaco: {NOT_MODELED}
+   • Gasto Cardíaco: {self.cardiac_output_label()}
 
 🧠 SISTEMA NEUROLÓGICO:
    • Estrés (entrada): {num(brain.metrics.signals.get('stress_level'), '/100', entrada, 0)}
@@ -620,7 +585,7 @@ Procedencia de las entradas: {self.input_provenance or 'sin declarar'}
    • Puntos NEWS2 de la FR: {points(lungs.metrics.rr_points)}
    • Puntos NEWS2 de la SpO₂ (escala 1): {points(lungs.metrics.spo2_points)}
    • SpO₂ escala 2: {NOT_MODELED}
-   • Índice de salud pulmonar: {num(lungs.metrics.health_score, '%', heur + ' (FR + SpO₂ + AHI)', 0)}
+   • Índice de salud pulmonar: retirado (pesos sin cita)
 
 🦾 SISTEMA MUSCULOESQUELÉTICO:
    • Índice de Fatiga: {num(muscles.metrics.signals.get('fatigue_index'), '%', entrada)}
@@ -669,8 +634,8 @@ Procedencia de las entradas: {self.input_provenance or 'sin declarar'}
                     'signals': organ.metrics.signals,
                     **({'news2_pulse_points': organ.metrics.risk_points} if organ_id == "heart" else {}),
                     **({'news2_rr_points': organ.metrics.rr_points, 'news2_spo2_scale1_points': organ.metrics.spo2_points,
-                        'spo2_scale2': NOT_MODELED, 'health_score': organ.metrics.health_score} if organ_id == "lungs" else {}),
-                    **({'cardiac_output': NOT_MODELED} if organ_id == "heart" else {}),
+                        'spo2_scale2': NOT_MODELED} if organ_id == "lungs" else {}),
+                    **({'cardiac_output': self.cardiac_output_label()} if organ_id == "heart" else {}),
                 })
                 for organ_id, organ in self.organs.items()
             },

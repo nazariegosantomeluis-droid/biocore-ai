@@ -152,20 +152,19 @@ def test_events_are_first_class_and_persisted(db_path):
         save_state(session, resp_state)
 
     assert any(e.event_type == EventType.PULSE_NEWS2_3_POINTS for e in cardio_state.events)
-    assert not any(e.event_type == EventType.LOW_HRV_AUTONOMIC_STRESS for e in cardio_state.events)   # retirado (fase 0)
-    assert any(e.event_type == EventType.HYPOXIA_SPO2_CRITICAL for e in resp_state.events)
+    assert any(e.event_type == EventType.SPO2_NEWS2_3_POINTS for e in resp_state.events)   # tanda 0.1: SpO2 88 -> 3 puntos
 
     with SessionLocal() as session:
         persisted_events = get_events(session, patient_id)
 
     event_types = {e.event_type for e in persisted_events}
     assert EventType.PULSE_NEWS2_3_POINTS in event_types
-    assert EventType.HYPOXIA_SPO2_CRITICAL in event_types
+    assert EventType.SPO2_NEWS2_3_POINTS in event_types
 
-    hypoxia_event = next(e for e in persisted_events if e.event_type == EventType.HYPOXIA_SPO2_CRITICAL)
-    assert hypoxia_event.severity == EventSeverity.CRITICAL
+    hypoxia_event = next(e for e in persisted_events if e.event_type == EventType.SPO2_NEWS2_3_POINTS)
+    assert hypoxia_event.severity == EventSeverity.WARNING
     assert hypoxia_event.domain == "respiratory"
-    assert hypoxia_event.related_descriptor == "spo2"
+    assert hypoxia_event.related_descriptor == "news2_spo2_scale1_points"
 
 
 def test_get_snapshot_id_at_and_get_state_by_snapshot_id_resolve_a_non_latest_snapshot(db_path):
@@ -296,27 +295,10 @@ def test_neurological_domain_survives_persistence_round_trip(db_path):
         assert latest.neurological.get("alpha_power").value == pytest.approx(20.0)
 
 
-def test_high_stress_eeg_event_uses_same_threshold_as_organism(db_path):
-    """El evento neuro reutiliza el umbral que YA vive en
-    `DigitalTwinOrganism._update_brain()` (`stress_level > 75`, el tier más
-    alto que ese método define) -- no un umbral clínico inventado aquí."""
-    SessionLocal = _session_factory(db_path)
-
-    with SessionLocal() as session:
-        patient_id = create_patient(session, display_name="Paciente Estrés EEG")
-
-        stressed_organism = DigitalTwinOrganism()
-        stressed_organism.update_from_sensors({"eeg": {"alpha_power": 5.0, "beta_power": 20.0, "stress_level": 90.0}})
-        stressed_state = from_digital_twin_organism(stressed_organism, patient_id, Provenance.SIMULACION, 0.9)
-
-        stress_events = [e for e in stressed_state.events if e.event_type == EventType.HIGH_STRESS_EEG]
-        assert len(stress_events) == 1
-        assert stress_events[0].domain == "neurological"
-        assert stress_events[0].severity == EventSeverity.WARNING
-        assert stress_events[0].related_descriptor is None       # `stress_perception` se retiró (fase 0)
-
-        # Bajo el umbral -> sin evento.
-        calm_organism = DigitalTwinOrganism()
-        calm_organism.update_from_sensors({"eeg": {"alpha_power": 15.0, "beta_power": 5.0, "stress_level": 30.0}})
-        calm_state = from_digital_twin_organism(calm_organism, patient_id, Provenance.SIMULACION, 0.9)
-        assert not [e for e in calm_state.events if e.event_type == EventType.HIGH_STRESS_EEG]
+def test_there_is_no_stress_event_anymore(db_path):
+    """Tanda 0.1 (decisión 1): el evento de estrés > 75 (sin fuente) se retiró; un EEG con estrés 90 no emite nada neuro."""
+    stressed_organism = DigitalTwinOrganism()
+    stressed_organism.update_from_sensors({"eeg": {"alpha_power": 5.0, "beta_power": 20.0, "stress_level": 90.0}})
+    stressed_state = from_digital_twin_organism(stressed_organism, "p", Provenance.SIMULACION, 0.9)
+    assert not [e for e in stressed_state.events if e.domain == "neurological"]
+    assert not hasattr(EventType, "HIGH_STRESS_EEG")

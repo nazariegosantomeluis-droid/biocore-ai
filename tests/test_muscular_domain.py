@@ -169,7 +169,7 @@ def test_severe_muscle_fatigue_event_uses_same_threshold_as_organism(db_path):
     `DigitalTwinOrganism._update_muscles()` (`fatigue > 80` -> tier más alto
     de `risk_score`) -- no un umbral clínico inventado aquí. El evento lee
     `fatigue_index` de la señal cruda del organismo aunque ese valor NO se
-    persista como descriptor (igual que `HIGH_STRESS_EEG` lee `stress_level`)."""
+    persista como descriptor (lee la señal cruda del organismo)."""
     SessionLocal = _session_factory(db_path)
 
     with SessionLocal() as session:

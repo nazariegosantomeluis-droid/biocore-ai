@@ -77,14 +77,10 @@ _SEVERITY_RANK = {EventSeverity.INFO: 0, EventSeverity.WARNING: 1, EventSeverity
 EVENT_VISUAL_MAP: Dict[EventType, Tuple[str, str]] = {
     # Fase 0 (2026-11-13, decisión 5): el evento de FC es la banda de 3 puntos NEWS2 del pulso.
     EventType.PULSE_NEWS2_3_POINTS: ("heart", "⚡ Pulso en banda NEWS2 de 3 puntos (≤40 / ≥131)"),
-    # Retirados (solo filas históricas de `ups_events`; el builder ya no los emite).
-    EventType.ARRHYTHMIA_RISK_HR_EXTREME: ("heart", "⚡ FC fuera de rango (criterio retirado, histórico)"),
-    EventType.LOW_HRV_AUTONOMIC_STRESS: ("heart", "😰 HRV bajo (criterio retirado, histórico)"),
-    EventType.HYPOXIA_SPO2_LOW: ("lungs", "🫁 SpO₂ bajo lo esperado"),
-    EventType.HYPOXIA_SPO2_CRITICAL: ("lungs", "🚨 Hipoxia crítica"),
-    # Capa 5A, Sub-fase 2: el único EventType neuro (añadido en la Sub-fase 1)
-    # señala al cerebro, igual que los 4 de arriba señalan a su órgano.
-    EventType.HIGH_STRESS_EEG: ("brain", "🧠 Estrés elevado (EEG)"),
+    # Tanda 0.1 (decisión 1): SpO₂ en la banda de 3 puntos NEWS2 escala 1.
+    EventType.SPO2_NEWS2_3_POINTS: ("lungs", "🫁 SpO₂ en banda NEWS2 de 3 puntos (≤91 %)"),
+    # Retirado (solo filas históricas de `ups_events`; el builder ya no lo emite).
+    EventType.HYPOXIA_SPO2_LOW: ("lungs", "🫁 SpO₂ < 95 % (criterio retirado, histórico)"),
 }
 
 _STYLE = """
@@ -329,9 +325,8 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
       verdad, sin desincronización posible por añadir un órgano.
     - Color: `NEUTRAL_COLOR` si el dominio neuro está vacío (gate
       anti-órgano-fantasma de la Sub-fase 1 activo — escritor no-neuro);
-      `STABLE_COLOR` si hay datos y ningún evento neuro; `SEVERITY_COLOR`
-      del evento (`HIGH_STRESS_EEG` → WARNING) si lo hay. Idéntico a los
-      otros dos.
+      `STABLE_COLOR` si hay datos (desde la tanda 0.1 no existe ningún
+      evento neuro: el de estrés > 75 se retiró). Idéntico a los otros dos.
     - Animación: ninguna (fase 0: `mental_workload` se retiró del UPS).
     - Métrica legible: banda dominante entre las presentes, con la
       honestidad de Fase 5.1 (es el estado ACTUAL, no un snapshot que

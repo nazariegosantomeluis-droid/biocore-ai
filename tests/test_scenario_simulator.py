@@ -82,7 +82,7 @@ def test_hipoxia_progresiva_generates_events_as_it_worsens(tmp_path):
         events = get_events(session, patient_id)
 
     event_types = {e.event_type for e in events}
-    assert EventType.HYPOXIA_SPO2_CRITICAL in event_types or EventType.HYPOXIA_SPO2_LOW in event_types
+    assert EventType.SPO2_NEWS2_3_POINTS in event_types          # tanda 0.1: SpO2 82 % -> banda de 3 puntos NEWS2
 
 
 def test_run_scenario_rejects_unknown_scenario_and_too_few_steps(tmp_path):

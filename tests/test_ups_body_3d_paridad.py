@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from app.engines.digital_twin_organism import DigitalTwinOrganism, OrganHealthStatus
+from app.engines.digital_twin_organism import DigitalTwinOrganism
 from app.supermodules.twin_shell import ups_body_visual as U
 from domain.physiology.state import (
     DomainState, EventSeverity, EventType, PhysiologicalEvent, Provenance, UnifiedPhysiologicalState,
@@ -111,7 +111,7 @@ def test_the_four_rows_that_used_to_diverge_now_match_the_ups(case, expected):
 def test_no_sensor_is_grey_no_data_not_the_fabricated_alert():
     org = DigitalTwinOrganism()
     # Fase 1: el organismo sin alimentar NO tiene puntaje (antes 50 = «alerta»): sin dato, en gris, sin estado.
-    assert org.organs["heart"].metrics.health_score is None and org.organs["heart"].status is None
+    assert not hasattr(org.organs["heart"].metrics, "health_score") and not hasattr(org.organs["heart"], "status")
     assert org.organs["heart"].color == U.NEUTRAL_COLOR
     visual = U.organ_visual_state(_state())["heart"]
     assert visual == (U.NEUTRAL_COLOR, "sin dato", False, None)

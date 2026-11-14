@@ -52,7 +52,6 @@ def test_respiratory_only_gives_the_two_news2_points_and_nothing_computed_with_a
     organism = _fed({"respiratory": {"respiratory_rate": 14.0, "spo2": 97.0}})
     lungs = organism.organs["lungs"].metrics
     assert (lungs.rr_points, lungs.spo2_points) == (0, 0)
-    assert lungs.health_score is None                                         # exige AHI real: no se calcula con ahi = 0
     assert lungs.signals == {"respiratory_rate": 14.0, "spo2": 97.0}        # exactamente lo que llegó
     state = from_digital_twin_organism(organism, "p", provenance=Provenance.SIMULACION)
     assert set(state.respiratory.descriptors) == {
@@ -68,13 +67,13 @@ def test_respiratory_only_gives_the_two_news2_points_and_nothing_computed_with_a
     assert organism.generate_clinical_summary().count(NOT_MODELED) >= 2    # gasto cardiaco y SpO₂ escala 2
 
 
-def test_the_lung_health_index_needs_rr_spo2_and_ahi_all_real():
+def test_the_lung_health_index_is_retired_even_with_rr_spo2_and_ahi(  ):
+    """Tanda 0.1 (decisión 2): pesos 0.5/0.3/0.4 sin cita -> fuera del organismo, del contrato y de la UI."""
     with_ahi = _fed({"respiratory": {"respiratory_rate": 16.0, "spo2": 98.0, "ahi": 2.0}})
-    assert with_ahi.organs["lungs"].metrics.health_score is not None
+    assert not hasattr(with_ahi.organs["lungs"].metrics, "health_score")
     state = from_digital_twin_organism(with_ahi, "p", provenance=Provenance.SIMULACION)
-    assert "health_score" in state.respiratory.descriptors and "apnea_risk" not in state.respiratory.descriptors
-    assert derived_is_writable("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"})
-    assert not derived_is_writable("respiratory", "health_score", {"respiratory_rate", "spo2"})
+    assert set(state.respiratory.descriptors) == {"respiratory_rate", "spo2", "ahi", "news2_respiratory_rate_points", "news2_spo2_scale1_points"}
+    assert not derived_is_writable("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"})
 
 
 @pytest.mark.parametrize("spo2, points, color", [(97, 0, "#39ffbe"), (94, 1, "#ffd700"), (92, 2, "#ffd700"), (85, 3, "#ff3333")])
@@ -88,12 +87,11 @@ def test_with_sliders_brain_and_autonomic_no_longer_come_out_alert_or_critical_f
     organism = _fed(SLIDERS)
     for organ_id in ("brain", "muscles", "autonomic"):
         organ = organism.organs[organ_id]
-        assert organ.metrics.health_score is None and organ.status is None, organ_id   # sin índice: ni «Alerta» ni «Crítico»
+        assert not hasattr(organ, "status"), organ_id                                   # sin índice: ni «Alerta» ni «Crítico»
         assert organ.color == dto.HAS_DATA_COLOR                                       # hay entrada, sin criterio
     assert organism.organs["brain"].metrics.signals == {"stress_level": 35}
     assert organism.organs["muscles"].metrics.signals == {"fatigue_index": 20}
     assert organism.organs["autonomic"].metrics.signals == {"hrv": 50}                 # la HRV como HRV
-    assert organism.organs["lungs"].metrics.health_score is None                      # sin AHI
     assert not any("Alerta" in a or "Crítico" in a for a in organism.global_state["alerts"])
     exported = json.loads(organism.to_json())
     dumped = json.dumps(exported)
@@ -118,7 +116,7 @@ def test_the_contract_declares_every_retired_non_cardiac_derivative_as_never():
     assert all(r.never_reason for r in DERIVED_CONTRACT["neurological"].values())
     assert all(r.never_reason for r in DERIVED_CONTRACT["muscular"].values())
     resp = DERIVED_CONTRACT["respiratory"]
-    assert {f for f, r in resp.items() if r.never_reason} == {"risk_score", "hypoxia_risk", "apnea_risk", "tissue_oxygenation"}
+    assert {f for f, r in resp.items() if r.never_reason} == {"risk_score", "hypoxia_risk", "apnea_risk", "tissue_oxygenation", "health_score"}
     assert derived_is_writable("respiratory", "news2_spo2_scale1_points", {"spo2"})
     assert derived_is_writable("respiratory", "news2_respiratory_rate_points", {"respiratory_rate"})
     assert not derived_is_writable("respiratory", "news2_spo2_scale1_points", {"respiratory_rate"})
@@ -139,4 +137,4 @@ def test_an_unfed_organism_is_no_data_everywhere():
     assert organism.explain_state().count(NO_DATA) == 2                           # NEWS2 parcial y razón FC:FR
     assert not organism.global_state["news2_partial"].available
     summary = organism.generate_clinical_summary()
-    assert not re.search(r"\d", summary.split("Procedencia")[1].replace("NEWS2", "").replace("escala 1", "").replace("escala 2", "").replace("0.5/0.3/0.4", "").split("📊")[0].replace("de 3", ""))
+    assert not re.search(r"\d", summary.split("Procedencia")[1].replace("NEWS2", "").replace("escala 1", "").replace("escala 2", "").split("📊")[0].replace("de 3", ""))

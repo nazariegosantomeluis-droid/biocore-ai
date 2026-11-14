@@ -56,7 +56,6 @@ def test_a_derived_value_inherits_the_lowest_confidence_of_its_inputs():
                    input_confidence={"heart_rate": 0.9, "respiratory_rate": 0.8, "spo2": 0.7, "ahi": 0.55})
     resp = state.respiratory.descriptors
     assert resp["respiratory_rate"].confidence == pytest.approx(0.8)               # las medidas conservan la suya
-    assert resp["health_score"].confidence == pytest.approx(0.55)                  # min(rr 0.8, spo2 0.7, ahi 0.55)
     assert resp["news2_respiratory_rate_points"].confidence == pytest.approx(0.8)   # solo rr (fase 0: sustituye a risk_score)
     assert resp["news2_spo2_scale1_points"].confidence == pytest.approx(0.7)        # solo spo2 (fase 0: sustituye a hypoxia_risk)
     assert state.cardiovascular.get("news2_pulse_points").confidence == pytest.approx(0.9)   # su única entrada
@@ -64,14 +63,14 @@ def test_a_derived_value_inherits_the_lowest_confidence_of_its_inputs():
 
 
 def test_an_input_without_its_own_confidence_inherits_the_writers():
-    assert derived_confidence("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"},
+    assert derived_confidence("respiratory", "news2_spo2_scale1_points", {"respiratory_rate", "spo2", "ahi"},
                               {"spo2": 0.6}, 0.8) == pytest.approx(0.6)
-    assert derived_confidence("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"}, None, 0.8) == pytest.approx(0.8)
+    assert derived_confidence("respiratory", "news2_spo2_scale1_points", {"respiratory_rate", "spo2", "ahi"}, None, 0.8) == pytest.approx(0.8)
     # un derivado de una sola entrada hereda exactamente la de esa entrada
     assert derived_confidence("respiratory", "news2_spo2_scale1_points", {"spo2", "respiratory_rate"},
                               {"spo2": 0.4, "respiratory_rate": 0.9}, 0.7) == pytest.approx(0.4)
     with pytest.raises(ValueError):
-        derived_confidence("respiratory", "health_score", {"spo2"}, None, 0.8)       # no escribible: no hay confianza
+        derived_confidence("respiratory", "news2_respiratory_rate_points", {"spo2"}, None, 0.8)   # no escribible: no hay confianza
 
 
 # ------------------------------------------------------------------------------- entradas viejas (compuerta temporal)
@@ -116,7 +115,7 @@ def test_an_old_input_beyond_the_gate_does_not_exist():
 
 def test_current_inputs_still_produce_events_and_everything_is_current_after_a_single_update():
     organism = DigitalTwinOrganism()
-    organism.update_from_sensors({"ecg": {"heart_rate": 150.0}, "respiratory": {"respiratory_rate": 16.0, "spo2": 88.0}})
+    organism.update_from_sensors({"ecg": {"heart_rate": 150.0}, "respiratory": {"respiratory_rate": 16.0, "spo2": 88.0}})   # 88 % -> 3 puntos
     state = _state(organism)
     assert state.cardiovascular.get("heart_rate").provenance == Provenance.SIMULACION
     assert {e.domain for e in state.events} == {"cardiovascular", "respiratory"}

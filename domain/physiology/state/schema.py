@@ -209,30 +209,16 @@ class EventType(str, Enum):
     en el llamador."""
 
     # Cierre de la fase 0 (2026-11-13, decisión 5 de Luis): el evento de FC del UPS es la banda de 3 puntos NEWS2 del
-    # pulso (≤ 40 o ≥ 131 lpm; `clinical.calculators.news2_pulse_score`), nombrado por lo que mide. Reemplaza a
-    # `arrhythmia_risk_hr_extreme` (umbrales propios 40/120, crítico 35/150: el UPS no modela ritmo, solo FC).
+    # pulso (≤ 40 o ≥ 131 lpm; `clinical.calculators.news2_pulse_score`), nombrado por lo que mide.
     PULSE_NEWS2_3_POINTS = "pulse_news2_3_points"
-    # RETIRADOS (fase 0): el builder ya no los emite. Siguen en el catálogo SOLO para poder leer las filas históricas
-    # de `ups_events` que los contienen (`repository._event_from_record` hace `EventType(valor)`); un evento nuevo con
-    # estos tipos es un error. `low_hrv_autonomic_stress` (hrv < 20, sin cita) se retiró sin sustituto.
-    ARRHYTHMIA_RISK_HR_EXTREME = "arrhythmia_risk_hr_extreme"
-    LOW_HRV_AUTONOMIC_STRESS = "low_hrv_autonomic_stress"
-    HYPOXIA_SPO2_CRITICAL = "hypoxia_spo2_critical"
+    # Tanda 0.1 (2026-11-13, decisión 1): el evento de SpO₂ es la banda de 3 puntos NEWS2 escala 1 (≤ 91 %,
+    # `news2_spo2_scale1_score`). Reemplaza a `hypoxia_spo2_critical` (< 90, sin cita) y `hypoxia_spo2_low` (< 95).
+    SPO2_NEWS2_3_POINTS = "spo2_news2_3_points"
+    # RETIRADO (tanda 0.1): sigue SOLO para leer las 6 filas históricas de `ups_events` que lo contienen
+    # (`repository._event_from_record` hace `EventType(valor)`); el builder no lo emite. `arrhythmia_risk_hr_extreme`,
+    # `low_hrv_autonomic_stress` (filas purgadas con respaldo), `hypoxia_spo2_critical` y `high_stress_eeg` (estrés > 75,
+    # sin fuente) salieron del catálogo.
     HYPOXIA_SPO2_LOW = "hypoxia_spo2_low"
-    # Capa 5A, Sub-fase 1 (2026-08-30): único evento neuro -- mismo umbral
-    # que YA usa `DigitalTwinOrganism._update_brain()` para su propio
-    # `risk_score` (`stress_level > 75`, el tier más alto que ese método
-    # define) -- no se inventa un umbral clínico nuevo, se reutiliza el que
-    # ya vive en el motor, mismo criterio que los 4 eventos de arriba.
-    HIGH_STRESS_EEG = "high_stress_eeg"
-    # Capa 5A, dominio muscular Tanda 2 (2026-09-10): único evento muscular
-    # -- mismo criterio que HIGH_STRESS_EEG: reutiliza el umbral que YA usa
-    # `_update_muscles()` para su tier más alto de `risk_score`
-    # (`fatigue_index > 80`). El `fatigue_index` NO se persiste como
-    # descriptor todavía (diferido -- generador demo roto, ver
-    # `_muscular_state()`), pero el evento sí puede leer la señal cruda del
-    # organismo, exactamente como el evento de EEG lee `stress_level` sin
-    # persistirlo.
     SEVERE_MUSCLE_FATIGUE_EMG = "severe_muscle_fatigue_emg"
 
 
