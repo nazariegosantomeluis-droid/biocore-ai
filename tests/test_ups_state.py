@@ -140,7 +140,7 @@ def test_events_are_first_class_and_persisted(db_path):
         patient_id = create_patient(session, display_name="Paciente Eventos")
 
         cardio_organism = DigitalTwinOrganism()
-        cardio_organism.update_from_sensors({"ecg": {"heart_rate": 95, "hrv": 15}})  # hrv=15 -> HRV bajo (el preset "arrhythmia" se retiró)
+        cardio_organism.update_from_sensors({"ecg": {"heart_rate": 135, "hrv": 15}})  # FC 135 -> 3 puntos NEWS2 (fase 0: el evento por hrv < 20 se retiró)
         cardio_state = from_digital_twin_organism(cardio_organism, patient_id, Provenance.SIMULACION, 0.9)
         save_state(session, cardio_state)
 
@@ -151,14 +151,15 @@ def test_events_are_first_class_and_persisted(db_path):
         )
         save_state(session, resp_state)
 
-    assert any(e.event_type == EventType.LOW_HRV_AUTONOMIC_STRESS for e in cardio_state.events)
+    assert any(e.event_type == EventType.PULSE_NEWS2_3_POINTS for e in cardio_state.events)
+    assert not any(e.event_type == EventType.LOW_HRV_AUTONOMIC_STRESS for e in cardio_state.events)   # retirado (fase 0)
     assert any(e.event_type == EventType.HYPOXIA_SPO2_CRITICAL for e in resp_state.events)
 
     with SessionLocal() as session:
         persisted_events = get_events(session, patient_id)
 
     event_types = {e.event_type for e in persisted_events}
-    assert EventType.LOW_HRV_AUTONOMIC_STRESS in event_types
+    assert EventType.PULSE_NEWS2_3_POINTS in event_types
     assert EventType.HYPOXIA_SPO2_CRITICAL in event_types
 
     hypoxia_event = next(e for e in persisted_events if e.event_type == EventType.HYPOXIA_SPO2_CRITICAL)
@@ -245,17 +246,15 @@ def test_neurological_domain_gate_prevents_ghost_brain(db_path):
         assert eeg_state.cardiovascular.descriptors == {}  # corazón NO fabricado
         assert eeg_state.respiratory.descriptors == {}  # pulmón NO fabricado
 
-        # Los 5 band power + `bar`/`dar`/`tbr` (Neuro DAR+TBR, 2026-09-10, mismo patrón de ratio adimensional) +
-        # `mental_workload` (su única entrada, `beta_power`, llegó). C0 (2026-11-12, Art. I): ya NO health_score,
-        # risk_score, cognitive_fatigue, attention, stress_perception ni sleepiness -- sus entradas (`relaxation_level`,
-        # `stress_level`) las defaultea el organismo (65/35); un EEG de potencias no las trae.
+        # Los 5 band power + `bar`/`dar`/`tbr` (Neuro DAR+TBR, 2026-09-10, mismo patrón de ratio adimensional).
+        # Fase 0 (2026-11-13, Art. I): el cerebro ya no escribe NINGÚN derivado del organismo (`mental_workload` era
+        # beta_power con otro nombre; health_score/risk_score/attention/... no tenían cita).
         assert set(eeg_state.neurological.descriptors.keys()) == {
             "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar", "dar", "tbr",
-            "mental_workload",
         }
         assert eeg_state.neurological.get("alpha_power").value == pytest.approx(12.5)
         assert eeg_state.neurological.get("alpha_power").provenance == Provenance.SIMULACION
-        assert eeg_state.neurological.get("mental_workload").provenance == Provenance.DERIVADO
+        assert "mental_workload" not in eeg_state.neurological.descriptors
         # `bar` = beta/alpha = 7.2/12.5, con la MISMA procedencia que las band
         # power de origen (cociente de dos señales primarias, no un índice
         # derivado por el organismo).
@@ -314,7 +313,7 @@ def test_high_stress_eeg_event_uses_same_threshold_as_organism(db_path):
         assert len(stress_events) == 1
         assert stress_events[0].domain == "neurological"
         assert stress_events[0].severity == EventSeverity.WARNING
-        assert stress_events[0].related_descriptor == "stress_perception"
+        assert stress_events[0].related_descriptor is None       # `stress_perception` se retiró (fase 0)
 
         # Bajo el umbral -> sin evento.
         calm_organism = DigitalTwinOrganism()

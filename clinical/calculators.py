@@ -510,14 +510,91 @@ def news2_respiratory_rate_score(rr: float) -> int:
     return 3
 
 
-def _news2_spo2_scale1(spo2: float) -> int:
-    if spo2 <= 91:
+def news2_spo2_scale1_score(spo2: float) -> int:
+    """Puntos NEWS2 de la SpO₂ en la escala 1 (%). Redondea a entero con .5 hacia arriba (`floor(spo2 + 0.5)`, el
+    mismo criterio que `news2_pulse_score`) y puntúa: ≤ 91 → 3; 92–93 → 2; 94–95 → 1; ≥ 96 → 0. Fuente:
+    `NEWS2_CITATION` (Royal College of Physicians, NEWS2, Londres 2017, gráfico 1 «Physiological parameters», fila
+    «SpO2 Scale 1 (%)»), contrastada con la tabla reproducida en PMC8244393 («≤91 · 92–93 · 94–95 · ≥96»). Es la única
+    copia de la tabla: `news2_score`, el organismo del gemelo y el laboratorio respiratorio la llaman, nadie la
+    reescribe. La escala 2 (insuficiencia respiratoria hipercápnica) es otra tabla (`_news2_spo2_scale2`) y exige saber
+    si el paciente recibe oxígeno: el gemelo no la modela. Es UN componente de un puntaje; no es un diagnóstico."""
+    if spo2 is None or not math.isfinite(spo2):
+        raise ValueError("SpO2 invalida")
+    n = math.floor(spo2 + 0.5)
+    if n <= 91:
         return 3
-    if spo2 <= 93:
+    if n <= 93:
         return 2
-    if spo2 <= 95:
+    if n <= 95:
         return 1
     return 0
+
+
+_news2_spo2_scale1 = news2_spo2_scale1_score   # la tabla vive en un solo sitio
+
+
+# Lo que NEWS2 exige y el gemelo NO tiene: sin estos parámetros no existe un total (RCP 2017, gráfico 1; el oxígeno
+# suplementario es un parámetro propio de 2 puntos y además decide la escala de SpO2).
+NEWS2_PARAMETERS_NOT_MODELED: Tuple[str, ...] = (
+    "presión arterial sistólica", "temperatura", "nivel de consciencia (ACVPU)", "oxígeno suplementario (aire u O₂)",
+)
+
+
+@dataclass(frozen=True)
+class News2Partial:
+    """Componentes NEWS2 que SÍ se pueden puntuar con lo que llegó (pulso, FR, SpO₂ escala 1) y la lista de lo que
+    falta para el total. A propósito NO tiene total ni categoría de riesgo: un NEWS2 parcial no es un NEWS2."""
+    components: Dict[str, int]        # {"Pulso": 0, "Frecuencia respiratoria": 2, "SpO₂ (escala 1)": 1}
+    missing: Tuple[str, ...]          # parámetros sin dato (los no modelados + los modelados que no llegaron)
+
+    @property
+    def available(self) -> bool:
+        return bool(self.components)
+
+
+def news2_partial(*, pulse: Optional[float] = None, respiratory_rate: Optional[float] = None,
+                  spo2: Optional[float] = None) -> News2Partial:
+    """NEWS2 PARCIAL (`NEWS2_CITATION`): puntúa solo los componentes cuyo valor llegó, con las mismas tablas que
+    `news2_score` (una sola copia por tabla), y declara lo que falta para el total. Nunca suma: el total NEWS2 exige
+    los 7 parámetros (ver `NEWS2_PARAMETERS_NOT_MODELED`)."""
+    components: Dict[str, int] = {}
+    missing = []
+    if pulse is not None and math.isfinite(pulse):
+        components["Pulso"] = news2_pulse_score(pulse)
+    else:
+        missing.append("pulso")
+    if respiratory_rate is not None and math.isfinite(respiratory_rate):
+        components["Frecuencia respiratoria"] = news2_respiratory_rate_score(math.floor(respiratory_rate + 0.5))
+    else:
+        missing.append("frecuencia respiratoria")
+    if spo2 is not None and math.isfinite(spo2):
+        components["SpO₂ (escala 1)"] = news2_spo2_scale1_score(spo2)
+    else:
+        missing.append("SpO₂")
+    return News2Partial(components, tuple(missing) + NEWS2_PARAMETERS_NOT_MODELED)
+
+
+# Cociente pulso-respiración (PRQ = FC / FR). Fuente verificada con texto completo (2026-11-13):
+# Scholkmann F, Wolf U. The Pulse-Respiration Quotient: A Powerful but Untapped Parameter for Modern Studies About
+# Human Physiology and Pathophysiology. Front Physiol 2019;10:371. doi:10.3389/fphys.2019.00371 (PMC6465339).
+# Texto: «The rs-PRQ values normally show distribution peaks at 3 and 4, corresponding to 3:1 and 4:1 HR and RR ratio
+# values. The cardiorespiratory state where the PRQ exhibits a value around 4 was termed [...] (i.e., a state of an
+# "optimal" PRQ with respect to the functioning of the cardiovascular system)». Es un valor de referencia en REPOSO
+# (rs-PRQ), no un umbral ni un índice 0-100.
+PRQ_REFERENCE = (
+    "Scholkmann F, Wolf U. The Pulse-Respiration Quotient: A Powerful but Untapped Parameter for Modern Studies "
+    "About Human Physiology and Pathophysiology. Front Physiol 2019;10:371. doi:10.3389/fphys.2019.00371"
+)
+PRQ_REST_REFERENCE_TEXT = "en reposo, picos de distribución en 3:1 y 4:1; «alrededor de 4» se describe como óptimo"
+
+
+def pulse_respiration_quotient(heart_rate: float, respiratory_rate: float) -> Optional[float]:
+    """PRQ = FC / FR (adimensional). `None` si la FR es 0 o alguna entrada no es finita: no se inventa un cociente."""
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in (heart_rate, respiratory_rate)):
+        return None
+    if respiratory_rate <= 0:
+        return None
+    return float(heart_rate) / float(respiratory_rate)
 
 
 def _news2_spo2_scale2(spo2: float, on_oxygen: bool) -> int:

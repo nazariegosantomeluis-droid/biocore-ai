@@ -1102,7 +1102,12 @@ def render_emg_page() -> None:
         render_findings_narrator('EMG Muscle Lab', [
             ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Nivel promedio de activación muscular (EMG rectificado, señal filtrada 20-450 Hz).'),
             ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
-            ('fatigue_index', f'{emg_analysis.fatigue_index:.0f}/100', 'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz.'),
+            # Fase 0 (2026-11-13, Art. I): con la señal demo (ruido blanco, espectro plano, MDF ≈ fs/4) el índice queda
+            # clavado en 0 -- no mide fatiga, así que no se muestra como número; con CSV o hardware sí (HEURISTIC).
+            ('fatigue_index',
+             f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo',
+             'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz (heurístico). '
+             'La señal demo tiene espectro plano: el índice sería una constante, no una medición.'),
             ('signal_source', source, 'Origen de la señal: demo sintética, CSV cargado, o hardware en vivo.'),
         ])
 
@@ -1143,12 +1148,12 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
     cualquier sEMG). Qué NO: `fatigue_index` -- el generador demo (ruido
     blanco, espectro plano) lo clava en 0 y `_muscular_state()` lo difiere
     de todos modos (Tanda 2, Art. I: no persistir una constante disfrazada
-    de medición). Con solo esas dos entradas, `_update_muscles()` calcula
-    health_score/risk_score/neuromuscular_efficiency/movement_smoothness
-    desde `efficiency`/`fatigue_index` DEFAULTEADOS (70/20) -- mismo nivel
-    de tolerancia que ya acepta el EEG Lab (band power reales, stress_level
-    defaulteado). El gate de `_muscular_state()` (`"activation" in signals`)
-    es lo que decide "hay músculo que escribir".
+    de medición). Fase 0 (2026-11-13): el organismo ya no deriva nada del
+    músculo (health_score/risk_score sin cita, neuromuscular_efficiency =
+    efficiency con otro nombre, movement_smoothness = 100 - fatiga: todos
+    retirados), así que al UPS llegan EXACTAMENTE las dos medidas. El gate
+    de `_muscular_state()` (`"activation" in signals`) es lo que decide "hay
+    músculo que escribir".
 
     Procedencia `SIMULACION`: señal de `generate_demo_emg_signal` o CSV
     cargado, nunca un sensor en vivo verificado.
@@ -1203,8 +1208,8 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
                 f"activation = {muscular.get('activation').value:.1f}% "
                 f"({muscular.get('activation').provenance.value}) · "
                 f"median_frequency = {muscular.get('median_frequency').value:.1f} Hz · "
-                "health_score / risk_score / neuromuscular_efficiency / movement_smoothness "
-                "DERIVADO · sin fatigue_index (diferido) · sin campos fantasma"
+                "sin derivados del organismo (fase 0: health_score, risk_score, neuromuscular_efficiency y "
+                "movement_smoothness retirados) · sin fatigue_index (diferido) · sin campos fantasma"
             )
         else:
             st.caption("muscular: 0 descriptores (gate no cumplido -- inesperado con activation enviada)")

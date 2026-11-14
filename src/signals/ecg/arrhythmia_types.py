@@ -27,15 +27,15 @@ cambia) y el UPS no tiene descriptor de ritmo, así que un escenario de signos
 vitales no tendría nada que distinguirlo de "sano". Necesitan una forma de onda
 con salvas prematuras, no una FC; se añaden con su propio generador si se firma.
 
-LÍMITE DEL UPS (declarado): el UPS no modela ritmo, solo FC. Los eventos que
-dispara dependen únicamente de la FC (`arrhythmia_risk_hr_extreme` con FC > 120
-o < 40; crítico con > 150 o < 35), así que `ups_hr_event` describe cuándo ese
-evento acompaña al tipo, no un evento propio del tipo. Los códigos `ARR_*_ON`
-propuestos requieren un descriptor de ritmo en el esquema del UPS (decisión
-pendiente) y NO existen todavía. Hueco declarado: la bradicardia sinusal
-(40-59 lpm) no dispara ningún evento, porque el UPS solo marca FC < 40; un test
-verifica cada `ups_hr_event` contra el builder real. Lo mismo para la taquicardia sinusal (100-140): 100-120
-lpm no dispara evento (el UPS marca solo > 120), 121-140 sí; su FC nominal (120, punto medio) NO lo dispara.
+LÍMITE DEL UPS (declarado): el UPS no modela ritmo, solo FC. El único evento que dispara
+depende de la FC: `pulse_news2_3_points`, la banda de 3 puntos NEWS2 del pulso (≤ 40 o
+≥ 131 lpm, `clinical.calculators.news2_pulse_score`; fase 0, 2026-11-13), así que
+`ups_hr_event` describe cuándo ese evento acompaña al tipo, no un evento propio del tipo.
+Los códigos `ARR_*_ON` propuestos requieren un descriptor de ritmo en el esquema del UPS
+(decisión pendiente) y NO existen todavía. Huecos declarados: la bradicardia sinusal (40-59
+lpm) solo dispara en 40 lpm (≤ 40 son 3 puntos; 41-59 no), y la taquicardia sinusal
+(100-140) solo en 131-140 (su FC nominal, 120, no dispara). Un test verifica cada
+`ups_hr_event` contra el builder real.
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ ARRHYTHMIA_TYPES: Dict[str, ArrhythmiaType] = {
         ArrhythmiaType(
             "sbrady", "Bradicardia sinusal", 40.0, 59.0, False,
             "onda P antes de cada QRS, ritmo regular",
-            EVENT_NEVER, "atropina / marcapasos",
+            EVENT_DEPENDS_ON_HR, "atropina / marcapasos",  # solo 40 lpm cae en la banda de 3 puntos (≤ 40)
         ),
     )
 }

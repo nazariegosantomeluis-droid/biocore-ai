@@ -13,6 +13,11 @@ motor hemodinámico base con procedencia `MODELO_HEMODINAMICO` y su estado de va
 flujo como ENTRADA y devuelve presiones; no lo calcula: no se escribe); (4) el riesgo cardiaco son los puntos NEWS2 de
 pulso, con una sola entrada (`heart_rate`); (6) un derivado hereda la MENOR confianza de sus entradas.
 
+Cierre de la fase 0 (2026-11-13, decisión 6 de Luis): los órganos no cardiacos siguen la misma lógica. Respiratorio:
+puntos NEWS2 de FR y de SpO₂ (escala 1) en lugar de `risk_score`/`hypoxia_risk`; `apnea_risk` NUNCA (eco lineal de
+`ahi`); el índice de salud pulmonar solo con FR + SpO₂ + AHI reales. Neurológico y muscular: ningún derivado (índices sin
+cita y copias con otro nombre de una entrada: `mental_workload`, `stress_perception`, `neuromuscular_efficiency`...).
+
 Este módulo es el ÚNICO punto de verdad de la regla: la tabla `DERIVED_CONTRACT` (campo -> entradas requeridas, deducidas
 de la fórmula real de `app/engines/digital_twin_organism.py`, con archivo:línea) y las dos funciones que la aplican. Solo
 `builder.from_digital_twin_organism()` la consulta; ningún laboratorio ni ruta decide por su cuenta qué derivado escribir.
@@ -83,42 +88,59 @@ DERIVED_CONTRACT: Dict[str, Dict[str, DerivedRule]] = {
         ),
     },
     "respiratory": {
-        # _update_lungs: rr/spo2/ahi con default 16/98/0 (L427-429); fórmulas L436-452.
-        "health_score": DerivedRule((("respiratory_rate", "spo2", "ahi"),), f"{_ORG}:436"),
-        "risk_score": DerivedRule((("spo2", "ahi"),), f"{_ORG}:441-446"),
-        "hypoxia_risk": DerivedRule((("spo2",),), f"{_ORG}:450"),
-        "apnea_risk": DerivedRule((("ahi",),), f"{_ORG}:449"),
+        # Fase 0 (2026-11-13, decisión 6): `risk_score` y `hypoxia_risk` se sustituyen por los puntos NEWS2 de la FR y de
+        # la SpO₂ (escala 1), cada uno con su única entrada; `apnea_risk` era `ahi` × 3.33 (eco lineal de un valor que ya
+        # se escribe); el índice de salud pulmonar (pesos propios) exige FR + SpO₂ + AHI, los tres (sin `ahi = 0`).
+        "news2_respiratory_rate_points": DerivedRule(
+            (("respiratory_rate",),), "clinical/calculators.py:news2_respiratory_rate_score (NEWS2_CITATION, RCP 2017)"
+        ),
+        "news2_spo2_scale1_points": DerivedRule(
+            (("spo2",),), "clinical/calculators.py:news2_spo2_scale1_score (NEWS2_CITATION, RCP 2017; escala 2 no modelada)"
+        ),
+        "health_score": DerivedRule((("respiratory_rate", "spo2", "ahi"),), f"{_ORG}:_update_lungs (heurístico, pesos 0.5/0.3/0.4)"),
+        "risk_score": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)",
+            "decisión 6: umbrales propios (SpO₂ 90/95, AHI 5/20) sustituidos por los puntos NEWS2 de SpO₂ y FR",
+        ),
+        "hypoxia_risk": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)", "decisión 6: sustituido por los puntos NEWS2 de la SpO₂ (escala 1)",
+        ),
+        "apnea_risk": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)", "era `ahi` × 3.33: eco lineal de un valor que ya se escribe (`ahi`)",
+        ),
         "tissue_oxygenation": DerivedRule(
-            _NEVER, f"{_ORG}:452",
+            _NEVER, f"{_ORG} (retirado)",
             "es la SpO2 con otro nombre (`spo2_score = spo2`): fachada por nombre de un valor que ya se escribe; "
-            "`perfusion_index` (L451) es el mismo número y tampoco se escribe",
+            "`perfusion_index` es el mismo número y tampoco se escribe",
         ),
     },
     "neurological": {
-        # _update_brain: alpha/beta/stress/relaxation con default 50/30/35/65 (L398-401); fórmulas L404-421.
-        "health_score": DerivedRule((("relaxation_level", "stress_level"),), f"{_ORG}:404"),
-        "risk_score": DerivedRule((("stress_level",),), f"{_ORG}:409-414"),
-        "mental_workload": DerivedRule((("beta_power",),), f"{_ORG}:417 (= min(100, beta_power))"),
-        "cognitive_fatigue": DerivedRule((("relaxation_level", "stress_level"),), f"{_ORG}:418 (= 100 - health_score)"),
-        "attention": DerivedRule((("attention",), ("relaxation_level", "alpha_power")), f"{_ORG}:419"),
-        "stress_perception": DerivedRule((("stress_level",),), f"{_ORG}:420"),
-        "sleepiness": DerivedRule(
-            (("attention",), ("relaxation_level", "alpha_power")), f"{_ORG}:421 (= 100 - attention)"
+        # Fase 0 (decisión 6 y Parte E): el cerebro no deriva nada. `health_score`/`risk_score` (defaults 65/35, umbrales
+        # 50/75 sin cita) retirados; `mental_workload` = min(100, beta_power) (una potencia presentada como escala 0-100),
+        # `stress_perception` = `stress_level` con otro nombre, `cognitive_fatigue` = 100 − health_score, `attention`/
+        # `sleepiness` inventadas. Lo que se mide (potencias de banda, BAR/DAR/TBR, χ) se escribe como lo que es.
+        "health_score": DerivedRule(_NEVER, f"{_ORG} (retirado)", "decisión 6: fórmula con defaults 65/35, sin cita"),
+        "risk_score": DerivedRule(_NEVER, f"{_ORG} (retirado)", "decisión 6: umbrales 50/75 sin cita"),
+        "mental_workload": DerivedRule(
+            _NEVER, f"{_ORG} (retirado)", "Parte E: era min(100, beta_power), una potencia presentada como escala 0-100",
         ),
+        "cognitive_fatigue": DerivedRule(_NEVER, f"{_ORG} (retirado)", "era 100 − health_score (retirado con él)"),
+        "attention": DerivedRule(_NEVER, f"{_ORG} (retirado)", "era relaxation + alpha × 0.2, sin cita"),
+        "stress_perception": DerivedRule(_NEVER, f"{_ORG} (retirado)", "Parte E: `stress_level` con otro nombre"),
+        "sleepiness": DerivedRule(_NEVER, f"{_ORG} (retirado)", "era 100 − attention (retirado con él)"),
     },
     "muscular": {
-        # _update_muscles: fatigue/activation/efficiency con default 20/45/70 (L458-460); fórmulas L463-477.
-        "health_score": DerivedRule((("efficiency", "fatigue_index"),), f"{_ORG}:463"),
-        "risk_score": DerivedRule((("fatigue_index",),), f"{_ORG}:468-473"),
-        "neuromuscular_efficiency": DerivedRule((("efficiency",),), f"{_ORG}:476"),
-        "movement_smoothness": DerivedRule((("fatigue_index",),), f"{_ORG}:477 (= 100 - fatigue_index)"),
+        # Fase 0 (decisión 6 y Parte E): el músculo no deriva nada. Se escriben `activation` y `median_frequency` tal cual.
+        "health_score": DerivedRule(_NEVER, f"{_ORG} (retirado)", "decisión 6: fórmula con defaults 70/20, sin cita"),
+        "risk_score": DerivedRule(_NEVER, f"{_ORG} (retirado)", "decisión 6: umbrales 50/80 sin cita"),
+        "neuromuscular_efficiency": DerivedRule(_NEVER, f"{_ORG} (retirado)", "Parte E: `efficiency` con otro nombre"),
+        "movement_smoothness": DerivedRule(_NEVER, f"{_ORG} (retirado)", "era 100 − fatigue_index (eco lineal de la entrada)"),
     },
 }
 
 # Potencias de banda (medidas). Un análisis espectral (Welch, `EegAnalyzer`) devuelve el conjunto de bandas de una vez:
-# una banda AISLADA no es un espectro. Twin OS alimenta el organismo con `alpha_power = max(0, 70 - 0.5 * estrés)`
-# (twin_shell/pages.py `render_sensor_controls`), una potencia EEG fabricada desde el slider de estrés y enviada SOLA:
-# con este mínimo no se acepta como medición. Todo lector real de espectro envía >= 2 bandas.
+# una banda AISLADA no es un espectro (Twin OS llegó a fabricar `alpha_power = 70 - 0.5 * estrés` desde un slider y
+# enviarla SOLA; ya no). Con este mínimo no se acepta como medición. Todo lector real de espectro envía >= 2 bandas.
 SPECTRAL_BANDS: Tuple[str, ...] = ("delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power")
 MIN_SPECTRAL_BANDS = 2
 

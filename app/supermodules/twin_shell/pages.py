@@ -31,10 +31,10 @@ import numpy as np
 
 from app.engines import (
     DigitalTwinOrganism,
-    OrganHealthStatus,
     SimulationScenario,
     PredictionEngine,
 )
+from clinical.calculators import PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
 from app.engines.digital_twin_organism import NO_DATA, NO_DATA_COLOR, NOT_MODELED
 from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
 from app.utils.design_system import render_module_header, render_error_state, BADGES
@@ -95,120 +95,45 @@ ORGAN_ORDER = ["heart", "brain", "lungs", "muscles", "autonomic"]
 # concerns. Fase 1 (idioma, 2026-08-30): traducidas junto con las frases de
 # `digital_twin_organism.py::_detect_anomalies()` que enrutan -- son stems
 # (sin sufijo de género) para que calcen con las variantes de la frase real
-# ("respirator" calza con "respiratoria"/"respiratorio"). Verificado que
-# producen el mismo conjunto de coincidencias que las keywords en inglés
-# tenían con el texto en inglés (incluida la coincidencia sobre palabras
-# compuestas, p.ej. "respirator" dentro de "cardiorrespiratoria") -- ver
-# CHANGELOG.md para la tabla caso por caso.
+# ("respirator" calza con "respiratoria"/"respiratorio").
 ORGAN_KEYWORDS = {
     "heart": ["cardiovascular", "corazón", "ritmo"],
-    "brain": ["estrés", "somnolencia", "cognitiv", "alerta"],
-    "lungs": ["respirator", "spo", "respiraci"],
+    "brain": ["estrés", "somnolencia", "cognitiv"],
+    "lungs": ["respirator", "spo", "respiraci", "pulmones"],
     "muscles": ["muscular", "fatiga"],
-    "autonomic": ["coordinaci", "desacopl", "sincroniz", "autonóm"],
+    "autonomic": ["autonóm"],
 }
 
 # Fase 1 (idioma, 2026-08-30): los valores INTERNOS siguen en inglés a
 # propósito -- se comparan en `if mode == "Student":` (render_organ_panel,
-# más abajo) y son el valor por defecto de session_state. Traducir el valor
-# obligaría a tocar esas comparaciones sin ninguna ganancia (nadie los ve).
-# Solo la ETIQUETA visible del radio se traduce, vía `format_func` en
-# `render_mode_toggle()`.
+# más abajo) y son el valor por defecto de session_state. Solo la ETIQUETA
+# visible del radio se traduce, vía `format_func` en `render_mode_toggle()`.
 MODES = ["Student", "Clinician", "Researcher"]
 MODE_LABELS = {"Student": "Estudiante", "Clinician": "Clínico", "Researcher": "Investigador"}
 
-# Fase 1 (idioma, 2026-08-30) + Fase 2 (honestidad, 2026-08-30): `trend`
-# nunca se asigna en ningún sitio de `digital_twin_organism.py` (confirmado
-# por grep) -- se queda para siempre en su default de dataclass ("stable"),
-# nunca "rising"/"falling" en la práctica hoy. Se traducen los 3 por si
-# algún día se activa, no solo el que se ve hoy.
-TREND_LABELS = {"stable": "Estable", "rising": "Subiendo", "falling": "Bajando"}
-
-# `OrganHealthStatus` (digital_twin_organism.py) ya es una clasificación
-# cualitativa REAL de `health_score` (propiedad `organ.status`, 4 niveles,
-# umbrales 80/60/40/<40) -- se reutiliza tal cual como la banda cualitativa
-# de Fase 2 para Cerebro/Músculos/Autonómico en vez de inventar un tercer
-# esquema de cortes para lo mismo. También traduce el campo "Estado" que ya
-# se mostraba en inglés (Researcher mode, Fase 1 pendiente).
-ORGAN_STATUS_LABELS = {
-    OrganHealthStatus.OPTIMAL: "Óptimo",
-    OrganHealthStatus.NORMAL: "Normal",
-    OrganHealthStatus.ALERT: "Alerta",
-    OrganHealthStatus.CRITICAL: "Crítico",
-}
-
-# Fase 2 (honestidad de presentación, 2026-08-30): Corazón y Pulmones citan
-# un punto de referencia clínico real (PROVENANCE_SOURCE_HEALTHY_ADULT) para
-# su health score, aunque los pesos de la fórmula sean heurísticos -- se
-# quedan como NÚMERO (con procedencia visible). Cerebro/Músculos/Autonómico
-# no citan ninguna referencia -- pasan a banda cualitativa (`organ.status`
-# arriba). Ver `_health_score_help()`/`_HEALTH_SCORE_REFERENCE_ORGANS` para
-# la misma distinción, ya existente en el código de Tanda 2 (2026-08-14).
-# Fase 1 (2026-11-12): el corazón ya no tiene `health_score` (decisión 1, retirado); solo Pulmones cita un punto de referencia.
-ORGANS_WITH_CITED_HEALTH_SCORE = {"lungs"}
-
-
-def _qualitative_band(value: float, labels: tuple, high: float = 70.0, low: float = 40.0) -> tuple:
-    """Convierte un score 0-100 SIN ancla clínica citada (pesos heurísticos
-    puros) en una banda cualitativa de 3 niveles + color. Reutiliza los
-    cortes 70/40 que `render_ambient_header()` ya usaba para colorear el
-    número de Estado Fisiológico Global -- no se inventa un tercer par de
-    umbrales para lo mismo. `labels` = (bajo, medio, alto)."""
-    if value >= high:
-        return labels[2], "#39ffbe"
-    if value >= low:
-        return labels[1], "#ffd700"
-    return labels[0], "#ff3333"
-
-
-def _coupling_band(value: float) -> tuple:
-    """value 0-1. Corte bajo (<30%) reutiliza el umbral que YA dispara la
-    alerta de 'desacoplamiento'/'desincronización' en
-    `_detect_anomalies()` (digital_twin_organism.py, `< 0.3`) -- no se
-    inventa un umbral nuevo para 'Bajo'. Corte alto (70%) simétrico, mismo
-    criterio que el resto de bandas de esta página."""
-    return _qualitative_band(value * 100, ("Bajo", "Medio", "Alto"))
-
-
 # --- Procedencia de los datos del Digital Twin (Tanda 2, 2026-08-14) --------
-# Firma: validador clínico, Digital Twin — Tanda 2, dictamen 2026-08-14.
-# Puramente aditivo: NINGÚN cálculo de `DigitalTwinOrganism`/`PredictionEngine`
-# cambia en esta tanda (ver Tanda 1, CHANGELOG.md, para lo que sí se tocó:
-# el `confidence` fachada, ya retirado). Esto solo hace visible en la UI la
-# distinción que el validador ya dictaminó entre umbrales con respaldo citado
-# (Categoría A) y heurísticas de ingeniería propias de BIOCORE, sin
-# validación clínica externa (Categoría B) — mismo principio que
-# `Provenance`/`ClinicalReferenceValue` del UPS, adaptado aquí como badge de
-# UI en vez de campo persistido, porque estos valores (health scores,
-# acoplamientos, PredictionEngine) viven en `DigitalTwinOrganism`/
-# `PredictionEngine`, fuera del esquema del UPS — no se inventa un tercer
-# sistema de procedencia, se extiende el mismo VOCABULARIO (citado vs. no
-# validado) al único lugar donde estos datos realmente viven hoy.
-# Fase 2.3 Tanda 3 (2026-08-29): antes 2 literales duplicados 1:1 con
-# `BIOMARKER_*_BADGE` de app/main.py -- mismos valores, cero fuente
-# compartida (ver design_system.py docstring). Ahora alias de BADGES
-# (design_system.py), la fuente única -- ningún valor ni ningún sitio de
-# uso más abajo cambia, solo de dónde viene el literal.
+# Firma: validador clínico, Digital Twin — Tanda 2, dictamen 2026-08-14. Hace visible en la UI la distinción entre
+# umbrales con respaldo citado (Categoría A) y heurísticas de ingeniería propias de BIOCORE (Categoría B) — mismo
+# principio que `Provenance`/`ClinicalReferenceValue` del UPS, adaptado como badge de UI. Alias de BADGES
+# (design_system.py), la fuente única. Cierre de la fase 0 (2026-11-13): tras retirar los índices sin cita, en Twin OS
+# quedan tres cosas: componentes NEWS2 (🟢), el índice de salud pulmonar (🔵, pesos propios) y entradas (sin badge,
+# «Entrada: …»).
 PROVENANCE_CLINICAL_BADGE = BADGES.CLINICAL
 PROVENANCE_HEURISTIC_BADGE = BADGES.HEURISTIC
 PROVENANCE_HEURISTIC_LABEL = "Índice heurístico BIOCORE — no es un score clínico validado"
+PROVENANCE_SOURCE_NEWS2 = "NEWS2 (RCP 2017)"
 
-# Categoría A -- fuentes citadas por el validador para umbrales/constantes
-# específicos (verbatim, no parafraseadas). Cada una se usa SOLO donde el
-# número en el código coincide exactamente con el umbral citado -- p.ej. la
-# HRV<10ms citada aquí es la de `PredictionEngine.assess_cardiovascular_risk`
-# (que sí usa 10ms); NO se aplica a `assess_autonomic_risk` (que usa 15/30ms,
-# un umbral distinto, no cubierto por este dictamen) ni al `risk_score`
-# propio de `DigitalTwinOrganism` (que usa sus propios umbrales, tampoco
-# cubiertos -- ver CHANGELOG.md, Tanda 2, para el detalle de por qué no se
-# etiquetan como citados).
-PROVENANCE_SOURCE_NEWS2 = "NEWS2"
-PROVENANCE_SOURCE_ACLS_ATLS = "ACLS/ATLS"
-PROVENANCE_SOURCE_AASM = "criterio AASM"
-PROVENANCE_SOURCE_AUTONOMIC_DEPRESSION = "depresión autonómica"
-PROVENANCE_SOURCE_PRQ = "Pulse-Respiration Quotient (PRQ) en reposo"
-PROVENANCE_SOURCE_HEALTHY_ADULT = "valores de referencia de adulto sano"
-PROVENANCE_SOURCE_TRIAGE = "filosofía de triaje clínico (el órgano más crítico determina el riesgo vital)"
+# Fuente de las entradas del organismo (Parte D, fase 0): o los sliders, o un escenario/intervención aplicado con un
+# botón. Mientras haya un escenario activo, los sliders NO se aplican en el siguiente rerun (antes lo sobrescribían).
+INPUT_SOURCE_KEY = "twin_shell_input_source"
+
+
+def _set_input_source(label: str) -> None:
+    st.session_state[INPUT_SOURCE_KEY] = label
+
+
+def _entrada(organism: DigitalTwinOrganism) -> str:
+    return f"Entrada: {organism.input_provenance or 'sin declarar'}"
 
 
 def init_session() -> None:
@@ -230,71 +155,97 @@ def init_session() -> None:
     get_active_patient_id()
 
 
-def _band_or_no_data(value: Optional[float], labels: tuple) -> tuple:
-    """Banda cualitativa de un índice 0-100; sin valor -> «sin dato» en gris (decisión 5: nunca «Baja» ni «Crítico» por
-    falta de datos)."""
-    if value is None:
-        return NO_DATA, NO_DATA_COLOR
-    return _qualitative_band(value, labels)
-
-
 def render_ambient_header(organism: DigitalTwinOrganism) -> None:
-    """The organism's own state IS the dashboard — no separate summary view.
-
-    Frente cardiovascular, Fase 1 (Art. I): los índices globales solo tienen número si TODOS los órganos de los que
-    dependen lo tienen; si alguno falta o fue retirado (el `health_score` cardiaco), el índice es «sin dato», en gris.
-    Sin `get(..., 50.0 / "BAJO" / 0.0)`: el default ya no existe."""
-    state = organism.global_state
-    health = state.get("global_health_score")
-    risk = state.get("risk_level", NO_DATA)
-    coherence = state.get("system_coherence")
-    resilience = state.get("resilience_index")
-
-    global_label, color = _band_or_no_data(health, ("Crítico", "En observación", "Estable"))
-    coherence_label, coherence_color = _band_or_no_data(coherence, ("Baja", "Media", "Alta"))
-    resilience_label, resilience_color = _band_or_no_data(resilience, ("Baja", "Media", "Alta"))
-    risk_color = NO_DATA_COLOR if risk == NO_DATA else color
+    """La cabecera es el NEWS2 PARCIAL (fase 0, decisión 2 de Luis): los puntos por parámetro disponible (pulso, FR,
+    SpO₂ escala 1) y la lista explícita de lo que falta para el total. Nunca un total: un NEWS2 parcial no es un NEWS2.
+    Retirados (decisión 1): estado fisiológico global, riesgo global como número, coherencia sistémica y resiliencia."""
+    partial = organism.global_state["news2_partial"]
+    if partial.available:
+        components = " &nbsp;·&nbsp; ".join(f"{name} <b>{points}</b>" for name, points in partial.components.items())
+        worst = max(partial.components.values())
+        color = {0: "#39ffbe", 1: "#ffd700", 2: "#ffd700", 3: "#ff3333"}[worst]
+    else:
+        components, color = f"<b style='color:{NO_DATA_COLOR};'>{NO_DATA}</b>", NO_DATA_COLOR
 
     st.markdown(
         f"""
         <div style='text-align:center; padding: 20px; border-radius: 22px;
                     border: 1px solid {color}55; background: rgba(255,255,255,0.03); margin-bottom: 20px;'>
-            <div style='font-size: 12px; letter-spacing: 3px; color: #9fb4c9;'>ESTADO FISIOLÓGICO GLOBAL</div>
-            <div style='font-size: 34px; font-weight: 700; color: {color}; line-height: 1.2;'>
-                {global_label}
+            <div style='font-size: 12px; letter-spacing: 3px; color: #9fb4c9;'>NEWS2 PARCIAL — SIN TOTAL</div>
+            <div style='font-size: 22px; font-weight: 700; color: {color}; line-height: 1.4;'>
+                {components}
             </div>
             <div style='font-size: 13px; color: #9fb4c9;'>
-                Riesgo: <b style='color:{risk_color};'>{risk}</b>
-                &nbsp;·&nbsp; Coherencia sistémica: <b style='color:{coherence_color};'>{coherence_label}</b>
-                &nbsp;·&nbsp; Resiliencia: <b style='color:{resilience_color};'>{resilience_label}</b>
+                Faltan para el total: <b>{", ".join(partial.missing)}</b>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    internal = [
-        f"{name} {value:{fmt}}" for name, value, fmt in (
-            ("salud", health, ".0f"), ("coherencia", coherence, ".0f"), ("resiliencia", resilience, ".0f"),
-        ) if value is not None
-    ]
     st.caption(
-        f"{PROVENANCE_CLINICAL_BADGE} Riesgo global = máximo por sistema: {PROVENANCE_SOURCE_TRIAGE} "
-        f"· {PROVENANCE_HEURISTIC_BADGE} Estado global, Coherencia sistémica y Resiliencia: "
-        f"{PROVENANCE_HEURISTIC_LABEL} -- por eso se muestran como banda cualitativa, no como número"
-        + (f" (valores internos: {', '.join(internal)})." if internal else ".")
-        + (" Hoy están en «sin dato»: dependen de un valor retirado (el `health_score` cardiaco, sin cita) o de un "
-           "órgano que no tiene dato; no se promedia ni se rellena." if not internal else "")
+        f"{PROVENANCE_CLINICAL_BADGE} Componentes NEWS2 ({PROVENANCE_SOURCE_NEWS2}), cada uno con su única entrada actual. "
+        "Nunca se suman: el total NEWS2 exige los 7 parámetros y el gemelo no tiene presión, temperatura, consciencia ni "
+        "oxígeno suplementario. Retirados en la fase 0 (sin cita): estado fisiológico global, riesgo global numérico, "
+        "coherencia sistémica y resiliencia."
     )
 
-    for alert in state.get("alerts", []):
+    for alert in organism.global_state.get("alerts", []):
         st.warning(alert)
+
+
+def _card_lines(organism: DigitalTwinOrganism, organ_id: str) -> tuple:
+    """(línea principal, pie) de la tarjeta de un órgano, SOLO con entradas de la actualización actual. Cada número
+    lleva su fuente: 🟢 NEWS2 para los puntos, «entrada: …» para lo medido/simulado. Sin dato -> («sin dato», ⚪)."""
+    organ = organism.organs[organ_id]
+    signals = organism.current_signals(organ_id)
+    source = organism.input_provenance or "sin declarar"
+    if organ_id == "heart":
+        hr = signals.get("heart_rate")
+        if hr is None:
+            return NO_DATA, "⚪ sin FC actual"
+        return f"FC {hr:.0f} lpm · NEWS2 pulso {organ.metrics.risk_points}/3", f"🟢 {PROVENANCE_SOURCE_NEWS2} · entrada: {source}"
+    if organ_id == "lungs":
+        rr, spo2 = signals.get("respiratory_rate"), signals.get("spo2")
+        if rr is None and spo2 is None:
+            return NO_DATA, "⚪ sin FR ni SpO₂ actuales"
+        parts, pts = [], []
+        if rr is not None:
+            parts.append(f"FR {rr:.0f}")
+            pts.append(f"FR {organ.metrics.rr_points}/3")
+        if spo2 is not None:
+            parts.append(f"SpO₂ {spo2:.0f} %")
+            pts.append(f"SpO₂ {organ.metrics.spo2_points}/3")
+        return " · ".join(parts) + " · NEWS2 " + " · ".join(pts), f"🟢 {PROVENANCE_SOURCE_NEWS2} · entrada: {source}"
+    if organ_id == "brain":
+        stress = signals.get("stress_level")
+        bands = [k for k in signals if k.endswith("_power")]
+        parts = []
+        if stress is not None:
+            parts.append(f"Estrés {stress:.0f}/100")
+        if bands:
+            parts.append(f"EEG: {len(bands)} bandas")
+        if not parts:
+            return NO_DATA, "⚪ sin EEG actual"
+        return " · ".join(parts), f"entrada: {source} · sin criterio con fuente"
+    if organ_id == "muscles":
+        parts = [f"{label} {signals[k]:.0f}{unit}" for k, label, unit in (
+            ("fatigue_index", "Fatiga", "/100"), ("activation", "Activación", " %"), ("median_frequency", "MDF", " Hz"),
+        ) if signals.get(k) is not None]
+        if not parts:
+            return NO_DATA, "⚪ sin EMG actual"
+        return " · ".join(parts), f"entrada: {source} · sin criterio con fuente"
+    hrv = signals.get("hrv")
+    if hrv is None:
+        return NO_DATA, "⚪ sin HRV actual"
+    return f"HRV {hrv:.0f} ms", f"entrada: {source} · la HRV como HRV, sin índice autonómico"
 
 
 def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     """Organ-click is the primary verb — this replaces the menu.
 
     Fase 1 (Art. I, decisión 5): el órgano sin dato dice «sin dato» en gris (el MISMO gris del Cuerpo Digital); nunca
-    «50», «Alerta» ni «Óptimo». El corazón ya no muestra un `health_score`: muestra su FC y los puntos NEWS2 del pulso."""
+    «50», «Alerta» ni «Óptimo». Fase 0: ningún órgano muestra un índice de salud/riesgo sin cita; corazón y pulmones
+    muestran sus puntos NEWS2 y los demás, sus entradas como lo que son."""
     st.markdown("#### Toca un órgano para explorar su fisiología")
     cols = st.columns(len(ORGAN_ORDER))
 
@@ -302,43 +253,8 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
         organ = organism.organs[organ_id]
         selected = st.session_state.twin_shell_selected_organ == organ_id
         border = f"3px solid {organ.color}" if selected else "1px solid rgba(255,255,255,0.14)"
-
-        if organ_id == "heart":
-            points = organ.metrics.risk_points if organism.inputs_are_current("heart") else None
-            hr = organism.current_signals("heart").get("heart_rate")
-            if points is None or hr is None:
-                value_html = (
-                    f"<div style='font-size: 15px; color: {NO_DATA_COLOR}; font-weight: 700; margin-top: 6px;'>"
-                    f"{NO_DATA}</div>"
-                    f"<div style='font-size: 10px; color: #9fb4c9;'>⚪ sin FC actual</div>"
-                )
-            else:
-                value_html = (
-                    f"<div style='font-size: 15px; color: {organ.color}; font-weight: 700; margin-top: 6px;'>"
-                    f"FC {hr:.0f} lpm · NEWS2 pulso {points}/3</div>"
-                    f"<div style='font-size: 10px; color: #9fb4c9;'>🟢 NEWS2 (RCP 2017) · entrada: "
-                    f"{organism.input_provenance or 'sin declarar'}</div>"
-                )
-        elif organ.metrics.health_score is None:
-            value_html = (
-                f"<div style='font-size: 15px; color: {NO_DATA_COLOR}; font-weight: 700; margin-top: 6px;'>"
-                f"{NO_DATA}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>⚪ sin dato</div>"
-            )
-        elif organ_id in ORGANS_WITH_CITED_HEALTH_SCORE:
-            value_html = (
-                f"<div style='font-size: 22px; color: {organ.color}; font-weight: 700;'>"
-                f"{organ.metrics.health_score:.0f}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🟢🔵 con ancla</div>"
-            )
-        else:
-            status_label = ORGAN_STATUS_LABELS[organ.status]
-            value_html = (
-                f"<div style='font-size: 15px; color: {organ.color}; font-weight: 700; margin-top: 6px;'>"
-                f"{status_label}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🔵 heurística</div>"
-            )
-
+        line, foot = _card_lines(organism, organ_id)
+        color = NO_DATA_COLOR if line == NO_DATA else organ.color
         with col:
             st.markdown(
                 f"""
@@ -346,7 +262,8 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
                             background: rgba(255,255,255,0.03);'>
                     <div style='font-size: 34px;'>{organ.icon}</div>
                     <div style='font-weight: 600; font-size: 12px; margin-top: 4px;'>{organ.name}</div>
-                    {value_html}
+                    <div style='font-size: 15px; color: {color}; font-weight: 700; margin-top: 6px;'>{line}</div>
+                    <div style='font-size: 10px; color: #9fb4c9;'>{foot}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -356,37 +273,51 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
                 st.rerun()
 
     st.caption(
-        f"{PROVENANCE_CLINICAL_BADGE} Corazón: puntos NEWS2 del pulso (RCP 2017), sin índice de salud (retirado: fórmula "
-        f"sin cita) · {PROVENANCE_HEURISTIC_BADGE} Health scores de los demás órganos: {PROVENANCE_HEURISTIC_LABEL} "
-        f"(Pulmones citan sus centros de referencia — {PROVENANCE_SOURCE_HEALTHY_ADULT} — pero los pesos de la fórmula "
-        "no; Cerebro/Músculos/Autonómico no citan ninguna referencia -- se muestran como banda cualitativa, no como "
-        "número). Un órgano sin dato se muestra en gris como «sin dato»; nunca como «50» ni «Alerta»."
+        f"{PROVENANCE_CLINICAL_BADGE} Corazón y Pulmones: puntos NEWS2 (RCP 2017) de pulso, FR y SpO₂ "
+        "(escala 1; la escala 2 no se modela). Cerebro, Músculos y Autonómico: solo sus entradas, como lo que son — la "
+        "plataforma no tiene un criterio con fuente que los puntúe (los índices de salud/riesgo sin cita se retiraron en "
+        "la fase 0). Un órgano sin dato se muestra en gris como «sin dato»; nunca como «50» ni «Alerta»."
     )
 
 
 def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
     """Lets the shell be explored/demoed live without real hardware attached.
 
-    Fase 1 (Art. I): el slider «Estrés (EEG)» alimenta SOLO lo que significa (`stress_level`, simulación); ya no
-    fabrica `alpha_power = 70 - 0.5·estrés`, una potencia EEG que nadie midió. Las entradas se declaran como simulación."""
-    with st.expander("🎛️ Ajustar señales fisiológicas (simulación)"):
+    Fase 1 (Art. I): el slider «Estrés (EEG)» alimenta SOLO lo que significa (`stress_level`, simulación). Fase 0
+    (Parte D): el slider de fatiga ya no fabrica `efficiency = 100 − fatiga`; y si hay un escenario o una intervención
+    activos (`INPUT_SOURCE_KEY`), los sliders NO se aplican en este rerun: se ve qué fuente manda y hay un botón
+    explícito para volver a los sliders."""
+    active = st.session_state.get(INPUT_SOURCE_KEY)
+    with st.expander("🎛️ Ajustar señales fisiológicas (simulación)", expanded=bool(active)):
+        if active:
+            st.info(
+                f"**Fuente activa: {active}.** Los sliders no se aplican mientras esta fuente esté activa; el organismo "
+                "conserva los valores que ella fijó."
+            )
+            if st.button("↩️ Volver a los sliders", key="twin_shell_back_to_sliders", use_container_width=True):
+                del st.session_state[INPUT_SOURCE_KEY]
+                st.rerun()
+        else:
+            st.caption("Fuente activa: sliders de Twin OS (simulación).")
         col1, col2, col3 = st.columns(3)
         with col1:
-            hr = st.slider("Frecuencia cardíaca (bpm)", 40, 180, 72, key="twin_shell_hr")
-            hrv = st.slider("HRV (ms)", 5, 120, 50, key="twin_shell_hrv")
+            hr = st.slider("Frecuencia cardíaca (bpm)", 40, 180, 72, key="twin_shell_hr", disabled=bool(active))
+            hrv = st.slider("HRV (ms)", 5, 120, 50, key="twin_shell_hrv", disabled=bool(active))
         with col2:
-            rr = st.slider("Frecuencia respiratoria (resp/min)", 8, 40, 16, key="twin_shell_rr")
-            spo2 = st.slider("SpO₂ (%)", 70, 100, 98, key="twin_shell_spo2")
+            rr = st.slider("Frecuencia respiratoria (resp/min)", 8, 40, 16, key="twin_shell_rr", disabled=bool(active))
+            spo2 = st.slider("SpO₂ (%)", 70, 100, 98, key="twin_shell_spo2", disabled=bool(active))
         with col3:
-            stress = st.slider("Estrés (EEG)", 0, 100, 35, key="twin_shell_stress")
-            fatigue = st.slider("Fatiga muscular (EMG)", 0, 100, 20, key="twin_shell_fatigue")
+            stress = st.slider("Estrés (EEG)", 0, 100, 35, key="twin_shell_stress", disabled=bool(active))
+            fatigue = st.slider("Fatiga muscular (EMG)", 0, 100, 20, key="twin_shell_fatigue", disabled=bool(active))
 
+        if active:
+            return
         organism.input_provenance = "simulación: sliders de Twin OS"
         organism.update_from_sensors({
             "ecg": {"heart_rate": hr, "hrv": hrv},
             "eeg": {"stress_level": stress},
             "respiratory": {"respiratory_rate": rr, "spo2": spo2},
-            "emg": {"fatigue_index": fatigue, "efficiency": max(0, 100 - fatigue)},
+            "emg": {"fatigue_index": fatigue},
         })
 
 
@@ -411,148 +342,119 @@ def _organ_related_findings(organism: DigitalTwinOrganism, organ_id: str) -> lis
     return findings
 
 
-_HEALTH_SCORE_REFERENCE_ORGANS = {
-    "lungs": "Centros de referencia (FR 16, SpO2 100%)",
-}
-
-
-def _health_score_help(organ_id: str) -> str:
-    reference = _HEALTH_SCORE_REFERENCE_ORGANS.get(organ_id)
-    if reference:
-        return (
-            f"{PROVENANCE_CLINICAL_BADGE} {reference}: {PROVENANCE_SOURCE_HEALTHY_ADULT} · "
-            f"{PROVENANCE_HEURISTIC_BADGE} pesos de la fórmula: {PROVENANCE_HEURISTIC_LABEL}"
-        )
-    return f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL}"
-
-
-_ORGAN_RISK_SCORE_HELP = (
-    f"{PROVENANCE_HEURISTIC_BADGE} Umbrales propios de DigitalTwinOrganism, distintos de los de "
-    f"PredictionEngine (ver 'Evaluación de riesgo detallada por sistema') — {PROVENANCE_HEURISTIC_LABEL}"
-)
 _NEWS2_PULSE_HELP = (
     f"{PROVENANCE_CLINICAL_BADGE} Puntos NEWS2 del pulso (RCP 2017): ≤40 → 3; 41–50 → 1; 51–90 → 0; 91–110 → 1; "
     "111–130 → 2; ≥131 → 3. Es UN componente de un puntaje (no un diagnóstico) y su única entrada es la FC."
 )
+_NEWS2_RR_HELP = (
+    f"{PROVENANCE_CLINICAL_BADGE} Puntos NEWS2 de la FR (RCP 2017): ≤8 → 3; 9–11 → 1; 12–20 → 0; 21–24 → 2; ≥25 → 3. "
+    "Un componente del puntaje; su única entrada es la FR (redondeada, .5 hacia arriba)."
+)
+_NEWS2_SPO2_HELP = (
+    f"{PROVENANCE_CLINICAL_BADGE} Puntos NEWS2 de la SpO₂, escala 1 (RCP 2017): ≤91 → 3; 92–93 → 2; 94–95 → 1; ≥96 → 0. "
+    "La escala 2 (insuficiencia respiratoria hipercápnica) exige saber si hay oxígeno suplementario: no modelada."
+)
+_LUNG_HEALTH_HELP = (
+    f"{PROVENANCE_HEURISTIC_BADGE} Índice de salud pulmonar: centros de referencia FR 16 y SpO₂ 100 %, AHI 30 = 100 %; los "
+    f"pesos 0.5/0.3/0.4 son propios ({PROVENANCE_HEURISTIC_LABEL}). Solo se calcula con FR, SpO₂ y AHI, los tres actuales."
+)
+_NO_CRITERION_HELP = (
+    "Sin criterio con fuente: la plataforma no tiene una escala publicada que puntúe este sistema; los índices propios "
+    "sin cita se retiraron (fase 0). Lo medido se muestra como lo que es."
+)
 
 
-def _health_score_metric_args(organ_id: str, organ, base_label: str = "Salud") -> tuple:
-    """Fase 2 (honestidad de presentación, 2026-08-30) + Fase 1 frente cardiovascular (2026-11-12): (label, value, help)
-    para el st.metric de salud de un órgano. Sin `health_score` -> «sin dato» (nunca «50/100» ni una banda inventada).
-    Pulmones citan un punto de referencia real: número con el badge de procedencia integrado en la ETIQUETA.
-    Cerebro/Músculos/Autonómico no citan nada: banda cualitativa (`organ.status`) en vez de un número de falsa
-    precisión -- el `health_score` real queda en el help."""
-    help_text = _health_score_help(organ_id)
-    if organ.metrics.health_score is None:
-        return f"⚪ {base_label}", NO_DATA, f"{help_text} (sin entradas para calcularlo)"
-    if organ_id in ORGANS_WITH_CITED_HEALTH_SCORE:
-        return f"🟢🔵 {base_label}", f"{organ.metrics.health_score:.0f}/100", help_text
-    status_label = ORGAN_STATUS_LABELS[organ.status]
-    return (
-        f"🔵 {base_label}",
-        status_label,
-        f"{help_text} (valor interno: {organ.metrics.health_score:.0f}/100 -- se muestra como banda, "
-        "no como número, para no fingir precisión)",
-    )
+def _metric_value(value, fmt: str, unit: str = "") -> str:
+    return NO_DATA if value is None else f"{value:{fmt}}{unit}"
 
 
-def _heart_metrics(organism: DigitalTwinOrganism) -> tuple:
-    """(FC actual o None, puntos NEWS2 o None) -- solo entradas de la actualización actual."""
-    signals = organism.current_signals("heart")
-    hr = signals.get("heart_rate")
-    points = organism.organs["heart"].metrics.risk_points if hr is not None else None
-    return hr, points
+def _points_value(points) -> str:
+    return NO_DATA if points is None else f"{points} de 3"
+
+
+def _render_signals(organism: DigitalTwinOrganism, organ_id: str, mode: str) -> None:
+    signals = organism.current_signals(organ_id)
+    st.markdown("**Señales de entrada:**" if mode == "Clinician" else "**Señales crudas:**")
+    if signals:
+        st.json(signals)
+        st.caption(f"Procedencia de las entradas: {organism.input_provenance or 'sin declarar'}")
+    else:
+        st.caption(NO_DATA)
 
 
 def render_organ_panel(organism: DigitalTwinOrganism) -> None:
+    """Panel del órgano seleccionado. Fase 0: solo entradas actuales (con su procedencia) y componentes NEWS2 (con su
+    cita); el único índice que sobrevive es el de salud pulmonar (🔵, con FR + SpO₂ + AHI). Lo que nadie calcula dice
+    «no modelado»; lo que no llegó dice «sin dato»."""
     organ_id = st.session_state.twin_shell_selected_organ
     organ = organism.organs[organ_id]
+    m = organ.metrics
+    signals = organism.current_signals(organ_id)
 
     st.markdown(f"## {organ.icon} {organ.name}")
     render_mode_toggle()
     mode = st.session_state.twin_shell_mode
-    source = organism.input_provenance or "sin declarar"
+    entrada = _entrada(organism)
+
+    if mode == "Student":
+        st.info(organ.education.get("es", "Sin explicación disponible."))
+    elif mode == "Clinician":
+        st.info(organ.education.get("pathophysiology", ""))
 
     if organ_id == "heart":
-        hr, points = _heart_metrics(organism)
-        hr_value = NO_DATA if hr is None else f"{hr:.0f} lpm"
-        points_value = NO_DATA if points is None else f"{points} de 3"
-        hrv = organism.current_signals("heart").get("hrv")
-        if mode == "Student":
-            st.info(organ.education.get("es", "Sin explicación disponible."))
-            st.metric("🟢 Puntos NEWS2 del pulso", points_value, help=_NEWS2_PULSE_HELP)
-        elif mode == "Clinician":
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Frecuencia cardíaca", hr_value, help=f"Entrada: {source}")
-            col2.metric("🟢 Puntos NEWS2 del pulso", points_value, help=_NEWS2_PULSE_HELP)
-            col3.metric("Gasto cardíaco", NOT_MODELED, help="Ningún cálculo del gemelo lo modela (decisión firmada).")
-            st.info(organ.education.get("pathophysiology", ""))
-        else:
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Frecuencia cardíaca", hr_value, help=f"Entrada: {source}")
-            col2.metric("🟢 Puntos NEWS2 del pulso", points_value, help=_NEWS2_PULSE_HELP)
-            col3.metric("HRV", NO_DATA if hrv is None else f"{hrv:.0f} ms", help=f"Entrada: {source}")
-            col4.metric("Gasto cardíaco", NOT_MODELED, help="Ningún cálculo del gemelo lo modela (decisión firmada).")
+        hr = signals.get("heart_rate")
+        points = m.risk_points if hr is not None else None
+        cols = st.columns(4 if mode == "Researcher" else 3)
+        cols[0].metric("Frecuencia cardíaca", _metric_value(hr, ".0f", " lpm"), help=entrada)
+        cols[1].metric("🟢 Puntos NEWS2 del pulso", _points_value(points), help=_NEWS2_PULSE_HELP)
+        cols[2].metric("Gasto cardíaco", NOT_MODELED, help="Ningún cálculo del gemelo lo modela (decisión firmada).")
+        if mode == "Researcher":
+            cols[3].metric("HRV", _metric_value(signals.get("hrv"), ".0f", " ms"), help=entrada)
             st.markdown("**Parámetros de alta fidelidad:**")
             st.caption(
                 f"{NOT_MODELED}: se eliminó `CardiacDetail` (10 campos que ningún cálculo asignaba: gasto, volumen "
                 "sistólico, intervalos QRS/PR/QT, fracción de eyección...). Solo se muestra lo que alguien calcula de "
                 "verdad, con su procedencia."
             )
+    elif organ_id == "lungs":
+        rr, spo2 = signals.get("respiratory_rate"), signals.get("spo2")
+        cols = st.columns(4)
+        cols[0].metric("Frecuencia respiratoria", _metric_value(rr, ".0f", " resp/min"), help=entrada)
+        cols[1].metric("SpO₂", _metric_value(spo2, ".0f", " %"), help=entrada)
+        cols[2].metric("🟢 NEWS2 FR", _points_value(m.rr_points if rr is not None else None), help=_NEWS2_RR_HELP)
+        cols[3].metric("🟢 NEWS2 SpO₂ (escala 1)", _points_value(m.spo2_points if spo2 is not None else None), help=_NEWS2_SPO2_HELP)
         if mode != "Student":
-            signals = organism.current_signals("heart")
-            st.markdown("**Señales de entrada:**" if mode == "Clinician" else "**Señales crudas:**")
-            if signals:
-                st.json(signals)
-                st.caption(f"Procedencia de las entradas: {source}")
-            else:
-                st.caption(NO_DATA)
+            cols = st.columns(3)
+            cols[0].metric("AHI", _metric_value(signals.get("ahi"), ".0f", " eventos/h"), help=entrada)
+            cols[1].metric(
+                "🔵 Índice de salud pulmonar",
+                NO_DATA if m.health_score is None else f"{m.health_score:.0f}/100",
+                help=_LUNG_HEALTH_HELP + ("" if m.health_score is not None else " Hoy: sin dato (falta el AHI)."),
+            )
+            cols[2].metric("SpO₂ escala 2", NOT_MODELED, help="Exige saber si el paciente recibe oxígeno suplementario.")
+    elif organ_id == "brain":
+        stress = signals.get("stress_level")
+        bands = {k: v for k, v in signals.items() if k.endswith("_power")}
+        cols = st.columns(3)
+        cols[0].metric("Estrés (entrada)", _metric_value(stress, ".0f", "/100"), help=entrada)
+        cols[1].metric("Potencias de banda EEG", NO_DATA if not bands else f"{len(bands)} bandas", help=entrada)
+        cols[2].metric("Índice de salud / riesgo", "retirado", help=_NO_CRITERION_HELP)
+    elif organ_id == "muscles":
+        cols = st.columns(4)
+        cols[0].metric("Índice de fatiga (entrada)", _metric_value(signals.get("fatigue_index"), ".0f", "/100"), help=entrada)
+        cols[1].metric("Activación", _metric_value(signals.get("activation"), ".1f", " %"), help=entrada)
+        cols[2].metric("Frecuencia mediana EMG", _metric_value(signals.get("median_frequency"), ".1f", " Hz"), help=entrada)
+        cols[3].metric("Índice de salud / riesgo", "retirado", help=_NO_CRITERION_HELP)
     else:
-        if mode == "Student":
-            st.info(organ.education.get("es", "Sin explicación disponible."))
-            label, value, help_text = _health_score_metric_args(organ_id, organ, "Salud general")
-            st.metric(label, value, help=help_text)
+        cols = st.columns(3)
+        cols[0].metric("HRV", _metric_value(signals.get("hrv"), ".0f", " ms"), help=f"{entrada} (la HRV del corazón, como HRV)")
+        cols[1].metric("Balance simpático/parasimpático", NOT_MODELED, help="Ninguna fórmula con fuente lo calcula.")
+        cols[2].metric("Índice autonómico", "retirado", help=_NO_CRITERION_HELP + " Umbrales HRV < 15/30 retirados.")
 
-        elif mode == "Clinician":
-            col1, col2, col3 = st.columns(3)
-            label, value, help_text = _health_score_metric_args(organ_id, organ)
-            col1.metric(label, value, help=help_text)
-            risk = organ.metrics.risk_score
-            col2.metric("Riesgo", NO_DATA if risk is None else f"{risk:.0f}/100", help=_ORGAN_RISK_SCORE_HELP)
-            # `trend` no se asigna en ningún sitio del organismo: no hay tendencia que mostrar.
-            col3.metric("Tendencia", TREND_LABELS.get(organ.metrics.trend, NOT_MODELED))
-            st.info(organ.education.get("pathophysiology", ""))
-            if organ.metrics.signals:
-                st.markdown("**Señales de entrada:**")
-                st.json(organ.metrics.signals)
-            else:
-                st.caption(f"Señales de entrada: {NO_DATA}")
-
-        else:  # Researcher
-            col1, col2, col3, col4 = st.columns(4)
-            label, value, help_text = _health_score_metric_args(organ_id, organ)
-            col1.metric(label, value, help=help_text)
-            risk, activity = organ.metrics.risk_score, organ.metrics.activity_level
-            col2.metric("Riesgo", NO_DATA if risk is None else f"{risk:.0f}/100", help=_ORGAN_RISK_SCORE_HELP)
-            col3.metric("Actividad", NO_DATA if activity is None else f"{activity:.0f}/100")
-            # Fase 1 (idioma, pendiente): "Estado" mostraba el enum en inglés; mismo ORGAN_STATUS_LABELS de arriba.
-            col4.metric("Estado", NO_DATA if organ.status is None else ORGAN_STATUS_LABELS[organ.status])
-            st.markdown("**Parámetros de alta fidelidad:**")
-            if organ.detail is not None and organ.metrics.health_score is not None:
-                st.json(organ.detail.__dict__)
-            else:
-                st.caption(NO_DATA)
-            st.markdown("**Señales crudas:**")
-            if organ.metrics.signals:
-                st.json(organ.metrics.signals)
-            else:
-                st.caption(NO_DATA)
-            derived = organism.derived_signals.get(organ_id)
-            if derived:
-                st.markdown("**Derivados (no son entradas):**")
-                st.json(derived)
-            if organ.pathologies:
-                st.caption("Patologías relacionadas: " + ", ".join(organ.pathologies))
+    if mode != "Student":
+        _render_signals(organism, organ_id, mode)
+        if mode == "Researcher" and organ.pathologies:
+            st.caption("Patologías relacionadas: " + ", ".join(organ.pathologies))
 
     # AI explanation surfaces directly on the organ, not in a separate chat panel.
     findings = _organ_related_findings(organism, organ_id)
@@ -563,38 +465,19 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
 
 
 def render_couplings(organism: DigitalTwinOrganism) -> None:
-    """Cross-system coupling — folded in from the retired Command Center.
-
-    Fase 1 (Art. I, decisión 5): la compuerta exige entradas REALES de AMBOS órganos en la actualización actual; sin
-    ellas el acoplamiento es «sin dato» (ya no hay base 0.5 ni defaults FC 70/FR 16)."""
-    state = organism.global_state
-    st.markdown("#### 🔗 Acoplamientos entre sistemas")
-    col1, col2, col3 = st.columns(3)
-
-    neurocardiac = state.get("neurocardiac_coupling")
-    nc_label = NO_DATA if neurocardiac is None else _coupling_band(neurocardiac)[0]
-    col1.metric(
-        "🔵 Cerebro ↔ Corazón", nc_label,
-        help=f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL} "
-             + (f"(valor interno: {neurocardiac:.0%} -- se muestra como banda, no como número, para no fingir precisión)"
-                if neurocardiac is not None else "(necesita potencia alfa del EEG y HRV, ambas actuales)"),
-    )
-    cardiorespiratory = state.get("cardiorespiratory_coupling")
-    col2.metric(
-        "🟢🔵 Corazón ↔ Pulmones", NO_DATA if cardiorespiratory is None else f"{cardiorespiratory:.0%}",
+    """Corazón↔Pulmones como razón FC:FR, número descriptivo (fase 0, decisión 3 de Luis); sin índice 0-100 %. La
+    referencia en reposo (≈4:1) se muestra porque se verificó con texto completo (Scholkmann & Wolf 2019, ver
+    `clinical.calculators.PRQ_REFERENCE`). Retirados (decisión 1): Cerebro↔Corazón y Cerebro↔Músculos (fórmulas
+    inventadas; el acoplamiento neuro→cardiaco con fuente vive en `domain/physiology/coupling/`)."""
+    ratio = organism.global_state.get("hr_rr_ratio")
+    st.markdown("#### 🔗 Corazón ↔ Pulmones: razón FC:FR")
+    st.metric(
+        "Razón FC:FR", NO_DATA if ratio is None else f"{ratio:.1f} : 1",
         help=(
-            f"{PROVENANCE_CLINICAL_BADGE} Razón HR:RR objetivo (4:1): {PROVENANCE_SOURCE_PRQ} · "
-            f"{PROVENANCE_HEURISTIC_BADGE} el índice de acoplamiento en sí (0-100%): {PROVENANCE_HEURISTIC_LABEL}"
-            + ("" if cardiorespiratory is not None else " · necesita FC y FR, ambas actuales")
+            f"{PROVENANCE_CLINICAL_BADGE} Referencia en reposo (PRQ): {PRQ_REST_REFERENCE_TEXT} — {PRQ_REFERENCE}. "
+            "Número descriptivo: no es un índice de acoplamiento ni un porcentaje. "
+            + (_entrada(organism) if ratio is not None else "Necesita FC y FR, ambas actuales.")
         ),
-    )
-    neuromuscular = state.get("neuromuscular_coupling")
-    nm_label = NO_DATA if neuromuscular is None else _coupling_band(neuromuscular)[0]
-    col3.metric(
-        "🔵 Cerebro ↔ Músculos", nm_label,
-        help=f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL} "
-             + (f"(valor interno: {neuromuscular:.0%} -- se muestra como banda, no como número, para no fingir precisión)"
-                if neuromuscular is not None else "(necesita el índice cerebral y la fatiga muscular, ambos actuales)"),
     )
 
 
@@ -658,15 +541,10 @@ def render_neuro_cardiac_composer() -> None:
 def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
     """Patient presets + simulated interventions — folded in from Digital Twin Profesional.
 
-    Fase 5.2 (clarificar nombres, 2026-08-30): antes se llamaba "Escenarios
-    de paciente e intervenciones simuladas" -- colisionaba léxicamente con
-    "Simulador de escenarios clínicos (persistido en el UPS)"
-    (`render_ups_scenario_simulator()`, más abajo), aunque son de naturaleza
-    distinta: esta función muta `organism` en memoria al instante (mismo
-    botón → `st.rerun()`, sin ningún `save_state`, confirmado por grep) --
-    misma familia que los sliders de `render_sensor_controls()`. El
-    simulador SÍ persiste una trayectoria de 6 horizontes al UPS. El nombre
-    nuevo deja "Escenarios" exclusivamente para el simulador."""
+    Fase 5.2 (clarificar nombres, 2026-08-30): esta función muta `organism` en memoria al instante (sin `save_state`);
+    el simulador SÍ persiste una trayectoria de 6 horizontes al UPS. Fase 0 (Parte D): cada botón declara su fuente en
+    `INPUT_SOURCE_KEY`, así los sliders no sobrescriben el escenario en el siguiente rerun (ver
+    `render_sensor_controls`)."""
     with st.expander("⚡ Ajustes rápidos e intervenciones (en memoria, sin persistir)"):
         st.markdown("**Preset rápido:**")
         scenarios = {
@@ -678,6 +556,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
             with col:
                 if st.button(label, key=f"twin_shell_scenario_{key}", use_container_width=True):
                     organism.create_patient_scenario(key)
+                    _set_input_source(f"preset {label}")
                     st.rerun()
 
         st.markdown("**Sepsis (punto de la trayectoria canónica):**")
@@ -689,6 +568,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         )
         if sep_col2.button("Aplicar punto", key="twin_shell_sepsis_apply", use_container_width=True):
             st.session_state.twin_shell_sepsis_declaration = organism.apply_sepsis(sepsis_horizon)
+            _set_input_source(f"sepsis, horizonte {sepsis_horizon} (trayectoria canónica)")
             st.rerun()
         if st.session_state.get("twin_shell_sepsis_declaration"):
             st.info(st.session_state.twin_shell_sepsis_declaration)
@@ -705,6 +585,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         ))
         if arr_col3.button("Aplicar tipo", key="twin_shell_arrhythmia_apply", use_container_width=True):
             st.session_state.twin_shell_arrhythmia_declaration = organism.apply_arrhythmia(arrhythmia_key, arrhythmia_seed)
+            _set_input_source(f"arritmia {ARRHYTHMIA_TYPES[arrhythmia_key].label} (semilla {arrhythmia_seed})")
             st.rerun()
         if st.session_state.get("twin_shell_arrhythmia_declaration"):
             st.info(st.session_state.twin_shell_arrhythmia_declaration)
@@ -719,6 +600,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
             with col:
                 if st.button(label, key=f"twin_shell_int_{key}", use_container_width=True):
                     organism.simulate_intervention(key, intensity)
+                    _set_input_source(f"intervención {label} (sobre el estado previo)")
                     st.rerun()
 
 
@@ -906,6 +788,7 @@ def render_ups_scenario_simulator(organism: DigitalTwinOrganism) -> None:
             st.session_state.twin_shell_last_ups_mode = "estado_actual" if start_from_current else "basal"
             mode_txt = "continuando desde el estado actual" if start_from_current else "caso didáctico basal (paciente nuevo)"
             st.success(f"{total_steps} snapshots persistidos en el UPS para '{RICH_SCENARIO_LABELS[scenario_key]}' ({mode_txt}).")
+            _set_input_source(f"escenario del simulador {RICH_SCENARIO_LABELS[scenario_key]} (último horizonte)")
             st.rerun()
 
         last_scenario = st.session_state.get("twin_shell_last_ups_scenario")
@@ -2096,19 +1979,7 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
             st.caption(result.explainability_note or "Explicabilidad no disponible.")
 
 
-# Procedencia por sistema de PredictionEngine (Tanda 2, 2026-08-14) -- solo
-# cita el/los factor(es) cuyo umbral en el código coincide EXACTAMENTE con lo
-# que el validador citó (ver constantes PROVENANCE_SOURCE_* más arriba).
-# Neurological y Muscular no tienen ningún umbral citado por el validador --
-# 100% heurística interna. Autonomic usa HRV<15/30ms (no HRV<10ms, el único
-# umbral de HRV que sí se citó, y que pertenece a Cardiovascular) -- por
-# eso Autonomic tampoco recibe la cita de HRV, se documenta explícitamente
-# para que no se confunda con un descuido.
-# Bonus (hallazgo de Fase 1, 2026-08-30): "respiratory" es el único de los
-# 5 nombres de sistema (claves de `system_risks`, prediction_engine.py) que
-# NO es cognado del español -- name.capitalize() mostraba "Respiratory" sin
-# traducir. Solo la etiqueta se traduce aquí; las claves de `system_risks`/
-# `_RISK_SYSTEM_PROVENANCE` no se tocan.
+# Etiquetas en español de las 5 claves de `system_risks` (prediction_engine.py); las claves no se tocan.
 _SYSTEM_NAME_LABELS = {
     "cardiovascular": "Cardiovascular",
     "respiratory": "Respiratorio",
@@ -2117,32 +1988,10 @@ _SYSTEM_NAME_LABELS = {
     "autonomic": "Autonómico",
 }
 
-_RISK_SYSTEM_PROVENANCE = {
-    "cardiovascular": (
-        f"{PROVENANCE_CLINICAL_BADGE} Pulso: puntos NEWS2 (RCP 2017); sin umbrales propios, sin HRV ni complejidad "
-        "(purgados, Fase 1)"
-    ),
-    "respiratory": (
-        f"{PROVENANCE_CLINICAL_BADGE} SpO2 baja: {PROVENANCE_SOURCE_NEWS2} · "
-        f"{PROVENANCE_CLINICAL_BADGE} FR extrema: {PROVENANCE_SOURCE_NEWS2} · "
-        f"{PROVENANCE_CLINICAL_BADGE} AHI: {PROVENANCE_SOURCE_AASM} · "
-        f"{PROVENANCE_HEURISTIC_BADGE} puntaje combinado y nivel: {PROVENANCE_HEURISTIC_LABEL}"
-    ),
-    "neurological": f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL} (sin umbral citado por el validador)",
-    "muscular": f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL} (sin umbral citado por el validador)",
-    "autonomic": (
-        f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL} "
-        "(usa HRV<15/30ms, distinto del HRV<10ms citado en Cardiovascular)"
-    ),
-}
-
-
 def render_risk_assessment(organism: DigitalTwinOrganism) -> None:
-    """Detailed per-system risk assessment — folded in from Digital Twin Control.
-
-    Fase 1 (Art. I): solo se evalúan las señales ACTUALES; un sistema sin señal es «sin dato», nunca «rutinario»; el
-    riesgo cardiovascular son los puntos NEWS2 del pulso; el riesgo global es «sin dato» si falta un sistema o si
-    mezclaría escalas (puntos NEWS2 con puntajes 0-100)."""
+    """Evaluación por sistema con fuente (fase 0): cardiovascular y respiratorio = componentes NEWS2; neurológico,
+    muscular y autonómico = «sin criterio con fuente» (sus umbrales propios se retiraron); el riesgo global = NEWS2
+    parcial, nunca un total ni un promedio."""
     if "twin_shell_prediction" not in st.session_state:
         st.session_state.twin_shell_prediction = PredictionEngine()
 
@@ -2153,28 +2002,18 @@ def render_risk_assessment(organism: DigitalTwinOrganism) -> None:
             "eeg": organism.current_signals("brain"), "emg": organism.current_signals("muscles"),
         }
         assessment = engine.assess_global_risk(organism, sensor_data, organism.timestamp.isoformat())
-        if assessment.global_risk_score is None:
-            st.metric(
-                "Riesgo global", NO_DATA,
-                help=f"{PROVENANCE_HEURISTIC_BADGE} Promedio de los 5 sistemas: {PROVENANCE_HEURISTIC_LABEL}. "
-                     f"Hoy: {NO_DATA} ({assessment.reason}).",
-            )
-        else:
-            st.metric(
-                "Riesgo global", f"{assessment.global_risk_score:.0f}/100", delta=assessment.risk_level,
-                help=f"{PROVENANCE_HEURISTIC_BADGE} Promedio de los 5 sistemas: {PROVENANCE_HEURISTIC_LABEL}",
-            )
+        partial = assessment.news2_partial
+        st.metric(
+            "NEWS2 parcial (sin total)",
+            " · ".join(f"{n} {p}" for n, p in partial.components.items()) if partial.available else NO_DATA,
+            help=f"{PROVENANCE_CLINICAL_BADGE} {assessment.reason}",
+        )
+        st.caption(f"Faltan para el total NEWS2: {', '.join(partial.missing)}. No se suma ni se categoriza.")
         for name, risk in assessment.system_risks.items():
-            prefix = f"{PROVENANCE_CLINICAL_BADGE} " if name == "cardiovascular" and risk.has_data else (
-                f"{PROVENANCE_CLINICAL_BADGE}{PROVENANCE_HEURISTIC_BADGE} " if name == "respiratory" and risk.has_data
-                else ("⚪ " if not risk.has_data else "")
-            )
+            prefix = f"{PROVENANCE_CLINICAL_BADGE} " if risk.has_data else "⚪ "
             display_name = _SYSTEM_NAME_LABELS.get(name, name.capitalize())
-            score_text = f" ({risk.risk_score:.0f}/100)" if risk.risk_score is not None else ""
-            st.markdown(f"**{prefix}{display_name}** — {risk.risk_level}{score_text}")
+            st.markdown(f"**{prefix}{display_name}** — {risk.risk_level}")
             st.caption(risk.recommendation)
-            if risk.has_data:
-                st.caption(_RISK_SYSTEM_PROVENANCE.get(name, f"{PROVENANCE_HEURISTIC_BADGE} {PROVENANCE_HEURISTIC_LABEL}"))
 
 
 def render_clinical_export(organism: DigitalTwinOrganism) -> None:
@@ -2197,28 +2036,27 @@ def render_clinical_export(organism: DigitalTwinOrganism) -> None:
 
 
 def render_timeline(organism: DigitalTwinOrganism) -> None:
-    """Past → Present scrubbing over accumulated history (real, not decorative).
-
-    Fase 1 (Art. I): la historia solo contiene salud global/coherencia cuando existieron (no son 0 ni 50); si ningún
-    momento tuvo valor, se dice «sin dato» en vez de graficar una línea inventada."""
+    """Past → Present: la FC y sus puntos NEWS2 de pulso en el tiempo (fase 0, decisión 4 de Luis). Sustituye a la línea
+    de salud global/coherencia (índices retirados). Los momentos sin FC actual quedan vacíos, no en 0."""
     history = organism.history
     if len(history) < 2:
         st.caption("La línea de tiempo se irá construyendo a medida que el organismo reciba nuevas señales.")
         return
 
-    st.markdown("#### 🕐 Línea de tiempo fisiológica")
+    st.markdown("#### 🕐 Línea de tiempo: FC y puntos NEWS2 del pulso")
     recent = history[-50:]
     df = pd.DataFrame({
         "Momento": list(range(len(recent))),
-        "Salud Global": [h["global_state"].get("global_health_score") for h in recent],
-        "Coherencia": [h["global_state"].get("system_coherence") for h in recent],
+        "FC (lpm)": [h.get("heart_rate") for h in recent],
+        "NEWS2 pulso (puntos)": [h.get("news2_pulse_points") for h in recent],
     })
-    series = [c for c in ("Salud Global", "Coherencia") if df[c].notna().any()]
-    if not series:
-        st.caption(f"Salud global y coherencia: {NO_DATA} en todos los momentos (dependen de un valor retirado o de un "
-                   "órgano sin dato); no se grafica una línea inventada.")
+    if not df["FC (lpm)"].notna().any():
+        st.caption(f"FC: {NO_DATA} en todos los momentos; no se grafica una línea inventada.")
         return
-    st.line_chart(df.set_index("Momento")[series], use_container_width=True)
+    col1, col2 = st.columns(2)
+    col1.line_chart(df.set_index("Momento")[["FC (lpm)"]], use_container_width=True)
+    col2.line_chart(df.set_index("Momento")[["NEWS2 pulso (puntos)"]], use_container_width=True)
+    st.caption(f"{PROVENANCE_CLINICAL_BADGE} Puntos NEWS2 del pulso ({PROVENANCE_SOURCE_NEWS2}); FC: {_entrada(organism)}.")
 
 
 def main() -> None:

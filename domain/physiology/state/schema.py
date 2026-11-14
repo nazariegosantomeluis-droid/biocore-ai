@@ -208,6 +208,13 @@ class EventType(str, Enum):
     un evento nuevo significa añadir un miembro aquí, no inventar un string
     en el llamador."""
 
+    # Cierre de la fase 0 (2026-11-13, decisión 5 de Luis): el evento de FC del UPS es la banda de 3 puntos NEWS2 del
+    # pulso (≤ 40 o ≥ 131 lpm; `clinical.calculators.news2_pulse_score`), nombrado por lo que mide. Reemplaza a
+    # `arrhythmia_risk_hr_extreme` (umbrales propios 40/120, crítico 35/150: el UPS no modela ritmo, solo FC).
+    PULSE_NEWS2_3_POINTS = "pulse_news2_3_points"
+    # RETIRADOS (fase 0): el builder ya no los emite. Siguen en el catálogo SOLO para poder leer las filas históricas
+    # de `ups_events` que los contienen (`repository._event_from_record` hace `EventType(valor)`); un evento nuevo con
+    # estos tipos es un error. `low_hrv_autonomic_stress` (hrv < 20, sin cita) se retiró sin sustituto.
     ARRHYTHMIA_RISK_HR_EXTREME = "arrhythmia_risk_hr_extreme"
     LOW_HRV_AUTONOMIC_STRESS = "low_hrv_autonomic_stress"
     HYPOXIA_SPO2_CRITICAL = "hypoxia_spo2_critical"

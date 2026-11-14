@@ -179,7 +179,7 @@ def _hr_event(hr):
     organism = DigitalTwinOrganism()
     organism.update_from_sensors({"ecg": {"heart_rate": hr}})
     state = from_digital_twin_organism(organism, "p", Provenance.SIMULACION)
-    return [e for e in state.events if e.event_type == EventType.ARRHYTHMIA_RISK_HR_EXTREME]
+    return [e for e in state.events if e.event_type == EventType.PULSE_NEWS2_3_POINTS]
 
 
 @pytest.mark.parametrize("type_key", sorted(ARRHYTHMIA_TYPES))
@@ -193,11 +193,12 @@ def test_declared_ups_event_matches_what_the_ups_actually_emits(type_key):
 
 
 def test_fast_rhythms_raise_the_rate_event_and_the_ups_gap_for_bradycardia_is_explicit():
-    assert all(_hr_event(hr) for hr in (130.0, 150.0, 185.0))
-    assert _hr_event(130.0)[0].severity.value == "warning" and _hr_event(185.0)[0].severity.value == "critical"
-    assert not _hr_event(get_type("sbrady").hr_max_bpm) and not _hr_event(get_type("sbrady").hr_min_bpm)
-    assert _hr_event(35.0), "el UPS solo marca bradicardia por debajo de 40 lpm: el rango 40-59 no dispara evento"
-    assert get_type("sbrady").ups_hr_event == EVENT_NEVER
+    """Fase 0 (decisión 5): el evento de FC es la banda de 3 puntos NEWS2 (<= 40 o >= 131), severidad única WARNING."""
+    assert all(_hr_event(hr) for hr in (131.0, 150.0, 185.0)) and not _hr_event(130.0)
+    assert {_hr_event(hr)[0].severity.value for hr in (131.0, 185.0)} == {"warning"}
+    assert not _hr_event(get_type("sbrady").hr_max_bpm) and _hr_event(get_type("sbrady").hr_min_bpm)
+    assert _hr_event(40.0) and not _hr_event(41.0), "el UPS marca bradicardia solo en <= 40 lpm (3 puntos): 41-59 no dispara"
+    assert get_type("sbrady").ups_hr_event == EVENT_DEPENDS_ON_HR
 
 
 # --- Flutter: ya se genera -----------------------------------------------------------------------

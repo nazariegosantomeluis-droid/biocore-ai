@@ -19,7 +19,7 @@ en la representación principal.
 Regla de diseño (decidida, no negociable): el resaltado lo decide un
 `UnifiedPhysiologicalState` estructurado — severidad de eventos por dominio
 (`EventSeverity`) y descriptores (`heart_rate`, `respiratory_rate`, `spo2`,
-band power EEG / `mental_workload`) — nunca el texto del narrador
+band power EEG) — nunca el texto del narrador
 (`narrator/`). Este módulo y el narrador son dos lectores independientes de
 la misma verdad fisiológica; ninguno lee al otro. `render_ups_body()`
 recibe siempre un `UnifiedPhysiologicalState` ya construido, nunca el
@@ -75,8 +75,11 @@ _SEVERITY_RANK = {EventSeverity.INFO: 0, EventSeverity.WARNING: 1, EventSeverity
 # igual que el propio EventType — si se añade un EventType nuevo en una fase
 # futura, este mapeo debe actualizarse a propósito, no inferirse del dominio.
 EVENT_VISUAL_MAP: Dict[EventType, Tuple[str, str]] = {
-    EventType.ARRHYTHMIA_RISK_HR_EXTREME: ("heart", "⚡ Arritmia — FC fuera de rango"),
-    EventType.LOW_HRV_AUTONOMIC_STRESS: ("heart", "😰 Estrés autonómico (HRV bajo)"),
+    # Fase 0 (2026-11-13, decisión 5): el evento de FC es la banda de 3 puntos NEWS2 del pulso.
+    EventType.PULSE_NEWS2_3_POINTS: ("heart", "⚡ Pulso en banda NEWS2 de 3 puntos (≤40 / ≥131)"),
+    # Retirados (solo filas históricas de `ups_events`; el builder ya no los emite).
+    EventType.ARRHYTHMIA_RISK_HR_EXTREME: ("heart", "⚡ FC fuera de rango (criterio retirado, histórico)"),
+    EventType.LOW_HRV_AUTONOMIC_STRESS: ("heart", "😰 HRV bajo (criterio retirado, histórico)"),
     EventType.HYPOXIA_SPO2_LOW: ("lungs", "🫁 SpO₂ bajo lo esperado"),
     EventType.HYPOXIA_SPO2_CRITICAL: ("lungs", "🚨 Hipoxia crítica"),
     # Capa 5A, Sub-fase 2: el único EventType neuro (añadido en la Sub-fase 1)
@@ -329,13 +332,10 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
       `STABLE_COLOR` si hay datos y ningún evento neuro; `SEVERITY_COLOR`
       del evento (`HIGH_STRESS_EEG` → WARNING) si lo hay. Idéntico a los
       otros dos.
-    - Animación: pulso sutil (`biocore-brainwave`) cuya velocidad sube con
-      `mental_workload` — el dato modula la animación, no la decora
-      (mismo criterio que FC → velocidad de latido). Sin `mental_workload`
-      (band power presente pero sin campos DERIVADOS), cerebro estático.
-    - Métrica legible: banda dominante entre las presentes + carga mental,
-      con la honestidad de Fase 5.1 (es el estado ACTUAL, no un snapshot
-      que finge permanencia)."""
+    - Animación: ninguna (fase 0: `mental_workload` se retiró del UPS).
+    - Métrica legible: banda dominante entre las presentes, con la
+      honestidad de Fase 5.1 (es el estado ACTUAL, no un snapshot que
+      finge permanencia)."""
     neuro = state.all_domains()["neurological"] if state else None
     descriptors = dict(neuro.descriptors) if neuro is not None else {}
     visual = organ_visual_state(state)["brain"]
@@ -349,16 +349,9 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         animation_css = ""
         metric_label = "Estado: sin dato neurológico"
     else:
-        workload = descriptors.get("mental_workload")
-        if workload is not None:
-            # workload 0 → 3.0s (pulso lento), workload 100 → ~0.9s (rápido).
-            wave_duration = max(0.9, min(3.0, 3.0 - (workload.value / 100.0) * 2.1))
-            animation_css = (
-                f"animation: biocore-brainwave {wave_duration:.2f}s ease-in-out infinite; "
-                "transform-origin: center;"
-            )
-        else:
-            animation_css = ""
+        # Fase 0 (2026-11-13): `mental_workload` (= beta_power con otro nombre) se retiró del UPS; el cerebro ya no
+        # modula su animación con él (se queda estático con dato, como antes sin derivados).
+        animation_css = ""
 
         present_bands = [(b, descriptors[b].value) for b in _BRAIN_BAND_DESCRIPTORS if b in descriptors]
         if present_bands:
@@ -366,11 +359,7 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
             band_label = f"Banda dom.: {dominant.upper()}"
         else:
             band_label = "Banda dom.: sin dato"
-        metric_label = (
-            f"{band_label} · Carga mental: {workload.value:.0f}"
-            if workload is not None
-            else band_label
-        )
+        metric_label = band_label
 
     halo = ""
     if severity in (EventSeverity.WARNING, EventSeverity.CRITICAL):

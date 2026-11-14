@@ -139,7 +139,7 @@ def test_retired_metabolic_ghosts_stay_retired():
     organism = dto.DigitalTwinOrganism()
     exported = json.loads(organism.to_json())
     assert "sleep" not in exported
-    assert "metabolic_recovery" not in exported["recovery"]
+    assert "recovery" not in exported       # fase 0: los estados transversales (recuperación/desempeño/estrés) se retiraron
     assert not hasattr(dto, "SleepState")
     assert not hasattr(data_generator, "generate_metabolic_profile")
     assert not hasattr(data_generator.DataGenerator, "generate_metabolic_profile")

@@ -126,10 +126,10 @@ def test_ups_rate_event_follows_the_declared_thresholds_for_sinus_tachycardia():
         organism = DigitalTwinOrganism()
         organism.update_from_sensors({"ecg": {"heart_rate": hr}})
         state = from_digital_twin_organism(organism, "p", Provenance.SIMULACION)
-        return any(e.event_type == EventType.ARRHYTHMIA_RISK_HR_EXTREME for e in state.events)
+        return any(e.event_type == EventType.PULSE_NEWS2_3_POINTS for e in state.events)
 
     t = get_type("stachy")
-    assert not fires(t.hr_min_bpm) and not fires(t.nominal_hr_bpm), "100-120 lpm: el UPS solo marca > 120"
-    assert fires(t.hr_max_bpm) and fires(130.0)
+    assert not fires(t.hr_min_bpm) and not fires(t.nominal_hr_bpm) and not fires(130.0), "100-130 lpm: el UPS marca solo >= 131 (3 puntos NEWS2)"
+    assert fires(t.hr_max_bpm) and fires(131.0)
     assert t.ups_hr_event == "segun_fc"
-    assert not fires(get_type("sbrady").hr_max_bpm), "hueco firmado de la unificación 1: bradicardia 40-59 sin evento"
+    assert not fires(get_type("sbrady").hr_max_bpm), "hueco declarado: bradicardia 41-59 sin evento (solo <= 40 son 3 puntos)"

@@ -5,21 +5,20 @@ Unified Physiological State — builder desde `DigitalTwinOrganism`.
 lee y traduce su estado (heart/lungs/brain) al esquema tipado del UPS. Los
 valores medidos/simulados (heart_rate, hrv, spo2, respiratory_rate,
 band power EEG) llevan la procedencia que indique el llamador; los
-valores que el organismo ya calcula a partir de esos (health_score,
-riesgos, rhythm_stability, ...) siempre se marcan `Provenance.DERIVADO`,
+valores que el organismo ya calcula a partir de esos (puntos NEWS2, índice de
+salud pulmonar) siempre se marcan `Provenance.DERIVADO`,
 sin importar la procedencia de origen — es una cantidad distinta,
 calculada, no observada. C0 (2026-11-12, Art. I): un derivado solo se
 escribe si TODAS sus entradas llegaron (contrato en `derived_contract.py`, único punto de verdad; ver `_add_derived()`).
 
-Los eventos usan los mismos umbrales que ya vive en
-`DigitalTwinOrganism._update_heart` / `_update_lungs` / `_update_brain`,
-para no introducir un segundo criterio clínico paralelo.
+El evento de FC es la banda de 3 puntos NEWS2 del pulso (fase 0, decisión 5); los
+demás eventos conservan los umbrales que ya vivían en el organismo.
 
 Capa 5A, Sub-fase 1 (2026-08-30): tercer dominio, neurológico
 (`_neurological_state()`) -- mismo patrón y misma disciplina de gate
 anti-órgano-fantasma que cardiovascular/respiratorio. Escribe lo que
 `EegAnalyzer` (`src/signals/eeg/eeg_analyzer.py`) ya calcula (band power
-Welch + estado derivado).
+Welch); desde la fase 0 (2026-11-13) sin derivados del organismo.
 
 Acoplamientos Sub-fase B (2026-09-06): + `bar` (Ratio Beta/Alfa) -- un
 cociente adimensional de dos band power, biomarcador CITADO (Schutter
@@ -143,7 +142,6 @@ def _respiratory_state(
     lungs = organism.organs["lungs"]
     signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "lungs", provenance, source_detail)
     ic = input_confidence or {}
-    detail = lungs.detail
 
     descriptors = {}
 
@@ -183,16 +181,19 @@ def _respiratory_state(
             "ahi", float(signals["ahi"]), "eventos/h", provenance, ic.get("ahi", confidence), source_detail
         )
 
-    # Contrato de derivados (C0): ver `derived_contract.py`. Sin `ahi` (el organismo lo defaultea a 0) no se escriben
-    # `health_score`, `risk_score` ni `apnea_risk`; `tissue_oxygenation` (= SpO2 con otro nombre) nunca.
+    # Contrato de derivados (C0 + fase 0, decisión 6): ver `derived_contract.py`. Puntos NEWS2 de la FR y de la SpO₂
+    # (escala 1), cada uno con su única entrada y su cita; el índice de salud pulmonar solo con FR + SpO₂ + AHI reales.
+    # `risk_score`, `hypoxia_risk`, `apnea_risk` y `tissue_oxygenation` NUNCA (retirados).
     if has_real_respiratory_input and derived_ok:
-        candidates = [
-            ("health_score", lungs.metrics.health_score, "0-100"),
-            ("risk_score", lungs.metrics.risk_score, "0-100"),
-        ]
-        if detail is not None:
-            candidates.append(("hypoxia_risk", detail.hypoxia_risk, "0-100"))
-            candidates.append(("apnea_risk", detail.apnea_risk, "0-100"))
+        cite = f"{source_detail + ' | ' if source_detail else ''}"
+        candidates = [("health_score", lungs.metrics.health_score, "0-100")]
+        if lungs.metrics.rr_points is not None:
+            candidates.append(("news2_respiratory_rate_points", lungs.metrics.rr_points, "puntos NEWS2 (0-3)",
+                               f"{cite}news2_respiratory_rate_score | {NEWS2_CITATION}"))
+        if lungs.metrics.spo2_points is not None:
+            candidates.append(("news2_spo2_scale1_points", lungs.metrics.spo2_points, "puntos NEWS2 (0-3)",
+                               f"{cite}news2_spo2_scale1_score (escala 1; la escala 2 no se modela) | {NEWS2_CITATION}"))
+        candidates = [c for c in candidates if c[1] is not None]
         _add_derived(descriptors, "respiratory", signals, candidates, confidence, source_detail, input_confidence)
 
     return DomainState(domain="respiratory", descriptors=descriptors)
@@ -215,7 +216,6 @@ def _neurological_state(
     brain = organism.organs["brain"]
     signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "brain", provenance, source_detail)
     ic = input_confidence or {}
-    detail = brain.detail
 
     descriptors = {}
 
@@ -335,25 +335,10 @@ def _neurological_state(
             f"VALIDADO_POR_FUENTE | {CHI_APERIODIC_CITATION} | {CHI_CITATION}",
         )
 
-    # Contrato de derivados (C0): ver `derived_contract.py`. `health_score`/`cognitive_fatigue` exigen `relaxation_level` y
-    # `stress_level` (el organismo los defaultea a 65/35), `attention`/`sleepiness` exigen `attention` o `relaxation_level`
-    # + `alpha_power`, etc. `frontal_activity`/`temporal_activity` (NUNCA asignados en `_update_brain`) se omiten a
-    # propósito: persistirlos sería una constante disfrazada de medición.
-    if has_real_neuro_input and derived_ok:
-        candidates = [
-            ("health_score", brain.metrics.health_score, "0-100"),
-            ("risk_score", brain.metrics.risk_score, "0-100"),
-        ]
-        if detail is not None:
-            candidates += [
-                ("mental_workload", detail.mental_workload, "0-100"),
-                ("cognitive_fatigue", detail.cognitive_fatigue, "0-100"),
-                ("attention", detail.attention, "0-100"),
-                ("stress_perception", detail.stress_perception, "0-100"),
-                ("sleepiness", detail.sleepiness, "0-100"),
-            ]
-        present = {k for k in signals if k not in SPECTRAL_BANDS} | set(bands)  # una banda NO aceptada no cuenta como entrada
-        _add_derived(descriptors, "neurological", present, candidates, confidence, source_detail, input_confidence)
+    # Fase 0 (decisión 6, Parte E): el dominio neurológico no escribe NINGÚN derivado del organismo. `health_score`/
+    # `risk_score` (sin cita), `mental_workload` (= min(100, beta_power)), `stress_perception` (= stress_level),
+    # `cognitive_fatigue`, `attention`, `sleepiness` y los campos nunca asignados (`frontal_activity`...) están en
+    # NUNCA en `derived_contract.py`. Lo medido (potencias, BAR/DAR/TBR, χ) ya se escribió arriba como lo que es.
 
     return DomainState(domain="neurological", descriptors=descriptors)
 
@@ -373,7 +358,6 @@ def _muscular_state(
     muscles = organism.organs["muscles"]
     signals, provenance, source_detail, derived_ok = _usable_inputs(organism, "muscles", provenance, source_detail)
     ic = input_confidence or {}
-    detail = muscles.detail
 
     descriptors = {}
 
@@ -413,20 +397,9 @@ def _muscular_state(
     # propósito declarado. Esto es ausencia DELIBERADA, no olvido -- ver el
     # diagnóstico del dominio muscular y la Tanda 1 (lado señal).
 
-    # Contrato de derivados (C0): ver `derived_contract.py`. Con solo `activation`/`median_frequency` (EMG Lab) no se
-    # escribe ningún derivado: `efficiency` y `fatigue_index` no llegaron (el organismo los defaultea a 70/20).
-    # `recruitment_pattern`/`motor_symmetry`/`power_output` (NUNCA asignados en `_update_muscles`) se omiten a propósito.
-    if has_real_muscular_input and derived_ok:
-        candidates = [
-            ("health_score", muscles.metrics.health_score, "0-100"),
-            ("risk_score", muscles.metrics.risk_score, "0-100"),
-        ]
-        if detail is not None:
-            candidates += [
-                ("neuromuscular_efficiency", detail.neuromuscular_efficiency, "0-100"),
-                ("movement_smoothness", detail.movement_smoothness, "0-100"),
-            ]
-        _add_derived(descriptors, "muscular", signals, candidates, confidence, source_detail, input_confidence)
+    # Fase 0 (decisión 6, Parte E): el dominio muscular no escribe NINGÚN derivado del organismo (`health_score`/
+    # `risk_score` sin cita, `neuromuscular_efficiency` = `efficiency`, `movement_smoothness` = 100 − fatiga, y los
+    # tres campos nunca asignados): todos en NUNCA en `derived_contract.py`.
 
     return DomainState(domain="muscular", descriptors=descriptors)
 
@@ -434,11 +407,13 @@ def _muscular_state(
 def _detect_events(
     organism: "DigitalTwinOrganism", provenance: Provenance, confidence: float, timestamp: datetime
 ) -> List[PhysiologicalEvent]:
-    """Eventos desde las entradas ACTUALES (nunca de una entrada vieja). Umbrales idénticos a los que usaba
-    `DigitalTwinOrganism._update_heart` / `_update_lungs`. OJO (Fase 1, 2026-11-12): el organismo purgó los umbrales
-    caseros del corazón (decisión 4) pero estos EVENTOS del UPS los conservan a propósito: cambiarlos arrastra las
-    declaraciones `ups_hr_event` de los tipos de arritmia y el color del Cuerpo Digital, y no estaba en la lista de purga
-    (organismo y PredictionEngine). Queda como hallazgo para la firma de Luis."""
+    """Eventos desde las entradas ACTUALES (nunca de una entrada vieja).
+
+    Fase 0 (2026-11-13, decisión 5 de Luis): el evento de FC es la banda de 3 puntos NEWS2 del pulso (≤ 40 o ≥ 131 lpm,
+    `news2_pulse_score`, RCP 2017), nombrado por lo que mide (`PULSE_NEWS2_3_POINTS`); se retiraron el evento por
+    umbrales propios (40/120, crítico 35/150) y el de `hrv < 20`. Severidad única (WARNING): NEWS2 no gradúa un pulso
+    aislado como crítico; eso lo hace el total, que el gemelo no tiene. Los eventos de SpO₂ (90/95) y de estrés/fatiga
+    conservan sus umbrales (fuera del alcance firmado)."""
 
     events: List[PhysiologicalEvent] = []
     heart_signals = _current_signals(organism, "heart")
@@ -447,32 +422,17 @@ def _detect_events(
     muscle_signals = _current_signals(organism, "muscles")
 
     hr = heart_signals.get("heart_rate")
-    hrv = heart_signals.get("hrv")
-    if hr is not None and (hr > 120 or hr < 40):
-        severity = EventSeverity.CRITICAL if (hr > 150 or hr < 35) else EventSeverity.WARNING
+    if hr is not None and news2_pulse_score(float(hr)) == 3:
         events.append(
             PhysiologicalEvent(
-                event_type=EventType.ARRHYTHMIA_RISK_HR_EXTREME,
-                domain="cardiovascular",
-                severity=severity,
-                description=f"Frecuencia cardíaca fuera de rango seguro: {hr:.0f} bpm",
-                provenance=provenance,
-                confidence=confidence,
-                timestamp=timestamp,
-                related_descriptor="heart_rate",
-            )
-        )
-    elif hrv is not None and hrv < 20:
-        events.append(
-            PhysiologicalEvent(
-                event_type=EventType.LOW_HRV_AUTONOMIC_STRESS,
+                event_type=EventType.PULSE_NEWS2_3_POINTS,
                 domain="cardiovascular",
                 severity=EventSeverity.WARNING,
-                description=f"HRV bajo, posible estrés autonómico: {hrv:.0f} ms",
+                description=f"Pulso en la banda de 3 puntos NEWS2 (≤ 40 o ≥ 131 lpm): {hr:.0f} lpm",
                 provenance=provenance,
                 confidence=confidence,
                 timestamp=timestamp,
-                related_descriptor="hrv",
+                related_descriptor="news2_pulse_points",
             )
         )
 
@@ -522,7 +482,7 @@ def _detect_events(
                 provenance=provenance,
                 confidence=confidence,
                 timestamp=timestamp,
-                related_descriptor="stress_perception",
+                related_descriptor=None,  # `stress_perception` se retiró (fase 0); `stress_level` no se persiste
             )
         )
 
@@ -546,7 +506,7 @@ def _detect_events(
                 provenance=provenance,
                 confidence=confidence,
                 timestamp=timestamp,
-                related_descriptor="movement_smoothness",
+                related_descriptor=None,  # `movement_smoothness` se retiró (fase 0); `fatigue_index` no se persiste
             )
         )
 

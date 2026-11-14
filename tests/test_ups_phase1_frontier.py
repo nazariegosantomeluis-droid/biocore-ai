@@ -57,9 +57,8 @@ def test_a_derived_value_inherits_the_lowest_confidence_of_its_inputs():
     resp = state.respiratory.descriptors
     assert resp["respiratory_rate"].confidence == pytest.approx(0.8)               # las medidas conservan la suya
     assert resp["health_score"].confidence == pytest.approx(0.55)                  # min(rr 0.8, spo2 0.7, ahi 0.55)
-    assert resp["risk_score"].confidence == pytest.approx(0.55)                    # min(spo2 0.7, ahi 0.55)
-    assert resp["hypoxia_risk"].confidence == pytest.approx(0.7)                   # solo spo2
-    assert resp["apnea_risk"].confidence == pytest.approx(0.55)                    # solo ahi
+    assert resp["news2_respiratory_rate_points"].confidence == pytest.approx(0.8)   # solo rr (fase 0: sustituye a risk_score)
+    assert resp["news2_spo2_scale1_points"].confidence == pytest.approx(0.7)        # solo spo2 (fase 0: sustituye a hypoxia_risk)
     assert state.cardiovascular.get("news2_pulse_points").confidence == pytest.approx(0.9)   # su única entrada
     assert all(d.confidence != pytest.approx(0.75) for d in resp.values())          # ninguno es la constante del escritor
 
@@ -68,11 +67,9 @@ def test_an_input_without_its_own_confidence_inherits_the_writers():
     assert derived_confidence("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"},
                               {"spo2": 0.6}, 0.8) == pytest.approx(0.6)
     assert derived_confidence("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"}, None, 0.8) == pytest.approx(0.8)
-    # alternativa de `attention`: la entrada directa, o relaxation + alpha (la menor de las dos)
-    assert derived_confidence("neurological", "attention", {"attention", "relaxation_level", "alpha_power"},
-                              {"attention": 0.9, "relaxation_level": 0.4}, 0.7) == pytest.approx(0.9)
-    assert derived_confidence("neurological", "attention", {"relaxation_level", "alpha_power"},
-                              {"relaxation_level": 0.4, "alpha_power": 0.8}, 0.7) == pytest.approx(0.4)
+    # un derivado de una sola entrada hereda exactamente la de esa entrada
+    assert derived_confidence("respiratory", "news2_spo2_scale1_points", {"spo2", "respiratory_rate"},
+                              {"spo2": 0.4, "respiratory_rate": 0.9}, 0.7) == pytest.approx(0.4)
     with pytest.raises(ValueError):
         derived_confidence("respiratory", "health_score", {"spo2"}, None, 0.8)       # no escribible: no hay confianza
 
@@ -100,7 +97,7 @@ def test_an_input_from_a_previous_update_is_only_carried_never_current_never_der
     assert "arrastrada de una actualización anterior" in cardio["heart_rate"].source_detail
     # lo que SÍ llegó en la actualización actual conserva su procedencia y sus derivados
     assert state.respiratory.get("spo2").provenance == Provenance.SIMULACION
-    assert "hypoxia_risk" in state.respiratory.descriptors
+    assert "news2_spo2_scale1_points" in state.respiratory.descriptors
 
 
 def test_an_old_input_beyond_the_gate_does_not_exist():

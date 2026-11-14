@@ -45,7 +45,7 @@ def _events_without_data():
         cardiovascular=DomainState(domain="cardiovascular", descriptors={}),
         respiratory=DomainState(domain="respiratory", descriptors={}),
         neurological=DomainState(domain="neurological", descriptors={}),
-        events=[ev(EventType.ARRHYTHMIA_RISK_HR_EXTREME, "cardiovascular", EventSeverity.CRITICAL)],
+        events=[ev(EventType.PULSE_NEWS2_3_POINTS, "cardiovascular", EventSeverity.CRITICAL)],
     )
 
 
@@ -94,14 +94,16 @@ def test_svg_and_3d_paint_each_modeled_organ_with_the_same_color(case):
 
 
 @pytest.mark.parametrize("case, expected", [
-    ("fc130", U.SEVERITY_COLOR[EventSeverity.WARNING]),
-    ("fc60_hrv10", U.SEVERITY_COLOR[EventSeverity.WARNING]),
-    ("fc118_hrv15", U.SEVERITY_COLOR[EventSeverity.WARNING]),
+    ("fc130", U.STABLE_COLOR),             # fase 0: 130 lpm = 2 puntos NEWS2, sin evento (antes WARNING por > 120)
+    ("fc60_hrv10", U.STABLE_COLOR),        # fase 0: el evento por hrv < 20 se retiró
+    ("fc118_hrv15", U.STABLE_COLOR),
+    ("fc160", U.SEVERITY_COLOR[EventSeverity.WARNING]),   # 3 puntos NEWS2 (>= 131): el único evento de FC
     ("sin_sensor", U.NEUTRAL_COLOR),
 ])
 def test_the_four_rows_that_used_to_diverge_now_match_the_ups(case, expected):
     """Antes, con el puntaje heurístico: FC 130, FC 60/HRV 10 y FC 118/HRV 15
-    salían verdes en el 3D (ámbar en el SVG), y sin sensor salía ámbar."""
+    salían verdes en el 3D (ámbar en el SVG), y sin sensor salía ámbar. Fase 0: el evento de FC del UPS es la
+    banda de 3 puntos NEWS2 (decisión 5), así que esas tres filas quedan verdes (con dato, sin evento) en ambos."""
     state = CASES[case]()
     assert _figure_colors(state)["heart"][0] == expected == _svg_color("heart", state)
 

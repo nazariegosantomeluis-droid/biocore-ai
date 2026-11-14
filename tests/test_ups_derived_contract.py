@@ -31,7 +31,10 @@ from domain.physiology.state.derived_contract import (
 )
 
 MAIN = str(Path("app/main.py").resolve())
-NEVER_WRITTEN = {"cardiac_output", "rhythm_stability", "tissue_oxygenation", "perfusion_index"}
+NEVER_WRITTEN = {"cardiac_output", "rhythm_stability", "tissue_oxygenation", "perfusion_index",
+                 # fase 0 (2026-11-13): sustituidos por puntos NEWS2 o copias con otro nombre de una entrada
+                 "hypoxia_risk", "apnea_risk", "mental_workload", "stress_perception", "cognitive_fatigue", "attention",
+                 "sleepiness", "neuromuscular_efficiency", "movement_smoothness"}
 
 
 @pytest.fixture
@@ -80,11 +83,14 @@ def test_the_contract_table_declares_what_is_never_written_and_cites_the_organis
     never = {(d, f) for d, fields in DERIVED_CONTRACT.items() for f, r in fields.items() if r.never_reason}
     # Fase 1 (decisiones 1-3): health_score, myocardial_stress, rhythm_stability y cardiac_output ya no se escriben desde
     # el organismo; tissue_oxygenation (= SpO2 con otro nombre) tampoco.
+    # Fase 0 (decisión 6): respiratorio solo conserva los puntos NEWS2 y el índice pulmonar (FR + SpO₂ + AHI);
+    # neurológico y muscular no escriben ningún derivado.
     assert never == {
         ("cardiovascular", "health_score"), ("cardiovascular", "myocardial_stress"),
         ("cardiovascular", "rhythm_stability"), ("cardiovascular", "cardiac_output"),
-        ("respiratory", "tissue_oxygenation"),
-    }
+        ("respiratory", "tissue_oxygenation"), ("respiratory", "risk_score"), ("respiratory", "hypoxia_risk"),
+        ("respiratory", "apnea_risk"),
+    } | {("neurological", f) for f in DERIVED_CONTRACT["neurological"]} | {("muscular", f) for f in DERIVED_CONTRACT["muscular"]}
     for domain, field, needs, why in contract_rows():
         assert "digital_twin_organism.py" in why or "calculators.py" in why, (domain, field)   # fórmula o cita
         assert needs, (domain, field)
@@ -94,9 +100,8 @@ def test_the_contract_table_declares_what_is_never_written_and_cites_the_organis
     for retired in ("health_score", "myocardial_stress", "rhythm_stability", "cardiac_output"):
         assert not derived_is_writable("cardiovascular", retired, {"heart_rate", "hrv", "complexity", retired})
     assert DERIVED_CONTRACT["cardiovascular"]["cardiac_output"].only_from.startswith("motor hemodinámico")
-    assert derived_is_writable("neurological", "attention", {"attention"})                      # alternativa 1
-    assert derived_is_writable("neurological", "attention", {"relaxation_level", "alpha_power"})  # alternativa 2
-    assert not derived_is_writable("neurological", "attention", {"relaxation_level"})
+    assert not derived_is_writable("neurological", "attention", {"attention", "relaxation_level", "alpha_power"})  # NUNCA (fase 0)
+    assert derived_is_writable("respiratory", "news2_spo2_scale1_points", {"spo2"})
     with pytest.raises(KeyError):                                   # un derivado sin contrato no se escribe
         derived_is_writable("cardiovascular", "inventado", {"heart_rate"})
 
@@ -117,7 +122,7 @@ def test_every_derived_descriptor_the_builder_can_emit_is_in_the_contract_and_ne
                 seen += 1
                 assert name in DERIVED_CONTRACT[domain], (domain, name)
                 assert not DERIVED_CONTRACT[domain][name].never_reason, (domain, name)
-    assert seen >= 15                                               # con todas las entradas, los derivados SÍ se escriben
+    assert seen == 4                                                # news2 pulso, news2 FR, news2 SpO₂, índice pulmonar
     assert not (NEVER_WRITTEN & {n for ds in state.all_domains().values() for n in ds.descriptors})
 
 
@@ -153,20 +158,20 @@ def test_route_hrv_lab_writes_heart_rate_hrv_and_news2_points_but_no_health_scor
 
 def test_route_patient_pipeline_without_ahi_has_no_apnea_risk_and_no_cardiac_derivatives(ups):
     _, state = _press(ups, "Clinical Hub", "👥 Patient Pipeline", "patient_pipeline_save_state")
-    # `hypoxia_risk` sale de la SpO2 sola (digital_twin_organism.py:450): su única entrada SÍ llegó -> se escribe.
+    # Fase 0: los puntos NEWS2 de FR y SpO₂ salen de su única entrada; sin AHI no hay índice pulmonar.
     assert _fields(state) == {
         "cardiovascular": {"heart_rate", "news2_pulse_points"},
-        "respiratory": {"respiratory_rate", "spo2", "hypoxia_risk"},
+        "respiratory": {"respiratory_rate", "spo2", "news2_respiratory_rate_points", "news2_spo2_scale1_points"},
     }
     resp = state.respiratory.descriptors
-    assert "apnea_risk" not in resp and "health_score" not in resp and "risk_score" not in resp
+    assert "apnea_risk" not in resp and "health_score" not in resp and "risk_score" not in resp and "hypoxia_risk" not in resp
 
 
 def test_route_twin_os_checkpoint_writes_no_fabricated_alpha_and_no_neurological_domain(ups):
     _, state = _press(ups, "Digital Twin OS", "🧬 Digital Twin OS", "twin_shell_body_sync")
     assert _fields(state) == {
         "cardiovascular": {"heart_rate", "hrv", "news2_pulse_points"},
-        "respiratory": {"respiratory_rate", "spo2", "hypoxia_risk"},
+        "respiratory": {"respiratory_rate", "spo2", "news2_respiratory_rate_points", "news2_spo2_scale1_points"},
     }
     assert state.neurological.descriptors == {} and state.muscular.descriptors == {}
 
@@ -175,8 +180,8 @@ def test_route_eeg_lab_writes_the_real_spectrum_and_only_derivatives_whose_input
     _, state = _press(ups, "Clinical Hub", "🧠 EEG Neuro Lab", "eeg_lab_save_to_ups")
     neuro = set(state.neurological.descriptors)
     assert neuro - {"chi_aperiodic"} == {
-        "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar", "dar", "tbr", "mental_workload",
-    }
+        "delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power", "bar", "dar", "tbr",
+    }                                                               # fase 0: sin mental_workload (= beta_power con otro nombre)
     assert set(_fields(state)) == {"neurological"}
 
 
@@ -236,10 +241,9 @@ def test_sepsis_simulator_does_not_write_cardiac_output_nor_a_derived_value_with
         cardio = step.state.cardiovascular.descriptors
         assert set(cardio) == {"heart_rate", "hrv", "news2_pulse_points"}
         assert "cardiac_output" not in cardio and "rhythm_stability" not in cardio
-        # ahi SÍ llega en el simulador rico -> los derivados respiratorios con ahi real se conservan
-        assert {"respiratory_rate", "spo2", "ahi", "health_score", "risk_score", "hypoxia_risk", "apnea_risk"} == set(
-            step.state.respiratory.descriptors
-        )
+        # ahi SÍ llega en el simulador rico -> el índice pulmonar (FR + SpO₂ + AHI) y los puntos NEWS2 se escriben
+        assert {"respiratory_rate", "spo2", "ahi", "health_score", "news2_respiratory_rate_points",
+                "news2_spo2_scale1_points"} == set(step.state.respiratory.descriptors)
         assert step.state.neurological.descriptors == {}
 
 

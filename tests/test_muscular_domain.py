@@ -86,10 +86,9 @@ def test_muscular_domain_persists_only_the_honest_descriptors(db_path):
         })
         state = from_digital_twin_organism(organism, patient_id, Provenance.SIMULACION, 0.9)
 
-        # C0 (2026-11-12, Art. I): con `efficiency` pero SIN `fatigue_index` solo se escribe `neuromuscular_efficiency`
-        # (su única entrada llegó); health_score/risk_score/movement_smoothness exigen `fatigue_index`, que el organismo
-        # defaultea a 20. Con ambas entradas se escriben las cuatro (abajo).
-        assert set(state.muscular.descriptors.keys()) == {"activation", "median_frequency", "neuromuscular_efficiency"}
+        # Fase 0 (2026-11-13, Art. I): el músculo no escribe NINGÚN derivado (health_score/risk_score sin cita,
+        # neuromuscular_efficiency = efficiency con otro nombre, movement_smoothness = 100 - fatiga).
+        assert set(state.muscular.descriptors.keys()) == {"activation", "median_frequency"}
 
         # Señales primarias: procedencia del llamador, unidad honesta.
         assert state.muscular.get("activation").value == pytest.approx(45.0)
@@ -99,17 +98,10 @@ def test_muscular_domain_persists_only_the_honest_descriptors(db_path):
         assert state.muscular.get("median_frequency").provenance == Provenance.SIMULACION
         assert state.muscular.get("median_frequency").unit == "Hz"
 
-        # Derivados por el organismo: DERIVADO, sin importar la procedencia de origen.
-        assert state.muscular.get("neuromuscular_efficiency").provenance == Provenance.DERIVADO
-
         full = DigitalTwinOrganism()
         full.update_from_sensors({"emg": {"activation": 45.0, "efficiency": 72.0, "fatigue_index": 15.0}})
         full_state = from_digital_twin_organism(full, patient_id, Provenance.SIMULACION, 0.9)
-        assert set(full_state.muscular.descriptors.keys()) == {
-            "activation", "health_score", "risk_score", "neuromuscular_efficiency", "movement_smoothness",
-        }
-        for name in ("health_score", "risk_score", "neuromuscular_efficiency", "movement_smoothness"):
-            assert full_state.muscular.get(name).provenance == Provenance.DERIVADO
+        assert set(full_state.muscular.descriptors.keys()) == {"activation"}   # ni con todas las entradas hay derivado
 
 
 def test_fatigue_index_is_deferred_even_when_present_in_signals(db_path):
@@ -195,7 +187,7 @@ def test_severe_muscle_fatigue_event_uses_same_threshold_as_organism(db_path):
         assert len(fatigue_events) == 1
         assert fatigue_events[0].domain == "muscular"
         assert fatigue_events[0].severity == EventSeverity.WARNING
-        assert fatigue_events[0].related_descriptor == "movement_smoothness"
+        assert fatigue_events[0].related_descriptor is None      # `movement_smoothness` se retiró (fase 0)
 
         # Bajo el umbral -> sin evento.
         ok_organism = DigitalTwinOrganism()

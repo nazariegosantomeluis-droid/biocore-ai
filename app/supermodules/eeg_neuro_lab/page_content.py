@@ -681,16 +681,13 @@ with col2:
         # guardado no se ve afectado. Arco 2D (2026-09-18): χ se persiste
         # `VALIDADO_POR_FUENTE` con badge 🔴/🔵/💤 (`classify_chi()`) --
         # ver `builder.py::_neurological_state`.
-        # Con solo band power como entrada,
-        # `_update_brain()` (`digital_twin_organism.py`) calcula
-        # health_score/risk_score/detail desde `stress_level`/
-        # `relaxation_level` DEFAULTEADOS (35/65 -- este lab no mide
-        # ninguno de los dos) -- mismo nivel de tolerancia que ya acepta
-        # `_cardiovascular_state()` (que tampoco exige que `hrv`/
-        # `complexity` sean reales para escribir su health_score, solo que
-        # `heart_rate` lo sea). El gate de `_neurological_state()`
-        # (`alpha_power`/`beta_power` presentes) es lo que decide "hay
-        # cerebro que escribir", no cada sub-entrada de la fórmula.
+        # Fase 0 (2026-11-13, Art. I): el organismo ya no deriva NADA del
+        # cerebro (health_score/risk_score con defaults 35/65, mental_workload
+        # = beta_power con otro nombre, stress_perception, attention...: todos
+        # retirados). Al UPS llegan exactamente las 5 potencias de banda, los
+        # cocientes BAR/DAR/TBR (identidades aritméticas con cita) y, si pasa
+        # su gate, chi. El gate de `_neurological_state()` (`alpha_power`/
+        # `beta_power` presentes) es lo que decide "hay cerebro que escribir".
         #
         # Procedencia: `Provenance.SIMULACION` -- señal generada por
         # `EegSignalGenerator` (o CSV cargado, tampoco un sensor en vivo
