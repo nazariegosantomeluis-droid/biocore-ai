@@ -17,7 +17,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 |---|---|---|
 | Digital Twin OS | Digital Twin OS | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
 | Learning Hub | Academia Clínica | `app/supermodules/academia/` |
-| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) |
+| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
 | Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
 | Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
 | Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/` |
@@ -28,7 +28,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Clinical Hub | Patient Pipeline | `render_patient_pipeline_page()` en `app/main.py` |
 | Laboratorio 3D | Crea tu modelo 3D | `app/supermodules/model3d/` |
 
-- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio).
+- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que siguen usando Twin OS y el EEG Neuro Lab).
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
 
 ## El UPS (`domain/physiology/state/`)

@@ -465,11 +465,19 @@ def render_ecg_lab_page() -> None:
         validation="VALIDATED",
         validation_detail=_ECG_VALIDATION_DETAIL,
     )
-    tab_monitoreo, tab_12_derivaciones = st.tabs(["Monitoreo", "12 Derivaciones"])
+    # ECG Plug & Play (2026-11-13): tercera pestaña con el tutorial de la placa ESP32 + AD8232
+    # (la fuente «Hardware ESP32 en vivo» del Monitoreo) y su práctica con la placa simulada.
+    # Sus widgets llevan key `ecglab_tutorial_*`, namespaced como las otras dos pestañas.
+    from app.supermodules.ecg_live.monitor_source import TUTORIAL_TAB
+    from app.supermodules.ecg_live.tutorial import render_live_tutorial
+
+    tab_monitoreo, tab_12_derivaciones, tab_tutorial = st.tabs(["Monitoreo", "12 Derivaciones", TUTORIAL_TAB])
     with tab_monitoreo:
         render_ecg_monitor_page()
     with tab_12_derivaciones:
         render_ecg_12_page()
+    with tab_tutorial:
+        render_live_tutorial()
 
 
 def render_eeg_neuro_lab_page() -> None:
@@ -1672,74 +1680,16 @@ def render_ecg_monitor_page() -> None:
                 st.sidebar.info('Selecciona un registro y pulsa "Cargar" — se descarga en vivo desde PhysioNet.')
 
     elif source == 'Hardware ESP32 en vivo':
-        # Rescatado (Tanda de rescate — Joya 1/3, 2026-07-13). Disciplina de
-        # procedencia de la Tanda 4: SENSOR_REAL solo si is_hardware_present() confirma
-        # una conexión serial real EN ESTE MOMENTO — nunca por la sola intención de
-        # conectar (is_connected()/.connected siguen en True bajo simulate_if_missing).
-        from src.signals.signal_sources import ESP32SignalSource
+        # ECG Plug & Play (2026-11-13, ver CHANGELOG; Art. I): reemplaza a la rama de
+        # ESP32SignalSource, que tras desconectar el cable seguía diciendo SENSOR_REAL sobre un
+        # búfer congelado y podía abrir un puerto Bluetooth. La placa se busca sola, el puerto se
+        # cierra al desconectarse y la procedencia es SENSOR_REAL solo mientras una placa real
+        # manda datos. Código en app/supermodules/ecg_live/ y hardware/ecg_plugplay/.
+        from app.supermodules.ecg_live.monitor_source import render_live_source
 
-        st.sidebar.caption(
-            'Conecta un ESP32 real por puerto serial. Si no responde ningún dispositivo '
-            'físico, la señal se etiqueta SIMULACIÓN — nunca SENSOR_REAL por la sola '
-            'intención de conectar.'
-        )
-        esp32_port = st.sidebar.text_input('Puerto ESP32 (o "Auto")', value='Auto', key='ecg_monitor_esp32_port')
-        col_connect, col_disconnect = st.sidebar.columns(2)
-        with col_connect:
-            connect_clicked = st.button('🔌 Conectar', key='ecg_monitor_esp32_connect')
-        with col_disconnect:
-            disconnect_clicked = st.button('Desconectar', key='ecg_monitor_esp32_disconnect')
-
-        if connect_clicked:
-            chosen_port = None if esp32_port.strip().lower() == 'auto' else esp32_port.strip()
-            try:
-                hw_source = ESP32SignalSource(
-                    port=chosen_port, fs=250, buffer_seconds=15, simulate_if_missing=True
-                )
-                hw_source.connect(force_port=chosen_port)
-                hw_source.start()
-                st.session_state['ecg_monitor_esp32_source'] = hw_source
-            except Exception as e:
-                render_error_state(
-                    "No se pudo conectar al ESP32 -- verifica el puerto y que el dispositivo esté "
-                    "encendido.",
-                    exception=e,
-                )
-
-        if disconnect_clicked and st.session_state.get('ecg_monitor_esp32_source') is not None:
-            try:
-                st.session_state['ecg_monitor_esp32_source'].stop()
-                st.session_state['ecg_monitor_esp32_source'].disconnect()
-            except Exception:
-                pass
-            st.session_state['ecg_monitor_esp32_source'] = None
-
-        hw_source = st.session_state.get('ecg_monitor_esp32_source')
-        if hw_source is None:
-            st.sidebar.info('No hay ninguna fuente de hardware conectada todavía.')
-        else:
-            # Prueba de honestidad de procedencia (mismo patrón que Twin OS, Tanda 4
-            # Pieza 2): is_hardware_present() comprueba una conexión serial real EN ESTE
-            # MOMENTO, no si alguna vez se intentó conectar.
-            hardware_real = hw_source.is_hardware_present()
-            _, buf_signal = hw_source.get_filtered_buffer()
-            if len(buf_signal) < 5:
-                st.sidebar.warning(
-                    'El buffer de hardware está casi vacío todavía — espera unos segundos '
-                    'o revisa la conexión.'
-                )
-            else:
-                signal, fs = buf_signal, hw_source.fs
-                if hardware_real:
-                    st.sidebar.success('🟢 PROCEDENCIA: SENSOR_REAL — hardware ESP32 real respondiendo.')
-                    metadata = {'source': 'ESP32 (SENSOR_REAL)'}
-                else:
-                    st.sidebar.warning(
-                        '🟡 PROCEDENCIA: SIMULACIÓN — no se detectó ningún dispositivo físico; '
-                        'el software cayó a modo simulado. Re-etiquetado explícitamente, nunca '
-                        'mostrado como sensor real.'
-                    )
-                    metadata = {'source': 'ESP32 (SIMULACIÓN — sin hardware real detectado)'}
+        live = render_live_source()
+        if live is not None:
+            signal, fs, metadata = live
 
     if signal is None:
         hr_demo = st.sidebar.slider('Demo HR (bpm)', 40, 140, 72)
@@ -2656,7 +2606,8 @@ def render_patient_pipeline_page() -> None:
 # EMGStreamer era un chequeo booleano de solo lectura (`is not None`) sobre la
 # referencia ya importada al inicio de este archivo — esa importación, y las
 # conexiones reales que sí la usan (render_emg_page(), y ESP32SignalSource en
-# render_ecg_monitor_page() y en twin_shell/pages.py), no se tocaron. La
+# render_ecg_monitor_page() y en twin_shell/pages.py), no se tocaron (desde el
+# 2026-11-13 el Monitoreo usa hardware/ecg_plugplay en lugar de ESP32SignalSource). La
 # página no centralizaba nada: cada laboratorio (ECG Monitor, EMG Muscle Lab,
 # EEG Neuro Lab, Digital Twin OS) ya gestiona su propia conexión de hardware
 # real de forma independiente, sin pasar por aquí.
