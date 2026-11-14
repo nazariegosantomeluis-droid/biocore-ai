@@ -84,11 +84,12 @@ def balance_positions(bank: List[QuizQuestion], seed_text: str) -> List[QuizQues
 
 # --- Fuentes (leídas del documento original el 2026-11-14) -------------------------------------
 # Las del ECG viven en `clinical/ecg_references.py` (una sola copia; también las usa el analizador de 12
-# derivaciones).
+# derivaciones) y las del EEG en `clinical/eeg_references.py` (también las usa el EEG en vivo).
 from clinical.ecg_references import (  # noqa: E402
     AL_KHATIB_2017, BYRNE_2023, DREW_2010, KLIGFIELD_2007, KUSUMOTO_2018, RAUTAHARJU_2009, SCHULZ_MENGER_2025,
     SOKOLOW_LYON_1949, SURAWICZ_2009, VAN_GELDER_2024, WAGNER_2009,
 )
+from clinical.eeg_references import KANE_2017  # noqa: E402
 
 BIGA_ANATOMY = (
     "Biga LM, et al. Anatomy & Physiology, cap. 19, «Conduction system of the heart and the ECG». "
@@ -97,11 +98,6 @@ BIGA_ANATOMY = (
 ALLEN_2007 = (
     "Allen J. Photoplethysmography and its application in clinical physiological measurement. "
     "Physiol Meas 2007;28(3):R1–R39. doi:10.1088/0967-3334/28/3/R01"
-)
-KANE_2017 = (
-    "Kane N, Acharya J, Beniczky S, et al. A revised glossary of terms most commonly used by clinical "
-    "electroencephalographers and updated proposal for the report format of the EEG findings. Revision 2017. "
-    "Clin Neurophysiol Pract 2017;2:170–185. doi:10.1016/j.cnp.2017.07.002"
 )
 HIRSCH_2021 = (
     "Hirsch LJ, Fong MWK, et al. American Clinical Neurophysiology Society's Standardized Critical Care EEG "

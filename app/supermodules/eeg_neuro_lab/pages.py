@@ -44,7 +44,11 @@ def render_views():
         subtitle="Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales",
         validation=None,
     )
-    tabs = st.tabs(["Clínica"])
+    # 2026-11-14: pestaña del tutorial de EEG en vivo (equipos, electrodos, conexión, estados, calidad y una
+    # práctica con simulador). Tiene contenido propio, no es un contenedor vacío como las retiradas en la Fase 2.2.
+    from app.supermodules.eeg_neuro_lab.live_source import TUTORIAL_TAB
+
+    tabs = st.tabs(["Clínica", TUTORIAL_TAB])
 
     with tabs[0]:
         render_section_header("Vista Clínica")
@@ -55,6 +59,13 @@ def render_views():
                 render_error_state("No se pudo renderizar la Vista Clínica de EEG Neuro Lab.", exception=e)
         else:
             render_empty_state("EEG Neuro Lab no encontrado", action="verifica la instalación del módulo")
+
+    with tabs[1]:
+        try:
+            from app.supermodules.eeg_neuro_lab.live_tutorial import render_live_tutorial
+            render_live_tutorial()
+        except Exception as e:
+            render_error_state("No se pudo renderizar el tutorial de EEG en vivo.", exception=e)
 
 
 def main():

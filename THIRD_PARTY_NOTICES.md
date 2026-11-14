@@ -138,6 +138,8 @@ Versión y licencia leídas de los metadatos instalados en el entorno de desarro
 | pydicom | `pydicom>=2.4.0` | 3.0.2 | MIT License (clasificador) |
 | fast_simplification | `fast-simplification>=0.1.7` | 0.2.0 | MIT |
 | fpdf2 | `fpdf2>=2.7.0` | 2.9.0 | LGPL-3.0-only |
+| brainflow | `brainflow>=5.24.0` | 5.24.0 | MIT (sin campo de licencia en los metadatos; leída del `LICENSE.txt` del paquete: «MIT License, Copyright (c) 2018 Andrey Parfenov»), 2026-11-14 |
+| pylsl | `pylsl>=1.18.6` | 1.18.6 | MIT License (clasificador), 2026-11-14 |
 | pytest | `pytest>=7.0.0` | 9.2.0 | MIT |
 | pytest-cov | `pytest-cov>=4.1.0` | 7.1.0 | MIT |
 | mypy | `mypy>=1.5.0` | 2.4.1 | MIT |
@@ -149,6 +151,7 @@ Notas:
 - `fpdf2` se declara bajo LGPL-3.0 y `pylint` bajo GPL-2.0-or-later. `pylint` figura en la sección «Development tools (optional)» de `requirements.txt`.
 - `shap` y `lime` están en `requirements.txt` pero **ningún archivo del repositorio los importa** (verificado 2026-11-07); se listan por transparencia y son candidatos a retirarse de las dependencias.
 - `fooof` 1.1.1 implementa el método de Donoghue et al. (sección 5) y es la dependencia que `src/signals/eeg/spectral_model.py` envuelve.
+- `brainflow` y `pylsl` (2026-11-14) son las dos fuentes del EEG en vivo (`hardware/eeg_live/`). El paquete `brainflow` trae las bibliotecas nativas de BrainFlow para Windows, Linux y macOS. `pylsl` trae `liblsl`, cuyo repositorio (github.com/sccn/liblsl) dice: «The library and example applications are licensed under the MIT license», y avisa que usa código bajo la Boost Software License. Si alguno de los dos no se instala, el EEG Neuro Lab dice qué falta y lo demás sigue funcionando.
 - Los archivos `requirements_extra.txt` y `requirements_arrhythmia.txt` declaran además `kaleido`, `xgboost`, `lightgbm`, `pytz`, `scikit-plot` y `optuna`, que **no están instalados** en este entorno: su licencia no se leyó (PENDIENTE).
 
 ---
@@ -170,12 +173,14 @@ Referencias tal como las cita el código. Estos métodos se implementaron en BIO
 | Detector de QRS por operador de energía Teager-Kaiser | Técnica estándar mencionada en el código sin referencia bibliográfica (ver PENDIENTE) | `clinical/ecg_analyzer.py` |
 | Ganancia de la placa ECG (1100, supuesto para estimar mV) | Analog Devices. AD8232 Data Sheet, Rev. D (3/2020, D10866-3/20(D)): configuración de monitor cardiaco, Figura 66 (op amp con ganancia 11, ganancia total del sistema 1100; pasa-altas de dos polos a 0.5 Hz y pasa-bajas de dos polos a 40 Hz). Leída del PDF del fabricante el 2026-11-13 | `hardware/ecg_plugplay/config.py` (`AD8232_GAIN_SOURCE`), `hardware/ecg_plugplay/firmware/main.py` |
 | Por qué la banda de 0.5–40 Hz no sirve para el ST | Kligfield P, Gettes LS, Bailey JJ, et al. Recommendations for the Standardization and Interpretation of the Electrocardiogram: Part I: The Electrocardiogram and Its Technology. *Circulation*. 2007;115:1306-1324. doi:10.1161/CIRCULATIONAHA.106.180200. Leída del texto completo el 2026-11-13 | `hardware/ecg_plugplay/preprocessing.py` (`FILTER_LIMITS_SOURCE`), `app/supermodules/ecg_live/tutorial.py` |
+| Montaje 10-20 y 10-10 sobre una cabeza esférica (diagrama del tutorial de EEG en vivo) | Kane N, Acharya J, Beniczky S, et al. A revised glossary of terms most commonly used by clinical electroencephalographers... Revision 2017. *Clin Neurophysiol Pract* 2017;2:170-185 (sistemas 10-20 y 10-10); Seeck M, Koessler L, Bast T, et al. The standardized EEG electrode array of the IFCN. *Clin Neurophysiol* 2017;128:2070-2077 (porcentajes de nasion a inion y nombres de los electrodos). Leídas el 2026-11-14 | `hardware/eeg_live/montage.py`, `app/supermodules/eeg_neuro_lab/live_tutorial.py` |
+| Simulador de práctica de EEG (alfa posterior reactivo, parpadeo, electrodo flojo) | Kane 2017 (definición del ritmo alfa); Tatum WO, Dworetzky BA, Schomer DL. Artifact and recording concepts in EEG. *J Clin Neurophysiol* 2011;28(3):252-263 (origen del artefacto ocular, artefacto de un solo canal, ruido de red); el pulso del parpadeo es el de `EegSignalGenerator`. Leídas el 2026-11-14 | `hardware/eeg_live/simulator.py`, `hardware/eeg_live/quality.py` |
 
 Las fórmulas y escalas clínicas de `clinical/calculators.py` llevan su propia cita en la constante `*_CITATION` de cada una; no se repiten aquí.
 
 Las preguntas de los cuestionarios (`educational/quiz_bank.py`) llevan su fuente en el campo `source` de cada una, leída del documento original el 2026-11-14; no se repiten aquí.
 
-Las referencias clínicas del ECG (`clinical/ecg_references.py`) las comparten el banco de preguntas y el analizador de 12 derivaciones (`src/signals/ecg/twelve_lead_measure.py`), con la misma fecha de lectura; no se repiten aquí.
+Las referencias clínicas del EEG (`clinical/eeg_references.py`: Kane 2017, Seeck 2017 y Tatum 2011) las comparten el banco de preguntas, el EEG en vivo y su tutorial; no se repiten aquí. Las referencias clínicas del ECG (`clinical/ecg_references.py`) las comparten el banco de preguntas y el analizador de 12 derivaciones (`src/signals/ecg/twelve_lead_measure.py`), con la misma fecha de lectura; no se repiten aquí.
 
 ---
 

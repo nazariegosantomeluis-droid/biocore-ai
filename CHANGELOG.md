@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-11-14 — EEG en vivo: OpenBCI, Muse, Unicorn y LSL, con tutorial y práctica
+
+**Contexto (Art. I)**: la fuente «Hardware EEG en vivo» del EEG Neuro Lab era una fachada.
+- Tomaba una sola señal de la placa ESP32 (`ESP32SignalSource`) y la copiaba a cuatro canales rotulados Fp1, Fp2, C3 y C4: la misma señal desplazada, con ruido encima (`expand_hardware_eeg_to_channels`).
+- Sin hardware caía en silencio a la señal sintética: la casilla «Simular si no hay hardware conectado» venía marcada y la fuente decía «Hardware en vivo (simulado)». La introducción de la página lo prometía como «señal de respaldo sintética».
+- La casilla «Habilitar análisis en tiempo real» solo mostraba un texto; no cambiaba nada.
+- Con cualquier EEG real, la página traducía la banda de más potencia absoluta a un estado. Si dominaba delta decía «Sueño profundo / Ritmo lento» y «descartar encefalopatía de onda lenta», y eso pasa aunque la persona esté despierta, porque la potencia del EEG cae con la frecuencia (componente aperiódico; Donoghue et al. 2020). Lo mismo con un CSV.
+- Al gemelo todo se guardaba como SIMULACIÓN, viniera de donde viniera.
+
+- **Adquisición** (`hardware/eeg_live/`, nuevo):
+  - Catálogo (`devices.py`): OpenBCI Cyton, Cyton + Daisy y Ganglion, Muse 2, Muse S y g.tec Unicorn por BrainFlow; cualquier flujo LSL por pylsl; el tablero sintético de BrainFlow y un simulador de práctica de BIOCORE. Pasos y sistemas, de la documentación de BrainFlow y de OpenBCI (leída el 2026-11-14); canales y muestreo, de los descriptores de BrainFlow 5.24.0, que una prueba compara con la versión instalada.
+  - Conexiones (`backends.py`): los códigos de error de BrainFlow se traducen a un motivo y una acción según cómo se conecta el equipo (puerto, Bluetooth o dongle). El flujo LSL se vuelve a encontrar por nombre e id; se queda con los canales de tipo EEG, convierte a µV la unidad que declara (si no declara, supone µV y lo dice) y rechaza flujos irregulares o de texto.
+  - Servicio (`service.py`): un hilo por fuente con cinco estados: conectando, transmitiendo, sin datos (3 s sin muestras), sin conexión (no abrió, o 10 s sin muestras; reintenta cada 5 s) y detenido. Guarda los últimos 120 s y empieza vacío en cada sesión. La procedencia sale solo mientras transmite: SENSOR_REAL para un equipo real, SIMULACIÓN para los simuladores y «no verificable» para LSL.
+  - Calidad (`quality.py`): quita la tendencia y la red (notch de 60 o 50 Hz) y marca canal plano, canal mucho más amplio que los demás y mucho ruido de red. Umbrales de ingeniería (`QualityHeuristics`); qué hacer, de Tatum 2011.
+  - Simulador (`simulator.py`): alfa de 10 Hz posterior y reactiva al cerrar los ojos (glosario IFCN, Kane 2017), parpadeo en Fp1 y Fp2 con el pulso del generador del laboratorio, electrodo flojo y cable desconectado. La señal es la misma se lea en trozos de cualquier tamaño.
+  - Montaje (`montage.py`): posiciones 10-20 y 10-10 construidas con las reglas del sistema sobre una esfera (Kane 2017, Seeck 2017).
+- **Página**:
+  - Fuente «Hardware EEG en vivo» nueva (`app/supermodules/eeg_neuro_lab/live_source.py`). Pide el dispositivo y lo que necesite (puerto del dongle, con los chips FTDI marcados como el de OpenBCI; o datos opcionales para Bluetooth), busca flujos LSL y tiene filtro de red, conectar y desconectar, y canales a analizar. Un monitor se actualiza cada segundo; avisa de problemas de calidad y de muestras perdidas. Sin señal en vivo no hay análisis, y la página dice por qué.
+  - Con EEG real (en vivo o CSV), la banda de más potencia ya no se traduce a un estado. «Clasificación» explica por qué, y se ocultan la clasificación, la interpretación, la nota clínica y la alerta de cada canal, de los hallazgos y del informe exportado. Con el generador no cambia nada.
+  - Guardar al gemelo: SENSOR_REAL solo con un equipo real transmitiendo; los simuladores, LSL, el generador y el CSV van como SIMULACIÓN, con el origen en `source_detail`. Un canal con avisos de calidad no se guarda.
+  - Con señal en vivo no se ofrecen los paneles de ERD y Engagement: comparan contra el evento que inyecta el generador.
+  - Pestaña nueva «EEG en vivo (tutorial)» (`live_tutorial.py`):
+    - de dónde sale cada número, equipos y seguridad;
+    - dónde va cada electrodo, con un diagrama 10-20 por equipo;
+    - pasos de conexión de cada equipo, estados, procedencia y calidad;
+    - qué se puede concluir;
+    - una práctica con el simulador, el mismo de la fuente «Simulador de práctica».
+  - Retirados: `expand_hardware_eeg_to_channels`, el bloque de `SensorManager`/`ESP32SignalSource` de la página y la casilla «Habilitar análisis en tiempo real». Se corrigió un `NameError` (`analysis_cards`) que tiraba la vista cuando no había canales que analizar.
+- **Referencias**: `clinical/eeg_references.py` (Kane 2017, Seeck 2017 y Tatum 2011), que también usa el banco de preguntas.
+- **Dependencias**: `brainflow>=5.24.0` y `pylsl>=1.18.6` (las dos MIT) en `requirements.txt`. Si no se instalan, la página dice qué falta y lo demás funciona.
+- **Pruebas**: `tests/test_eeg_live.py` (43).
+  - Catálogo contra los descriptores de BrainFlow.
+  - BrainFlow con un módulo falso (errores, nombres, cierre) y con el tablero sintético real.
+  - LSL con un módulo falso (unidades, canales EEG, flujos que no sirven) y con un flujo real en esta máquina.
+  - Simulador: reloj, continuidad, alfa posterior y reactiva, el pulso del generador, electrodo flojo.
+  - Calidad, servicio (desconexión y reconexión, fallos al abrir, canales de más, frecuencia efectiva, búfer circular) y montaje.
+  - AppTest de la página: sin conexión no analiza; la práctica guarda como SIMULACIÓN; un «Cyton» de prueba guarda como SENSOR_REAL; un canal plano no se guarda; el tutorial corre su práctica.
+  - Suite completa: 1993 pasan, 6 se saltan y 1 falla, la misma de siempre (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas del tutorial (montaje del Cyton y de la Muse), de la práctica (ojos abiertos y cerrados, electrodo flojo, cable) y de la fuente en vivo con el simulador.
+
+**Para Luis**:
+1. Nada de esto se probó con un equipo real: falta conectar al menos un Cyton o una Muse. Lo comprobado es el tablero sintético de BrainFlow y un flujo LSL en la misma computadora.
+2. El rechazo de artefactos de `EegAnalyzer` (gradiente de más de 5500 µV/s) se calibró con el generador. En la práctica no siempre descarta el parpadeo modelado, y en el tablero sintético descarta los senos rápidos (de C4 en adelante). Con hardware real hay que recalibrarlo.
+3. Los umbrales de calidad (0.5 µV, 4 veces la mediana, 10 µV de red) son de ingeniería.
+4. Siguen sin fuente los textos «Cómo funciona esta plataforma» y «Cómo interpretar EEG» de la pestaña Clínica (por ejemplo, «Beta elevada indica atención activa o estrés mental»). Los paneles de ERD y Engagement siguen corriendo sobre un CSV con el evento del generador.
+5. Twin OS sigue usando `ESP32SignalSource`.
+
 ## 2026-11-14 — 12 Derivaciones rehecha: trazado con verdad conocida y lectura por criterios citados
 
 **Contexto (Art. I)**: en el escenario «Normal», la Vista Clínica de 12 Derivaciones decía «✅ LBBB» (en recuadro verde, con «Wide QRS (>120 ms)») y «Q wave in II: pathological_q».

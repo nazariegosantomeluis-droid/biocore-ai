@@ -30,10 +30,10 @@ from educational.quiz_bank import EEG_QUESTIONS, KANE_2017
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
-# escritor. Imports incondicionales (no como EegAnalyzer/SensorManager de
+# escritor. Imports incondicionales (no como EegAnalyzer de
 # abajo) porque domain.physiology.state/app.engines/app.utils.patient_session
 # son parte del núcleo de la app, no dependencias opcionales.
-from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
+from domain.physiology.state import from_digital_twin_organism, save_state
 from domain.physiology.coupling import (
     VALIDATED_RULES,
     CouplingScenarioBlockedError,
@@ -78,19 +78,10 @@ except ImportError as e:
     CHI_CITATION = None
     SpectralModel_import_error = e
 
-try:
-    from hardware.sensor_manager import SensorManager
-    SensorManager_import_error = None
-except ImportError as e:
-    SensorManager = None
-    SensorManager_import_error = e
-
-try:
-    from src.signals.signal_sources import ESP32SignalSource
-    ESP32SignalSource_import_error = None
-except ImportError as e:
-    ESP32SignalSource = None
-    ESP32SignalSource_import_error = e
+# 2026-11-14 (Art. I): la fuente en vivo ya no usa SensorManager/ESP32SignalSource (inventaba 4 canales a partir
+# de una señal y caía en silencio a la sintética). Vive en `live_source.py`: OpenBCI, Muse, Unicorn, LSL y dos
+# simuladores rotulados SIMULACIÓN; SENSOR_REAL solo mientras un equipo real manda datos.
+from app.supermodules.eeg_neuro_lab import live_source as eeg_live_source
 
 try:
     from app.reporting import export_lab_report
@@ -142,22 +133,6 @@ def load_eeg_csv(uploaded_file):
     return result, time
 
 
-def expand_hardware_eeg_to_channels(reference_signal: np.ndarray, fs: float, channels: int):
-    lead_names = ['Fp1', 'Fp2', 'C3', 'C4'][: max(1, min(channels, 4))]
-    if reference_signal is None or len(reference_signal) == 0:
-        return {lead: np.array([]) for lead in lead_names}, np.array([])
-
-    cleaned = np.nan_to_num(reference_signal, nan=0.0)
-    time = np.arange(len(cleaned), dtype=float) / float(fs or 250.0)
-    data = {}
-    base_std = max(np.std(cleaned), 1e-3)
-    for idx, lead in enumerate(lead_names):
-        shift = int(idx * len(cleaned) / 20)
-        noise = np.random.normal(0, base_std * 0.03, size=cleaned.shape)
-        data[lead] = np.roll(cleaned, shift) + noise
-    data['time'] = time
-    return data, time
-
 # `st.set_page_config()` y `render_sidebar_navigation()` retirados
 # (2026-08-20, Capa 2 Fase 2.1, cierre): vestigios de la arquitectura
 # Streamlit multipágina anterior. Este archivo solo corre anidado bajo
@@ -198,9 +173,9 @@ st.markdown(
 )
 
 st.write(
-    "La opción de hardware en vivo abre un flujo de análisis continuo pensado para dispositivos EEG reales. "
-    "Si no hay un equipo físico conectado, la plataforma mantiene la experiencia con una señal de respaldo sintética y un análisis instantáneo. "
-    "Cuando el hardware real esté disponible, el sistema podrá recibir datos de muestra en tiempo real, calcular la potencia de banda y actualizar las métricas al vuelo."
+    f"Con «{eeg_live_source.SOURCE_LABEL}» analizas tu propio EEG desde OpenBCI, Muse, Unicorn o un flujo LSL. Sin "
+    "un equipo transmitiendo no hay análisis: no se usa una señal de respaldo. La pestaña "
+    f"«{eeg_live_source.TUTORIAL_TAB}» explica cómo conectarlo y trae una práctica con simulador."
 )
 
 st.markdown("---")
@@ -226,31 +201,25 @@ channels = st.sidebar.selectbox("Número de canales", [2, 3, 4], index=2)
 
 signal_source = st.sidebar.radio(
     "Origen de datos",
-    ["Generar EEG sintético", "Cargar EEG desde CSV", "Hardware EEG en vivo"]
+    ["Generar EEG sintético", "Cargar EEG desde CSV", eeg_live_source.SOURCE_LABEL]
 )
+hardware_source = signal_source == eeg_live_source.SOURCE_LABEL
+# Con EEG real (CSV o en vivo) la banda dominante no se traduce a un estado (`live_source.REAL_EEG_NOTE`).
+interpretation_applies = signal_source == "Generar EEG sintético"
 
 duration = st.sidebar.slider("Duración (segundos)", min_value=10, max_value=120, value=30, step=10)
 fs = st.sidebar.selectbox("Frecuencia de muestreo (Hz)", [128, 256, 512], index=1)
 noise = st.sidebar.slider("Nivel de ruido de fondo", min_value=0.0, max_value=0.5, value=0.18, step=0.02)
 
-motor_event = mu_erd_panel.render_mu_erd_sidebar(pattern, duration)
-engagement_event = engagement_panel.render_engagement_sidebar(pattern, duration)
-
-live_mode = st.sidebar.checkbox(
-    "Habilitar análisis en tiempo real",
-    value=False,
-    help="Actualiza el análisis con cada interacción y permite activar la modalidad de hardware en vivo cuando esté disponible."
-)
-
-if live_mode:
-    st.sidebar.markdown("### Modo en tiempo real activado")
-    st.sidebar.write(
-        "El laboratorio está listo para recibir y analizar datos continuamente. "
-        "Si hay hardware conectado, se usará el flujo en vivo; de lo contrario, se conserva la simulación en tiempo real."
-    )
+# Los paneles de ERD y Engagement comparan el detector contra el evento que inyecta el generador; con señal en
+# vivo no hay evento inyectado, así que no se ofrecen (2026-11-14).
+motor_event = None if hardware_source else mu_erd_panel.render_mu_erd_sidebar(pattern, duration)
+engagement_event = None if hardware_source else engagement_panel.render_engagement_sidebar(pattern, duration)
+# 2026-11-14: la casilla «Habilitar análisis en tiempo real» se retiró: solo mostraba un texto y no cambiaba nada
+# (fachada, Art. I). El tiempo real de verdad es el monitor de la fuente en vivo.
 
 uploaded_file = None
-hardware_source = signal_source == "Hardware EEG en vivo"
+live = None
 if signal_source == "Cargar EEG desde CSV":
     uploaded_file = st.sidebar.file_uploader(
         "Sube un archivo CSV de EEG",
@@ -262,85 +231,7 @@ if signal_source == "Cargar EEG desde CSV":
     else:
         st.sidebar.info("Cargue un CSV para visualizar datos reales de EEG.")
 elif hardware_source:
-    st.sidebar.markdown("### Hardware EEG en vivo")
-    selected_port = None
-    if SensorManager is not None:
-        manager = SensorManager()
-        port_options = manager.available_ports or ["Auto"]
-        selected_port = st.sidebar.selectbox("Puerto serial / Bluetooth", port_options)
-        st.sidebar.markdown("**Puertos detectados:**")
-        st.sidebar.write(manager.describe_ports())
-    else:
-        selected_port = st.sidebar.text_input(
-            "Puerto serial EEG manual",
-            value=st.session_state.get('eeg_esp32_port', ''),
-            help="En sistemas sin detección automática, escribe el puerto COM o /dev/ttyUSB0."
-        )
-        st.sidebar.warning("No se pudo cargar el gestor de hardware. Usa el puerto manual o la simulación de EEG en vivo.")
-
-    esp32_port = st.sidebar.text_input(
-        "Puerto ESP32 (opcional)",
-        value=st.session_state.get('eeg_esp32_port', ''),
-        help="Ej. COM3 o /dev/ttyUSB0. Dejar vacío para detección automática cuando esté disponible."
-    )
-    esp32_baud = st.sidebar.number_input(
-        "Baudios ESP32",
-        min_value=9600,
-        value=st.session_state.get('eeg_esp32_baud', 115200),
-        step=1,
-        help="Velocidad de comunicación serial para el hardware ESP32."
-    )
-    connect_clicked = st.sidebar.button("Conectar hardware EEG", key="connect_eeg_hw")
-    disconnect_clicked = st.sidebar.button("Desconectar hardware EEG", key="disconnect_eeg_hw")
-
-    simulate_hardware = st.sidebar.checkbox(
-        "Simular si no hay hardware conectado",
-        value=True,
-        help="Cuando no hay un dispositivo EEG real, se usa un generador sintético para mantener el flujo de análisis en tiempo real."
-    )
-
-    hw_source = st.session_state.get('eeg_esp32_source')
-    if connect_clicked:
-        st.session_state['eeg_esp32_port'] = esp32_port
-        st.session_state['eeg_esp32_baud'] = esp32_baud
-        if ESP32SignalSource is None:
-            st.sidebar.error("ESP32SignalSource no está disponible. Instala pyserial y revisa hardware/esp32_stream.py")
-        else:
-            chosen_port = esp32_port or (selected_port if selected_port not in (None, "Auto", "No hay puertos detectados") else None)
-            try:
-                hw_source = ESP32SignalSource(port=chosen_port, baud=esp32_baud, fs=fs)
-                connected = hw_source.connect(force_port=chosen_port)
-                if connected:
-                    hw_source.start()
-                    st.session_state['eeg_esp32_source'] = hw_source
-                    st.sidebar.success("EEG hardware conectado y listo para transmisión.")
-                else:
-                    st.sidebar.warning("No se pudo conectar el hardware EEG. Se usará la simulación de respaldo.")
-            except Exception as exc:
-                st.sidebar.error(f"Error conectando hardware EEG: {exc}")
-                hw_source = None
-
-    if disconnect_clicked and 'eeg_esp32_source' in st.session_state:
-        try:
-            st.session_state['eeg_esp32_source'].stop()
-            st.session_state['eeg_esp32_source'].disconnect()
-        except Exception:
-            pass
-        del st.session_state['eeg_esp32_source']
-        hw_source = None
-        st.sidebar.success("EEG hardware desconectado.")
-
-    if hw_source is not None:
-        st.sidebar.info(f"Estado hardware EEG: {hw_source.get_status()}")
-        if hasattr(hw_source, 'last_error') and hw_source.last_error:
-            st.sidebar.warning(f"Último error EEG: {hw_source.last_error}")
-        if live_mode:
-            st.sidebar.success("✅ Análisis EEG en vivo habilitado.")
-    elif not simulate_hardware:
-        st.sidebar.warning("No hay hardware EEG conectado y la simulación está desactivada.")
-
-    if not simulate_hardware and SensorManager is not None and selected_port not in (None, "Auto", "No hay puertos detectados"):
-        st.sidebar.info("Modo en vivo activado. Los datos de hardware EEG se integrarán cuando el dispositivo esté disponible.")
+    live = eeg_live_source.render_live_source(duration)    # None sin señal en vivo: no hay respaldo sintético
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Configuración Avanzada")
@@ -348,9 +239,9 @@ st.sidebar.markdown("### Configuración Avanzada")
 if signal_source == "Generar EEG sintético":
     st.sidebar.markdown("### Síntesis EEG")
     st.sidebar.write("Se generará una señal EEG de laboratorio con el patrón seleccionado.")
-elif signal_source == "Hardware EEG en vivo":
+elif hardware_source:
     st.sidebar.markdown("### EEG en vivo")
-    st.sidebar.write("El análisis intentará usar datos de hardware en tiempo real. Si no hay hardware disponible, se usa una señal de respaldo sintética.")
+    st.sidebar.write("El análisis usa los últimos segundos del equipo conectado (control «Duración»). Sin señal en vivo no se analiza nada.")
 else:
     st.sidebar.markdown("### EEG desde CSV")
     st.sidebar.write("El análisis usará los datos cargados desde el archivo CSV.")
@@ -388,33 +279,17 @@ if signal_source == "Cargar EEG desde CSV" and uploaded_file is not None:
         eeg_data = {}
         time = np.array([])
         data_source = "Error de carga CSV"
-elif signal_source == "Hardware EEG en vivo":
-    data_source = "Hardware en vivo"
-    eeg_data = {}
-    time = np.array([])
-    hw_source = st.session_state.get('eeg_esp32_source')
-    use_synthetic = True
-
-    if hw_source is not None and hasattr(hw_source, 'is_connected') and hw_source.is_connected():
-        t_hw, signal_hw = hw_source.get_filtered_buffer()
-        if len(signal_hw) >= 16 and not np.allclose(signal_hw, 0.0):
-            eeg_data, time = expand_hardware_eeg_to_channels(signal_hw, hw_source.fs, channels)
-            data_source += f" ({hw_source.port or 'auto'})"
-            use_synthetic = False
-        else:
-            st.warning("Aún no hay suficientes datos reales del hardware EEG. Usando la señal de respaldo sintética.")
-
-    if use_synthetic:
-        if not simulate_hardware:
-            st.warning("Hardware EEG no disponible y la simulación está desactivada. Se usará la configuración sintética por defecto.")
-        data_source += " (simulado)"
-        eeg_data, time = EegSignalGenerator(sampling_rate=fs).generate_eeg(synthetic_params)
+elif hardware_source:
+    data_source, eeg_data, time = "Hardware en vivo: sin señal", {}, np.array([])
+    if live is not None:
+        eeg_data, time, fs, data_source = live.eeg, live.time, live.fs, live.label
 else:
     eeg_data, time = EegSignalGenerator(sampling_rate=fs).generate_eeg(synthetic_params)
 
 analyzer = EegAnalyzer(fs=fs)
 
 # Main panels
+analysis_cards = []    # sin canales (fuente en vivo sin señal, CSV vacío) la columna de métricas no tiene qué leer
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -422,13 +297,15 @@ with col1:
     st.markdown(f"**Fuente de datos:** {data_source}  ")
     if data_source == "CSV cargado":
         st.markdown(f"**Frecuencia de muestreo estimada:** {fs:.2f} Hz")
+    elif live is not None:
+        st.markdown(f"**Muestreo del equipo:** {fs:g} Hz · últimos {len(time) / fs:.0f} s recibidos")
 
     lead_names = [k for k in eeg_data.keys() if k != 'time']
     display_leads = lead_names[:channels] if signal_source == "Cargar EEG desde CSV" else lead_names
     display_rows = max(len(display_leads), 1)
 
     if len(display_leads) == 0:
-        st.warning("No hay datos EEG válidos. Cargue un archivo CSV o genere una señal sintética.")
+        st.warning("No hay datos EEG válidos." + ("" if hardware_source else " Cargue un archivo CSV o genere una señal sintética."))
     else:
         fig = make_subplots(rows=display_rows, cols=1, shared_xaxes=True, vertical_spacing=0.06)
         for idx, lead in enumerate(display_leads, start=1):
@@ -455,7 +332,7 @@ with col1:
             if not result.available:
                 st.caption(f"⚠️ {result.reason}")
                 continue
-            st.write(result.summary)
+            st.write(eeg_live_source.channel_summary(result, interpretation_applies))
             band_table = {
                 'Delta': f"{result.band_power['delta']:.2f}",
                 'Theta': f"{result.band_power['theta']:.2f}",
@@ -496,13 +373,15 @@ with col2:
             "Banda dominante", overall.dominant_band.upper(),
             provenance=BADGES.HEURISTIC,
         )
-        render_metric_card(
-            "Clasificación", overall.classification,
-            provenance=BADGES.HEURISTIC,
-        )
+        if interpretation_applies:
+            render_metric_card("Clasificación", overall.classification, provenance=BADGES.HEURISTIC)
+        else:
+            render_metric_card("Clasificación", None, unavailable_reason=eeg_live_source.REAL_EEG_NOTE)
         st.markdown("### Interpretación Clínica")
         st.write(
             "Este laboratorio simula ondas EEG típicas y las clasifica en patrones de alerta, relajación y sueño."
+            if interpretation_applies else
+            "Con EEG real se muestran las mediciones (potencias, cocientes con su fuente) sin traducirlas a un estado."
         )
         st.markdown("### Hallazgos clínicos EEG")
         # Consolidación Visual Tanda 3 (2026-09-21): DAR/TBR/BAR ya no se
@@ -555,7 +434,8 @@ with col2:
                 'BAR (Beta/Alfa)', None,
                 unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
             )
-        for key, value in overall.findings.items():
+        shown_findings = eeg_live_source.visible_findings(overall.findings, interpretation_applies)
+        for key, value in shown_findings.items():
             if key in _ratio_keys:
                 continue
             st.write(f"**{key}:** {value}")
@@ -565,12 +445,12 @@ with col2:
                 'data_source': data_source,
                 'fs': fs,
                 'dominant_band': overall.dominant_band,
-                'classification': overall.classification,
+                'classification': overall.classification if interpretation_applies else 'no se interpreta (EEG real)',
             }
             for bname, val in overall.band_power.items():
                 metrics[f'band_{bname}'] = float(val)
-            notes = f"EEG Neuro Lab autogenerated report. {overall.findings.get('Clinical Note', '')}"
-            findings = overall.findings
+            notes = f"EEG Neuro Lab autogenerated report. {shown_findings.get('Clinical Note', '')}"
+            findings = shown_findings
 
             # Consolidación Visual Tanda 2 (2026-09-21): antes `findings`
             # llevaba el badge+etiqueta de DAR/TBR (heredado de
@@ -690,20 +570,23 @@ with col2:
         # su gate, chi. El gate de `_neurological_state()` (`alpha_power`/
         # `beta_power` presentes) es lo que decide "hay cerebro que escribir".
         #
-        # Procedencia: `Provenance.SIMULACION` -- señal generada por
-        # `EegSignalGenerator` (o CSV cargado, tampoco un sensor en vivo
-        # verificado), nunca un sensor real.
+        # Procedencia (2026-11-14): `Provenance.SENSOR_REAL` solo con un equipo
+        # real transmitiendo en este momento (`live_source.twin_provenance`);
+        # todo lo demás (generador, CSV, simuladores, LSL no verificable) se
+        # guarda como `Provenance.SIMULACION`, con el origen en `source_detail`.
+        # Un canal en vivo con avisos de calidad no se guarda (`save_blocker`).
         st.markdown("---")
         st.markdown("#### 🔗 Guardar estado al gemelo")
         eeg_lab_channel = analysis_cards[0][0]
+        twin_prov, twin_note = eeg_live_source.twin_provenance(live)
         st.caption(
             f"Escribe la potencia de banda real (delta/theta/alpha/beta/gamma) del canal "
             f"**{eeg_lab_channel}** al Unified Physiological State, bajo el mismo paciente que "
             "renderiza Digital Twin OS -- su cerebro reaccionará a estos valores la próxima vez "
-            "que abras esa página o pulses \"Guardar este momento\" ahí. Procedencia: simulación "
-            "(señal generada, no un sensor real)."
+            f"que abras esa página o pulses \"Guardar este momento\" ahí. {twin_note}"
         )
         if st.button("💾 Guardar estado al gemelo", key="eeg_lab_save_to_ups"):
+            blocker = eeg_live_source.save_blocker(live, eeg_lab_channel)
             # Arco 2A (2026-09-11): `overall` puede llegar `available=False`
             # (degradación tipo-PLV -- rechazo de artefactos dejó menos
             # señal limpia que `MIN_CLEAN_EEG_DURATION_S`). El botón no
@@ -716,6 +599,8 @@ with col2:
                     f"Sin señal EEG limpia suficiente para guardar al gemelo -- {overall.reason}. "
                     "No hay banda de potencia real que persistir."
                 )
+            elif blocker:
+                st.warning(f"⛔ No se guarda al gemelo: {blocker}")
             else:
                 session_factory = get_active_session_factory()
                 patient_id = get_active_patient_id()
@@ -756,8 +641,9 @@ with col2:
                 eeg_organism = DigitalTwinOrganism()
                 eeg_organism.update_from_sensors({"eeg": eeg_sensors})
                 eeg_ups_state = from_digital_twin_organism(
-                    eeg_organism, patient_id, provenance=Provenance.SIMULACION,
-                    source_detail=f"eeg_neuro_lab:canal={eeg_lab_channel}:banda_dominante={overall.dominant_band}",
+                    eeg_organism, patient_id, provenance=twin_prov,
+                    source_detail=(f"eeg_neuro_lab:canal={eeg_lab_channel}:banda_dominante={overall.dominant_band}"
+                                   f":fuente={data_source}"),
                 )
                 with session_factory() as eeg_ups_session:
                     eeg_snapshot_id = save_state(eeg_ups_session, eeg_ups_state)
