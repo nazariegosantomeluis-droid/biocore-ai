@@ -17,7 +17,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 |---|---|---|
 | Digital Twin OS | Digital Twin OS | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
 | Learning Hub | Academia Clínica | `app/supermodules/academia/` (preguntas con fuente en `educational/quiz_bank.py`, que comparten la pestaña 12 Derivaciones y el EEG Neuro Lab) |
-| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
+| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`; trazado de `src/signals/ecg/twelve_lead_synth.py`, lectura por criterios de `src/signals/ecg/twelve_lead_measure.py`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
 | Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
 | Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
 | Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/` |

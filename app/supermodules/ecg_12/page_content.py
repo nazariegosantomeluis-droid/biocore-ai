@@ -18,12 +18,20 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(o
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgParameters, generate_12lead_example
-from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
-from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
+# 2026-11-14 (Art. I): el trazado sale de `twelve_lead_synth` (12 derivaciones de verdad, con la verdad aparte) y
+# el análisis de `twelve_lead_measure` (mide y compara con criterios citados). Antes: `TwelveLeadEcgGenerator`
+# (QRS de 160 ms aun en «Normal», bloqueos que solo escalaban amplitudes), FA/flutter/WPW/QT largo como UNA
+# señal copiada a las 12 derivaciones, y `TwelveLeadEcgAnalyzer` (bloqueos por amplitud, «ST» donde había
+# menos señal). Ver CHANGELOG.md.
+from src.signals.ecg.twelve_lead_synth import generate_twelve_lead
+from src.signals.ecg.twelve_lead_measure import POPULATIONS, analyze_twelve_lead
+from app.supermodules.ecg_12.report_view import render_twelve_lead_report
 from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM, get_type
 from clinical.calculators import QRS_AXIS_CITATION
-from educational.quiz_bank import ECG12_QUESTIONS, KUSUMOTO_2018, RAUTAHARJU_2009, SURAWICZ_2009, WAGNER_2009
+from educational.quiz_bank import ECG12_QUESTIONS
+from clinical.ecg_references import (
+    DREW_2010, KUSUMOTO_2018, PAGE_2015, RAUTAHARJU_2009, SURAWICZ_2009, VAN_GELDER_2024, WAGNER_2009,
+)
 
 # Unificación 1 y 3: la FC de estas condiciones sale de la fuente única de tipos de ritmo, no de un
 # número propio de esta página (antes: FA 112 fijo, flutter 150 fijo, y "Bradicardia"/"Taquicardia
@@ -76,7 +84,7 @@ def declared_range_note(condition_short: str, slider_hr: float = None):
 # archivo (retirado más abajo) y los hex sueltos de `.warning-box`/
 # `.normal-box` (`#dc2626`/`#059669`, que ni siquiera coincidían con
 # `PALETTE.CRITICAL`/`PALETTE.STABLE`).
-from app.utils.design_system import BADGES, PALETTE, render_metric_card
+from app.utils.design_system import BADGES, render_metric_card
 
 
 def load_ecg_csv_file(uploaded_file) -> Dict[str, np.ndarray]:
@@ -155,48 +163,15 @@ def bandpass_filter_signal(signal: np.ndarray, fs: float, lowcut: float = 0.5, h
         return signal
 
 
-def simulate_device_capture(condition_short: str, hr: float = 75) -> Dict[str, np.ndarray]:
-    """Simulate device acquisition and return a full 12-lead record. `hr` es `generation_hr(...)`."""
-    if condition_short in ['af', 'flutter', 'wpw', 'long_qt']:
-        if condition_short == 'af':
-            signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(duration=10.0, sampling_rate=500, ventricular_rate=canonical_hr('af'))
-        elif condition_short == 'flutter':
-            signal, time = AdvancedEcgPatterns.generate_atrial_flutter(duration=10.0, sampling_rate=500, flutter_rate=2 * canonical_hr('flutter'), ventricular_rate=canonical_hr('flutter'))
-        elif condition_short == 'wpw':
-            signal, time = AdvancedEcgPatterns.generate_wpw_pattern(duration=10.0, sampling_rate=500, heart_rate=hr)
-        else:
-            signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(duration=10.0, sampling_rate=500, heart_rate=hr, qt_prolongation=1.7)
+STEMI_SCENARIOS = ("anterior_stemi", "inferior_stemi", "lateral_stemi")
+OWN_QRS_SCENARIOS = ("rbbb", "lbbb", "wpw")   # fijan su propio QRS (≥ 120 ms)
 
-        return {
-            'I': signal * 0.8,
-            'II': signal,
-            'III': signal * 0.9,
-            'aVR': -signal,
-            'aVL': signal * 0.7,
-            'aVF': signal * 0.85,
-            'V1': signal * 0.6,
-            'V2': signal * 0.65,
-            'V3': signal * 0.7,
-            'V4': signal * 0.75,
-            'V5': signal * 0.8,
-            'V6': signal * 0.85,
-            'time': time
-        }
-    else:
-        generator = TwelveLeadEcgGenerator(sampling_rate=500)
-        ecg_params = EcgParameters(
-            heart_rate=hr,
-            p_amplitude=0.15,
-            qrs_duration=0.08,
-            st_segment=0.0,
-            anterior_mi='anterior' in condition_short,
-            inferior_mi='inferior' in condition_short,
-            lateral_mi='lateral' in condition_short,
-            rbbb_pattern='rbbb' in condition_short,
-            lbbb_pattern='lbbb' in condition_short,
-            lvh_pattern='lvh' in condition_short,
-        )
-        return generator.generate_ecg(duration=10.0, params=ecg_params)
+
+def simulate_device_capture(condition_short: str, hr: float = 75, **kwargs):
+    """Captura simulada «tipo dispositivo»: el mismo generador con más ruido (0.025 mV) y deriva de la línea de
+    base (0.05 mV a 0.25 Hz). Devuelve (derivaciones, verdad). `hr` es `generation_hr(...)`."""
+    return generate_twelve_lead(condition_short, hr, 10.0, 500.0, noise_mv=0.025, baseline_wander_mv=0.05,
+                                seed=1, **kwargs)
 
 # `st.set_page_config()` y `render_sidebar_navigation()` retirados
 # (2026-08-20, Capa 2 Fase 2.1, cierre): vestigios de la arquitectura
@@ -226,9 +201,9 @@ st.markdown(
     "Registra la actividad eléctrica del corazón desde **12 ángulos distintos**: "
     "**I, II, III** (miembros) · **aVR, aVL, aVF** (aumentadas) · **V1-V6** (precordiales, del "
     "lado derecho V1 al izquierdo V6 del corazón). Cada una lo mira desde un ángulo distinto, así "
-    "que combinarlas permite **localizar** un problema, no solo detectarlo: una elevación ST en "
-    "V1-V4 apunta a la arteria descendente anterior (territorio anterior); en II, III y aVF, a la "
-    "coronaria derecha (territorio inferior)."
+    "que combinarlas permite **localizar** un problema, no solo detectarlo: una elevación del ST en "
+    "V1-V4 apunta a la arteria descendente anterior (cara anterior); solo en II, III y aVF, a la "
+    "coronaria derecha o a la circunfleja (cara inferior), según la AHA/ACCF/HRS 2009 (parte VI)."
 )
 
 # Two column layout
@@ -239,11 +214,11 @@ with col1:
         "🩺 Escenario clínico",
         [
             "Normal - Ritmo sinusal normal",
-            "Taquicardia sinusal - HR > 100 bpm",
-            "Bradicardia sinusal - HR < 60 bpm",
-            "🔴 STEMI Anterior - Infarto anterior (LAD)",
-            "🔴 STEMI Inferior - Infarto inferior (RCA)",
-            "🔴 STEMI Lateral - Infarto lateral (LCx)",
+            "Taquicardia sinusal - FC > 100 lpm",
+            "Bradicardia sinusal - FC < 60 lpm por convención (< 50 según la guía de 2018)",
+            "🔴 STEMI Anterior - Infarto anterior (DA)",
+            "🔴 STEMI Inferior - Infarto inferior (CD o Cx)",
+            "🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)",
             "Bloqueo de rama derecha (RBBB)",
             "Bloqueo de rama izquierda (LBBB)",
             "Hipertrofia ventricular izquierda (LVH)",
@@ -256,11 +231,11 @@ with col1:
 
     condition_map = {
         "Normal - Ritmo sinusal normal": "normal",
-        "Taquicardia sinusal - HR > 100 bpm": "tachycardia",
-        "Bradicardia sinusal - HR < 60 bpm": "bradycardia",
-        "🔴 STEMI Anterior - Infarto anterior (LAD)": "anterior_stemi",
-        "🔴 STEMI Inferior - Infarto inferior (RCA)": "inferior_stemi",
-        "🔴 STEMI Lateral - Infarto lateral (LCx)": "lateral_stemi",
+        "Taquicardia sinusal - FC > 100 lpm": "tachycardia",
+        "Bradicardia sinusal - FC < 60 lpm por convención (< 50 según la guía de 2018)": "bradycardia",
+        "🔴 STEMI Anterior - Infarto anterior (DA)": "anterior_stemi",
+        "🔴 STEMI Inferior - Infarto inferior (CD o Cx)": "inferior_stemi",
+        "🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)": "lateral_stemi",
         "Bloqueo de rama derecha (RBBB)": "rbbb",
         "Bloqueo de rama izquierda (LBBB)": "lbbb",
         "Hipertrofia ventricular izquierda (LVH)": "lvh",
@@ -271,7 +246,8 @@ with col1:
     }
 
     signal_source = "Generar señal sintética"
-    heart_rate, p_amplitude, qrs_duration, st_elevation = 75, 0.15, 80, 0.0
+    heart_rate, p_amplitude, qrs_duration, st_elevation = 75, 0.15, 80, 0.3
+    condition_short_ui = condition_map.get(condition, "normal")
     apply_filter = True
     uploaded_ecg = None
 
@@ -304,14 +280,20 @@ with col1:
             qrs_duration = st.slider(
                 "Duración QRS (ms)",
                 min_value=60, max_value=180, value=80, step=10,
-                help="Normal: 60-120 ms",
+                help="Para los escenarios de QRS estrecho. Normal: hasta 110 ms (Surawicz 2009). Los bloqueos "
+                     "de rama y el WPW fijan el suyo (≥ 120 ms). Con más de 110 ms el análisis lo dirá.",
                 key="ecglab_12_qrs_duration_slider",
+                disabled=condition_short_ui in OWN_QRS_SCENARIOS,
             )
 
+            # 2026-11-14: antes -0.5 a 0.5 con 0 por defecto, así que los tres «STEMI» salían sin elevación.
             st_elevation = st.slider(
-                "Elevación ST (mV)",
-                min_value=-0.5, max_value=0.5, value=0.0, step=0.05,
-                help="Positivo: elevación ST (STEMI)\nNegativo: depresión ST"
+                "Elevación del ST en el punto J (mV, solo infartos)",
+                min_value=0.0, max_value=0.6, value=0.3, step=0.05,
+                help="0.3 mV = referencia del escenario. El umbral de la ESC 2023 es ≥ 0.1 mV en dos derivaciones "
+                     "contiguas (más en V2-V3): bájalo para ver cuándo deja de cumplirse.",
+                key="ecglab_12_st_slider",
+                disabled=condition_short_ui not in STEMI_SCENARIOS,
             )
 
         signal_source = st.radio(
@@ -346,7 +328,8 @@ with col1:
 
         if signal_source == "Simular captura de dispositivo":
             st.session_state.generate_ecg = True
-            st.info("Se simulará una captura tipo dispositivo y se aplicarán todas las inferencias AI y métricas clínicas automáticamente.")
+            st.info("Se simulará una captura tipo dispositivo (el mismo trazado con más ruido y deriva de la línea "
+                    "de base) y se le aplicará el mismo análisis por criterios.")
         elif signal_source == "Cargar ECG desde archivo CSV":
             st.info("Cuando cargue un archivo, el sistema extraerá las derivaciones disponibles y ejecutará el análisis automático de inmediato.")
 
@@ -367,92 +350,29 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
     hr = generation_hr(condition_short, heart_rate)  # la FC con que se genera Y la que muestra la métrica
     ecg_data = {}
 
+    truth = None
     if signal_source == "Cargar ECG desde archivo CSV" and uploaded_ecg is not None:
+        # 2026-11-14 (Art. I): antes, un archivo con solo II se «completaba» copiando II escalada a las otras 11
+        # derivaciones. Ahora se analiza lo que trae; el análisis dice qué no puede evaluar sin las demás.
         ecg_data = load_ecg_csv_file(uploaded_ecg)
-        if len(ecg_data) > 0:
-            if 'II' in ecg_data and 'I' not in ecg_data:
-                base = ecg_data['II']
-                time = ecg_data.get('time', np.arange(len(base)) / 500.0)
-                ecg_data = {
-                    'I': base * 0.8,
-                    'II': base,
-                    'III': base * 0.9,
-                    'aVR': -base,
-                    'aVL': base * 0.7,
-                    'aVF': base * 0.85,
-                    'V1': base * 0.6,
-                    'V2': base * 0.65,
-                    'V3': base * 0.7,
-                    'V4': base * 0.75,
-                    'V5': base * 0.8,
-                    'V6': base * 0.85,
-                    'time': time
-                }
-            elif 'time' not in ecg_data:
-                first_lead = next((lead for lead in ['I', 'II', 'III', 'V1'] if lead in ecg_data), None)
-                length = len(ecg_data[first_lead]) if first_lead else 0
-                ecg_data['time'] = np.arange(length) / 500.0
+        if len(ecg_data) > 0 and 'time' not in ecg_data:
+            first_lead = next((lead for lead in ['I', 'II', 'III', 'V1'] if lead in ecg_data), None)
+            length = len(ecg_data[first_lead]) if first_lead else 0
+            ecg_data['time'] = np.arange(length) / 500.0
 
     # Trazado cargado de archivo: no se generó con ninguna FC, así que la métrica no puede mostrar el slider.
     from_file = len(ecg_data) > 0
 
+    generator_args = dict(qrs_ms=float(qrs_duration), p_amplitude_mv=float(p_amplitude),
+                          st_elevation_mv=float(st_elevation))
     if signal_source == "Simular captura de dispositivo" and len(ecg_data) == 0:
-        ecg_data = simulate_device_capture(condition_short, hr)
+        ecg_data, truth = simulate_device_capture(condition_short, hr, **generator_args)
 
     if signal_source == "Generar señal sintética" or len(ecg_data) == 0:
-        if condition_short in ["af", "flutter", "wpw", "long_qt"]:
-            from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
-
-            if condition_short == "af":
-                signal, time = AdvancedEcgPatterns.generate_atrial_fibrillation(
-                    duration=10.0, sampling_rate=500, ventricular_rate=canonical_hr("af")
-                )
-            elif condition_short == "flutter":
-                signal, time = AdvancedEcgPatterns.generate_atrial_flutter(
-                    duration=10.0, sampling_rate=500, flutter_rate=2 * canonical_hr("flutter"),
-                    ventricular_rate=canonical_hr("flutter"),
-                )
-            elif condition_short == "wpw":
-                signal, time = AdvancedEcgPatterns.generate_wpw_pattern(
-                    duration=10.0, sampling_rate=500, heart_rate=hr
-                )
-            else:  # long_qt
-                signal, time = AdvancedEcgPatterns.generate_long_qt_pattern(
-                    duration=10.0, sampling_rate=500, heart_rate=hr, qt_prolongation=1.7
-                )
-
-            ecg_data = {
-                'I': signal * 0.8,
-                'II': signal,
-                'III': signal * 0.9,
-                'aVR': -signal,
-                'aVL': signal * 0.7,
-                'aVF': signal * 0.85,
-                'V1': signal * 0.6,
-                'V2': signal * 0.65,
-                'V3': signal * 0.7,
-                'V4': signal * 0.75,
-                'V5': signal * 0.8,
-                'V6': signal * 0.85,
-                'time': time
-            }
-        else:
-            generator = TwelveLeadEcgGenerator(sampling_rate=500)
-            ecg_params = EcgParameters(
-                heart_rate=hr,
-                p_amplitude=p_amplitude,
-                qrs_duration=qrs_duration/1000,  # Convert ms to seconds
-                st_segment=st_elevation,
-                anterior_mi="anterior" in condition_short,
-                inferior_mi="inferior" in condition_short,
-                lateral_mi="lateral" in condition_short,
-                rbbb_pattern="rbbb" in condition_short,
-                lbbb_pattern="lbbb" in condition_short,
-                lvh_pattern="lvh" in condition_short,
-            )
-            ecg_data = generator.generate_ecg(duration=10.0, params=ecg_params)
+        ecg_data, truth = generate_twelve_lead(condition_short, hr, 10.0, 500.0, seed=0, **generator_args)
 
     st.session_state.ecg_data = ecg_data
+    st.session_state.ecg_truth = truth
     st.session_state.condition = condition_short
     # FC del trazado realmente generado (`generation_hr`); `None` si el trazado vino de un archivo.
     st.session_state.heart_rate = None if from_file else hr
@@ -471,6 +391,9 @@ if "ecg_data" in st.session_state:
 
     leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
     signals = {lead: ecg_data.get(lead, np.zeros_like(time)) for lead in leads}
+    absent = [lead for lead in leads if lead not in ecg_data]
+    if absent:
+        st.caption("No vienen en el registro (se dibujan planas, no son datos): " + ", ".join(absent) + ".")
     if 'apply_filter' in locals() and apply_filter:
         signals = {lead: bandpass_filter_signal(signal, 500) for lead, signal in signals.items()}
 
@@ -487,95 +410,14 @@ if "ecg_data" in st.session_state:
     if 'signal_source' in st.session_state:
         st.markdown(f"*Origen de la señal: {st.session_state.signal_source}*")
 
-    analyzer = TwelveLeadEcgAnalyzer()
-    interpretation = analyzer.analyze_12lead(ecg_data)
-
-    # Narrative summary built directly from the analyzer's own computed
-    # fields (axis degrees, rhythm, ST findings) — no invented text, just a
-    # readable sentence stitched from the same data shown in detail below.
-    st_summary = (
-        f", con {len(interpretation.st_findings)} derivación(es) mostrando cambios del segmento ST"
-        if interpretation.st_findings else ", sin cambios significativos del segmento ST"
+    population_labels = {"Mostrar para quién se cumple": None}
+    population_labels.update({label.capitalize(): key for key, label in POPULATIONS.items()})
+    population_choice = st.radio(
+        "Umbrales que dependen del sexo y la edad (ST en V2-V3 y QTc):", list(population_labels),
+        horizontal=True, key="ecglab_12_population",
     )
-    block_summary = (
-        f" y {len(interpretation.conduction_blocks)} bloqueo(s) de conducción detectado(s)"
-        if interpretation.conduction_blocks else ""
-    )
-    st.markdown(
-        f"> **{interpretation.rhythm}**, eje QRS de **{interpretation.qrs_axis.axis_degrees:.0f}°** "
-        f"({interpretation.qrs_axis.category}){st_summary}{block_summary}. "
-        f"{interpretation.clinical_significance}"
-    )
-
-    # Display clinical summary
-    col_analysis1, col_analysis2 = st.columns([1.5, 1])
-
-    with col_analysis1:
-        # Primary findings
-        st.markdown("### 🎯 Hallazgos Principales")
-
-        # Diagnostic result -- Consolidación Visual Tanda 3 (2026-09-21):
-        # `.warning-box`/`.normal-box` (hex propios `#dc2626`/`#059669`,
-        # retirados con el `<style>` de arriba) -> mismo banner, color
-        # inline desde `PALETTE.CRITICAL`/`PALETTE.STABLE` directamente.
-        # NO se enruta por `render_metric_card`: `primary_diagnosis` es
-        # texto de diagnóstico libre de `TwelveLeadEcgAnalyzer` (sin un
-        # `classify_*()` de 3 niveles que lo respalde), y forzarlo por la
-        # tarjeta de métrica sin `classification=` habría aplanado el color
-        # a NEUTRAL siempre -- una regresión visual real (perder la
-        # distinción crítico/normal), no solo un re-skin. Ver CHANGELOG.md.
-        if "INFARCTION" in interpretation.primary_diagnosis:
-            st.markdown(
-                f'<div style="background:{PALETTE.CRITICAL}; padding:15px; border-radius:8px; color:white;">'
-                f'🔴 CRÍTICO: {interpretation.primary_diagnosis}</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'<div style="background:{PALETTE.STABLE}; padding:15px; border-radius:8px; color:white;">'
-                f'✅ {interpretation.primary_diagnosis}</div>',
-                unsafe_allow_html=True,
-            )
-
-        # QRS Axis
-        st.markdown(f"**Eje QRS:** {interpretation.qrs_axis.description}")
-
-        # Rhythm
-        st.markdown(f"**Ritmo:** {interpretation.rhythm}")
-
-        # ST Findings
-        if interpretation.st_findings:
-            st.markdown("**Elevaciones/Depresiones ST:**")
-            for f in interpretation.st_findings:
-                st.write(f"  • {f.lead}: {f.elevation_mv:+.2f} mV ({f.location})")
-
-        # Conduction blocks
-        if interpretation.conduction_blocks:
-            st.markdown("**Bloqueos de Conducción:**")
-            for b in interpretation.conduction_blocks:
-                st.write(f"  • {b.block_type}: {b.description}")
-
-        # Wave abnormalities
-        if interpretation.wave_abnormalities:
-            st.markdown("**Anomalías de Ondas:**")
-            for w in interpretation.wave_abnormalities:
-                st.write(f"  • {w.wave_type} wave in {', '.join(w.leads_affected)}: {w.abnormality}")
-
-    with col_analysis2:
-        st.markdown("### 📋 Recomendaciones Clínicas")
-
-        # Clinical significance
-        st.info(interpretation.clinical_significance)
-
-        # Recommendations
-        st.markdown("**Acciones Recomendadas:**")
-        for rec in interpretation.recommendations[:3]:
-            st.write(f"  {rec}")
-
-        if len(interpretation.recommendations) > 3:
-            with st.expander("Ver más recomendaciones"):
-                for rec in interpretation.recommendations[3:]:
-                    st.write(f"  {rec}")
+    report = analyze_twelve_lead(ecg_data, population=population_labels[population_choice])
+    render_twelve_lead_report(report, st.session_state.get("ecg_truth"))
 
     st.markdown("---")
 
@@ -680,36 +522,27 @@ with col2:
     st.markdown("---")
 
     st.markdown("### 💓 Patrones Avanzados")
-    with st.expander("Arritmias Supraventriculares"):
-        st.write("""
-        **Fibrilación Auricular (AF)**
-        - Ausencia de ondas P definidas
-        - Baseline con fibrilación fina/gruesa
-        - Ritmo irregularmente irregular
-        - FC variable (100-160 típico)
-
-        **Flutter Auricular**
-        - Ondas flutter regulares (sawtooth)
-        - FC > 250 bpm auricular
-        - VR depende de AV bloqueo (2:1, 3:1, etc.)
-        - Ritmo regular/regularizado
-        """)
+    # 2026-11-14 (Art. I): antes listas sin fuente («FC 100-160 típico», «ST depression secundaria», «U waves
+    # visibles»...). Queda lo que dicen las fuentes, citadas.
+    with st.expander("Arritmias supraventriculares"):
+        st.markdown(
+            "**Fibrilación auricular:** sin ondas P discernibles y regulares, con activación ventricular "
+            "irregular (sin patrón en los RR). Un ECG de 12 derivaciones dura 10 s; con dispositivos de una o "
+            "varias derivaciones, el consenso ha sido pedir 30 s o más.\n\n"
+            "**Flutter auricular típico:** ondas F «en sierra», predominantemente negativas en II, III y aVF; "
+            "frecuencia auricular típica de 300 lpm (ciclo de 200 ms), que puede ser menor con fármacos o "
+            "cicatrices. Con conducción 2:1 la frecuencia ventricular queda en la mitad."
+        )
+        st.caption(f"Fuentes: {VAN_GELDER_2024} (secciones 3.1 y 3.2); {PAGE_2015} (tabla 3)")
 
     with st.expander("Síndromes especiales"):
-        st.write("""
-        **WPW (Wolff-Parkinson-White)**
-        - PR corto (<120 ms)
-        - Delta wave (slurred QRS onset)
-        - QRS prolongado (>120 ms)
-        - ST depression secundaria
-        - Riesgo de AF preexcitada
-
-        **Long QT Syndrome**
-        - QT muy prolongado (>500 ms)
-        - T wave prominente/bífido
-        - U waves visibles
-        - Riesgo de torsades de pointes
-        """)
+        st.markdown(
+            "**Preexcitación ventricular (patrón de Wolff-Parkinson-White):** PR < 120 ms en ritmo sinusal, "
+            "empastamiento inicial del QRS (onda delta) y QRS > 120 ms.\n\n"
+            "**QT largo:** QTc prolongado si es ≥ 450 ms en hombres o ≥ 460 ms en mujeres; con QTc ≥ 500 ms el "
+            "riesgo de torsade de pointes es 2 a 3 veces mayor, sin un umbral a partir del cual ocurra con certeza."
+        )
+        st.caption(f"Fuentes: {SURAWICZ_2009}; {RAUTAHARJU_2009}; {DREW_2010}")
 
     st.markdown("---")
 

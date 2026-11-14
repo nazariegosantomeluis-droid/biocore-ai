@@ -175,6 +175,8 @@ Las fórmulas y escalas clínicas de `clinical/calculators.py` llevan su propia 
 
 Las preguntas de los cuestionarios (`educational/quiz_bank.py`) llevan su fuente en el campo `source` de cada una, leída del documento original el 2026-11-14; no se repiten aquí.
 
+Las referencias clínicas del ECG (`clinical/ecg_references.py`) las comparten el banco de preguntas y el analizador de 12 derivaciones (`src/signals/ecg/twelve_lead_measure.py`), con la misma fecha de lectura; no se repiten aquí.
+
 ---
 
 ## 6. PENDIENTE (no se pudo obtener de su fuente original)

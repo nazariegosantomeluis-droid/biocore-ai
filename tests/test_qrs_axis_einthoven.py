@@ -1,6 +1,7 @@
 """
-Eje QRS de `TwelveLeadEcgAnalyzer._determine_qrs_axis` contra verdad de
-referencia INDEPENDIENTE (2026-10-22).
+Eje QRS (`qrs_axis_from_leads`, antes `TwelveLeadEcgAnalyzer._determine_qrs_axis`)
+contra verdad de referencia INDEPENDIENTE (2026-10-22; el analizador viejo se
+retiró el 2026-11-14 y la fórmula sigue siendo `qrs_axis_from_net`).
 
 Ningún esperado sale de la función bajo prueba ni de una arcotangente sobre
 I/aVF (esa circularidad es la que ocultó `atan2(aVF, I)`). Las tres fuentes
@@ -20,7 +21,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer
+from src.signals.ecg.twelve_lead_measure import analyze_twelve_lead, qrs_axis_from_leads
 
 FS = 500
 T = np.arange(0, 1.0, 1 / FS)
@@ -45,7 +46,7 @@ def _from_amplitudes(a_i, a_ii):
 
 
 def _axis(lead_i, lead_ii, avf):
-    return TwelveLeadEcgAnalyzer()._determine_qrs_axis(lead_i, avf, lead_ii)
+    return qrs_axis_from_leads(lead_i, avf)
 
 
 def _three_lead_rule(lead_i, lead_ii, avf):
@@ -133,28 +134,41 @@ def test_every_half_degree_matches_the_three_lead_rule():
 
 
 # --- 5. Lo que ve el usuario: el análisis completo ---------------------------
+# (2026-11-14) El analizador nuevo mide el eje en el QRS del latido mediano de un registro con varios latidos;
+# ya no inventa «diagnósticos diferenciales» por el eje (el viejo daba bloqueo fascicular, infarto inferior y
+# WPW para CUALQUIER desviación izquierda).
 
-def test_full_analysis_reports_lad_and_its_differentials_at_minus_32():
-    lead_i, lead_ii, avf = _from_vector(-32.0)
-    lead_iii = lead_ii - lead_i
-    signals = {
-        "time": T, "I": lead_i, "II": lead_ii, "III": lead_iii,
-        "aVR": -(lead_i + lead_ii) / 2, "aVL": lead_i - lead_ii / 2, "aVF": avf,
-        **{f"V{k}": R * (k - 3) / 3 for k in range(1, 7)},
-    }
-    interp = TwelveLeadEcgAnalyzer().analyze_12lead(signals)
-    assert interp.qrs_axis.category == "LAD"
-    assert interp.qrs_axis.description == "Left Axis Deviation: -32°"
-    assert "Left anterior fascicular block" in interp.differential_diagnoses
-
-
-def test_extreme_axis_gets_no_left_axis_differentials():
-    leads = _from_vector(-135.0)
-    interp_axis = _axis(*leads)
-    assert interp_axis.category == "Extreme"
-    diffs = TwelveLeadEcgAnalyzer()._generate_differential_diagnoses([], [], interp_axis)
-    assert "Left anterior fascicular block" not in diffs
+def _record(theta_deg, beats=8, rr_s=0.8):
+    """Registro de varios latidos con el QRS de `_from_vector` (I, II y las demás por Einthoven/Goldberger)."""
+    lead_i_beat, lead_ii_beat, _ = _from_vector(theta_deg)
+    n = int(beats * rr_s * FS)
+    lead_i, lead_ii = np.zeros(n), np.zeros(n)
+    for b in range(beats):
+        start = int(b * rr_s * FS)
+        seg = slice(start, min(n, start + T.size))
+        lead_i[seg] += lead_i_beat[: seg.stop - seg.start]
+        lead_ii[seg] += lead_ii_beat[: seg.stop - seg.start]
+    return {"time": np.arange(n) / FS, "I": lead_i, "II": lead_ii}
 
 
-def test_missing_leads_still_unknown():
-    assert TwelveLeadEcgAnalyzer()._determine_qrs_axis(None, None, None).category == "Unknown"
+def test_full_analysis_reports_left_axis_deviation_at_minus_32():
+    report = analyze_twelve_lead(_record(-32.0))
+    assert report.axis is not None and report.axis.category == "LAD"
+    assert abs(report.axis.axis_degrees + 32.0) < 3.0
+    crit = report.criterion("axis_deviation")
+    assert crit.met is True and "desviado a la izquierda" in crit.detail
+
+
+def test_extreme_axis_is_called_extreme_not_left():
+    axis = _axis(*_from_vector(-135.0))
+    assert axis.category == "Extreme"
+    report = analyze_twelve_lead(_record(-135.0))
+    assert "extremo" in report.criterion("axis_deviation").detail
+
+
+def test_missing_leads_give_no_axis():
+    lead_i, lead_ii, _ = _from_vector(60.0)
+    record = _record(60.0)
+    report = analyze_twelve_lead({"time": record["time"], "II": record["II"]})
+    assert report.axis is None
+    assert any(u.startswith("Eje:") for u in report.unavailable)

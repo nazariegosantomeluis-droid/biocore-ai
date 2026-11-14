@@ -83,54 +83,13 @@ def balance_positions(bank: List[QuizQuestion], seed_text: str) -> List[QuizQues
 
 
 # --- Fuentes (leídas del documento original el 2026-11-14) -------------------------------------
-SURAWICZ_2009 = (
-    "Surawicz B, Childers R, Deal BJ, Gettes LS. AHA/ACCF/HRS recommendations for the standardization and "
-    "interpretation of the electrocardiogram, Part III: intraventricular conduction disturbances. "
-    "Circulation 2009;119:e235–e240"
+# Las del ECG viven en `clinical/ecg_references.py` (una sola copia; también las usa el analizador de 12
+# derivaciones).
+from clinical.ecg_references import (  # noqa: E402
+    AL_KHATIB_2017, BYRNE_2023, DREW_2010, KLIGFIELD_2007, KUSUMOTO_2018, RAUTAHARJU_2009, SCHULZ_MENGER_2025,
+    SOKOLOW_LYON_1949, SURAWICZ_2009, VAN_GELDER_2024, WAGNER_2009,
 )
-RAUTAHARJU_2009 = (
-    "Rautaharju PM, Surawicz B, Gettes LS. AHA/ACCF/HRS recommendations for the standardization and "
-    "interpretation of the electrocardiogram, Part IV: the ST segment, T and U waves, and the QT interval. "
-    "Circulation 2009;119:e241–e250"
-)
-WAGNER_2009 = (
-    "Wagner GS, Macfarlane P, Wellens H, et al. AHA/ACCF/HRS recommendations for the standardization and "
-    "interpretation of the electrocardiogram, Part VI: acute ischemia/infarction. Circulation 2009;119:e262–e270"
-)
-KLIGFIELD_2007 = (
-    "Kligfield P, Gettes LS, Bailey JJ, et al. Recommendations for the standardization and interpretation of "
-    "the electrocardiogram, Part I: the electrocardiogram and its technology. Circulation 2007;115:1306–1324"
-)
-DREW_2010 = (
-    "Drew BJ, Ackerman MJ, Funk M, et al. Prevention of torsade de pointes in hospital settings: a scientific "
-    "statement from the American Heart Association and the American College of Cardiology Foundation. "
-    "Circulation 2010;121:1047–1060"
-)
-AL_KHATIB_2017 = (
-    "Al-Khatib SM, Stevenson WG, Ackerman MJ, et al. 2017 AHA/ACC/HRS guideline for management of patients with "
-    "ventricular arrhythmias and the prevention of sudden cardiac death: executive summary. J Am Coll Cardiol "
-    "2017. doi:10.1016/j.jacc.2017.10.053"
-)
-KUSUMOTO_2018 = (
-    "Kusumoto FM, Schoenfeld MH, et al. 2018 ACC/AHA/HRS guideline on the evaluation and management of patients "
-    "with bradycardia and cardiac conduction delay. J Am Coll Cardiol 2018. doi:10.1016/j.jacc.2018.10.044"
-)
-BYRNE_2023 = (
-    "Byrne RA, Rossello X, Coughlan JJ, et al. 2023 ESC Guidelines for the management of acute coronary "
-    "syndromes. Eur Heart J Acute Cardiovasc Care 2024;13:55–161 (publicada también en Eur Heart J)"
-)
-VAN_GELDER_2024 = (
-    "Van Gelder IC, Rienstra M, Bunting KV, et al. 2024 ESC Guidelines for the management of atrial "
-    "fibrillation. Eur Heart J 2024;45:3314–3414. doi:10.1093/eurheartj/ehae176"
-)
-SCHULZ_MENGER_2025 = (
-    "Schulz-Menger J, Collini V, Gröschel J, et al. 2025 ESC Guidelines for the management of myocarditis and "
-    "pericarditis. Eur Heart J 2025. doi:10.1093/eurheartj/ehaf192"
-)
-SOKOLOW_LYON_1949 = (
-    "Sokolow M, Lyon TP. Am Heart J 1949 (criterio de Sokolow-Lyon), tal como lo resume la tabla «Criteria for "
-    "ECG Diagnosis of Left Ventricular Hypertrophy» del Manual MSD para profesionales"
-)
+
 BIGA_ANATOMY = (
     "Biga LM, et al. Anatomy & Physiology, cap. 19, «Conduction system of the heart and the ECG». "
     "Libro de texto abierto, licencia CC BY-SA 4.0"
@@ -150,8 +109,8 @@ HIRSCH_2021 = (
 )
 UNIT_DEFINITION = "Definición por unidades (60 s por minuto ÷ segundos por latido); no necesita cita"
 ECG12_LAB_DESCRIPTION = (
-    "Descripción de este laboratorio (pestaña 12 Derivaciones de BIOCORE): `TwelveLeadEcgAnalyzer` aplica "
-    "reglas fijas de umbral sobre trazados sintéticos; no es un modelo entrenado"
+    "Descripción de este laboratorio (pestaña 12 Derivaciones de BIOCORE): `twelve_lead_measure` mide sobre el "
+    "latido mediano y compara con criterios publicados; no es un modelo entrenado"
 )
 
 
@@ -467,12 +426,13 @@ ECG12_QUESTIONS: List[QuizQuestion] = balance_positions([
         source=WAGNER_2009,
     ),
     QuizQuestion(
-        "¿Para qué sirve el análisis automático por reglas de umbral de esta página?",
+        "¿Para qué sirve el análisis automático de esta página?",
         ["Para señalar patrones que debe confirmar un clínico", "Para dar un diagnóstico definitivo sin revisión médica",
          "Para reducir la frecuencia cardiaca", "Para medir la SpO₂ a partir del trazado del ECG"],
         0, category=_ECG12,
-        explanation="El laboratorio aplica reglas fijas de umbral (no un modelo de aprendizaje entrenado): señala "
-                    "hallazgos candidatos y no reemplaza la evaluación clínica.",
+        explanation="El laboratorio mide intervalos, ondas y el ST sobre el latido mediano y los compara con criterios "
+                    "publicados (no es un modelo de aprendizaje entrenado): señala hallazgos que debe confirmar un "
+                    "clínico y no reemplaza la evaluación clínica.",
         source=ECG12_LAB_DESCRIPTION,
     ),
     QuizQuestion(
@@ -499,7 +459,8 @@ ECG12_QUESTIONS: List[QuizQuestion] = balance_positions([
         0, category=_ECG12,
         explanation="El selector «Escenario clínico» genera trazados sintéticos de ritmo sinusal, taquicardia y "
                     "bradicardia sinusal, infartos con elevación del ST, bloqueos de rama, HVI, FA, flutter, WPW y QT "
-                    "largo, y los interpreta con reglas fijas de umbral; no usa un modelo de IA entrenado.",
+                    "largo; el análisis los mide y los compara con criterios publicados. No usa un modelo de IA "
+                    "entrenado.",
         source=ECG12_LAB_DESCRIPTION + " (selector «Escenario clínico»)",
     ),
 ], "ecg12")

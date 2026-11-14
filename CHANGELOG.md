@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-11-14 — 12 Derivaciones rehecha: trazado con verdad conocida y lectura por criterios citados
+
+**Contexto (Art. I)**: en el escenario «Normal», la Vista Clínica de 12 Derivaciones decía «✅ LBBB» (en recuadro verde, con «Wide QRS (>120 ms)») y «Q wave in II: pathological_q».
+- **Generador** (`TwelveLeadEcgGenerator`): ignoraba `qrs_duration`, `pr_interval` y `qt_interval`. El QRS ocupaba el 20 % del ciclo (160 ms a 75 lpm), la P se encimaba con el QRS y la T llegaba al 95 % del ciclo. Los bloqueos y la HVI solo escalaban amplitudes; la elevación del ST se sumaba a las muestras de menor amplitud; aVL y aVF no seguían a Goldberger y las tres aumentadas se multiplicaban por 1.5. La página, además, pasaba `st_segment=0` por defecto (los tres «STEMI» salían sin elevación) y armaba FA, flutter, WPW y QT largo copiando UNA señal escalada a las 12 derivaciones; lo mismo hacía con un CSV que solo traía II.
+- **Analizador** (`TwelveLeadEcgAnalyzer`): no medía el QRS (bloqueo de rama izquierda si la R de I pasaba de 1.2 mV; derecha si más de 50 muestras de V1 cambiaban más de 0.1). Medía el «ST» donde la señal tenía menos amplitud, la «Q patológica» como el mínimo del primer tercio del registro y el eje con la media de todo el registro. El ritmo salía siempre «Sinus», y el «diagnóstico principal», los «diferenciales» y las «recomendaciones», en inglés, no salían de ninguna medición.
+
+- **Generador nuevo** (`src/signals/ecg/twelve_lead_synth.py`): los 13 escenarios de la página.
+  - Cada componente del latido es un vector frontal. I y II salen por proyección; III, aVR, aVL y aVF, por Einthoven y Goldberger (exactas también con ruido). Las precordiales tienen una amplitud por derivación.
+  - Los tiempos son explícitos: PR; QRS; QT = QTc·√RR, con QTc de 415 ms (520 en el QT largo); el fin de la T se coloca donde lo encuentra la tangente.
+  - Cada escenario se construye para cumplir su criterio: QRS ≥ 120 ms con rsR′ y S ancha; R ancha con muesca y sin q; ST en el punto J sobre los umbrales de la ESC 2023; PR < 120 ms con onda delta; Sokolow-Lyon ≥ 3.5 mV; FA con RR irregulares y ondas f; flutter a 300/min, 2:1, con ondas F negativas en II, III y aVF.
+  - Las amplitudes son ilustrativas. La verdad sale aparte (`TwelveLeadTruth`).
+- **Analizador nuevo** (`src/signals/ecg/twelve_lead_measure.py`):
+  - Mide (🟣, método BIOCORE): latidos con el detector TKEO, alineados por velocidad espacial y por correlación; latido mediano con la línea de base del segmento PR; inicio y fin del QRS por la velocidad espacial (2.5 % y 4 % de su máximo); fin de la T por la tangente; P constante en ≥ 80 % de los latidos, con su polaridad en I, II y aVF; ST en el punto J; segmento isoeléctrico.
+  - Compara con criterios citados (🟢):
+    - ritmo sinusal y taquicardia sinusal (Page 2015);
+    - bradicardia sinusal y bloqueo AV de primer grado (Kusumoto 2018);
+    - FA (ESC 2024);
+    - bloqueos de rama completos, bloqueo derecho incompleto, trastorno inespecífico de la conducción y preexcitación (Surawicz 2009);
+    - elevación del ST en ≥ 2 derivaciones contiguas (ESC 2023 3.2.1, Thygesen 2012, Wagner 2009), con los umbrales de V2–V3 por sexo y edad: la página deja elegir o dice para quién se cumple;
+    - HVI por Sokolow-Lyon;
+    - QTc (Rautaharju 2009, Bazett, Drew 2010);
+    - eje (Chou's) y onda T (Rautaharju 2009).
+  - Lo que no puede evaluar lo dice, con el motivo:
+    - con bloqueo de rama, el ST (ESC 2023);
+    - con voltaje de HVI, el umbral de 1 mm;
+    - con QRS ≥ 120 ms, el QTc (Rautaharju 2009);
+    - sin segmento isoeléctrico, el ST, el eje y la T;
+    - lo que piden las derivaciones que faltan.
+  - Si faltan III, aVR, aVL o aVF, los calcula desde I y II.
+- **Página**:
+  - Vista nueva (`app/supermodules/ecg_12/report_view.py`) con hallazgos (🟢, con su fuente), mediciones (🟣), lo no evaluable, los criterios que no se cumplen y la verdad del generador para comparar. Sin recuadro «✅» ni «recomendaciones».
+  - Controles:
+    - ST en el punto J (0–0.6 mV, 0.3 por defecto, solo en los infartos);
+    - QRS, deshabilitado donde el escenario fija el suyo;
+    - selector de umbrales por sexo y edad.
+  - La captura simulada es el mismo generador con 0.025 mV de ruido y deriva de la línea de base. El CSV ya no se rellena: las derivaciones que faltan se dibujan planas y se dice.
+  - Etiquetas: «STEMI Inferior (CD o Cx)», «STEMI Lateral alto (I y aVL, V5-V6)», «(DA)» y la bradicardia con los dos cortes. «Patrones Avanzados» lleva fuentes, y la introducción ya no atribuye la cara inferior solo a la coronaria derecha.
+- **Retirado**: `TwelveLeadEcgAnalyzer` y `create_clinical_summary`. Queda `qrs_axis_from_net`, que usa la calculadora. Las referencias del ECG viven en un solo lugar, `clinical/ecg_references.py`, que también usa el banco de preguntas.
+- **Pruebas**: `tests/test_twelve_lead_measure.py` (61).
+  - Generador: Einthoven/Goldberger; cada escenario construido para su criterio; el analizador no lee la verdad.
+  - Golden test por escenario: QRS ±8 ms, PR ±12, QT −15/+8, eje ±5°, ST en el punto J ±0.03 mV. Con el ruido de la captura simulada: QRS ±10, PR ±15, QT −25/+8, ST ±0.04. En cada escenario se cumplen exactamente los criterios que nombra.
+  - Casos: umbral de V2–V3 por sexo, ST bajo el umbral, exclusiones, solo II, 8 derivaciones, flutter, registros cortos, la vista y la página.
+  - Ajustadas: `test_qrs_axis_einthoven.py` (la misma verdad del eje contra `qrs_axis_from_leads`; el análisis completo sobre un registro de varios latidos y sin «diferenciales») y `test_clinical_calculators.py`.
+  - Barrido aparte de 310 registros (13 escenarios, 3 FC, 5 semillas, 2 niveles de ruido): ningún criterio de más ni de menos.
+  - Suite completa: 1950 pasan, 6 se saltan y 1 falla, la misma de siempre (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis**:
+1. `TwelveLeadEcgGenerator` sigue alimentando al gemelo (`domain/physiology/ml/ecg_signal_source.py`) con los defectos de arriba; pasar el gemelo al generador nuevo toca `domain/`.
+2. Los umbrales técnicos del método (2.5 % y 4 % de la velocidad espacial, P constante en el 80 % de los latidos, R ancha ≥ 60 % del QRS, delta ≥ 30 ms, coeficiente de variación de los RR de 8 %, segmento isoeléctrico de 30 ms y 0.03 mV) son de BIOCORE: están probados contra el generador, no contra registros reales anotados.
+3. El analizador no identifica el flutter ni otros ritmos regulares sin P sinusal (lo dice) y no evalúa el bloqueo de rama izquierda incompleto.
+4. El lector de CSV de la página asume el orden de las columnas cuando no hay encabezado.
+
 ## 2026-11-14 — Cuestionarios: respuesta correcta, fuente y calificación honesta
 
 **Contexto (Art. I)**: los cuatro cuestionarios de la app (Academia, pestaña 12 Derivaciones del ECG Lab, EEG Neuro Lab y Respiratory Lab) calificaban con fachadas y enseñaban contenido sin fuente, a veces equivocado.
