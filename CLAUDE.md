@@ -11,22 +11,33 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 ## Mapa real
 
 - **Entrada:** `streamlit run app/main.py` (en Windows también `RUN_BIOCORE.bat` / `run_local.ps1`, vía `run_biocore.py`). `app/streamlit_app.py` solo reejecuta `main.py`. El `main.py` de la raíz es un pipeline CLI de ECG, aparte de la app.
-- **Navegación:** el diccionario `HUBS` de `app/main.py` define 4 hubs y 12 entradas; `render_page_content()` enruta por substring del nombre.
+- **Navegación (por intención, tanda 1 de la fase 1, 2026-11-15):** `st.navigation` en `main()` de `app/main.py`; `_page_specs()` declara 21 páginas en Inicio, Aprender, Practicar, Explorar y Ajustes. «Mi progreso» y «Docente» no existen hasta que haya identidad y persistencia. `LEGACY_ENTRIES` mapea las 12 entradas del menú anterior (4 hubs) a sus páginas; `tests/test_fase1_t1_navegacion.py` las recorre todas. Para enlazar a otra página: `app.utils.navigation.link(url_path, etiqueta)` (sin menú, dice dónde está en vez de fallar). La clave de IA vive en Ajustes (`ai_session.render_settings_page`); un aviso de «necesita IA» lleva `render_settings_link()` ahí mismo.
 
-| Hub | Entrada | Dónde vive |
+| Sección | Página (`url_path`) | Dónde vive |
 |---|---|---|
-| Digital Twin OS | Digital Twin OS | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
-| Learning Hub | Academia Clínica | `app/supermodules/academia/` |
-| Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) |
-| Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
-| Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
-| Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/` |
-| Clinical Hub | EMG Muscle Lab | `render_emg_page()` en `app/main.py` |
-| Clinical Hub | HRV Analysis | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
-| Clinical Hub | Biomarkers Lab | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
-| Clinical Hub | Calculadoras Clínicas | `app/supermodules/calculators/` + `clinical/calculators.py` |
-| Clinical Hub | Patient Pipeline | `render_patient_pipeline_page()` en `app/main.py` |
-| Laboratorio 3D | Crea tu modelo 3D | `app/supermodules/model3d/` |
+| (sin encabezado) | Inicio (`inicio`) | `render_home_page()` en `app/main.py`: tres puertas |
+| Aprender | Teoría (Academia) (`teoria`) | `academia.pages.render_theory_section` |
+| Aprender | Referencias de los laboratorios (`referencias`) | referencias e información educativa de Respiratorio (`views`) y EEG (`eeg_neuro_lab/teaching.py`) |
+| Aprender | ECG en 3D (`ecg-3d`) | `model3d.panels.render_vcg_panel` (vectocardiograma) |
+| Practicar | Quiz de la Academia (`quiz`) | `academia.pages.render_quiz_section` |
+| Practicar | Caso ciego (`caso-ciego`) | `academia.pages.render_synthetic_case_section` |
+| Practicar | Desafío ECG de 12 derivaciones (`desafio-ecg`) | `app/supermodules/ecg_12/quiz.py` |
+| Practicar | Cuestionarios de los laboratorios (`cuestionarios`) | `respiratory_lab.views.render_quiz` + `eeg_neuro_lab.teaching.render_eeg_quiz` |
+| Practicar | Casos clínicos del simulador (`casos-simulador`) | `twin_shell.pages.render_clinical_case_mode` |
+| Explorar | Gemelo digital (Digital Twin OS) (`gemelo`) | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
+| Explorar | ECG (`ecg`) | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) |
+| Explorar | Multisensor (`multisensor`) | `render_multisensor_page()` en `app/main.py` |
+| Explorar | Respiratorio (`respiratorio`) | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
+| Explorar | EEG (`eeg`) | `app/supermodules/eeg_neuro_lab/` |
+| Explorar | EMG (`emg`) | `render_emg_page()` en `app/main.py` |
+| Explorar | Variabilidad cardíaca (HRV) (`hrv`) | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
+| Explorar | Biomarcadores (`biomarcadores`) | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
+| Explorar | Calculadoras clínicas (`calculadoras`) | `app/supermodules/calculators/` + `clinical/calculators.py` |
+| Explorar | Pipeline de pacientes (`pacientes`) | `render_patient_pipeline_page()` en `app/main.py` |
+| Explorar | Crea tu modelo 3D (`modelo-3d`) | `app/supermodules/model3d/` |
+| Ajustes | Ajustes (`ajustes`) | `app/utils/ai_session.py::render_settings_page` (clave de IA solo en `st.session_state`) |
+
+- **Sistema de diseño (tanda 1 de la fase 1):** `PALETTE` en `app/utils/design_system.py` es la ÚNICA fuente de color (estado clínico STABLE/WARNING/CRITICAL, NEUTRAL para «sin dato» y texto secundario, PRIMARY para la pestaña activa); `.streamlit/config.toml` la copia y una prueba exige que coincidan; `CONTRAST_PAIRS` lista los pares WCAG que `tests/test_fase1_t1_diseno.py` mide. Ningún hex fuera de `design_system.py` (excepciones: `model3d/`, `reporting.py`, `ecg_trainer.py`). Un solo tema (oscuro). Componentes únicos: etiqueta de procedencia con TEXTO (`BADGES.*` son palabras: «Validado por fuente», «Criterio BIOCORE», «Heurística», «Pendiente de validación», «Simulación», «Sin fuente»; `BADGES.label`/`BADGES.tag`/`badge_html`, color neutro), «sin dato» (`no_data_html`/`render_no_data`: dice qué falta) y la tarjeta de métrica (`render_metric_card`, que absorbió los `st.metric` de Twin OS; lleva `data-label`/`data-value` para las pruebas). El color va siempre con una palabra. Sin botones `type="primary"` (el blanco sobre PRIMARY no llega a AA).
 
 - **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio).
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
@@ -71,7 +82,7 @@ streamlit run app/main.py
 - **Guardia de `domain/`:** `tests/test_ups_body_3d_paridad.py::test_ups_builder_schema_and_engine_untouched` corre `git diff --stat HEAD -- domain/` y exige salida vacía. Falla mientras haya cambios de `domain/` sin commitear; no es un fallo del código.
 - **Recetas de AppTest** (`streamlit.testing.v1`):
   - Un supermódulo: `AppTest.from_function(script)` con `m.run()`, e inyectar `twin_shell_ups_session_factory` y `twin_shell_ups_patient_id` en `session_state` para que escriba en una base temporal.
-  - La app completa: `AppTest.from_file(str(Path("app/main.py").resolve()))` con `biocore_ai_entry_done=True`, `selected_hub` y `selected_page`.
+  - La app completa: `AppTest.from_file(str(Path("app/main.py").resolve()))` con `session_state["biocore_start_page"] = "<url_path>"` (sin él abre Inicio). Un enlace del menú se lee con `at.main.get("page_link")` (`proto.page`).
   - `at.exception` **no** ve los errores que pasan por `render_error_state()` (solo los registra y dibuja una caja): comprueba también el texto de la página.
 - **Archivos:** muchos son CRLF; conserva los finales de línea al editar. Los comentarios y la UI van en español.
 

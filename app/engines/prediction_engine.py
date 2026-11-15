@@ -31,7 +31,7 @@ from clinical.calculators import (
     news2_spo2_scale1_score,
 )
 
-NO_DATA = "sin dato"
+from app.engines.digital_twin_organism import NO_DATA  # una sola definición del texto «sin dato»
 NO_SOURCED_CRITERION = "sin criterio con fuente"
 
 

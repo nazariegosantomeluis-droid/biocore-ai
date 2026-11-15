@@ -31,7 +31,7 @@ from domain.physiology.narrator import (
     stream_findings_narration,
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
-from app.utils.ai_session import AI_KEY_HINT, ai_client
+from app.utils.ai_session import AI_KEY_HINT, ai_client, render_settings_link
 from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
@@ -73,7 +73,7 @@ except ImportError:
     THEORY_AVAILABLE = False
 
 
-def render_theory_section() -> None:
+def render_theory_section(expanded: bool = False) -> None:
     """Teoría — capa de teoría del módulo de aprendizaje (2026-07-14).
 
     Resurfacea la única teoría real que existía huérfana en el código:
@@ -97,7 +97,7 @@ def render_theory_section() -> None:
     tarjetas "🚧 en desarrollo" que quedaron tras esta limpieza) se retiró
     por completo del Learning Hub -- ver CHANGELOG.md. Esta función y su
     contenido no cambiaron."""
-    with st.expander("📖 Teoría — Las 12 derivaciones del ECG", expanded=False):
+    with st.expander("📖 Teoría — Las 12 derivaciones del ECG", expanded=expanded):
         if not THEORY_AVAILABLE:
             st.warning("El módulo de teoría (`educational.ecg_academy`) no está disponible.")
             return
@@ -154,7 +154,15 @@ def render_lessons_quizzes_tab() -> None:
     esto el módulo de aprendizaje queda completo: teoría + casos + quizzes."""
     render_theory_section()
     st.markdown("---")
+    render_quiz_section()
+    st.markdown("---")
+    render_synthetic_case_section()
 
+
+def render_quiz_section() -> None:
+    """Quiz del banco de preguntas (tanda 1 de la fase 1: separado de `render_lessons_quizzes_tab` para que Practicar lo
+    monte solo). Contención (Art. I): ninguna opción preseleccionada y «Responder» deshabilitado hasta que se elige una;
+    la corrección solo aparece después de responder."""
     if not LESSONS_AVAILABLE:
         st.warning("El módulo de lecciones (`educational.learning_engine`) no está disponible.")
         return
@@ -212,7 +220,7 @@ def render_lessons_quizzes_tab() -> None:
             choice_key = f"academia_quiz_choice_{current}"
 
             if not quiz_state["answered_current"]:
-                selected = st.radio("Opciones", q.choices, key=choice_key)
+                selected = st.radio("Opciones", q.choices, index=None, key=choice_key)
 
                 if not narrator_is_configured():
                     render_ai_feedback_off_notice()
@@ -222,7 +230,7 @@ def render_lessons_quizzes_tab() -> None:
                 # aunque la respuesta correcta la decide el banco (código),
                 # nunca el modelo. Ahora se califica siempre; solo la
                 # narración del feedback depende de la clave.
-                if st.button("Responder", key=f"academia_quiz_submit_{current}"):
+                if st.button("Responder", key=f"academia_quiz_submit_{current}", disabled=selected is None):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
                     quiz_state["feedback"] = None
@@ -261,7 +269,7 @@ def render_lessons_quizzes_tab() -> None:
                 if correct:
                     st.success(f"✅ Correcto — {q.choices[q.answer]}")
                 else:
-                    st.error(f"❌ Elegiste **{q.choices[idx]}** — la respuesta correcta es **{q.choices[q.answer]}**")
+                    st.error(f"❌ Incorrecto: elegiste **{q.choices[idx]}**; la respuesta correcta es **{q.choices[q.answer]}**")
 
                 # Solo las preguntas que YA traían explicación de origen la
                 # muestran (texto existente del banco, no redactado aquí).
@@ -300,9 +308,6 @@ def render_lessons_quizzes_tab() -> None:
             st.success(f"Quiz finalizado — Puntuación: {res['score']:.1f}%")
             st.write("Respuestas enviadas:")
             st.json(res["responses"])
-
-    st.markdown("---")
-    render_synthetic_case_section()
 
 
 def render_synthetic_case_section() -> None:
@@ -352,6 +357,7 @@ def render_synthetic_case_section() -> None:
                 "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
                 "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
             )
+            render_settings_link()
             return
 
         if "academia_case_session_factory" not in st.session_state:
@@ -445,10 +451,11 @@ def render_synthetic_case_section() -> None:
             choice = st.radio(
                 "¿Cuál es tu diagnóstico?",
                 options,
+                index=None,
                 format_func=lambda s: RICH_SCENARIO_LABELS[s],
                 key=f"academia_case_radio_{patient_id}",
             )
-            if st.button("✅ Confirmar diagnóstico", key=f"academia_case_confirm_{patient_id}"):
+            if st.button("✅ Confirmar diagnóstico", key=f"academia_case_confirm_{patient_id}", disabled=choice is None):
                 hidden = st.session_state["academia_case_hidden_scenario"]
 
                 # PA calculada (2026-08-06, ver CHANGELOG.md): `_build_pa_findings()`

@@ -1,5 +1,5 @@
 """
-Engagement Index (2026-10-18) -- β/(α+θ), Pope, Bogart & Bartolome 1995,
+Índice de engagement (2026-10-18) -- β/(α+θ), Pope, Bogart & Bartolome 1995,
 relativo al baseline de reposo del propio sujeto, firmado por el experto.
 Mismo patrón que el ERD/χ: el detector se valida midiendo si RECUPERA un
 cambio de engagement conocido por construcción (patrón `engagement_task` del
@@ -256,12 +256,12 @@ def _engagement_card(at) -> str:
 
 def test_panel_appears_only_for_the_engagement_pattern(eeg_ups):
     at = _run_eeg_lab(eeg_ups)
-    assert "Engagement Index" not in " ".join(md.value for md in at.main.markdown)
+    assert "Índice de engagement" not in " ".join(md.value for md in at.main.markdown)
     assert "Cambio de engagement (%)" not in [s.label for s in at.sidebar.slider]
 
     at = _run_eeg_lab(eeg_ups, _LABEL)
     assert at.exception == []
-    assert "Engagement Index" in " ".join(md.value for md in at.main.markdown)
+    assert "Índice de engagement" in " ".join(md.value for md in at.main.markdown)
     assert "Cambio de engagement (%)" in [s.label for s in at.sidebar.slider]
 
 

@@ -54,6 +54,7 @@ CHANGELOG.md para cuáles y su verificación.
 
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -85,22 +86,53 @@ class PALETTE:
     (mínimo 4.5:1 para texto normal). Para encabezados/íconos sobre fondo
     oscuro, usar `ACCENT_ON_DARK` (9.98:1, AAA)."""
 
-    PRIMARY = "#1d4ed8"           # controles nativos de Streamlit (botones/sliders) -- NO como texto sobre BACKGROUND
-    ACCENT_ON_DARK = "#8ecae6"    # texto/íconos de marca sobre fondo oscuro -- 9.98:1 sobre BACKGROUND (AAA)
+    # Tanda 1 de la fase 1 (2026-11-15): ÚNICA fuente de color de la app (decisiones 4-6). `.streamlit/config.toml`
+    # repite PRIMARY/BACKGROUND/SECONDARY_BACKGROUND/TEXT (Streamlit no puede leer Python) y una prueba exige que
+    # coincidan; ningún otro archivo declara un color de estado ni un gris de «sin dato». Ratios WCAG por par en
+    # `CONTRAST_PAIRS` (abajo), verificados por `tests/test_fase1_t1_diseno.py`.
+    PRIMARY = "#4f8ef7"           # primaryColor: pestaña activa, foco, controles. 5.56:1 sobre BACKGROUND (AA texto)
+    ACCENT_ON_DARK = "#8ecae6"    # títulos de módulo y primera serie de gráficas
     BACKGROUND = "#0f172a"
     SECONDARY_BACKGROUND = "#1a2a4a"
-    TEXT = "#e0e7ff"              # 14.49:1 sobre BACKGROUND, 11.56:1 sobre SECONDARY_BACKGROUND (AAA ambos)
+    TEXT = "#e0e7ff"
 
-    # Semántica de estado -- promovida de ups_body_visual.py (fuente
-    # original). Contraste sobre BACKGROUND: STABLE 9.75:1 (AAA), WARNING
-    # 11.32:1 (AAA), CRITICAL 5.46:1 (AA -- suficiente para badges/texto
-    # grande, no para letra pequeña), NEUTRAL 3.75:1 (bajo el mínimo AA de
-    # texto normal -- reservado para elementos grandes/decorativos, nunca
-    # para texto de lectura).
+    # Estado clínico: UNA paleta (decisión 4; se retiraron #39ffbe/#ff3333/#ffd700/#ff4d4d/#22c55e/#ef4444...). El color
+    # de estado va SIEMPRE con una palabra; nunca solo.
     STABLE = "#39d98a"
     WARNING = "#ffc542"
-    CRITICAL = "#ff4d4d"
-    NEUTRAL = "#64748b"
+    CRITICAL = "#ff6464"          # antes #ff4d4d: 4.92:1 sobre SECONDARY_BACKGROUND (AA); lejos del tejido arterial atenuado
+    NEUTRAL = "#94a3b8"           # «sin dato», heurístico, texto secundario. Antes #64748b (3.75:1, no AA)
+    ON_STATE = "#0f172a"          # texto SOBRE un relleno de estado (STABLE/WARNING/CRITICAL): nunca blanco
+
+    # Gráficas (no son texto: contraste >= 3:1 de objeto gráfico)
+    GRID = "#334155"
+    SERIES_2 = "#c4b5fd"
+
+
+# Pares (frente, fondo, mínimo WCAG) que la prueba de contraste exige: 4.5 texto normal, 3.0 objeto gráfico.
+CONTRAST_PAIRS = (
+    ("TEXT", "BACKGROUND", 4.5), ("TEXT", "SECONDARY_BACKGROUND", 4.5),
+    ("PRIMARY", "BACKGROUND", 4.5), ("ACCENT_ON_DARK", "BACKGROUND", 4.5), ("ACCENT_ON_DARK", "SECONDARY_BACKGROUND", 4.5),
+    ("STABLE", "BACKGROUND", 4.5), ("STABLE", "SECONDARY_BACKGROUND", 4.5),
+    ("WARNING", "BACKGROUND", 4.5), ("WARNING", "SECONDARY_BACKGROUND", 4.5),
+    ("CRITICAL", "BACKGROUND", 4.5), ("CRITICAL", "SECONDARY_BACKGROUND", 4.5),
+    ("NEUTRAL", "BACKGROUND", 4.5), ("NEUTRAL", "SECONDARY_BACKGROUND", 4.5),
+    ("ON_STATE", "STABLE", 4.5), ("ON_STATE", "WARNING", 4.5), ("ON_STATE", "CRITICAL", 4.5),
+    ("PRIMARY", "SECONDARY_BACKGROUND", 3.0), ("SERIES_2", "SECONDARY_BACKGROUND", 3.0),
+)
+
+
+def relative_luminance(hex_color: str) -> float:
+    """Luminancia relativa WCAG 2.x de un color `#rrggbb`."""
+    h = hex_color.lstrip("#")
+    channels = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def contrast_ratio(a: str, b: str) -> float:
+    la, lb = sorted((relative_luminance(a), relative_luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -116,28 +148,43 @@ class PALETTE:
 # ═══════════════════════════════════════════════════════════════════════
 
 class BADGES:
-    """Badges de procedencia de la Capa 3 (honestidad de dato). Cada
-    constante es el emoji solo -- `BADGES.label(key)` da el emoji + texto
-    para usar directo en un `st.caption`/`help=`."""
+    """Etiquetas de procedencia (Eje A: de dónde viene el dato). Tanda 1 de la fase 1 (decisión 3): cada constante es
+    TEXTO, nunca un círculo de color (antes, un emoji de color por nivel); el color queda para el estado clínico.
+    `BADGES.label(b)` = nombre + qué significa (texto plano: captions, `help=`, exportes); `BADGES.tag(b)` = «[nombre]»
+    para anteponer a una frase; `badge_html(b)` = la etiqueta visual (borde y texto neutros) de las tarjetas."""
 
-    CLINICAL = "🟢"    # dato/fórmula validada clínicamente (citable)
-    HEURISTIC = "🔵"   # cálculo real, constante/ponderación heurística (no de estudio de cohorte)
-    GHOST = "🔴"       # entrada sin fuente real disponible -- no debería verse en producción (Capa 3 los retiró)
-    METHOD = "🟣"      # metodología propia declarada como tal (no un score clínico estándar)
-    PENDING = "⏳"     # valor que se calcula pero cuyo criterio aún no está validado (PENDING_VALIDATION)
+    CLINICAL = "Validado por fuente"       # fórmula o criterio con cita verificable
+    HEURISTIC = "Heurística"               # cálculo real con constante/ponderación de ingeniería
+    GHOST = "Sin fuente"                   # entrada sin fuente real (Capa 3 los retiró de producción)
+    METHOD = "Criterio BIOCORE"            # metodología propia declarada como tal
+    PENDING = "Pendiente de validación"    # se calcula, el criterio no está validado (PENDING_VALIDATION)
+    SIMULATION = "Simulación"              # señal o escenario simulado, no una medición de un paciente
 
     _LABELS = {
-        CLINICAL: "validado clínicamente",
-        HEURISTIC: "heurística de ingeniería, no de estudio de cohorte",
-        GHOST: "sin fuente real disponible",
-        METHOD: "metodología propia de BIOCORE",
-        PENDING: "pendiente de validación (se calcula, no está validado)",
+        CLINICAL: "fórmula o criterio con cita verificable",
+        HEURISTIC: "de ingeniería, no de estudio de cohorte",
+        GHOST: "entrada sin fuente real disponible",
+        METHOD: "metodología propia o valor BIOCORE, no un estándar clínico",
+        PENDING: "se calcula; el criterio no está validado",
+        SIMULATION: "no es una medición de un paciente",
     }
 
     @classmethod
     def label(cls, badge: str) -> str:
-        """Emoji + texto corto, listo para mostrar."""
-        return f"{badge} {cls._LABELS.get(badge, '')}".strip()
+        """Nombre + significado, en texto: «Heurística (de ingeniería, no de estudio de cohorte)»."""
+        meaning = cls._LABELS.get(badge)
+        return f"{badge} ({meaning})" if meaning else badge
+
+    @classmethod
+    def tag(cls, badge: str) -> str:
+        """«[Validado por fuente]»: la etiqueta corta para anteponer a una frase o a una celda."""
+        return f"[{badge}]"
+
+
+def badge_html(badge: str) -> str:
+    """La etiqueta de procedencia visual: texto (`BADGES.label`) con borde y color NEUTROS (decisión 3)."""
+    return (f"<span class='biocore-prov' style='border:1px solid {PALETTE.NEUTRAL}; border-radius:999px; "
+            f"padding:0 8px; color:{PALETTE.TEXT}; font-size:0.85em; white-space:normal;'>{BADGES.label(badge)}</span>")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -307,7 +354,23 @@ def render_empty_state(message: str, action: Optional[str] = None) -> None:
     text = message if not action else f"{message} — {action}"
     st.markdown(
         f"<div style='border:1px solid {PALETTE.NEUTRAL}; border-radius:8px; padding:12px 16px; "
-        f"color:{PALETTE.TEXT}; opacity:0.85;'>{icon_html}&nbsp;&nbsp;{text}</div>",
+        f"color:{PALETTE.TEXT};'>{icon_html}&nbsp;&nbsp;{text}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def no_data_html(what: str, reason: Optional[str] = None) -> str:
+    """El ÚNICO «sin dato» de la plataforma, como HTML (para incrustarlo en tarjetas): dice QUÉ falta y, si se sabe,
+    por qué. Texto en `PALETTE.NEUTRAL` con contraste AA y un «○» que no depende del color (tanda 1 de la fase 1)."""
+    detail = f"Sin dato: falta {what}" + (f" — {reason}" if reason else "")
+    return (f"<span class='biocore-no-data' style='color:{PALETTE.NEUTRAL};'>○ {detail}</span>")
+
+
+def render_no_data(what: str, reason: Optional[str] = None) -> None:
+    """`no_data_html` como bloque de la página (con borde neutro)."""
+    st.markdown(
+        f"<div style='border:1px solid {PALETTE.NEUTRAL}; border-radius:8px; padding:10px 14px; margin:4px 0;'>"
+        f"{no_data_html(what, reason)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -334,8 +397,8 @@ def render_error_state(message: str, exception: Optional[BaseException] = None) 
 
 AI_FEEDBACK_OFF_MESSAGE = (
     "Sin clave de IA: la calificación funciona igual (la decide el código, no la IA); solo el "
-    "feedback narrado queda apagado. Para activarlo, pega tu clave con «🔑 Poner mi clave» en la barra "
-    "lateral, o pon tu <code>ANTHROPIC_API_KEY</code> en <code>.env</code>."
+    "feedback narrado queda apagado. Para activarlo, pon tu clave en <b>Ajustes</b> (menú lateral), o tu "
+    "<code>ANTHROPIC_API_KEY</code> en <code>.env</code>."
 )
 
 
@@ -347,9 +410,12 @@ def render_ai_feedback_off_notice() -> None:
     solo este aviso."""
     st.markdown(
         f"<div style='border-left:3px solid {PALETTE.NEUTRAL}; padding:6px 12px; margin:4px 0 10px 0; "
-        f"color:{PALETTE.TEXT}; opacity:0.9; font-size:0.92rem;'>{AI_FEEDBACK_OFF_MESSAGE}</div>",
+        f"color:{PALETTE.TEXT}; font-size:0.92rem;'>{AI_FEEDBACK_OFF_MESSAGE}</div>",
         unsafe_allow_html=True,
     )
+    from app.utils.navigation import link
+
+    link("ajustes", "Ir a Ajustes para poner tu clave", icon="⚙️")
 
 
 @dataclass(frozen=True)
@@ -448,7 +514,7 @@ def resolve_metric_card(
             parts.append(f"{badge} {etiqueta}")
 
     if provenance is not None:
-        parts.append(BADGES.label(provenance))
+        parts.append(badge_html(provenance))
 
     if citation:
         parts.append(citation)
@@ -465,6 +531,7 @@ def render_metric_card(
     grammar: str = GRAMMAR_SEVERITY,
     citation: Optional[str] = None,
     unavailable_reason: Optional[str] = None,
+    help: Optional[str] = None,
 ) -> None:
     """Tarjeta de métrica+badge, renderizada como elementos de Streamlit --
     Consolidación Visual Tanda 1 (2026-09-20). La superficie más repetida
@@ -482,20 +549,25 @@ def render_metric_card(
         provenance=provenance, classification=classification, grammar=grammar,
         citation=citation, unavailable_reason=unavailable_reason,
     )
-    if not data.available:
-        st.markdown(
-            f"<div style='border:1px solid {PALETTE.NEUTRAL}; border-radius:8px; padding:12px 16px; "
-            f"color:{PALETTE.TEXT};'><strong>{data.label}</strong><br/>"
-            f"<span style='opacity:0.85;'>○ no disponible — {data.reason}</span></div>",
-            unsafe_allow_html=True,
-        )
-        return
+    st.markdown(_metric_card_markup(data, help=help), unsafe_allow_html=True)
 
+
+def _metric_card_markup(data: MetricCardData, extra_style: str = "", help: Optional[str] = None) -> str:
+    """El HTML de la tarjeta, compartido por la app y el exporte. `data-label`/`data-value` permiten a las pruebas leer
+    la tarjeta como leían `st.metric` (tanda 1 de la fase 1: la tarjeta absorbe `st.metric`)."""
+    attrs = f"class='biocore-metric' data-label=\"{data.label}\" data-value=\"{data.value or ''}\""
+    if help:
+        attrs += f" title=\"{html.escape(help, quote=True)}\""
+    if not data.available:
+        return (
+            f"<div {attrs} style='border:1px solid {PALETTE.NEUTRAL}; border-radius:8px; padding:10px 14px; "
+            f"color:{PALETTE.TEXT}; background:rgba(255,255,255,0.03);{extra_style}'><strong>{data.label}</strong><br/>"
+            f"{no_data_html(data.label, data.reason)}</div>"
+        )
     body = " — ".join([f"<strong>{data.label}</strong>: {data.value}", *data.detail_parts])
-    st.markdown(
-        f"<div style='border-left:4px solid {data.border_color}; border-radius:4px; padding:10px 14px; "
-        f"color:{PALETTE.TEXT}; background:rgba(255,255,255,0.03);'>{body}</div>",
-        unsafe_allow_html=True,
+    return (
+        f"<div {attrs} style='border-left:4px solid {data.border_color}; border-radius:4px; padding:10px 14px; "
+        f"color:{PALETTE.TEXT}; background:rgba(255,255,255,0.03);{extra_style}'>{body}</div>"
     )
 
 
@@ -509,18 +581,7 @@ def metric_card_to_html(data: MetricCardData) -> str:
     card()` (mismos colores de `PALETTE`, mismo orden de las partes) --
     el único cambio es el contenedor (`<div>` autónomo en vez de
     `st.markdown`)."""
-    if not data.available:
-        return (
-            f"<div class='biocore-metric' style='border:1px solid {PALETTE.NEUTRAL}; border-radius:8px; "
-            f"padding:10px 14px; margin-bottom:10px; color:{PALETTE.TEXT}; background:rgba(255,255,255,0.03);'>"
-            f"<strong>{data.label}</strong><br/>"
-            f"<span style='opacity:0.85;'>○ no disponible — {data.reason}</span></div>"
-        )
-    body = " — ".join([f"<strong>{data.label}</strong>: {data.value}", *data.detail_parts])
-    return (
-        f"<div class='biocore-metric' style='border-left:4px solid {data.border_color}; border-radius:4px; "
-        f"padding:10px 14px; margin-bottom:10px; color:{PALETTE.TEXT}; background:rgba(255,255,255,0.03);'>{body}</div>"
-    )
+    return _metric_card_markup(data, " margin-bottom:10px;")
 
 
 def resolve_validation_marker(
@@ -557,7 +618,7 @@ def inject_global_theme() -> None:
     st.markdown(
         f"""
         <style>
-            :root {{ color-scheme: dark; font-family: 'Inter', 'Segoe UI', sans-serif; }}
+            :root {{ color-scheme: dark; }}
             html, body, [data-testid='stAppViewContainer'] {{
                 background: radial-gradient(circle at top left, {PALETTE.PRIMARY}22, transparent 30%),
                             {PALETTE.BACKGROUND};

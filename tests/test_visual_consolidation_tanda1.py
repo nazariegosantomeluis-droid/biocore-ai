@@ -139,7 +139,7 @@ def test_multisensor_shows_heuristic_confidence_marker():
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    markers = [md.value for md in at.main.markdown if "Health Score propietario" in md.value]
+    markers = [md.value for md in at.main.markdown if "Detección heurística de FC y SpO₂" in md.value]
     assert len(markers) == 1
     assert PALETTE.NEUTRAL in markers[0], "heurístico no es una alarma -- debe ser NEUTRAL, no WARNING/CRITICAL"
     assert "no validado" in markers[0]
@@ -164,7 +164,7 @@ def test_confidence_markers_are_visually_distinguishable_between_extremes():
     at_multi.run(timeout=30)
 
     ecg_marker = next(md.value for md in at_ecg.main.markdown if "MIT-BIH" in md.value)
-    multi_marker = next(md.value for md in at_multi.main.markdown if "Health Score propietario" in md.value)
+    multi_marker = next(md.value for md in at_multi.main.markdown if "Detección heurística de FC y SpO₂" in md.value)
 
     assert PALETTE.STABLE in ecg_marker and PALETTE.STABLE not in multi_marker
     assert PALETTE.NEUTRAL in multi_marker and PALETTE.NEUTRAL not in ecg_marker
@@ -267,9 +267,9 @@ def test_render_metric_card_provenance_axis_uses_badges_label():
 
 
 _UNAVAILABLE_CASES = [
-    ("NeuroCardiac PLV", "el PLV requiere ≥180s de señal ECG+EEG simultánea. Muestra actual: 45s."),
-    ("Learning Readiness Index", "depende del PLV neurocardíaco (arriba), que no está disponible."),
-    ("Autonomic Stability", "requiere presión arterial y PPG-PTT que hoy no existen en el pipeline"),
+    ("PLV neurocardíaco", "el PLV requiere ≥180s de señal ECG+EEG simultánea. Muestra actual: 45s."),
+    ("Disposición para el aprendizaje", "depende del PLV neurocardíaco (arriba), que no está disponible."),
+    ("Estabilidad autonómica", "requiere presión arterial y PPG-PTT, que hoy no existen en el pipeline"),
     ("χ (aperiódico)", "señal insuficiente para χ: 10 ventanas < mínimo 30"),
 ]
 
@@ -297,7 +297,7 @@ def test_render_metric_card_preserves_each_unavailable_reason(label, reason_frag
     at.run(timeout=30)
     card = next(md.value for md in at.main.markdown if label in md.value)
     assert reason_fragment in card
-    assert "no disponible" in card
+    assert f"Sin dato: falta {label}" in card                       # el «sin dato» único (tanda 1 de la fase 1)
 
 
 def test_render_metric_card_logs_instead_of_fabricating_when_reason_missing(caplog):
@@ -313,7 +313,7 @@ def test_render_metric_card_logs_instead_of_fabricating_when_reason_missing(capl
     with caplog.at_level(logging.WARNING, logger="app.utils.design_system"):
         at.run(timeout=30)
     card = next(md.value for md in at.main.markdown if "Métrica sin motivo" in md.value)
-    assert "no disponible" in card
+    assert "Sin dato: falta Métrica sin motivo" in card
     assert "sin motivo declarado" in card
 
 

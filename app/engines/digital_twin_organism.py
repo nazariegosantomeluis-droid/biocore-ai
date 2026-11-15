@@ -45,14 +45,17 @@ from clinical.calculators import (
     pulse_respiration_quotient,
 )
 
+from app.utils.design_system import PALETTE
+
 NO_DATA = "sin dato"            # texto único para «el dato falta» (tarjetas, resumen, exportes)
-NO_DATA_COLOR = "#64748b"       # gris: el MISMO que usa el Cuerpo Digital (ups_body_visual.NEUTRAL_COLOR)
-HAS_DATA_COLOR = "#39d98a"      # verde del Cuerpo Digital (ups_body_visual.STABLE_COLOR): hay entrada, sin criterio que la puntúe
+# Tanda 1 de la fase 1 (decisión 4): los colores salen de `PALETTE`, la única fuente; ninguno se declara aquí.
+NO_DATA_COLOR = PALETTE.NEUTRAL     # el MISMO gris que usa el Cuerpo Digital (ups_body_visual.NEUTRAL_COLOR)
+HAS_DATA_COLOR = PALETTE.STABLE     # hay entrada, sin criterio que la puntúe
 NOT_MODELED = "no modelado"     # lo que el organismo no calcula (nadie lo calcula): se declara, no se rellena
 CARDIAC_OUTPUT_IN_REVIEW = "calculado por el motor — en revisión clínica"   # sepsis: el lazo cerrado lo calcula; sin cifra hasta la firma
 
 # Puntos NEWS2 (0-3) -> color de órgano. Un solo mapa para pulso, FR y SpO₂.
-NEWS2_POINTS_COLOR = {0: "#39ffbe", 1: "#ffd700", 2: "#ffd700", 3: "#ff3333"}
+NEWS2_POINTS_COLOR = {0: PALETTE.STABLE, 1: PALETTE.WARNING, 2: PALETTE.WARNING, 3: PALETTE.CRITICAL}
 
 
 def _is_num(value: Any) -> bool:
@@ -568,7 +571,7 @@ class DigitalTwinOrganism:
 Procedencia de las entradas: {self.input_provenance or 'sin declarar'}
 
 🫀 SISTEMA CARDIOVASCULAR:
-   • Frecuencia Cardíaca: {num(heart.metrics.signals.get('heart_rate'), ' bpm', entrada)}
+   • Frecuencia Cardíaca: {num(heart.metrics.signals.get('heart_rate'), ' lpm', entrada)}
    • Variabilidad (HRV): {num(heart.metrics.signals.get('hrv'), ' ms', entrada)}
    • Puntos NEWS2 del pulso: {points(heart.metrics.risk_points)}
    • Gasto Cardíaco: {self.cardiac_output_label()}

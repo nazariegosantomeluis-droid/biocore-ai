@@ -425,11 +425,10 @@ def test_twin_vitals_are_imported_labelled_as_simulation():
 def test_calculators_are_routed_from_the_clinical_hub(monkeypatch):
     import app.main as m
 
-    assert "🧮 Calculadoras Clínicas" in m.HUBS["Clinical Hub"]
-    called = []
-    monkeypatch.setattr(m, "render_calculators_page", lambda: called.append(True))
-    m.render_page_content("🧮 Calculadoras Clínicas")
-    assert called == [True]
+    # tanda 1 de la fase 1: la entrada vive en Explorar del menú por intención y llama a la misma función
+    assert m.LEGACY_ENTRIES["🧮 Calculadoras Clínicas"] == ("calculadoras",)
+    spec = next(s for s in m._page_specs() if s[1] == "calculadoras")
+    assert spec[0] == "Explorar" and spec[4] is m.render_calculators_page
 
 
 def test_no_unaudited_art_in_the_calculators():

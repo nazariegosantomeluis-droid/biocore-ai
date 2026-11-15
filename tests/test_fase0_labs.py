@@ -26,9 +26,7 @@ def test_the_renamed_copies_are_never_in_the_contract(domain, field):
 
 def _emg(view, source="Demo"):
     at = AppTest.from_file(MAIN, default_timeout=240)
-    at.session_state["biocore_ai_entry_done"] = True
-    at.session_state["selected_hub"] = "Clinical Hub"
-    at.session_state["selected_page"] = "🦾 EMG Muscle Lab"
+    at.session_state["biocore_start_page"] = "emg"          # menú por intención (tanda 1 de la fase 1)
     at.run()
     [r for r in at.sidebar.radio if r.label == "Origen EMG"][0].set_value(source).run()
     radios = [r for r in list(at.radio) + list(at.sidebar.radio) if view in r.options]

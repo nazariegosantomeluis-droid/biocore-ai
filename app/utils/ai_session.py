@@ -1,7 +1,7 @@
-"""Clave de IA por sesión de navegador (2026-10-25).
+"""Clave de IA por sesión de navegador (2026-10-25; desde la tanda 1 de la fase 1, 2026-11-15, en la página
+Ajustes y no como primera pantalla).
 
-La persona puede pegar su API key de Anthropic en un panel de entrada y usarla
-solo durante esa sesión. Reglas:
+La persona puede pegar su API key de Anthropic en Ajustes y usarla solo durante esa sesión. Reglas:
 
 - La clave vive SOLO en `st.session_state` (memoria de esa sesión en el
   servidor): nunca se escribe en disco ni en `os.environ`. `os.environ` es del
@@ -24,11 +24,11 @@ from domain.physiology.narrator import DEFAULT_MODEL
 from domain.physiology.narrator import is_configured as env_key_configured
 
 SESSION_KEY = "biocore_anthropic_api_key"
-ENTRY_DONE = "biocore_ai_entry_done"
 _INPUT = "biocore_ai_key_input"
 _ERROR = "biocore_ai_key_error"
+_SAVED = "biocore_ai_key_saved"
 
-AI_KEY_HINT = "Pega tu clave con «🔑 Poner mi clave» en la barra lateral, o define `ANTHROPIC_API_KEY`."
+AI_KEY_HINT = "Pon tu clave en «Ajustes» (menú lateral), o define `ANTHROPIC_API_KEY`."
 
 
 def session_api_key() -> Optional[str]:
@@ -73,50 +73,54 @@ def validate_api_key(key: str) -> Optional[str]:
 
 # --- Callbacks: corren antes del rerun, cuando sí se puede vaciar el campo ---
 
-def _enter_with_key() -> None:
+def _save_key() -> None:
     key = (st.session_state.get(_INPUT) or "").strip()
     st.session_state[_INPUT] = ""  # la clave no se queda en el widget
+    st.session_state.pop(_SAVED, None)
     if not key:
-        st.session_state[_ERROR] = "Pega tu clave en el campo antes de entrar."
+        st.session_state[_ERROR] = "Pega tu clave en el campo antes de guardarla."
         return
     problem = validate_api_key(key)
     if problem:
         st.session_state[_ERROR] = problem
         return
     st.session_state[SESSION_KEY] = key
-    st.session_state[ENTRY_DONE] = True
-    st.session_state.pop(_ERROR, None)
-
-
-def _enter_without_ai() -> None:
-    st.session_state[ENTRY_DONE] = True
-    st.session_state[_INPUT] = ""
+    st.session_state[_SAVED] = True
     st.session_state.pop(_ERROR, None)
 
 
 def _forget_key() -> None:
     st.session_state.pop(SESSION_KEY, None)
+    st.session_state.pop(_SAVED, None)
 
 
-def _reopen_entry() -> None:
-    st.session_state[ENTRY_DONE] = False
+def render_settings_link() -> None:
+    """Enlace a Ajustes justo donde una función necesita la IA y no hay clave (decisión 2)."""
+    from app.utils import navigation as nav
+
+    nav.link("ajustes", "Ir a Ajustes para poner tu clave", icon="⚙️")
 
 
-def render_entry_gate() -> bool:
-    """Panel previo a la plataforma. Devuelve `True` si ya se puede entrar.
-    Si el servidor ya tiene `ANTHROPIC_API_KEY`, no se muestra."""
-    if st.session_state.get(ENTRY_DONE) or (env_key_configured() and ENTRY_DONE not in st.session_state):
-        return True
-    st.markdown("## 🔑 BIOCORE AI — clave de IA (opcional)")
+def render_settings_page() -> None:
+    """Ajustes: la clave de IA (opcional). Antes era un panel previo que tapaba la plataforma (primera pantalla)."""
+    from app.utils.design_system import render_module_header
+
+    render_module_header("Ajustes", icon="⚙️")
+    st.markdown("### Clave de IA (opcional)")
     st.markdown(
         "Las explicaciones con IA (narrador clínico, pestañas «IA» de los laboratorios, feedback de la "
         "Academia) llaman a la API de Anthropic con **tu** clave. Sin clave, toda la plataforma funciona "
         "igual y esos paneles dicen que la IA está apagada."
     )
+    if session_api_key():
+        st.success("IA activa con tu clave (solo en esta sesión).")
+        st.button("Olvidar mi clave", key="biocore_ai_forget", on_click=_forget_key)
+    elif env_key_configured():
+        st.info("IA activa con la clave del entorno del servidor (`ANTHROPIC_API_KEY`).")
+    else:
+        st.info("IA apagada: no hay clave en esta sesión ni en el servidor.")
     st.text_input("Pega tu API key de Anthropic", type="password", key=_INPUT, placeholder="sk-ant-...")
-    c1, c2 = st.columns(2)
-    c1.button("Entrar con mi clave", type="primary", on_click=_enter_with_key, width="stretch")
-    c2.button("Entrar sin IA", on_click=_enter_without_ai, width="stretch")
+    st.button("Guardar mi clave", key="biocore_ai_save", on_click=_save_key)
     if st.session_state.get(_ERROR):
         st.error(st.session_state[_ERROR])
     st.caption(
@@ -124,15 +128,14 @@ def render_entry_gate() -> bool:
         "se escribe en disco ni va al repositorio, y se pierde al cerrar o recargar la pestaña. Pégala solo "
         "en una instancia de BIOCORE en la que confíes (la tuya, o una servida por HTTPS)."
     )
-    return False
 
 
 def render_sidebar_status() -> None:
-    if session_api_key():
-        st.sidebar.caption("🔑 IA activa con tu clave (solo en esta sesión)")
-        st.sidebar.button("Olvidar mi clave", key="biocore_ai_forget", on_click=_forget_key)
-    elif env_key_configured():
-        st.sidebar.caption("🔑 IA activa (clave del entorno del servidor)")
-    else:
-        st.sidebar.caption("🔑 IA apagada")
-        st.sidebar.button("Poner mi clave", key="biocore_ai_reopen", on_click=_reopen_entry)
+    with st.sidebar:
+        if session_api_key():
+            st.caption("🔑 IA activa con tu clave (solo en esta sesión)")
+        elif env_key_configured():
+            st.caption("🔑 IA activa (clave del entorno del servidor)")
+        else:
+            st.caption("🔑 IA apagada")
+            render_settings_link()

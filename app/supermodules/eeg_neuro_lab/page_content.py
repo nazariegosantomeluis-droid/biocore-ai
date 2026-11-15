@@ -25,7 +25,8 @@ import shutil
 # profundidad, así que el cálculo de la raíz del repo necesita un salto más.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
+from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz, render_eeg_references
+from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, PALETTE, render_error_state, render_metric_card, resolve_metric_card
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -436,10 +437,10 @@ with col1:
                 row=idx, col=1
             )
             fig.update_yaxes(title_text=lead, row=idx, col=1)
-            fig.update_yaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=idx, col=1)
+            fig.update_yaxes(showgrid=True, gridcolor=PALETTE.GRID, gridwidth=1, row=idx, col=1)
         fig.update_xaxes(title_text='Tiempo (s)', row=display_rows, col=1)
-        fig.update_xaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=display_rows, col=1)
-        fig.update_layout(height=250 * display_rows, template='plotly_dark', paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'))
+        fig.update_xaxes(showgrid=True, gridcolor=PALETTE.GRID, gridwidth=1, row=display_rows, col=1)
+        fig.update_layout(height=250 * display_rows, template='plotly_dark', paper_bgcolor=PALETTE.BACKGROUND, plot_bgcolor=PALETTE.BACKGROUND, font=dict(color=PALETTE.TEXT))
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("## 🧠 Análisis de Potencia de Banda")
@@ -642,12 +643,12 @@ with col2:
                 try:
                     labels = list(overall.band_power.keys())
                     values = [float(overall.band_power[k]) for k in labels]
-                    reporting._save_bar_plot(bp_path, labels, values, title='EEG Band Power')
+                    reporting._save_bar_plot(bp_path, labels, values, title='Potencia de banda EEG')
                 except Exception:
                     pass
                 image_paths = []
                 if os.path.exists(bp_path):
-                    image_paths.append(('EEG Band Power', bp_path))
+                    image_paths.append(('Potencia de banda EEG', bp_path))
                 # Sin `validation=`: firmado explícitamente como mudo por
                 # el experto (Tanda Final, ver `eeg_neuro_lab/pages.py`) --
                 # contenedor mixto (DAR/TBR clínico, χ en observación), una
@@ -810,7 +811,7 @@ with col2:
                     ac = coupled[0]
                     st.caption(
                         f"🔗 Acoplamiento **{ac.rule_id}**: FC medida {ac.base_value:.0f} -> "
-                        f"FC acoplada **{ac.coupled_value:.0f} bpm** (DERIVADO_ACOPLAMIENTO, "
+                        f"FC acoplada **{ac.coupled_value:.0f} lpm** (DERIVADO_ACOPLAMIENTO, "
                         f"confianza {ac.confidence:.2f}) -- BAR observado {ac.observed_value:.2f}"
                     )
                 else:
@@ -826,61 +827,8 @@ with col2:
                 )
 
     st.markdown("---")
-    st.markdown("## 📚 Referencias EEG")
-    st.write("**Banda Delta:** sueño profundo, 0.5-4 Hz")
-    st.write("**Banda Theta:** somnolencia, 4-8 Hz")
-    st.write("**Banda Alpha:** relajación con ojos cerrados, 8-12 Hz")
-    st.write("**Banda Beta:** alerta y concentración, 13-30 Hz")
-    st.write("**Banda Gamma:** procesamiento cognitivo integrado, 30-45 Hz")
-
-    with st.expander("🧪 Quiz interactivo EEG"):
-        quiz_questions = [
-            {
-                "question": "¿Qué banda EEG se asocia con sueño profundo?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Delta",
-                "explanation": "Delta es la banda más lenta y se observa en sueño profundo."
-            },
-            {
-                "question": "¿Qué banda es típica en un estado de concentración y alerta?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Beta",
-                "explanation": "Beta aumenta durante la atención activa y la cognición."
-            },
-            {
-                "question": "¿Cuál es la banda predominante en relajación con los ojos cerrados?",
-                "options": ["Alpha", "Beta", "Theta", "Gamma"],
-                "answer": "Alpha",
-                "explanation": "Alpha es común con ojos cerrados y estados relajados."
-            },
-            {
-                "question": "¿Qué patrón EEG puede corresponder a una crisis epiléptica simulada?",
-                "options": ["Alpha", "Sleep Spindle", "Seizure", "Artifact"],
-                "answer": "Seizure",
-                "explanation": "Las espigas de alto voltaje y frecuencia son típicas de crisis."
-            },
-            {
-                "question": "¿Qué banda se relaciona con somnolencia ligera y transición al sueño?",
-                "options": ["Alpha", "Beta", "Theta", "Delta"],
-                "answer": "Theta",
-                "explanation": "Theta se observa en somnolencia y sueño ligero."
-            }
-        ]
-
-        user_answers = []
-        for idx, item in enumerate(quiz_questions, start=1):
-            user_answers.append(st.radio(item["question"], item["options"], key=f"quiz_{idx}"))
-
-        if st.button("Calcular puntuación", key="submit_eeg_quiz"):
-            score = sum(1 for answer, item in zip(user_answers, quiz_questions) if answer == item["answer"])
-            st.success(f"Has respondido {score} de {len(quiz_questions)} correctamente.")
-            for item, answer in zip(quiz_questions, user_answers):
-                correct = item["answer"]
-                st.write(f"**Pregunta:** {item['question']}")
-                st.write(f"- Tu respuesta: {answer}")
-                st.write(f"- Correcta: {correct}")
-                st.write(f"- Explicación: {item['explanation']}")
-                st.write("---")
+    render_eeg_references()
+    render_eeg_quiz()
 
 st.markdown("---")
 st.markdown("*Fase 3: EEG Neuro Lab - inicio del laboratorio de electroencefalografía clínica educativa en español.*")

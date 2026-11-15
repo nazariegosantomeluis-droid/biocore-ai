@@ -1,5 +1,5 @@
 """
-Engagement Index (2026-10-18) -- β/(α+θ), Pope, Bogart & Bartolome 1995,
+Índice de engagement (2026-10-18) -- β/(α+θ), Pope, Bogart & Bartolome 1995,
 RELATIVO al baseline de reposo del propio sujeto. Firma del experto (Luis):
 índice de estado operativo (no patología), gramática neutra, reportado como
 % de cambio respecto al reposo -- el uso original del sistema biocibernético

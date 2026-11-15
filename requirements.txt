@@ -40,7 +40,7 @@ seaborn>=0.12.0
 plotly>=5.10.0
 
 # Interactive Trainer App
-streamlit>=1.25.0
+streamlit>=1.66.1
 pyserial>=3.5.0
 
 # Narrador clínico (Fase 1.3) — domain/physiology/narrator/

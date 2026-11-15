@@ -1,5 +1,5 @@
 """
-Panel de Engagement Index (β/(α+θ), Pope 1995) del EEG Neuro Lab: controles
+Panel de Índice de engagement (β/(α+θ), Pope 1995) del EEG Neuro Lab: controles
 del bloque de tarea en el sidebar y la medición relativa al reposo del propio
 sujeto. Gramática neutra (marco accent, nunca semáforo): es una métrica de
 rendimiento operativo de sesión, no un diagnóstico. Aislado del UPS, igual
@@ -102,7 +102,7 @@ def build_engagement_figure(result, lead: str) -> go.Figure:
 
 
 def render_engagement_panel(signal: np.ndarray, lead: str, fs: float, event: EngagementTaskEvent) -> None:
-    st.markdown("## 🎯 Engagement Index (β/(α+θ))")
+    st.markdown("## 🎯 Índice de engagement (β/(α+θ))")
     st.markdown(
         "Índice de enganche atencional del sistema biocibernético de Pope: la razón β/(α+θ) sube "
         "con la concentración activa y baja con la desatención o la somnolencia. Se mide como "

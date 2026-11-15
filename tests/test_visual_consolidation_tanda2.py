@@ -241,7 +241,7 @@ def test_emg_research_export_has_no_bare_numbers(_isolated_reports_dir):
     htmls = glob.glob(os.path.join(str(_isolated_reports_dir), "*EMG_Research*.html"))
     assert htmls, "no se generó el HTML de EMG Research"
     content = open(htmls[0], encoding="utf-8").read()
-    assert "Median Frequency" in content
+    assert "Frecuencia mediana" in content
     assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba el número desnudo, sin procedencia"
 
 
@@ -262,7 +262,7 @@ def test_ecg_segment_export_has_no_bare_numbers_and_validation_marker(_isolated_
     htmls = glob.glob(os.path.join(str(_isolated_reports_dir), "*ECG_Segment*.html"))
     assert htmls, "no se generó el HTML de ECG Segment"
     content = open(htmls[0], encoding="utf-8").read()
-    assert "Heart Rate" in content
+    assert "Frecuencia cardíaca" in content
     assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba solo {'length': ...}, cero honestidad"
     assert "MIT-BIH" in content, "ECG Segment debe heredar el nivel de validación ya declarado para ECG Lab"
     assert PALETTE.STABLE in content
@@ -285,7 +285,7 @@ def test_multisensor_research_export_has_no_bare_numbers_and_heuristic_marker(_i
     htmls = glob.glob(os.path.join(str(_isolated_reports_dir), "*Multisensor_Research*.html"))
     assert htmls, "no se generó el HTML de Multisensor Research"
     content = open(htmls[0], encoding="utf-8").read()
-    assert "Health Score" in content and "SpO2" in content
+    assert "Health Score" not in content and "SpO₂" in content and "Frecuencia cardíaca" in content   # decisión 8
     assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba solo {'channels': [...]}, cero honestidad"
     assert PALETTE.NEUTRAL in content, "Multisensor es heurístico -- marco NEUTRAL, no una alarma"
 

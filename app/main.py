@@ -31,7 +31,10 @@ if ROOT_DIR not in sys.path:
 from app.utils.env_loader import load_dotenv_file
 load_dotenv_file(Path(ROOT_DIR) / ".env")
 
-from app.utils.ai_session import AI_KEY_HINT, ai_client, ai_configured, render_entry_gate, render_sidebar_status
+from app.utils import navigation as nav
+from app.utils.ai_session import (
+    AI_KEY_HINT, ai_client, ai_configured, render_settings_link, render_settings_page, render_sidebar_status,
+)
 
 from app.supermodules import (
     generate_demo_bp_signal,
@@ -48,8 +51,6 @@ from app.supermodules import (
     display_warning_message,
     display_error_message,
     display_info_message,
-    render_metric_explained,
-    render_view_selector,
     render_discovery_lab,
 )
 from app.engines import DigitalTwinOrganism
@@ -58,7 +59,7 @@ from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, d
 from app.supermodules import hrv_nonlinear_panel, rsa_panel
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
-    inject_global_theme, resolve_metric_card, render_metric_card,
+    inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -172,65 +173,24 @@ st.set_page_config(
     },
 )
 
-# --- AÑADIDO: Biomarkers Lab AL CLINICAL HUB ---
-HUBS = {
-    "Digital Twin OS": [
-        "🧬 Digital Twin OS",
-    ],
-    "Learning Hub": [
-        # Fase 4 (2026-08-30, ver CHANGELOG.md): "🎓 Education" y "📚 Guides"
-        # retirados -- Education era 90% redirección honesta a esta misma
-        # Academia + fachadas (4 tarjetas de curso "en desarrollo", un
-        # selectbox de 3 diagnósticos fijos sin datos reales, 4 secciones
-        # de una sola frase describiendo capacidades que nunca se
-        # construyeron). Guides describía una navegación ya obsoleta
-        # (listaba 3 de los 8+ módulos reales de Clinical Hub) y una
-        # sección "Roles" sin ningún feature real detrás. Academia Clinica
-        # es el único contenido educativo real (quiz de 16 preguntas con
-        # feedback IA, casos clínicos ciegos, tabla de 12 derivaciones,
-        # tutor IA) -- el Learning Hub ahora lleva directo a él, sin
-        # cáscaras de por medio.
-        "🏫 Academia Clinica",
-    ],
-    "Clinical Hub": [
-        # Bug 3 (2026-07-12): algunos módulos tenían un segundo nombre "interno" sin
-        # emoji que aparecía como entrada de menú duplicada. El ruteo en
-        # render_page_content() empareja por substring, así que el nombre con
-        # emoji por sí solo sigue enrutando correctamente. Ver CHANGELOG.md.
-        #
-        # Fusión ECG Monitor + ECG-12 (2026-07-14): "📊 ECG Monitor" y "📋
-        # ECG-12-Derivaciones" eran dos entradas separadas para dos flujos
-        # totalmente independientes (inventario: cero colisión de widgets ni
-        # session_state). Se unificaron en una sola entrada "🫀 ECG Lab" con
-        # dos pestañas (Monitoreo / 12 Derivaciones) — reorganización de
-        # navegación, ninguno de los dos flujos se reescribió.
-        "🫀 ECG Lab",
-        "🔗 Multisensor Fusion Lab",
-        "💨 Respiratory Lab",
-        "🧠 EEG Neuro Lab",
-        "🦾 EMG Muscle Lab",
-        "📈 HRV Analysis",
-        "🧬 Biomarkers Lab",
-        # Tanda 2C (2026-10-24, aporte auditado): fórmulas y escalas publicadas,
-        # cada una con su cita; el eje QRS usa la fórmula de ECG-12. Ver CHANGELOG.md.
-        "🧮 Calculadoras Clínicas",
-        # Fusión de navegación, Research Hub (2026-07-14): Patient Pipeline
-        # reubicado aquí — único contenido real de Research Hub, que se
-        # eliminó del menú (su otra entrada, AI Analysis, era un cartel sin
-        # lógica; ver render_ai_analysis_page(), eliminada). Persistencia
-        # (app.clinical_db) sin tocar — solo se movió la entrada de menú.
-        "👥 Patient Pipeline",
-    ],
-    # 2026-10-22: traído del aporte externo auditado -- solo lo aprobado (motor
-    # TC/RM -> malla, pulmón verificado n=1, VCG verificado n=1, anatomía de
-    # referencia no reactiva). Ver CHANGELOG.md.
-    "Laboratorio 3D": [
-        "🧊 Crea tu modelo 3D",
-    ],
+# Navegación por intención (fase 1 de la propuesta, tanda 1, 2026-11-15): los 4 hubs y sus 12 entradas (`HUBS`)
+# se reemplazaron por las secciones Inicio, Aprender, Practicar, Explorar y Ajustes de `st.navigation` (ver
+# `_page_specs()` junto a `main()`). Las 12 entradas anteriores -> su página nueva (url_path); la prueba de
+# alcanzabilidad (`tests/test_fase1_t1_navegacion.py`) recorre todas. Historia del menú anterior: CHANGELOG.md.
+LEGACY_ENTRIES = {
+    "🧬 Digital Twin OS": ("gemelo",),
+    "🏫 Academia Clinica": ("teoria", "quiz", "caso-ciego"),
+    "🫀 ECG Lab": ("ecg",),
+    "🔗 Multisensor Fusion Lab": ("multisensor",),
+    "💨 Respiratory Lab": ("respiratorio",),
+    "🧠 EEG Neuro Lab": ("eeg",),
+    "🦾 EMG Muscle Lab": ("emg",),
+    "📈 HRV Analysis": ("hrv",),
+    "🧬 Biomarkers Lab": ("biomarcadores",),
+    "🧮 Calculadoras Clínicas": ("calculadoras",),
+    "👥 Patient Pipeline": ("pacientes",),
+    "🧊 Crea tu modelo 3D": ("modelo-3d",),
 }
-PAGE_TABS = [page for pages in HUBS.values() for page in pages]
-
-DEFAULT_HUB = "Digital Twin OS"
 
 
 # `inject_biocore_css()` (degradado cian, clases `.biocore-card`/
@@ -242,14 +202,8 @@ DEFAULT_HUB = "Digital Twin OS"
 # sobre `.streamlit/config.toml`.
 
 def init_state() -> None:
-    if 'selected_hub' not in st.session_state:
-        st.session_state.selected_hub = DEFAULT_HUB
-    if 'selected_page' not in st.session_state:
-        st.session_state.selected_page = HUBS[st.session_state.selected_hub][0]
     if 'report_requested' not in st.session_state:
         st.session_state.report_requested = False
-    if 'page_tabs' not in st.session_state:
-        st.session_state.page_tabs = PAGE_TABS
     if 'emg_streamer' not in st.session_state:
         st.session_state.emg_streamer = None
     # 'learning_progress' (Cardio-Fisiología 58%, Neurofisiología 42%, etc.) se quitó
@@ -275,12 +229,19 @@ def render_metric_explained(title: str, value: Any, unit: str = '', meaning: Opt
         display_value = str(value)
 
     st.markdown(f"**{title}** — {display_value}")
-    with st.expander(f"¿Qué significa {title}?", expanded=False):
-        st.markdown(f"- **¿Qué significa?** {meaning or 'Valor clínico cuantitativo que resume un aspecto fisiológico.'}")
-        st.markdown(f"- **¿Por qué importa?** {importance or 'Permite priorizar decisiones clínicas y educativas.'}")
-        st.markdown(f"- **¿Qué la afecta?** {affects or 'Fármacos, estado hemodinámico, respiración, ejercicio y artefactos técnicos.'}")
-        st.markdown(f"- **¿Cómo se relaciona con otros sistemas?** {relations or 'Interacciona con ventilación, oxigenación y estado neurológico.'}")
-        st.markdown(f"- **¿Qué pasaría si cambia?** {consequences or 'Un cambio significativo sugiere intervención, más pruebas o monitorización intensiva.'}")
+    # Tanda 1 de la fase 1 (2026-11-15, Art. I): solo se muestran las capas que el llamador escribió PARA ESTE número.
+    # Antes cada capa faltante se rellenaba con un texto genérico («Permite priorizar decisiones clínicas...», «Fármacos,
+    # estado hemodinámico...») que se leía como explicación específica sin serlo: relleno. Sin ninguna capa, no hay
+    # expander.
+    layers = [
+        ("¿Qué significa?", meaning), ("¿Por qué importa?", importance), ("¿Qué la afecta?", affects),
+        ("¿Cómo se relaciona con otros sistemas?", relations), ("¿Qué pasaría si cambia?", consequences),
+    ]
+    layers = [(q, text) for q, text in layers if text]
+    if layers:
+        with st.expander(f"¿Qué significa {title}?", expanded=False):
+            for question, text in layers:
+                st.markdown(f"- **{question}** {text}")
 
 
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
@@ -332,6 +293,7 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
             "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
             "Anthropic con streaming — no existe una narración simulada de respaldo. " + AI_KEY_HINT
         )
+        render_settings_link()
         return
 
     st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
@@ -420,8 +382,9 @@ _HRV_VALIDATION_DETAIL = (
     "de la European Society of Cardiology (ESC/NASPE)."
 )
 _MULTISENSOR_VALIDATION_DETAIL = (
-    "Health Score propietario de BIOCORE. Índice agregado de peso paramétrico no validado "
-    "poblacionalmente."
+    # Tanda 1 de la fase 1 (2026-11-15, decisión 8): la firma anterior describía el «Health Score» (índice
+    # compuesto sin cita, retirado). Lo que queda es la detección heurística de FC y SpO₂ sobre canales demo.
+    "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto."
 )
 _BIOMARKERS_VALIDATION_DETAIL = (
     "Índices compuestos (Estrés, Carga Cognitiva) derivados analíticamente de literatura base sin "
@@ -492,56 +455,6 @@ def render_respiratory_lab_page() -> None:
     run_respiratory_lab()
 
 
-def render_page_content(page: str) -> None:
-    # Bloque 1 (2026-08-09, ver CHANGELOG.md): el "else" que llamaba a
-    # render_home_page() se retiró -- `page` siempre viene de
-    # HUBS[selected_hub][...] (init_state()/el selectbox del sidebar validan
-    # contra la lista del hub activo), así que esta función nunca recibía un
-    # `page` fuera de las 3 listas de abajo; esa rama era inalcanzable por
-    # construcción, no un caso real a cubrir.
-    if page in HUBS["Digital Twin OS"]:
-        render_twin_shell_page()
-    elif page in HUBS["Learning Hub"]:
-        # Fase 4 (2026-08-30): Learning Hub = Academia Clinica, único
-        # módulo -- ya no hace falta desambiguar por substring.
-        render_academia_page()
-    elif page in HUBS["Clinical Hub"]:
-        if "ECG Lab" in page:
-            render_ecg_lab_page()
-        elif "Multisensor" in page:
-            render_multisensor_page()
-        elif "Respiratory" in page:
-            render_respiratory_lab_page()
-        elif "EEG" in page:
-            render_eeg_neuro_lab_page()
-        elif "EMG" in page:
-            render_emg_page()
-        elif "HRV" in page:
-            render_hrv_page()
-        elif "Biomarkers" in page:
-            render_biomarkers_page()  # --- ENRUTAMIENTO A LA NUEVA PÁGINA ---
-        elif "Calculadoras" in page:
-            render_calculators_page()
-        elif "Patient Pipeline" in page:
-            render_patient_pipeline_page()
-    elif page in HUBS["Laboratorio 3D"]:
-        render_model3d_page()
-
-def render_metrics_grid(metrics_data: List[Dict]):
-    cols = st.columns(len(metrics_data))
-    for idx, data in enumerate(metrics_data):
-        with cols[idx]:
-            render_metric_explained(
-                title=data['title'],
-                value=data['value'],
-                unit=data.get('unit', ''),
-                meaning=data.get('meaning'),
-                importance=data.get('importance'),
-                affects=data.get('affects'),
-                relations=data.get('relations'),
-                consequences=data.get('consequences')
-            )
-
 # ==================== RENDERING FUNCTIONS ====================
 
 # render_top_bar() se retiró (2026-08-11, mini-tanda de limpieza, ver
@@ -575,7 +488,7 @@ def render_metrics_grid(metrics_data: List[Dict]):
 # (PROVENANCE_CLINICAL_BADGE/PROVENANCE_HEURISTIC_BADGE), extendido aquí con
 # un tercer nivel: 🔴 para inputs sin fuente de señal real en el repo
 # ("fantasmas" — ni siquiera son heurística, son un valor sin instrumento
-# detrás). Dos fantasmas (metabolic_efficiency, EDA en Stress Index) se
+# detrás). Dos fantasmas (metabolic_efficiency, EDA en Índice de estrés) se
 # retiraron y renormalizaron el 2026-08-15 -- ver CHANGELOG.md. El
 # NeuroCardiac Coupling pseudocientífico (suma de potencias + `signal_
 # coherence` placeholder) se retiró por completo el 2026-08-19, reemplazado
@@ -587,10 +500,6 @@ def render_metrics_grid(metrics_data: List[Dict]):
 # compartida (ver design_system.py docstring). Ahora alias de BADGES
 # (design_system.py), la fuente única -- ningún valor ni ningún sitio de
 # uso más abajo cambia, solo de dónde viene el literal.
-BIOMARKER_CLINICAL_BADGE = BADGES.CLINICAL
-BIOMARKER_HEURISTIC_BADGE = BADGES.HEURISTIC
-BIOMARKER_GHOST_BADGE = BADGES.GHOST
-BIOMARKER_METHOD_BADGE = BADGES.METHOD
 BIOMARKER_HEURISTIC_LABEL = "ponderación heurística de BIOCORE, no derivada de estudio de cohorte"
 
 # Citas del validador (verbatim, Nivel 1 del dictamen) -- cada una se usa
@@ -609,37 +518,37 @@ BIOMARKER_SOURCE_PLV_CRITERION = (
 )
 
 _BIOMARKER_HELP = {
-    "Stress Index": (
-        f"{BIOMARKER_CLINICAL_BADGE} Recortado (2026-08-15) a su único componente real: LF/HF "
+    "Índice de estrés": (
+        f"{BADGES.tag(BADGES.CLINICAL)} Recortado (2026-08-15) a su único componente real: LF/HF "
         f"0.5-5.0, normalizado directo a 0-100, sin pesos: {BIOMARKER_SOURCE_ESC_NASPE}. Los "
         "componentes EDA (picos SCR, conductancia tónica) se retiraron — no hay módulo de señal "
         "EDA en el repo, eran constantes de preset sin sensor detrás."
     ),
-    "Recovery Index": (
-        f"{BIOMARKER_CLINICAL_BADGE} RMSSD 10-100ms: {BIOMARKER_SOURCE_RMSSD} · "
-        f"{BIOMARKER_HEURISTIC_BADGE} HR de reposo, horas de sueño y pesos (0.40/0.45/0.15): "
+    "Índice de recuperación": (
+        f"{BADGES.tag(BADGES.CLINICAL)} RMSSD 10-100ms: {BIOMARKER_SOURCE_RMSSD} · "
+        f"{BADGES.tag(BADGES.HEURISTIC)} HR de reposo, horas de sueño y pesos (0.40/0.45/0.15): "
         f"{BIOMARKER_HEURISTIC_LABEL}"
     ),
-    "Cognitive Load Score": (
-        f"{BIOMARKER_CLINICAL_BADGE} Ratio θ/α 0.5-4.0 y su peso (0.7): {BIOMARKER_SOURCE_HOLM_THETA_ALPHA} · "
-        f"{BIOMARKER_HEURISTIC_BADGE} componente HR surge (peso 0.3, rango 0-30): {BIOMARKER_HEURISTIC_LABEL}"
+    "Carga cognitiva": (
+        f"{BADGES.tag(BADGES.CLINICAL)} Ratio θ/α 0.5-4.0 y su peso (0.7): {BIOMARKER_SOURCE_HOLM_THETA_ALPHA} · "
+        f"{BADGES.tag(BADGES.HEURISTIC)} componente HR surge (peso 0.3, rango 0-30): {BIOMARKER_HEURISTIC_LABEL}"
     ),
-    "Physiological Resilience Score": (
-        f"{BIOMARKER_CLINICAL_BADGE} SDNN 15-150ms y HR Recovery Rate 15-50: {BIOMARKER_SOURCE_RESILIENCE_GOLD} · "
-        f"{BIOMARKER_HEURISTIC_BADGE} pesos renormalizados (0.5625/0.4375): {BIOMARKER_HEURISTIC_LABEL}. "
+    "Resiliencia fisiológica": (
+        f"{BADGES.tag(BADGES.CLINICAL)} SDNN 15-150ms y HR Recovery Rate 15-50: {BIOMARKER_SOURCE_RESILIENCE_GOLD} · "
+        f"{BADGES.tag(BADGES.HEURISTIC)} pesos renormalizados (0.5625/0.4375): {BIOMARKER_HEURISTIC_LABEL}. "
         "Eficiencia metabólica (RER, rango fisiológicamente imposible) se retiró (2026-08-15) — "
         "pesos originales 0.45/0.35 renormalizados sobre 0.80."
     ),
-    "NeuroCardiac PLV": (
-        f"{BIOMARKER_METHOD_BADGE} {BIOMARKER_SOURCE_PLV_CRITERION}. Reemplaza (2026-08-19) al "
+    "PLV neurocardíaco": (
+        f"{BADGES.tag(BADGES.METHOD)} {BIOMARKER_SOURCE_PLV_CRITERION}. Reemplaza (2026-08-19) al "
         "NeuroCardiac Coupling Score (suma de potencias + `signal_coherence` placeholder), que el "
-        "validador calificó de pseudocientífico. Distinto de 🟢: aquí se cita el MÉTODO, no un rango — "
+        "validador calificó de pseudocientífico. Distinto de «Validado por fuente»: aquí se cita el MÉTODO, no un rango — "
         "casi siempre mostrará 'no disponible', porque requiere ≥180s de señal ECG+EEG en vivo "
         "simultánea que el pipeline hoy no persiste."
     ),
-    "Learning Readiness Index": (
-        f"{BIOMARKER_HEURISTIC_BADGE} Score compuesto: hereda directamente la disponibilidad del "
-        f"PLV neurocardíaco ({BIOMARKER_METHOD_BADGE} arriba) y de Recovery Index — si el PLV no está "
+    "Disposición para el aprendizaje": (
+        f"{BADGES.tag(BADGES.HEURISTIC)} Score compuesto: hereda directamente la disponibilidad del "
+        f"PLV neurocardíaco ({BADGES.tag(BADGES.METHOD)} arriba) y de Índice de recuperación — si el PLV no está "
         "disponible, este índice tampoco lo está (no se renormaliza para forzar un número) · "
         f"atenuación beta (1-10) y pesos (0.4/0.4/0.2): {BIOMARKER_HEURISTIC_LABEL}"
     ),
@@ -752,14 +661,14 @@ def render_biomarkers_page() -> None:
 
         with tab_cardio:
             c1, c2, c3 = st.columns(3)
-            hr_val = c1.number_input("HR Reposo (bpm)", value=65.0, step=1.0)
+            hr_val = c1.number_input("FC en reposo (lpm)", value=65.0, step=1.0)
             rmssd_val = c2.number_input("HRV RMSSD (ms)", value=45.0, step=1.0)
             sdnn_val = c3.number_input("HRV SDNN (ms)", value=50.0, step=1.0)
             
             c4, c5, c6 = st.columns(3)
             lfhf_val = c4.number_input("Ratio LF/HF", value=1.5, step=0.1)
             hf_val = c5.number_input("Poder HF (ms2, sin efecto)", value=350.0, step=10.0)
-            hrr_val = c6.number_input("HR Recovery (bpm/min)", value=25.0, step=1.0)
+            hrr_val = c6.number_input("Recuperación de la FC (lpm/min)", value=25.0, step=1.0)
 
         with tab_neuro:
             st.caption(
@@ -775,7 +684,7 @@ def render_biomarkers_page() -> None:
 
         with tab_eda:
             st.caption(
-                "⚠️ Picos EDA y Conductancia Base ya no alimentan ningún score (Stress Index se "
+                "⚠️ Picos EDA y Conductancia Base ya no alimentan ningún score (Índice de estrés se "
                 "recortó a solo LF/HF, 2026-08-15) -- no hay módulo de señal EDA real en el repo. "
                 "Se dejan visibles sin efecto; HR Surge sí se sigue usando (Cognitive Load)."
             )
@@ -839,12 +748,12 @@ def render_biomarkers_page() -> None:
     # (que las compara textualmente). Mismo principio que `MODES` en
     # twin_shell/pages.py -- ver CHANGELOG.md.
     with col1:
-        st.metric(label="Índice de Estrés", value=f"{resultados['Stress Index']['score']}/100", delta=resultados['Stress Index']['status'], delta_color="inverse" if resultados['Stress Index']['score'] > 50 else "normal", help=_BIOMARKER_HELP["Stress Index"])
-        st.metric(label="Carga Cognitiva", value=f"{resultados['Cognitive Load Score']['score']}/100", delta=resultados['Cognitive Load Score']['status'], delta_color="inverse" if resultados['Cognitive Load Score']['score'] > 65 else "normal", help=_BIOMARKER_HELP["Cognitive Load Score"])
+        st.metric(label="Índice de Estrés", value=f"{resultados['Índice de estrés']['score']}/100", delta=resultados['Índice de estrés']['status'], delta_color="inverse" if resultados['Índice de estrés']['score'] > 50 else "normal", help=_BIOMARKER_HELP["Índice de estrés"])
+        st.metric(label="Carga Cognitiva", value=f"{resultados['Carga cognitiva']['score']}/100", delta=resultados['Carga cognitiva']['status'], delta_color="inverse" if resultados['Carga cognitiva']['score'] > 65 else "normal", help=_BIOMARKER_HELP["Carga cognitiva"])
 
     with col2:
-        st.metric(label="Recovery Index", value=f"{resultados['Recovery Index']['score']}/100", delta=resultados['Recovery Index']['status'], help=_BIOMARKER_HELP["Recovery Index"])
-        st.metric(label="Resiliencia Fisiológica", value=f"{resultados['Physiological Resilience Score']['score']}/100", delta=resultados['Physiological Resilience Score']['status'], help=_BIOMARKER_HELP["Physiological Resilience Score"])
+        st.metric(label="Índice de recuperación", value=f"{resultados['Índice de recuperación']['score']}/100", delta=resultados['Índice de recuperación']['status'], help=_BIOMARKER_HELP["Índice de recuperación"])
+        st.metric(label="Resiliencia Fisiológica", value=f"{resultados['Resiliencia fisiológica']['score']}/100", delta=resultados['Resiliencia fisiológica']['status'], help=_BIOMARKER_HELP["Resiliencia fisiológica"])
 
     with col3:
         # Consolidación Visual Tanda 3 (2026-09-21): antes cada "no
@@ -856,49 +765,49 @@ def render_biomarkers_page() -> None:
         # METHOD (🟣, cita el algoritmo, no un rango) -- coincide con el
         # que _BIOMARKER_HELP ya documenta. El "delta" (duration_s) que
         # antes mostraba st.metric se conserva en la cita, no se pierde.
-        plv_entry = resultados['NeuroCardiac PLV']
+        plv_entry = resultados['PLV neurocardíaco']
         if plv_entry['available']:
             render_metric_card(
-                "NeuroCardiac PLV", f"{plv_entry['plv']:.2f}",
+                "PLV neurocardíaco", f"{plv_entry['plv']:.2f}",
                 provenance=BADGES.METHOD,
-                citation=f"{plv_entry['duration_s']:.0f}s de señal · {_BIOMARKER_HELP['NeuroCardiac PLV']}",
+                citation=f"{plv_entry['duration_s']:.0f}s de señal · {_BIOMARKER_HELP['PLV neurocardíaco']}",
             )
         else:
             muestra = f"{plv_entry['duration_s']:.0f}s" if plv_entry['duration_s'] is not None else "0s"
             render_metric_card(
-                "NeuroCardiac PLV", None,
+                "PLV neurocardíaco", None,
                 unavailable_reason=(
-                    f"🟣 Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. "
+                    f"{BADGES.tag(BADGES.METHOD)} Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. "
                     f"Muestra actual: {muestra}."
                 ),
             )
 
         # Learning Readiness: badge HEURISTIC (🔵), igual que _BIOMARKER_HELP.
-        readiness_entry = resultados['Learning Readiness Index']
+        readiness_entry = resultados['Disposición para el aprendizaje']
         if readiness_entry['available']:
             render_metric_card(
-                "Learning Readiness Index", f"{readiness_entry['score']}/100",
+                "Disposición para el aprendizaje", f"{readiness_entry['score']}/100",
                 provenance=BADGES.HEURISTIC,
-                citation=f"{readiness_entry['status']} · {_BIOMARKER_HELP['Learning Readiness Index']}",
+                citation=f"{readiness_entry['status']} · {_BIOMARKER_HELP['Disposición para el aprendizaje']}",
             )
         else:
             render_metric_card(
-                "Learning Readiness Index", None,
-                unavailable_reason="🔵 Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.",
+                "Disposición para el aprendizaje", None,
+                unavailable_reason=f"{BADGES.tag(BADGES.HEURISTIC)} Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.",
             )
 
     # Autonomic Stability: siempre no disponible hoy (0/2 inputs con fuente
     # real, ver 🔴 Fantasmas abajo) -- antes st.markdown en negrita + st.info
     # con el mismo motivo, ahora la misma forma que PLV/Learning Readiness.
     render_metric_card(
-        "Autonomic Stability", None,
+        "Estabilidad autonómica", None,
         unavailable_reason=(
-            "🔴 No disponible — sin fuente de señal real. Requiere presión arterial y PPG-PTT que hoy no "
-            "existen en el pipeline (ver 🔴 Fantasmas abajo)."
+            f"{BADGES.tag(BADGES.GHOST)} Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
+            "existen en el pipeline (ver «Fantasmas» abajo)."
         ),
     )
 
-    with st.expander("🔴 Fantasmas — inputs sin fuente de señal real"):
+    with st.expander("Fantasmas [Sin fuente] — inputs sin fuente de señal real"):
         st.markdown(
             "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
             "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
@@ -906,16 +815,16 @@ def render_biomarkers_page() -> None:
             "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
             ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
             "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
-            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Stress Index) — **retirados (2026-08-15)**. "
-            "No existe ningún módulo de señal EDA en el repo. Stress Index quedó solo sobre LF/HF, "
+            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
+            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
             "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
             "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
             "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
             "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
             "-- Theta Frontomedial (4-8Hz) vs. banda HF-HRV (0.15-0.40Hz), ≥180s de señal simultánea. "
-            "Casi siempre mostrará 'no disponible' (ver 🟣 arriba) porque el pipeline hoy no persiste "
+            "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
             "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
-            "- 🔴 **`bp_variance` / `ppg_pulse_transit_time_var`** (Autonomic Stability) — **retirado "
+            "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
             "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 inputs tienen "
             "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
             "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
@@ -1053,8 +962,6 @@ def render_emg_page() -> None:
                     affects='Carga, postura, fatiga, desbalance neuromuscular.',
                     relations='Se correlaciona con ECG y respiración durante esfuerzo.',
                     consequences='Elevada activación prolongada sugiere fatiga y riesgo de lesión.')
-        st.write('¿Qué significa?: Nivel de reclutamiento motor. Por qué importa: indica esfuerzo y fatiga.')
-        st.write('Qué lo afecta: carga, postura, fatiga, neurogenic factors.')
         # Tanda 1 de contención (2026-11-05, Art. I): 'Capa de Descubrimiento Científico' retirada
         # (su botón no medía lo que decía); detalle en CHANGELOG.md.
 
@@ -1062,7 +969,7 @@ def render_emg_page() -> None:
         st.markdown('### Vista Educativa')
         st.write('Visualiza activación, rectificación y aprende sobre fatiga muscular.')
         st.line_chart(signal)
-        st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='Raw EMG')), use_container_width=True)
+        st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='EMG cruda')), use_container_width=True)
 
     elif view == 'Investigación':
         st.markdown('### Vista Investigación')
@@ -1072,7 +979,7 @@ def render_emg_page() -> None:
         # usado un poco más abajo para el export de esta misma vista (Tanda
         # 2): cálculo real sobre señal filtrada, sin cita/umbral clínico
         # propio en este repo (no existe classify_emg()).
-        render_metric_card('Median Frequency', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
+        render_metric_card('Frecuencia mediana', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
         if st.button('Exportar EMG para investigación'):
             # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
             # {'median_freq': median_freq} desnudo -- un número sin
@@ -1085,7 +992,7 @@ def render_emg_page() -> None:
             # lo hereda igual que ya hacían ECG/Multisensor.
             honesty_cards = [
                 resolve_metric_card(
-                    'Median Frequency', f'{median_freq:.1f} Hz',
+                    'Frecuencia mediana', f'{median_freq:.1f} Hz',
                     provenance=BADGES.HEURISTIC,
                 ),
             ]
@@ -1515,7 +1422,7 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
 
         st.success(
             f"Estado guardado al gemelo -- snapshot: {snapshot_id} "
-            f"(HR={hr:.0f}bpm, confianza={confidence:.2f})"
+            f"(FC={hr:.0f} lpm, confianza={confidence:.2f})"
         )
         st.caption(
             f"cardiovascular: {len(state.cardiovascular.descriptors)} descriptores · "
@@ -1731,18 +1638,18 @@ def render_ecg_monitor_page() -> None:
             else:
                 signal, fs = buf_signal, hw_source.fs
                 if hardware_real:
-                    st.sidebar.success('🟢 PROCEDENCIA: SENSOR_REAL — hardware ESP32 real respondiendo.')
+                    st.sidebar.success('PROCEDENCIA: SENSOR_REAL — hardware ESP32 real respondiendo.')
                     metadata = {'source': 'ESP32 (SENSOR_REAL)'}
                 else:
                     st.sidebar.warning(
-                        '🟡 PROCEDENCIA: SIMULACIÓN — no se detectó ningún dispositivo físico; '
+                        'PROCEDENCIA: SIMULACIÓN — no se detectó ningún dispositivo físico; '
                         'el software cayó a modo simulado. Re-etiquetado explícitamente, nunca '
                         'mostrado como sensor real.'
                     )
                     metadata = {'source': 'ESP32 (SIMULACIÓN — sin hardware real detectado)'}
 
     if signal is None:
-        hr_demo = st.sidebar.slider('Demo HR (bpm)', 40, 140, 72)
+        hr_demo = st.sidebar.slider('FC demo (lpm)', 40, 140, 72)
         # Fase 5B (2026-08-30): DynamicECGGenerator (McSharry et al. 2003)
         # reemplaza a generate_demo_ecg_signal() -- ver
         # src/signals/ecg/dynamic_ecg_generator.py. El generador viejo
@@ -1788,17 +1695,14 @@ def render_ecg_monitor_page() -> None:
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
         if hr is None:
-            render_metric_explained('Heart Rate', 'No disponible', unit='',
-                        meaning='El detector TKEO no encontró suficientes picos R fiables en esta señal '
-                                'para medir un intervalo -- degradación honesta (Art. I), no un número de relleno.',
-                        importance='Principal indicador de estado cardiovascular y esfuerzo -- sin un valor '
-                                    'fiable aquí, no se muestra ninguno.',
-                        affects='Señal demasiado corta, sin complejo QRS reconocible en la banda 5-15Hz, '
-                                'ritmo no evaluable, o el motor ECGAnalyzer no está disponible en este entorno.',
-                        relations='Sin HR medido, no hay base para comparar contra otros sistemas en este momento.',
-                        consequences='Prueba con otra fuente/registro, o una señal de mayor duración/calidad.')
+            render_no_data(
+                'Frecuencia cardíaca',
+                'el detector TKEO no encontró suficientes picos R fiables en esta señal (señal corta, sin QRS '
+                'reconocible en 5-15 Hz, ritmo no evaluable o motor ECGAnalyzer no disponible). Prueba con otra '
+                'fuente o una señal más larga.',
+            )
         else:
-            render_metric_explained('Heart Rate', f'{hr:.0f}', unit='bpm',
+            render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm',
                         meaning='Frecuencia cardíaca derivada del ECG.',
                         importance='Principal indicador de estado cardiovascular y esfuerzo.',
                         affects='Ejercicio, arritmias, fármacos, volumen intravascular.',
@@ -1897,12 +1801,12 @@ def render_ecg_monitor_page() -> None:
             # `unavailable_reason` -- nunca un número inventado.
             if hr is not None:
                 honesty_cards = [
-                    resolve_metric_card('Heart Rate', f'{hr:.0f} bpm', provenance=BADGES.HEURISTIC),
+                    resolve_metric_card('Frecuencia cardíaca', f'{hr:.0f} lpm', provenance=BADGES.HEURISTIC),
                 ]
             else:
                 honesty_cards = [
                     resolve_metric_card(
-                        'Heart Rate', provenance=BADGES.HEURISTIC,
+                        'Frecuencia cardíaca', provenance=BADGES.HEURISTIC,
                         unavailable_reason='El detector TKEO no encontró suficientes picos R en esta señal.',
                     ),
                 ]
@@ -1985,7 +1889,7 @@ def render_ecg_monitor_page() -> None:
         # rango del slider (sandbox de "qué pasaría si", no un valor
         # reportado) y cae a 72 sin medición.
         fc_default = min(160, max(30, int(hr))) if hr is not None else 72
-        fc = st.slider('Frecuencia cardíaca (bpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
+        fc = st.slider('Frecuencia cardíaca (lpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
         pr = st.slider('PR (ms)', 80, 300, 160)
         qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
         qt = st.slider('QT (ms)', 200, 500, 360)
@@ -2062,29 +1966,12 @@ def render_multisensor_page() -> None:
         st.markdown('### Vista Clínica')
         record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
         indices = record.compute_physiological_indices()
-        health = record.health_score()
-        st.write('Vista integrada de signos vitales y perfusión')
-        render_metric_explained('Health Score', f"{health['overall']:.1f}", unit='/100',
-                    meaning='Índice agregado de estado fisiológico multisensor.',
-                    importance='Sirve para priorizar intervenciones y monitoreo.',
-                    affects='Variaciones en ECG, PPG, SpO2 y respiración.',
-                    relations='Resume interacciones entre sistemas cardiovasculares y respiratorios.')
-        # Consolidación Visual Tanda 3 (2026-09-21): capa de honestidad
-        # añadida junto al contenido educativo de arriba (que se conserva
-        # tal cual -- no lo reemplaza). HEURISTIC en los tres, mismo
-        # criterio que ya usa el export de esta misma vista (Tanda 2):
-        # `health_score()`/`compute_physiological_indices()` son una
-        # fórmula heurística de ingeniería, sin validación contra
-        # literatura o cohorte -- mismo nivel que `validation="HEURISTIC"`
-        # ya declara para todo el módulo arriba, ahora también por métrica
-        # (Eje A, no el Eje C del encabezado). Heart Rate/SpO2 antes eran
-        # render_metric_explained() sin ningún meaning propio (solo
-        # defaults genéricos) -- se reemplazan por completo, sin perder
-        # contenido educativo real.
-        render_metric_card('Health Score', f"{health['overall']:.1f}/100", provenance=BADGES.HEURISTIC)
-        render_metric_card('Heart Rate', f"{indices['heart_rate']:.0f} bpm", provenance=BADGES.HEURISTIC)
-        render_metric_card('SpO2', f"{indices['spo2_mean']:.1f}%", provenance=BADGES.HEURISTIC)
-        st.write('Qué significa: índice agregado de bienestar fisiológico. Por qué importa: prioriza intervenciones.')
+        # Decisión 8 (tanda 1 de la fase 1, 2026-11-15, Art. I): el «Health Score 74.2/100» se retiró -- índice
+        # compuesto sin cita, igual que los índices de salud retirados del organismo en la fase 0.
+        st.write('Signos detectados sobre los canales demo (señales generadas, no un paciente).')
+        render_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
+                           provenance=BADGES.HEURISTIC)
+        render_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC)
 
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
@@ -2108,11 +1995,10 @@ def render_multisensor_page() -> None:
             # de la firma del experto, ver `_MULTISENSOR_VALIDATION_DETAIL`).
             record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
             indices = record.compute_physiological_indices()
-            health = record.health_score()
             honesty_cards = [
-                resolve_metric_card('Health Score', f"{health['overall']:.1f}/100", provenance=BADGES.HEURISTIC),
-                resolve_metric_card('Heart Rate', f"{indices['heart_rate']:.0f} bpm", provenance=BADGES.HEURISTIC),
-                resolve_metric_card('SpO2', f"{indices['spo2_mean']:.1f}%", provenance=BADGES.HEURISTIC),
+                resolve_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
+                                    provenance=BADGES.HEURISTIC),
+                resolve_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC),
             ]
             p = export_lab_report(
                 'Multisensor Research', {'channels': list(demo_channels.keys())}, notes='Multisensor export',
@@ -2126,44 +2012,20 @@ def render_multisensor_page() -> None:
         st.markdown('### Vista IA — Narrador clínico')
         record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
         indices = record.compute_physiological_indices()
-        health = record.health_score()
         render_findings_narrator('Multisensor Fusion Lab', [
-            ('health_score', f"{health['overall']:.1f}/100", 'Índice agregado de estado fisiológico, combinando ECG, PPG, SpO2 y respiración.'),
-            ('heart_rate_bpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG.'),
-            ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO2.'),
+            ('frecuencia_cardiaca_lpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG demo.'),
+            ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO₂ demo.'),
         ])
 
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
-        st.write('Ajusta HR y SpO2 y observa cómo cambia el Health Score en vivo. RR se muestra pero está deshabilitado (razón debajo).')
+        st.write('Ajusta la FC y la SpO₂ de los canales demo y mira lo que el detector recalcula sobre las señales regeneradas.')
 
-        # Cableado real (2026-08-20, Capa 2 Fase 2.2, Art. I): originalmente
-        # estos 3 sliders no alimentaban ningún cálculo -- render_discovery_lab
-        # corría sobre demo_channels sin modificar, y el texto afirmaba un
-        # recálculo en tiempo real que no ocurría. Se cablearon los 3 a la
-        # misma ruta de cálculo compartida (_build_multisensor_record ->
-        # compute_physiological_indices/health_score) que ya usan Clínica/IA.
-        # Cierre (2026-08-21, Capa 2 Fase 2.2, Ejecución 1 cierre): tras
-        # cablear, verificado por ejecución que SpO2 sí mueve el Health Score
-        # pero HR y RR no -- HR porque generate_demo_ecg_signal() calculaba
-        # hr_rad/qrs_component a partir de `hr` y nunca los usaba (la forma
-        # de onda dependía de un ciclo fijo t % 1); RR porque health_score()
-        # nunca consumió respiration_rate en su fórmula (sigue así, sin
-        # cambios en esta tanda).
-        #
-        # Reactivado (Fase 5B, 2026-08-30): el generador de ECG se reemplazó
-        # por DynamicECGGenerator (McSharry 2003, ver CHANGELOG.md) -- ya
-        # respeta `hr` (validado por TKEO). `health_score()` SÍ consumía
-        # `heart_rate` desde siempre (línea `if 'heart_rate' in indices:
-        # ...scores['cardiovascular']...`, `dashboards/multisensor.py`) --
-        # el cálculo era real, solo estaba bloqueado por el generador
-        # mintiendo sobre el HR real de la señal. RR sigue deshabilitado --
-        # esa razón (`health_score()` no usa `respiration_rate`) no cambió.
-        hr = st.slider('HR', 40, 160, 72)
-        spo2 = st.slider('SpO2', 80, 100, 96)
+        hr = st.slider('FC (lpm)', 40, 160, 72)
+        spo2 = st.slider('SpO₂ (%)', 80, 100, 96)
         rr = st.slider(
-            'RR', 8, 30, 16, disabled=True,
-            help='Deshabilitado: no incluido en el cálculo actual de Health Score (health_score() no usa respiration_rate).',
+            'FR (resp/min)', 8, 30, 16, disabled=True,
+            help='Fija: ninguna métrica de esta vista usa la FR (antes alimentaba un «Health Score» sin cita, retirado).',
         )
 
         sim_channels = {
@@ -2175,28 +2037,22 @@ def render_multisensor_page() -> None:
         }
         sim_record = _build_multisensor_record(sim_channels, BiosignalChannel, MultisensoralRecord)
         sim_indices = sim_record.compute_physiological_indices()
-        sim_health = sim_record.health_score()
 
-        # Consolidación Visual Tanda 3 (2026-09-21): st.metric() nativo sin
-        # ninguna honestidad de procedencia -- mismo criterio HEURISTIC que
-        # la Vista Clínica de este módulo, arriba (idéntica ruta de
-        # cálculo, valores recalculados en vivo desde los sliders).
-        col_hr, col_spo2, col_health = st.columns(3)
+        col_hr, col_spo2 = st.columns(2)
         with col_hr:
-            render_metric_card('Heart Rate (detectado del ECG)', f"{sim_indices.get('heart_rate', 0):.0f} bpm", provenance=BADGES.HEURISTIC)
+            hr_sim = sim_indices.get('heart_rate')
+            render_metric_card('FC detectada del ECG demo', None if hr_sim is None else f"{hr_sim:.0f} lpm",
+                               provenance=BADGES.HEURISTIC, unavailable_reason='el detector no encontró picos R')
         with col_spo2:
-            render_metric_card('SpO2 (recalculado)', f"{sim_indices.get('spo2_mean', 0):.1f} %", provenance=BADGES.HEURISTIC)
-        with col_health:
-            render_metric_card('Health Score (recalculado)', f"{sim_health['overall']:.1f} /100", provenance=BADGES.HEURISTIC)
+            spo2_sim = sim_indices.get('spo2_mean')
+            render_metric_card('SpO₂ recalculada del canal demo', None if spo2_sim is None else f"{spo2_sim:.1f} %",
+                               provenance=BADGES.HEURISTIC, unavailable_reason='el canal SpO₂ no dio un promedio')
 
         st.caption(
-            '**HR y SpO2 son controles activos de esta pestaña**: recalculan el Health Score de verdad, '
-            'en el mismo instante en que mueves cada slider (misma ruta de cálculo que la Vista Clínica: '
-            '`compute_physiological_indices()` + `health_score()` sobre señales ECG/SpO2 regeneradas). '
-            'HR se reactivó en la Fase 5B (2026-08-30, ver CHANGELOG.md) al reemplazar el generador de '
-            'ECG. **RR sigue deshabilitado** -- `health_score()` no consume `respiration_rate` en su '
-            'fórmula, así que dejarlo arrastrable sería un control placebo; muestra la razón exacta al '
-            'pasar el cursor.'
+            '**FC y SpO₂ son controles activos de esta pestaña**: regeneran las señales demo y el detector recalcula '
+            'sobre ellas en el mismo instante (misma ruta que la Vista Clínica: `compute_physiological_indices()`). '
+            'La FR queda fija: ninguna métrica de esta vista la usa, así que dejarla arrastrable sería un control '
+            'placebo.'
         )
 
         render_discovery_lab('Multisensor Gemelo', sim_channels)
@@ -2339,7 +2195,7 @@ def render_hrv_page() -> None:
                 relations='Relacionada con RMSSD y balance autonómico.',
                 consequences='Bajos valores asociados a mayor riesgo cardiovascular.')
     render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms',
-                meaning='Root mean square of successive differences — parasympathetic tone proxy.')
+                meaning='Raíz cuadrática media de las diferencias sucesivas entre intervalos NN — aproximación del tono parasimpático.')
     render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%',
                 meaning='Porcentaje de diferencias NN>50ms — indicador vagal.')
 
@@ -2372,7 +2228,7 @@ def render_hrv_page() -> None:
         if PLOTLY_OK:
             fig = PLOTLY_GO.Figure()
             fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
-            fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Power')
+            fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Potencia')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.line_chart(pxx)
@@ -2383,17 +2239,17 @@ def render_hrv_page() -> None:
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Autonomic
     # Balance" ad-hoc, desconectado de ese gemelo real.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
-    if view == 'Educativa':
-        st.markdown('### Vista Educativa — ¿Qué afecta la HRV?')
-        st.write('- Vagal tone increments raise RMSSD and pNN50.')
-        st.write('- Chronic disease and age tend to lower SDNN.')
+    # Tanda 1 de la fase 1 (2026-11-15, Art. I): el selector «Capa de Exploración Cognitiva» de este lab era un control
+    # placebo: «Clínica» e «Investigación» no cambiaban nada (las dos vistas ya se muestran arriba, siempre). Se retiró;
+    # las tres secciones que sí dependían de él (educativa, IA y simulación) quedan como expanders, sin perder contenido.
+    with st.expander('📘 ¿Qué afecta la HRV?', expanded=False):
+        st.write('- Un mayor tono vagal eleva la RMSSD y el pNN50.')
+        st.write('- La enfermedad crónica y la edad tienden a bajar el SDNN.')
         st.line_chart(rr_ms)
-    elif view == 'IA':
-        st.markdown('### Vista IA — Narrador clínico')
+    with st.expander('🤖 Explicación con IA de estos valores', expanded=False):
         findings = [
             ('sdnn_ms', f'{sdnn:.1f} ms', 'Desviación estándar de los intervalos NN — variabilidad global.'),
-            ('rmssd_ms', f'{rmssd:.1f} ms', 'Root mean square de diferencias sucesivas — proxy de tono parasimpático.'),
+            ('rmssd_ms', f'{rmssd:.1f} ms', 'Raíz cuadrática media de las diferencias sucesivas — aproximación del tono parasimpático.'),
             ('pnn50_pct', f'{pnn50:.1f}%', 'Porcentaje de diferencias NN mayores a 50ms — indicador vagal.'),
         ]
         if lf_power is not None and hf_power is not None:
@@ -2403,10 +2259,9 @@ def render_hrv_page() -> None:
                 'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
             ))
         render_findings_narrator('HRV Analysis', findings)
-    elif view == 'Simulación':
-        st.markdown('### Vista Simulación')
-        st.write('Ajusta variabilidad y observa efectos en índices (sterile demo).')
-        var = st.slider('Variabilidad (SD%)', 0.0, 10.0, 3.0)
+    with st.expander('🧪 Simulación de variabilidad', expanded=False):
+        st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (demostración, no un paciente).')
+        var = st.slider('Variabilidad (DE %)', 0.0, 10.0, 3.0)
         sim_rr = mean_nn + np.random.normal(0, mean_nn * var/100.0, size=len(rr_ms))
         st.line_chart(sim_rr)
 
@@ -2516,7 +2371,7 @@ def render_patient_pipeline_page() -> None:
         st.caption(f"Paciente UPS: `{patient_id}` (nombre: {patient_label})")
 
         st.markdown('#### Registrar estado fisiológico')
-        hr = st.slider('Frecuencia cardíaca (bpm)', 40, 180, 72, key="patient_pipeline_hr")
+        hr = st.slider('Frecuencia cardíaca (lpm)', 40, 180, 72, key="patient_pipeline_hr")
         rr = st.slider('Frecuencia respiratoria (resp/min)', 8, 40, 16, key="patient_pipeline_rr")
         spo2 = st.slider('SpO₂ (%)', 70, 100, 98, key="patient_pipeline_spo2")
         if st.button('Guardar nuevo estado', key="patient_pipeline_save_state"):
@@ -2671,37 +2526,138 @@ def render_patient_pipeline_page() -> None:
 # "🩺 Narrador clínico (IA real)".
 
 
+# ==================== NAVEGACIÓN POR INTENCIÓN (fase 1, tanda 1) ====================
+
+def render_home_page() -> None:
+    """Inicio (decisión 2): tres puertas, cada una con una línea que dice qué hace. La clave de IA ya no es la
+    primera pantalla: vive en Ajustes."""
+    render_module_header(
+        "BIOCORE AI", icon="🧬",
+        subtitle="Plataforma educativa de fisiología. El gemelo digital es una simulación y se declara como tal.",
+    )
+    doors = (
+        ("teoria", "📖", "Aprender", "Teoría, referencias de los laboratorios y el ECG en 3D: entender antes de medir."),
+        ("cuestionarios", "✍️", "Practicar", "Cuestionarios y casos clínicos: respondes tú y solo entonces se corrige."),
+        ("gemelo", "🔬", "Explorar", "El gemelo digital (simulado) y los laboratorios de señales: cambia algo y mira qué pasa."),
+    )
+    for col, (url, icon, title, line) in zip(st.columns(3), doors):
+        with col.container(border=True):
+            st.markdown(f"### {icon} {title}")
+            st.write(line)
+            nav.link(url, f"Ir a {title}", icon="➡️")
+    st.caption("La IA (narrador y explicaciones) es opcional: sin clave, todo lo demás funciona igual.")
+    nav.link("ajustes", "Ajustes: clave de IA", icon="⚙️")
+
+
+def render_learn_theory_page() -> None:
+    from app.supermodules.academia.pages import render_theory_section
+
+    render_module_header("Teoría", icon="📖", subtitle="La teoría de la Academia.")
+    render_theory_section(expanded=True)
+
+
+def render_learn_references_page() -> None:
+    from app.supermodules.eeg_neuro_lab.teaching import render_eeg_references
+    from app.supermodules.respiratory_lab import views as respiratory_views
+
+    render_module_header("Referencias de los laboratorios", icon="📚",
+                         subtitle="Las tablas clínicas y la información educativa de cada laboratorio, con su fuente.")
+    render_section_header("Respiratorio")
+    respiratory_views.render_clinical_references()
+    respiratory_views.render_education_topics()
+    render_section_header("EEG")
+    render_eeg_references()
+
+
+def render_learn_ecg3d_page() -> None:
+    from app.supermodules.model3d.panels import render_vcg_panel
+
+    render_module_header("ECG en 3D", icon="🫀", subtitle="El vectocardiograma: el ECG como un lazo en el espacio.")
+    render_vcg_panel("aprender_vcg")
+
+
+def render_practice_quiz_page() -> None:
+    from app.supermodules.academia.pages import render_quiz_section
+
+    render_module_header("Quiz de la Academia", icon="✍️")
+    render_quiz_section()
+
+
+def render_practice_blind_case_page() -> None:
+    from app.supermodules.academia.pages import render_synthetic_case_section
+
+    render_module_header("Caso ciego", icon="🕵️", subtitle="Un caso del gemelo (simulado) sin decirte cuál es.")
+    render_synthetic_case_section()
+
+
+def render_practice_ecg_challenge_page() -> None:
+    from app.supermodules.ecg_12.quiz import render_ecg12_quiz
+
+    render_module_header("Desafío ECG de 12 derivaciones", icon="📋")
+    render_ecg12_quiz(key_prefix="practicar_")
+
+
+def render_practice_lab_quizzes_page() -> None:
+    from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz
+    from app.supermodules.respiratory_lab import views as respiratory_views
+
+    render_module_header("Cuestionarios de los laboratorios", icon="❓")
+    render_section_header("Respiratorio")
+    respiratory_views.render_quiz(None, key_prefix="practicar_")
+    render_section_header("EEG")
+    render_eeg_quiz(expanded=True)
+
+
+def render_practice_simulator_cases_page() -> None:
+    from app.supermodules.twin_shell import pages as twin
+
+    render_module_header("Casos clínicos del simulador", icon="🩺",
+                         subtitle="Escenarios del gemelo digital (simulados): diagnostica antes de ver la respuesta.")
+    twin.init_session()
+    twin.render_clinical_case_mode(st.session_state.twin_shell_organism)
+
+
+def _page_specs() -> list:
+    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
+    return [
+        ("", "inicio", "Inicio", "🏠", render_home_page),
+        ("Aprender", "teoria", "Teoría (Academia)", "📖", render_learn_theory_page),
+        ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
+        ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
+        ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
+        ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
+        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
+        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
+        ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
+        ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
+        ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
+        ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),
+        ("Explorar", "respiratorio", "Respiratorio", "💨", render_respiratory_lab_page),
+        ("Explorar", "eeg", "EEG", "🧠", render_eeg_neuro_lab_page),
+        ("Explorar", "emg", "EMG", "🦾", render_emg_page),
+        ("Explorar", "hrv", "Variabilidad cardíaca (HRV)", "📈", render_hrv_page),
+        ("Explorar", "biomarcadores", "Biomarcadores", "🧪", render_biomarkers_page),
+        ("Explorar", "calculadoras", "Calculadoras clínicas", "🧮", render_calculators_page),
+        ("Explorar", "pacientes", "Pipeline de pacientes", "👥", render_patient_pipeline_page),
+        ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
+        ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_page),
+    ]
+
+
 def main() -> None:
     init_state()
     inject_global_theme()
-    # 2026-10-25: panel previo opcional para pegar la API key de esta sesión
-    # (ver app/utils/ai_session.py). Si el servidor ya tiene ANTHROPIC_API_KEY, no aparece.
-    if not render_entry_gate():
-        return
-
-    st.sidebar.markdown("## ECOSISTEMA BIOCORE AI")
-    selected_hub = st.sidebar.radio('Selecciona un hub', list(HUBS.keys()), index=list(HUBS.keys()).index(st.session_state.selected_hub), label_visibility='hidden')
-    if selected_hub != st.session_state.selected_hub:
-        st.session_state.selected_hub = selected_hub
-        st.session_state.selected_page = HUBS[selected_hub][0]
-    
-    st.sidebar.caption(f"📂 Módulo dentro de **{st.session_state.selected_hub}**:")
-    selected_page = st.sidebar.selectbox('Selecciona un módulo', HUBS[st.session_state.selected_hub], index=HUBS[st.session_state.selected_hub].index(st.session_state.selected_page), label_visibility='collapsed')
-    st.session_state.selected_page = selected_page
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Control universal:**")
-    # Consolidación, Tanda 3 (2026-07-13): antes este bullet no decía dónde
-    # vivía el Narrador Clínico (implícitamente, el ahora eliminado AI Hub).
-    # Se deja explícito para no perder capacidad de descubrimiento.
-    st.sidebar.markdown("- 🩺 Narrador Clínico → Digital Twin OS")
+    start = st.session_state.get(nav.START_PAGE, "inicio")
+    pages, sections, menu = {}, {}, {}
+    for section, url, title, icon, render in _page_specs():
+        page = st.Page(render, title=title, icon=icon, url_path=url, default=(url == start))
+        pages[url], sections[url] = page, section or "Inicio"
+        menu.setdefault(section, []).append(page)
+    nav.register(pages, sections)
+    current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()
+    current.run()
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Modo plataforma:** \nLaboratorio biomédico, clínica, investigación y simulación.")
-
-    if st.session_state.selected_page:
-        render_page_content(st.session_state.selected_page)
 
 if __name__ == '__main__':
     main()

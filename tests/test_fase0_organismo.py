@@ -12,6 +12,7 @@ import pytest
 
 from app.engines import digital_twin_organism as dto
 from app.engines.digital_twin_organism import NO_DATA, NOT_MODELED, DigitalTwinOrganism
+from app.utils.design_system import PALETTE
 from clinical.calculators import news2_score, news2_spo2_scale1_score
 from domain.physiology.state import Provenance, from_digital_twin_organism
 from domain.physiology.state.derived_contract import DERIVED_CONTRACT, derived_is_writable
@@ -76,7 +77,7 @@ def test_the_lung_health_index_is_retired_even_with_rr_spo2_and_ahi(  ):
     assert not derived_is_writable("respiratory", "health_score", {"respiratory_rate", "spo2", "ahi"})
 
 
-@pytest.mark.parametrize("spo2, points, color", [(97, 0, "#39ffbe"), (94, 1, "#ffd700"), (92, 2, "#ffd700"), (85, 3, "#ff3333")])
+@pytest.mark.parametrize("spo2, points, color", [(97, 0, PALETTE.STABLE), (94, 1, PALETTE.WARNING), (92, 2, PALETTE.WARNING), (85, 3, PALETTE.CRITICAL)])
 def test_the_lungs_are_colored_by_their_news2_points(spo2, points, color):
     organism = _fed({"respiratory": {"respiratory_rate": 16.0, "spo2": float(spo2)}})
     assert organism.organs["lungs"].metrics.spo2_points == points and organism.organs["lungs"].color == color

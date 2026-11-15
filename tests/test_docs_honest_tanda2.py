@@ -65,15 +65,17 @@ def test_claude_md_states_the_ups_domains_the_schema_really_models():
         assert f"`{p.name}`" in text, p.name
 
 
-def test_claude_md_menu_matches_the_real_hubs():
-    import ast
+def test_claude_md_menu_matches_the_real_navigation():
+    """Tanda 1 de la fase 1: el menú es por intención (st.navigation); CLAUDE.md nombra sus secciones y páginas."""
+    import app.main as m
 
-    src = Path("app/main.py").read_text(encoding="utf-8")
-    hubs = ast.literal_eval(re.search(r"^HUBS = (\{.*?^\})", src, re.S | re.M).group(1))
     text = _text("CLAUDE.md")
-    assert f"{len(hubs)} hubs y {sum(len(v) for v in hubs.values())} entradas" in text
-    for hub in hubs:
-        assert hub in text, hub
+    specs = m._page_specs()
+    sections = [s for s in dict.fromkeys(s for s, *_ in specs) if s]
+    assert f"{len(specs)} páginas" in text and "Inicio, " + ", ".join(sections[:-1]) + f" y {sections[-1]}" in text
+    for _, url, title, _, _ in specs:
+        assert title in text and f"`{url}`" in text, title
+    assert "hubs y" not in text
 
 
 def test_third_party_notices_are_complete_and_not_truncated():

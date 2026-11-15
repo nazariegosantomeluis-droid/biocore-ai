@@ -419,7 +419,6 @@ def _detect_events(
     heart_signals = _current_signals(organism, "heart")
     lungs_signals = _current_signals(organism, "lungs")
     brain_signals = _current_signals(organism, "brain")
-    muscle_signals = _current_signals(organism, "muscles")
 
     hr = heart_signals.get("heart_rate")
     if hr is not None and news2_pulse_score(float(hr)) == 3:
@@ -453,29 +452,8 @@ def _detect_events(
             )
         )
 
-    # Capa 5A, dominio muscular Tanda 2 (2026-09-10): único evento muscular,
-    # mismo umbral que YA usa `_update_muscles()` para su tier más alto de
-    # `risk_score` (`fatigue > 80` -> 70) -- no se inventa un criterio
-    # clínico nuevo. `fatigue_index` NO se persiste como descriptor todavía
-    # (diferido -- generador demo roto, ver `_muscular_state()`), pero el
-    # evento lee la señal cruda del organismo directamente, exactamente
-    # como el evento de EEG lee `stress_level` sin persistirlo. Sobre el
-    # generador demo (`fatigue_index` clavado en 0) este evento nunca
-    # dispara -- disparará cuando la escritura venga de sEMG real fatigada.
-    fatigue_index = muscle_signals.get("fatigue_index")
-    if fatigue_index is not None and fatigue_index > 80:
-        events.append(
-            PhysiologicalEvent(
-                event_type=EventType.SEVERE_MUSCLE_FATIGUE_EMG,
-                domain="muscular",
-                severity=EventSeverity.WARNING,
-                description=f"Fatiga muscular severa según EMG: índice {fatigue_index:.0f}/100",
-                provenance=provenance,
-                confidence=confidence,
-                timestamp=timestamp,
-                related_descriptor=None,  # `movement_smoothness` se retiró (fase 0); `fatigue_index` no se persiste
-            )
-        )
+    # Tanda 1 de la fase 1 (2026-11-15, Art. I): se retiró el evento muscular de fatiga > 80 (umbral sin cita, heredado
+    # del `risk_score` muscular que la fase 0 ya retiró). El dominio muscular no emite eventos.
 
     return events
 

@@ -437,40 +437,6 @@ def get_cached_signal(key: str) -> Optional[np.ndarray]:
 # COGNITIVE EXPLORATION HELPERS
 # ============================================================================
 
-def render_metric_explained(title: str, value: Any, unit: str = '', meaning: Optional[str] = None,
-                            importance: Optional[str] = None, affects: Optional[str] = None,
-                            relations: Optional[str] = None, consequences: Optional[str] = None) -> None:
-    """Render a metric with an explanation answering the five key questions for the user."""
-    try:
-        display_value = f"{value} {unit}" if unit else f"{value}"
-    except Exception:
-        display_value = str(value)
-
-    st.markdown(f"**{title}** — {display_value}")
-    with st.expander(f"¿Qué significa {title}?", expanded=False):
-        st.markdown(f"- **¿Qué significa?**  {meaning or 'Valor clínico cuantitativo que resume un aspecto fisiológico.'}")
-        st.markdown(f"- **¿Por qué importa?**  {importance or 'Permite priorizar decisiones clínicas y educativas.'}")
-        st.markdown(f"- **¿Qué la afecta?**  {affects or 'Fármacos, estado hemodinámico, respiración, ejercicio y artefactos técnicos.'}")
-        st.markdown(f"- **¿Cómo se relaciona con otros sistemas?**  {relations or 'Interacciona con ventilación, oxigenación y estado neurológico.'}")
-        st.markdown(f"- **¿Qué pasaría si cambia?**  {consequences or 'Un cambio significativo sugiere intervención, más pruebas o monitorización intensiva.'}")
-
-
-def render_view_selector() -> str:
-    """Standardized view selector for all exploration labs."""
-    return st.radio(
-        'Capa de Exploración Cognitiva',
-        ['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación', 'Gemelo Digital'],
-        horizontal=True,
-        key=f"view_selector_{st.session_state.get('selected_page', 'default')}"
-    )
-
-
-# Tanda 1 de contención (2026-11-05, Art. I): `render_scientific_discovery_layer()` se
-# RETIRÓ. Su único botón calculaba `|media(diff(x))|` (la deriva neta de la señal,
-# igual a `|x_final - x_inicial|/(N-1)`) y lo rotulaba índice de complejidad
-# dinámica: daba ~0 para un seno puro y para ruido blanco. Detalle en CHANGELOG.md.
-
-
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
     """Small interactive discovery panel that computes correlations and gives hypotheses."""
     with st.expander(f"🔬 Discovery Lab — {name}", expanded=False):

@@ -134,7 +134,8 @@ def test_the_risk_factor_quiz_asks_what_the_epstein_table_says(temp_ups):
     _quiz(at, "Factores de Riesgo")
     assert any("Epstein 2009" in i.value and "ALTO RIESGO" in i.value for i in at.info)
     answers = [r for r in at.radio if r.label == "Tu respuesta:"][0]
-    right = next(o for o in answers.options if o.startswith("✓"))
+    assert answers.value is None and not any("✓" in o for o in answers.options)   # tanda 1: sin respuesta regalada
+    right = "Una persona con obesidad (IMC > 35)"
     answers.set_value(right).run()
     ok = " ".join(s.value for s in at.success)
     for item in ("obesidad (IMC > 35)", "fibrilación auricular", "hipertensión refractaria", "diabetes tipo 2", "disritmias nocturnas"):
@@ -151,8 +152,9 @@ def test_the_cardiovascular_quiz_no_longer_asserts_bradycardia_or_st_changes(tem
     assert "Correlación cardiovascular (guía AASM)" in quiz.options and "Correlación ECG-Respiratoria" not in quiz.options
     _quiz(at, "Correlación cardiovascular (guía AASM)")
     answers = [r for r in at.radio if r.label == "Tu respuesta:"][0]
-    right = next(o for o in answers.options if o.startswith("✓"))
-    assert "Fibrilación auricular y disritmias nocturnas" in right
+    assert answers.value is None and not any("✓" in o for o in answers.options)   # tanda 1: sin respuesta regalada
+    right = "Fibrilación auricular y disritmias nocturnas"
+    assert right in answers.options
     answers.set_value(right).run()
     ok = " ".join(s.value for s in at.success)
     assert "lista de alto riesgo de la guía" in ok and "Berry 2012" in ok and "sin insuficiencia cardíaca declarada" in ok

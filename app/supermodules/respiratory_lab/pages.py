@@ -13,7 +13,7 @@ try:
 except ImportError:
     PLOTLY_GO, PLOTLY_OK = None, False
 
-from app.utils.design_system import BADGES, render_module_header, render_section_header, render_error_state, render_metric_card
+from app.utils.design_system import BADGES, PALETTE, render_module_header, render_section_header, render_error_state, render_metric_card
 from app.supermodules.respiratory_lab import views
 
 # Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
@@ -31,12 +31,12 @@ class VistaClinicaOmitida(Exception):
 
 
 RESPIRATORY_STATUS_NOTICE = (
-    "**Estado del módulo (fase 4, 2026-11-09).** **Validado por fuente 🟢:** la banda NEWS2 de la FR (RCP 2017) y la apnea "
-    "(caída ≥ 90 % durante ≥ 10 s, Berry 2012, AASM). **Con golden test, metodología propia 🟣:** FR = 60 / media de los "
+    "**Estado del módulo (fase 4, 2026-11-09).** **[Validado por fuente]:** la banda NEWS2 de la FR (RCP 2017) y la apnea "
+    "(caída ≥ 90 % durante ≥ 10 s, Berry 2012, AASM). **[Criterio BIOCORE] con golden test, metodología propia:** FR = 60 / media de los "
     "intervalos entre inspiraciones, duración del ciclo y su variabilidad, tipo de apnea por esfuerzo (Criterio BIOCORE), "
     "tasa equivalente por hora de **registro** (extrapolada, sin valor diagnóstico) y la SpO₂ del modelo BIOCORE "
-    "(simulación; el retardo Tc es un valor BIOCORE). **Heurística 🔵:** la descripción del patrón y la irregularidad del "
-    "generador atáxico. **Pendiente de validación ⏳:** la apnea mixta (se calcula y se marca). **Sigue fuera:** "
+    "(simulación; el retardo Tc es un valor BIOCORE). **[Heurística]:** la descripción del patrón y la irregularidad del "
+    "generador atáxico. **[Pendiente de validación]:** la apnea mixta (se calcula y se marca). **Sigue fuera:** "
     "hipopneas, relación I:E, ODI y la categoría de severidad (vive en Calculadoras Clínicas). «Guardar al gemelo» escribe "
     "solo FR y SpO₂ basal, como simulación. La señal es simulada: los resultados no son una medición de un paciente."
 )
@@ -105,7 +105,7 @@ def _render_investigacion_tab():
     )
     views.render_apnea_cards(analysis)
     views.render_events_table(analysis)
-    views.render_calculator_link("resp_osa_link_research")
+    views.render_calculator_link()
 
     st.divider()
     views.render_save_to_twin(analysis, bridge['pattern_display'], key="respiratory_lab_save_to_ups")
@@ -159,8 +159,8 @@ def _render_simulacion_tab():
 
     if PLOTLY_OK:
         fig = PLOTLY_GO.Figure()
-        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=airflow, name='Flujo de aire', line=dict(color='#8ecae6')))
-        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=chest, name='Pared torácica', line=dict(color='#7c3aed')))
+        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=airflow, name='Flujo de aire', line=dict(color=PALETTE.ACCENT_ON_DARK)))
+        fig.add_trace(PLOTLY_GO.Scatter(x=time_arr, y=chest, name='Pared torácica', line=dict(color=PALETTE.SERIES_2)))
         fig.update_layout(template='plotly_dark', height=360, title='Señal respiratoria regenerada')
         st.plotly_chart(fig, use_container_width=True)
     else:

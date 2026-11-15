@@ -46,7 +46,7 @@ def test_no_stress_event_and_no_stress_alert_at_all():
 
 def test_the_retired_event_types_are_gone_from_the_catalog_and_the_builder():
     names = {e.name for e in EventType}
-    assert names == {"PULSE_NEWS2_3_POINTS", "SPO2_NEWS2_3_POINTS", "HYPOXIA_SPO2_LOW", "SEVERE_MUSCLE_FATIGUE_EMG"}
+    assert names == {"PULSE_NEWS2_3_POINTS", "SPO2_NEWS2_3_POINTS"}   # tanda 1 de la fase 1: también salen los dos residuales
     builder = re.sub(r'"""[\s\S]*?"""', "", Path("domain/physiology/state/builder.py").read_text(encoding="utf-8"))
     code = "\n".join(l for l in builder.splitlines() if not l.lstrip().startswith("#"))
     for gone in ("HYPOXIA_SPO2_LOW", "HYPOXIA_SPO2_CRITICAL", "HIGH_STRESS_EEG", "spo2 < 90", "spo2 < 95", "stress_level > 75"):
@@ -137,5 +137,5 @@ def test_the_sepsis_scenario_screen_declares_what_is_computed_and_what_is_prescr
     at.selectbox(key="twin_shell_sepsis_horizon").set_value("24h").run()
     at.button(key="twin_shell_sepsis_apply").click().run()
     assert at.exception == []
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Gasto cardíaco"] == dto.CARDIAC_OUTPUT_IN_REVIEW
+    cards = dict(re.findall(r'data-label="([^"]*)" data-value="([^"]*)"', " ".join(str(m.value) for m in at.markdown)))
+    assert cards["Gasto cardíaco"] == dto.CARDIAC_OUTPUT_IN_REVIEW                 # la tarjeta única absorbió st.metric

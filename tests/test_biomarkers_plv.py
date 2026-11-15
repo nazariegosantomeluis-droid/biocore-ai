@@ -171,12 +171,12 @@ _BASAL_PRESET = {
 
 def test_suite_without_raw_signals_shows_neurocardiac_unavailable():
     """El caso de hoy: Biomarkers Lab no tiene ECG+EEG crudos simultaneos.
-    NeuroCardiac PLV debe salir 'no disponible', nunca un numero."""
+    PLV neurocardíaco debe salir 'no disponible', nunca un numero."""
     engine = BiocoreEngine()
     suite = engine.get_full_biomarker_suite(_BASAL_PRESET)
 
-    assert 'NeuroCardiac PLV' in suite
-    plv_entry = suite['NeuroCardiac PLV']
+    assert 'PLV neurocardíaco' in suite
+    plv_entry = suite['PLV neurocardíaco']
     assert plv_entry['available'] is False
     assert plv_entry['plv'] is None
     assert plv_entry['reason'] is not None
@@ -186,7 +186,7 @@ def test_suite_learning_readiness_cascades_honestly_when_plv_unavailable():
     engine = BiocoreEngine()
     suite = engine.get_full_biomarker_suite(_BASAL_PRESET)
 
-    readiness_entry = suite['Learning Readiness Index']
+    readiness_entry = suite['Disposición para el aprendizaje']
     assert readiness_entry['available'] is False
     assert 'PLV' in readiness_entry['reason']
 
@@ -195,10 +195,10 @@ def test_suite_other_five_scores_unchanged_by_plv_replacement():
     engine = BiocoreEngine()
     suite = engine.get_full_biomarker_suite(_BASAL_PRESET)
 
-    assert suite['Stress Index'] == {'available': True, 'score': 22.22, 'status': 'Óptimo'}
-    assert suite['Recovery Index'] == {'available': True, 'score': 50.22, 'status': 'Bueno'}
-    assert suite['Cognitive Load Score'] == {'available': True, 'score': 5.67, 'status': 'Normal'}
-    assert suite['Physiological Resilience Score'] == {'available': True, 'score': 27.42, 'status': 'Promedio'}
+    assert suite['Índice de estrés'] == {'available': True, 'score': 22.22, 'status': 'Óptimo'}
+    assert suite['Índice de recuperación'] == {'available': True, 'score': 50.22, 'status': 'Bueno'}
+    assert suite['Carga cognitiva'] == {'available': True, 'score': 5.67, 'status': 'Normal'}
+    assert suite['Resiliencia fisiológica'] == {'available': True, 'score': 27.42, 'status': 'Promedio'}
 
 
 def test_suite_has_no_autonomic_stability_key():
@@ -228,5 +228,5 @@ def test_suite_neurocardiac_available_when_sufficient_raw_signal_provided():
         rr_intervals_s=rr, rr_timestamps_s=rr_t,
     )
 
-    assert suite['NeuroCardiac PLV']['available'] is True
-    assert suite['Learning Readiness Index']['available'] is True
+    assert suite['PLV neurocardíaco']['available'] is True
+    assert suite['Disposición para el aprendizaje']['available'] is True

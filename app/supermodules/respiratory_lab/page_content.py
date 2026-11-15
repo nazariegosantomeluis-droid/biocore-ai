@@ -61,7 +61,7 @@ from clinical.calculators import NEWS2_CITATION  # noqa: F401  (la banda de FR v
 # repetirla. El borde (#1f2937) no corresponde a ningún token de
 # `PALETTE` -- se deja igual, no se inventa una correspondencia.
 st.markdown(f"""
-    <div style='padding: 16px; border-radius: 16px; background: {PALETTE.BACKGROUND}; border: 1px solid #1f2937; margin-bottom: 24px;'>
+    <div style='padding: 16px; border-radius: 16px; background: {PALETTE.BACKGROUND}; border: 1px solid {PALETTE.GRID}; margin-bottom: 24px;'>
         <h2 id="panel-respiratorio" style='color: {PALETTE.ACCENT_ON_DARK};'>💨 Laboratorio Respiratorio</h2>
         <p>Experimenta con patrones de una respiración <strong>simulada</strong>, mira la SpO2 del modelo BIOCORE y compara lo que
         mide el detector con lo que el generador sabe que produjo.</p>
@@ -94,9 +94,9 @@ st.sidebar.markdown("---")
 
 # Pattern selection
 respiratory_patterns = {
-    "Normal (Quiet Breathing)": "normal",
-    "Taquipnea (Breathing Fast)": "tachypnea",
-    "Bradipnea (Breathing Slow)": "bradypnea",
+    "Normal (respiración tranquila)": "normal",
+    "Taquipnea (respiración rápida)": "tachypnea",
+    "Bradipnea (respiración lenta)": "bradypnea",
     "Apnea Central": "apnea_central",
     "Apnea Obstructiva": "apnea_obstructive",
     "Cheyne-Stokes": "cheyne_stokes",
@@ -205,7 +205,7 @@ circulation_delay = st.sidebar.number_input(
     help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Valor BIOCORE: la fuente (Hsia 2026) solo da el "
          "límite normal < 20 s. Rango 5–30 s.",
 )
-st.sidebar.caption(f"{BADGES.METHOD} Tc: {views.TC_LABEL}")
+st.sidebar.caption(f"{BADGES.tag(BADGES.METHOD)} Tc: {views.TC_LABEL}")
 slot_spo2 = st.sidebar.empty()
 
 duration = st.sidebar.slider(
@@ -360,13 +360,13 @@ with tab1:
             x=time_array,
             y=airflow,
             name="Flujo de Aire",
-            line=dict(color="#8ecae6", width=2),
+            line=dict(color=PALETTE.ACCENT_ON_DARK, width=2),
             fill="tozeroy",
             fillcolor="rgba(142, 202, 230, 0.2)"
         ),
         row=1, col=1
     )
-    fig.add_hline(y=0, line_dash="dash", line_color="#666", row=1, col=1)
+    fig.add_hline(y=0, line_dash="dash", line_color=PALETTE.NEUTRAL, row=1, col=1)
     
     # Chest wall
     fig.add_trace(
@@ -374,7 +374,7 @@ with tab1:
             x=time_array,
             y=chest,
             name="Pared Torácica",
-            line=dict(color="#1d4ed8", width=2),
+            line=dict(color=PALETTE.PRIMARY, width=2),
             fill="tozeroy",
             fillcolor="rgba(29, 78, 216, 0.2)"
         ),
@@ -387,7 +387,7 @@ with tab1:
             x=time_array,
             y=abdomen,
             name="Abdomen",
-            line=dict(color="#7c3aed", width=2),
+            line=dict(color=PALETTE.SERIES_2, width=2),
             fill="tozeroy",
             fillcolor="rgba(124, 58, 237, 0.2)"
         ),
@@ -402,9 +402,9 @@ with tab1:
     fig.update_layout(
         height=700,
         template="plotly_dark",
-        paper_bgcolor="#0f172a",
-        plot_bgcolor="#1a2a4a",
-        font=dict(color="#e0e7ff"),
+        paper_bgcolor=PALETTE.BACKGROUND,
+        plot_bgcolor=PALETTE.SECONDARY_BACKGROUND,
+        font=dict(color=PALETTE.TEXT),
         showlegend=True,
         hovermode="x unified"
     )
@@ -461,7 +461,7 @@ with tab2:
             x=time_array,
             y=spo2,
             name="SpO2",
-            line=dict(color="#8ecae6", width=3),
+            line=dict(color=PALETTE.ACCENT_ON_DARK, width=3),
             fill="tozeroy",
             fillcolor="rgba(142, 202, 230, 0.3)"
         ),
@@ -474,7 +474,7 @@ with tab2:
             x=time_array,
             y=airflow / np.max(np.abs(airflow)) * 20 + 60 if np.max(np.abs(airflow)) > 0 else np.zeros_like(airflow),
             name="Flujo (normalizado)",
-            line=dict(color="#666", width=1),
+            line=dict(color=PALETTE.NEUTRAL, width=1),
             opacity=0.5
         ),
         row=2, col=1
@@ -487,9 +487,9 @@ with tab2:
     fig_spo2.update_layout(
         height=600,
         template="plotly_dark",
-        paper_bgcolor="#0f172a",
-        plot_bgcolor="#1a2a4a",
-        font=dict(color="#e0e7ff"),
+        paper_bgcolor=PALETTE.BACKGROUND,
+        plot_bgcolor=PALETTE.SECONDARY_BACKGROUND,
+        font=dict(color=PALETTE.TEXT),
         showlegend=True,
         hovermode="x unified"
     )
@@ -510,179 +510,14 @@ with tab3:
         st.caption(f"Los eventos se repiten cada ~{analysis.event_period_s:.0f} s (mediana de la separación entre inicios).")
     views.render_pattern_cards(analysis, selected_pattern, respiration_data["ground_truth"])
     views.render_clinical_notes(analysis, circulation_delay)
-    views.render_calculator_link("resp_osa_link_clinical")
+    views.render_calculator_link()
     views.render_hidden_notice()
 
 with tab4:
-    st.markdown("### 📚 Referencias Clínicas")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        #### 🫁 Frecuencia respiratoria y SpO₂ según NEWS2
-
-        Puntos NEWS2 de la FR: **12–20 resp/min: 0**; 9–11: 1; 21–24: 2; ≤ 8: 3; ≥ 25: 3. Puntos de la SpO₂ (escala 1):
-        **≥ 96 %: 0**; 94–95: 1; 92–93: 2; ≤ 91: 3. Es una puntuación de alerta, no una etiqueta diagnóstica: fuera de 12–20
-        se dice «fuera de 12–20 (NEWS2)».
-
-        *Fuente: {NEWS2_CITATION}*
-
-        #### 📊 Patrones
-
-        - **Apnea (Berry 2012, AASM):** caída ≥ 90 % de la excursión del flujo respecto a la línea basal previa durante ≥ 10 s
-        - **Cheyne-Stokes (Berry 2012):** ≥ 3 apneas/hipopneas centrales consecutivas separadas por un cambio creciente y decreciente
-          de la amplitud, con ciclo ≥ 40 s (típicamente 45–90 s) y ≥ 5 por hora en ≥ 2 h de registro
-        - **Atáxica (descripción de la simulación):** el generador sortea la duración y la profundidad de cada respiración
-          (irregularidad 0.20, HEURISTIC); no hay afirmación clínica sobre su causa
-        """)
-
-    with col2:
-        st.markdown(f"""
-        #### 😴 Clasificación de la apnea por esfuerzo
-
-        Berry 2012 (§4.1.1, AASM): la clasificación de una apnea como obstructiva, mixta o central **se basa en el esfuerzo
-        respiratorio**. Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).
-
-        - **Central (Criterio BIOCORE):** esfuerzo ausente (caída ≥ 90 % del esfuerzo respecto a su basal)
-        - **Obstructiva (Criterio BIOCORE):** esfuerzo presente; Berry 2012 señala que el movimiento paradójico del tórax y el
-          abdomen se observa a menudo durante una apnea u hipopnea obstructiva
-        - **Mixta:** ⏳ PENDING_VALIDATION (se calcula y se marca; la definición del manual no está verificada)
-        - **Obesidad:** Epstein 2009 incluye la obesidad (IMC > 35) entre los pacientes de alto riesgo que deben evaluarse
-          para apnea obstructiva del sueño
-        - **Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo del colapso
-          repetitivo de la vía aérea superior
-
-        #### 📏 Severidad por índice de eventos por hora
-
-        Se calcula con la calculadora de **Calculadoras Clínicas → Escalas** (Epstein 2009): es un índice por hora de
-        sueño y este laboratorio solo registra minutos.
-
-        *Fuente: {views.EDUCATION_CITATION}*
-        """)
-
-    st.markdown("---")
-    
-    st.markdown(f"""
-    #### 💡 Implicaciones clínicas (texto educativo; no se deriva de la señal simulada)
-
-    La guía de práctica clínica de la AASM pide evaluar, en una persona con apnea obstructiva del sueño, las condiciones
-    secundarias que pueden aparecer como resultado de ella: hipertensión, accidente cerebrovascular, infarto de
-    miocardio, cor pulmonale, menor alerta diurna y accidentes de tráfico.
-
-    **Opciones de tratamiento que enumera la guía** (la estrategia la decide un clínico con la persona, caso a caso):
-    dispositivos de presión positiva en la vía aérea (CPAP), dispositivos orales, tratamientos conductuales (pérdida de
-    peso, ejercicio, terapia posicional, evitar alcohol y sedantes antes de dormir), cirugía y tratamientos adyuvantes.
-
-    *Fuente: {views.EDUCATION_CITATION}*
-    """)
+    views.render_clinical_references()
 
 with tab5:
-    st.markdown("### ❓ Cuestionario Interactivo - Apnea del Sueño")
-    
-    quiz_type = st.radio(
-        "Seleccionar Tipo de Pregunta:",
-        [
-            "Diferenciación Apnea",
-            "Factores de Riesgo",
-            "Correlación cardiovascular (guía AASM)",
-            "Frecuencia de esta señal",
-            "Contar las apneas de esta señal",
-        ]
-    )
-    
-    # Fase 3 (2026-11-07): "Identificar Patrón" y la de severidad por índice siguen fuera (patrón oculto; la
-    # severidad vive en la calculadora). Se reactivan dos preguntas cuya respuesta SALE de un valor con golden test
-    # (FR y conteo de apneas); las otras tres son texto fijo.
-    if quiz_type == "Frecuencia de esta señal":
-        st.info("**Pregunta:** ¿Cuál es la frecuencia respiratoria de la señal actual (redondeada al entero)?")
-        correct = analysis.respiratory_rate_rounded
-        if correct is None:
-            st.warning("La frecuencia no está disponible en este registro: no hay pregunta que responder.")
-        else:
-            options = sorted({correct, correct + 4, max(1, correct - 4), correct + 9})
-            picked = st.radio("Tu respuesta (resp/min):", options, key="resp_quiz_fr")
-            if picked == correct:
-                st.success(f"✅ Correcto: {analysis.respiratory_rate:.1f}/min medida entre inspiraciones; {views.fr_band_text(analysis)}.")
-            else:
-                st.error("❌ Mide el tiempo entre dos inspiraciones consecutivas: FR = 60 / ese intervalo (s).")
-
-    elif quiz_type == "Contar las apneas de esta señal":
-        st.info("**Pregunta:** ¿Cuántas apneas (caída ≥ 90 % durante ≥ 10 s) hay en la señal actual?")
-        correct = analysis.apnea_count
-        if correct is None:
-            st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
-        else:
-            options = sorted({correct, correct + 1, correct + 2, max(0, correct - 1)})
-            picked = st.radio("Tu respuesta:", options, key="resp_quiz_apneas")
-            if picked == correct:
-                st.success(f"✅ Correcto: {correct} apnea(s) de ≥ 10 s en {analysis.record_duration_s:.0f} s de registro.")
-            else:
-                st.error("❌ Busca los tramos con flujo casi ausente (≥ 90 % de caída) y mídelos: solo cuentan los de ≥ 10 s.")
-
-    elif quiz_type == "Diferenciación Apnea":
-        st.info("""
-        **Pregunta:** Según Berry 2012 (AASM), ¿en qué se basa la clasificación de una apnea como obstructiva, mixta o central?
-
-        Pista: mira la pared torácica y el movimiento abdominal durante las apneas.
-        """)
-
-        answer = st.radio("Tu respuesta:", [
-            "✓ En el esfuerzo respiratorio",
-            "En la duración: las centrales duran 10 s o más y las obstructivas menos",
-            "En la caída del flujo: las centrales caen ≥ 90 % y las obstructivas ≥ 30 %",
-        ])
-
-        if answer.startswith("✓"):
-            st.success("✅ Correcto: Berry 2012 (§4.1.1) clasifica la apnea según el esfuerzo respiratorio. En este laboratorio, "
-                       "central = esfuerzo ausente y obstructiva = esfuerzo presente (Criterio BIOCORE); la mixta queda "
-                       "⏳ PENDING_VALIDATION.")
-        else:
-            st.error("❌ Todas las apneas cumplen la misma regla: caída ≥ 90 % de la excursión del flujo durante ≥ 10 s (Berry 2012); "
-                     "una caída de ≥ 30 % es el criterio de hipopnea, no de apnea. Lo que las separa es el esfuerzo respiratorio.")
-
-    elif quiz_type == "Factores de Riesgo":
-        st.info("""
-        **Pregunta:** Según la guía de la AASM (Epstein 2009), ¿cuál de estos pacientes pertenece a un grupo de ALTO RIESGO
-        que debe evaluarse para apnea obstructiva del sueño?
-        """)
-
-        answer = st.radio("Tu respuesta:", [
-            "✓ Una persona con obesidad (IMC > 35)",
-            "Una persona de 25 años con IMC 22, sin síntomas ni otras condiciones",
-            "Una persona sana que viaja como pasajera",
-        ])
-
-        if answer.startswith("✓"):
-            st.success("✅ Correcto: la guía de la AASM (Epstein 2009) lista como alto riesgo la obesidad (IMC > 35), la insuficiencia cardíaca congestiva, la "
-                       "fibrilación auricular, la hipertensión refractaria al tratamiento, la diabetes tipo 2, el ACV, las "
-                       "disritmias nocturnas, la hipertensión pulmonar, las poblaciones de conducción de alto riesgo y la "
-                       "evaluación previa a cirugía bariátrica.")
-        else:
-            st.error("❌ Esa persona no figura en la lista de alto riesgo de la guía de la AASM (Epstein 2009: obesidad con IMC > 35, insuficiencia "
-                     "cardíaca congestiva, fibrilación auricular, hipertensión refractaria, diabetes tipo 2, ACV, disritmias "
-                     "nocturnas, hipertensión pulmonar, conducción de alto riesgo, cirugía bariátrica).")
-
-    else:  # Correlación cardiovascular (antes «ECG-Respiratoria»: sus afirmaciones no tenían fuente)
-        st.info("""
-        **Pregunta:** ¿Qué condiciones del ritmo cardíaco figuran entre los pacientes de alto riesgo que la guía de la AASM
-        (Epstein 2009) pide evaluar para apnea obstructiva del sueño?
-        """)
-
-        answer = st.radio("Tu respuesta:", [
-            "✓ Fibrilación auricular y disritmias nocturnas",
-            "Ninguna: la guía no menciona alteraciones del ritmo cardíaco",
-            "Solo la taquicardia sostenida",
-        ])
-
-        if answer.startswith("✓"):
-            st.success("✅ Correcto: la fibrilación auricular y las disritmias nocturnas figuran en la lista de alto riesgo de la guía. "
-                       "Berry 2012 añade que un estudio con la definición de hipopnea de ≥ 3 % de desaturación encontró asociación "
-                       "entre el índice de eventos y la fibrilación auricular o la ectopia ventricular compleja en hombres mayores "
-                       "sin insuficiencia cardíaca declarada.")
-        else:
-            st.error("❌ La guía de la AASM (Epstein 2009) sí las menciona: la fibrilación auricular y las disritmias nocturnas están en su lista de pacientes "
-                     "de alto riesgo.")
+    views.render_quiz(analysis)
 
 st.markdown("---")
 
@@ -713,7 +548,7 @@ with col3:
     render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
     render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
 
-st.markdown(f"**Patrón** ({BADGES.HEURISTIC} heurística): {views.pattern_description(analysis)}")
+st.markdown(f"**Patrón** {BADGES.tag(BADGES.HEURISTIC)}: {views.pattern_description(analysis)}")
 views.render_clinical_notes(analysis, circulation_delay)
 st.caption("Hipopneas, relación I:E y ODI no se muestran (sin criterio firmado o sin golden test).")
 
@@ -723,65 +558,4 @@ st.caption("Hipopneas, relación I:E y ODI no se muestran (sin criterio firmado 
 
 with st.sidebar:
     st.markdown("---")
-    st.markdown("### 📚 INFORMACIÓN EDUCATIVA")
-    
-    edu_section = st.radio("Seleccionar Tema:", [
-        "Introducción",
-        "Patrones Clínicos",
-        "Apnea del Sueño",
-        "Correlación cardiovascular (guía AASM)"
-    ], key="edu_sidebar")
-    
-    if edu_section == "Introducción":
-        st.markdown("""
-        #### ¿Cómo se mide? (Berry 2012, AASM)
-
-        - **Flujo de aire:** sensor térmico oronasal (termistor, termopar o PVDF)
-        - **Esfuerzo respiratorio:** cinturones toracoabdominales
-        - **Oxígeno:** pulsioximetría (SpO2)
-
-        En este laboratorio las tres señales son **simuladas**.
-        """)
-
-    elif edu_section == "Patrones Clínicos":
-        st.markdown("""
-        #### 🫁 Frecuencia respiratoria (NEWS2)
-
-        - 12–20 resp/min: 0 puntos
-        - 9–11 resp/min: 1 punto; 21–24: 2 puntos
-        - ≤ 8 o ≥ 25 resp/min: 3 puntos
-        - Fuera de 12–20 se dice «fuera de 12–20 (NEWS2)», sin etiqueta diagnóstica
-
-        **Cheyne-Stokes (Berry 2012):**
-        - Se puntúa con ≥ 3 apneas/hipopneas centrales consecutivas con ciclo ≥ 40 s y ≥ 5 por hora en ≥ 2 h de registro
-        - Puede reflejar una insuficiencia cardíaca congestiva no reconocida
-        """)
-
-    elif edu_section == "Apnea del Sueño":
-        st.markdown("""
-        #### 😴 Datos de la guía AASM (Epstein 2009)
-
-        - **Prevalencia:** al menos 2–4 % de la población adulta
-        - **Condiciones secundarias que la guía pide evaluar:** hipertensión, ACV, infarto de miocardio, cor pulmonale,
-          menor alerta diurna y accidentes de tráfico
-
-        **Síntomas que la guía pide evaluar:**
-        - Apneas presenciadas
-        - Ronquido
-        - Ahogo o asfixia nocturnos
-        - Somnolencia excesiva no explicada por otros factores
-
-        **Diagnóstico:** la guía acepta dos métodos objetivos: polisomnografía en laboratorio y monitores portátiles en casa
-        """)
-
-    else:  # Correlación
-        st.markdown("""
-        #### 💓 Correlación cardiovascular (guía AASM)
-
-        - Epstein 2009: las consecuencias de la apnea obstructiva del sueño son resultado directo de las alteraciones que produce
-          el colapso repetitivo de la vía aérea superior: fragmentación del sueño, hipoxemia, hipercapnia, grandes oscilaciones
-          de la presión intratorácica y aumento de la actividad simpática
-        - La fibrilación auricular y las disritmias nocturnas figuran entre los pacientes de alto riesgo que se evalúan para AOS
-        - Berry 2012 cita un estudio que asoció el índice de eventos con fibrilación auricular o ectopia ventricular compleja
-          en hombres mayores sin insuficiencia cardíaca declarada
-        """)
+    views.render_education_topics()

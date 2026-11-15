@@ -143,11 +143,13 @@ def test_the_differentiation_quiz_answer_comes_from_berry_and_the_wrong_options_
     assert "Según Berry 2012 (AASM)" in q and "obstructiva, mixta o central" in q
     answers = [r for r in at.radio if r.label == "Tu respuesta:"][0]
     options = list(answers.options)
-    assert len(options) == 3 and options[0] == "✓ En el esfuerzo respiratorio"
-    answers.set_value(options[0]).run()
+    # tanda 1 (Art. I): la opción correcta ya no lleva «✓», no viene preseleccionada y no es siempre la primera
+    assert len(options) == 3 and "En el esfuerzo respiratorio" in options and answers.value is None
+    assert not any("✓" in o for o in options)
+    answers.set_value("En el esfuerzo respiratorio").run()
     ok = " ".join(s.value for s in at.success)
     assert "Berry 2012 (§4.1.1)" in ok and "esfuerzo respiratorio" in ok and "Criterio BIOCORE" in ok and "PENDING_VALIDATION" in ok
-    for wrong in options[1:]:
+    for wrong in [o for o in options if o != "En el esfuerzo respiratorio"]:
         [r for r in at.radio if r.label == "Tu respuesta:"][0].set_value(wrong).run()
         err = " ".join(e.value for e in at.error)
         # la regla de apnea es la misma para todas (Berry 2012) y ≥ 30 % es el criterio de HIPOPNEA, no de apnea

@@ -43,8 +43,8 @@ VALIDATED_SIGNATURES = {
 
 HEURISTIC_SIGNATURES = {
     "Multisensor Fusion Lab": (
-        "Health Score propietario de BIOCORE. Índice agregado de peso paramétrico no validado "
-        "poblacionalmente."
+        # Tanda 1 de la fase 1 (decisión 8): el Health Score se retiró; la firma describe lo que queda.
+        "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto."
     ),
     "Biomarkers Lab": (
         "Índices compuestos (Estrés, Carga Cognitiva) derivados analíticamente de literatura base sin "

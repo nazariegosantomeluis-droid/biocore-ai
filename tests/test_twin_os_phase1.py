@@ -6,6 +6,7 @@ dentro de la prueba, sin tocar el repo), (3) solo respiratorio y (4) sepsis acti
 «Entrada: …»); nunca «BAJO», «0», «50» ni «Alerta» por falta de datos; nunca un total NEWS2.
 """
 
+import html
 import re
 from pathlib import Path
 
@@ -13,6 +14,13 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.engines.digital_twin_organism import NO_DATA, NO_DATA_COLOR, NOT_MODELED
+from app.utils.design_system import BADGES
+
+NO_DATA_UI = "Sin dato: falta"   # el componente único de «sin dato» (tanda 1 de la fase 1, decisión 5)
+# Las tarjetas del panel del barorreflejo (motor hemodinámico, con su propia marca de validación) nunca fueron
+# `st.metric` del organismo: quedan fuera de la comparación, igual que antes.
+_BAROREFLEX_CARDS = {"Rd final", "Convergencia", "PA final"}
+_CARD = re.compile(r'class=.biocore-metric. data-label="([^"]*)" data-value="([^"]*)"(?: title="([^"]*)")?')
 
 PAGES = Path("app/supermodules/twin_shell/pages.py")
 
@@ -48,7 +56,12 @@ def _restore_sensor_controls_after_the_module():
 def _text(at):
     out = {"md": [], "cap": [], "metric": [], "warn": [], "code": [], "json": [], "info": []}
     for e in at.markdown:
-        out["md"].append(" ".join(re.sub(r"<[^>]+>", " ", str(e.value)).split()))
+        visible = " ".join(re.sub(r"<[^>]+>", " ", str(e.value)).split())
+        out["md"].append(visible)
+        card = _CARD.search(str(e.value))
+        if card and card.group(1) not in _BAROREFLEX_CARDS:   # la tarjeta de métrica única absorbió a `st.metric`: (etiqueta, valor, fuente visible + ayuda)
+            out["metric"].append((card.group(1), card.group(2) or NO_DATA,
+                                  f"{visible} {html.unescape(card.group(3) or '')}".strip()))
     for e in at.caption:
         out["cap"].append(" ".join(str(e.value).split()))
     for e in at.metric:
@@ -124,8 +137,9 @@ def test_with_sliders_every_card_shows_its_inputs_with_their_source_and_no_index
         for banned in ("Óptimo", "Alerta", "Normal", "Crítico", "BAJO", "heurística"):
             assert banned not in _card(t, name), (name, banned)
     metrics = {label: (value, help_) for label, value, help_ in t["metric"]}
-    assert metrics["🟢 Puntos NEWS2 del pulso"][0] == "0 de 3"
-    assert metrics["Frecuencia cardíaca"] == ("72 lpm", "Entrada: simulación: sliders de Twin OS")
+    assert metrics["Puntos NEWS2 del pulso"][0] == "0 de 3" and BADGES.CLINICAL in metrics["Puntos NEWS2 del pulso"][1]
+    assert metrics["Frecuencia cardíaca"][0] == "72 lpm"
+    assert "Entrada: simulación: sliders de Twin OS" in metrics["Frecuencia cardíaca"][1]           # fuente VISIBLE
     assert metrics["Gasto cardíaco"][0] == NOT_MODELED
     assert "cardiac_output" not in " ".join(t["json"]) and "efficiency" not in " ".join(t["json"])
 
@@ -146,7 +160,7 @@ def test_the_header_is_a_partial_news2_that_lists_what_is_missing_and_never_a_to
     assert "SIN TOTAL" in header and "Pulso 0" in header and "Frecuencia respiratoria 0" in header and "SpO₂ (escala 1) 0" in header
     for missing in ("presión arterial sistólica", "temperatura", "nivel de consciencia (ACVPU)", "oxígeno suplementario"):
         assert missing in header, missing
-    joined = " ".join(t["md"] + t["cap"] + [v for _, v, _ in t["metric"]])
+    joined = " ".join(t["md"] + t["cap"] + [v for _, v, _ in t["metric"]]).replace("NEWS2 parcial (sin total)", "")
     for gone in ("ESTADO FISIOLÓGICO GLOBAL", "Coherencia sistémica", "Resiliencia", "Riesgo global", "Cerebro ↔ Corazón",
                  "Cerebro ↔ Músculos", "Riesgo: BAJO", "/100)"):
         assert gone not in joined, gone
@@ -164,10 +178,10 @@ def test_the_heart_lung_coupling_is_the_hr_rr_ratio_with_its_verified_source(sli
 
 def test_the_risk_panel_shows_news2_components_and_declares_systems_without_a_sourced_criterion(sliders):
     _, t = sliders
-    assert any(m.startswith("**🟢 Cardiovascular** — NEWS2 pulso: 0 punto(s)") for m in t["md"])
-    assert any("**🟢 Respiratorio** — NEWS2 Frecuencia respiratoria: 0 punto(s) · NEWS2 SpO₂ (escala 1): 0 punto(s)" in m for m in t["md"])
+    assert any(m.startswith("**Cardiovascular** [Validado por fuente] — NEWS2 pulso: 0 punto(s)") for m in t["md"])
+    assert any("**Respiratorio** [Validado por fuente] — NEWS2 Frecuencia respiratoria: 0 punto(s) · NEWS2 SpO₂ (escala 1): 0 punto(s)" in m for m in t["md"])
     for system in ("Neurológico", "Muscular", "Autonómico"):
-        assert any(m == f"**⚪ {system}** — sin criterio con fuente" for m in t["md"]), system
+        assert any(m == f"**{system}** — sin criterio con fuente" for m in t["md"]), system
     metrics = {label: value for label, value, _ in t["metric"]}
     assert metrics["NEWS2 parcial (sin total)"] == "Pulso 0 · Frecuencia respiratoria 0 · SpO₂ (escala 1) 0"
 
@@ -177,15 +191,15 @@ def test_an_unfed_organism_shows_no_data_in_every_card_the_header_and_the_panels
     _, t = unfed
     for name in CARDS:
         card = _card(t, name)
-        assert NO_DATA in card and not re.search(r"\d", card), card                          # ni 50, ni «Alerta», ni «Óptimo»
+        assert NO_DATA_UI in card and not re.search(r"\d", card), card                       # ni 50, ni «Alerta», ni «Óptimo»
         for banned in ("Alerta", "Óptimo", "Normal", "Crítico", "BAJO"):
             assert banned not in card, (name, banned)
     header = _header(t)
-    assert NO_DATA in header and not re.search(r"\d", header.replace("NEWS2", "").replace("O₂", ""))
+    assert NO_DATA_UI in header and not re.search(r"\d", header.replace("NEWS2", "").replace("O₂", ""))
     for label, value, _ in t["metric"]:
         assert value in (NO_DATA, NOT_MODELED, "retirado"), (label, value)                   # ningún número en ninguna métrica
-    risk = [m for m in t["md"] if re.match(r"\*\*⚪ (Cardiovascular|Respiratorio|Neurológico|Muscular|Autonómico)\*\*", m)]
-    assert len(risk) == 5 and all(m.endswith(f"— {NO_DATA}") for m in risk)
+    risk = [m for m in t["md"] if re.match(r"\*\*(Cardiovascular|Respiratorio|Neurológico|Muscular|Autonómico)\*\* — ", m)]
+    assert len(risk) == 5 and all(f"— ○ {NO_DATA_UI} una entrada actual de este sistema" in m for m in risk)
     assert not any("rutinario" in c.lower() or "adecuado" in c.lower() for c in t["cap"])
     code = t["code"][0]
     cardio = code.split("🫀 SISTEMA CARDIOVASCULAR:")[1].split("🧠")[0]
@@ -210,7 +224,7 @@ def test_the_pages_have_no_more_default_get_nor_retired_indices():
 def test_with_only_respiratory_data_only_the_lungs_have_numbers_and_they_carry_their_source(respiratory_only):
     _, t = respiratory_only
     for name in ("❤️ Corazón", "🧠 Cerebro", "💪 Músculos", "⚡ Sistema Nervioso Autónomo"):
-        assert NO_DATA in _card(t, name) and not re.search(r"\d", _card(t, name)), name
+        assert NO_DATA_UI in _card(t, name) and not re.search(r"\d", _card(t, name)), name
     lungs = _card(t, "💨 Pulmones")
     assert "FR 14" in lungs and "SpO₂ 97" in lungs and "NEWS2 FR 0/3" in lungs and "SpO₂ 0/3" in lungs
     header = _header(t)
@@ -218,11 +232,11 @@ def test_with_only_respiratory_data_only_the_lungs_have_numbers_and_they_carry_t
     assert "pulso" in header.split("Faltan para el total:")[1]
     metrics = {label: value for label, value, _ in t["metric"]}
     assert metrics["Razón FC:FR"] == NO_DATA                                                # FR sin FC actual
-    assert metrics["🟢 NEWS2 FR"] == "0 de 3" and metrics["🟢 NEWS2 SpO₂ (escala 1)"] == "0 de 3"
+    assert metrics["NEWS2 FR"] == "0 de 3" and metrics["NEWS2 SpO₂ (escala 1)"] == "0 de 3"
     assert metrics["Índice de salud pulmonar"] == "retirado" and metrics["AHI"] == NO_DATA
     assert metrics["SpO₂ escala 2"] == NOT_MODELED
     cardio = next(m for m in t["md"] if "Cardiovascular**" in m)
-    assert cardio.endswith(f"— {NO_DATA}") and "rutinario" not in " ".join(t["cap"]).lower()
+    assert NO_DATA_UI in cardio and "rutinario" not in " ".join(t["cap"]).lower()
     resp = next(m for m in t["md"] if "Respiratorio**" in m)
     assert "NEWS2 Frecuencia respiratoria: 0 punto(s)" in resp and "BAJO" not in resp
 
@@ -258,11 +272,11 @@ def test_an_applied_scenario_is_not_overwritten_by_the_sliders_until_the_student
 
 # ---------------------------------------------------------------- comparación: ningún número sin fuente (3 casos)
 def test_no_metric_or_card_shows_a_number_without_its_source_in_any_case(sliders, unfed, respiratory_only):
-    badges = ("🟢", "🔵")
+    badges = (BADGES.CLINICAL, BADGES.HEURISTIC)
     for _, t in (sliders, unfed, respiratory_only):
         for label, value, help_ in t["metric"]:
             if re.search(r"\d", value):
-                assert any(b in label or b in help_ for b in badges) or help_.startswith("Entrada:"), (label, value, help_)
+                assert any(b in label or b in help_ for b in badges) or "Entrada:" in help_, (label, value, help_)
         for name in CARDS:
             card = _card(t, name)
             if re.search(r"\d", card):

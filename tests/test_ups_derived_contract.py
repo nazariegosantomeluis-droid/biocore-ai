@@ -60,9 +60,9 @@ def _state_from(sensors, confidence=None):
 def _press(ups, hub, page, key, before=None):
     sf, pid = ups
     at = AppTest.from_file(MAIN, default_timeout=240)
-    at.session_state["biocore_ai_entry_done"] = True
-    at.session_state["selected_hub"] = hub
-    at.session_state["selected_page"] = page
+    from app.main import LEGACY_ENTRIES
+
+    at.session_state["biocore_start_page"] = LEGACY_ENTRIES[page][0]   # menú por intención (tanda 1 de la fase 1)
     at.session_state["twin_shell_ups_session_factory"] = sf
     at.session_state["twin_shell_ups_patient_id"] = pid
     at.run()

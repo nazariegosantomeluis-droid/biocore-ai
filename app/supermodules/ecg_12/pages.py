@@ -28,28 +28,19 @@ def render_views():
     # estructura, R1/R3). "Educativa" se llenó con un puntero honesto a la
     # tabla real de 12 derivaciones (Academia Clinica), no una lección
     # fabricada. Ver CHANGELOG.md.
-    tabs = st.tabs(["Clínica", "Educativa"])
-
-    with tabs[0]:
-        render_section_header("Vista Clínica — ECG 12 Derivaciones")
-        if os.path.exists(MODULE_EMOJI):
-            try:
-                runpy.run_path(MODULE_EMOJI, run_name='__main__')
-            except Exception as e:
-                render_error_state("No se pudo renderizar la Vista Clínica de ECG-12.", exception=e)
-        else:
-            render_empty_state(
-                "ECG-12 no encontrado", action="se requiere la implementación original para contenido clínico completo"
-            )
-
-    with tabs[1]:
-        render_section_header("Vista Educativa")
-        st.info(
-            "🩺 **Derivaciones ECG** — la tabla real de las 12 derivaciones (localización, "
-            "territorio, cara afectada) está disponible en **Learning Hub → 🏫 Academia Clinica → "
-            "Lecciones y Casos → 📖 Teoría**."
+    # Tanda 1 de la fase 1 (2026-11-15): la pestaña «Educativa» se retiró -- solo redirigía a la tabla de 12 derivaciones
+    # de Academia, que ahora se abre directo desde la navegación (Aprender → Teoría: las 12 derivaciones del ECG). Con
+    # una sola vista no hacen falta pestañas.
+    render_section_header("Vista Clínica — ECG 12 Derivaciones")
+    if os.path.exists(MODULE_EMOJI):
+        try:
+            runpy.run_path(MODULE_EMOJI, run_name='__main__')
+        except Exception as e:
+            render_error_state("No se pudo renderizar la Vista Clínica de ECG-12.", exception=e)
+    else:
+        render_empty_state(
+            "ECG-12 no encontrado", action="se requiere la implementación original para contenido clínico completo"
         )
-
 
 def main():
     render_views()

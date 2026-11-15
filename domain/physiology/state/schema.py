@@ -214,12 +214,10 @@ class EventType(str, Enum):
     # Tanda 0.1 (2026-11-13, decisión 1): el evento de SpO₂ es la banda de 3 puntos NEWS2 escala 1 (≤ 91 %,
     # `news2_spo2_scale1_score`). Reemplaza a `hypoxia_spo2_critical` (< 90, sin cita) y `hypoxia_spo2_low` (< 95).
     SPO2_NEWS2_3_POINTS = "spo2_news2_3_points"
-    # RETIRADO (tanda 0.1): sigue SOLO para leer las 6 filas históricas de `ups_events` que lo contienen
-    # (`repository._event_from_record` hace `EventType(valor)`); el builder no lo emite. `arrhythmia_risk_hr_extreme`,
-    # `low_hrv_autonomic_stress` (filas purgadas con respaldo), `hypoxia_spo2_critical` y `high_stress_eeg` (estrés > 75,
-    # sin fuente) salieron del catálogo.
-    HYPOXIA_SPO2_LOW = "hypoxia_spo2_low"
-    SEVERE_MUSCLE_FATIGUE_EMG = "severe_muscle_fatigue_emg"
+    # Retirados del catálogo: `arrhythmia_risk_hr_extreme`, `low_hrv_autonomic_stress`, `hypoxia_spo2_critical`,
+    # `high_stress_eeg` (fase 0 y tanda 0.1) y, en la tanda 1 de la fase 1 (2026-11-15), `hypoxia_spo2_low` (sus 6 filas
+    # históricas se purgaron con respaldo) y `severe_muscle_fatigue_emg` (fatiga > 80, sin cita). Ninguna fila de la base
+    # de desarrollo usa ya un tipo retirado (lo vigila `tests/test_fase1_t1_contencion.py`).
 
 
 @dataclass(frozen=True)

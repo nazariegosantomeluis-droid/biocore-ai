@@ -126,8 +126,8 @@ class PatientRiskPredictor:
         if used_weight_sum <= 0:
             return {
                 'total_risk': None,
-                'risk_level': "⚪ No evaluable: ningún factor cardiovascular real disponible en el UPS",
-                'color': "#94a3b8",
+                'risk_level': "No evaluable: ningún factor cardiovascular real disponible en el UPS",
+                'level': 'no_evaluable',
                 'contributing_factors': {},
                 'factors_used': [],
                 'factors_omitted': omitted,
@@ -137,22 +137,18 @@ class PatientRiskPredictor:
 
         # Classify risk level
         if total_risk < 0.2:
-            risk_level = "🟢 Bajo riesgo"
-            color = "#22c55e"
+            risk_level, level = "🟢 Bajo riesgo", 'bajo'
         elif total_risk < 0.5:
-            risk_level = "🟡 Riesgo moderado"
-            color = "#eab308"
+            risk_level, level = "🟡 Riesgo moderado", 'moderado'
         elif total_risk < 0.8:
-            risk_level = "🟠 Riesgo elevado"
-            color = "#f97316"
+            risk_level, level = "🟠 Riesgo elevado", 'elevado'
         else:
-            risk_level = "🔴 Riesgo muy alto"
-            color = "#ef4444"
+            risk_level, level = "🔴 Riesgo muy alto", 'muy_alto'
 
         return {
             'total_risk': round(total_risk, 3),
             'risk_level': risk_level,
-            'color': color,
+            'level': level,  # el color lo decide la UI con PALETTE (tanda 1 de la fase 1: una sola paleta)
             'contributing_factors': scores,
             'factors_used': list(scores.keys()),
             'factors_omitted': omitted,

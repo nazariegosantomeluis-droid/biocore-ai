@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from app.utils.design_system import BADGES
+
 from app.supermodules.respiratory_lab import views
 
 LAB = Path("app/supermodules/respiratory_lab")
@@ -68,7 +70,7 @@ def _cards(at):
 
 
 # ------------------------------------------------------------------------------------- lo validado se ve
-@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central", "Apnea Obstructiva", "Cheyne-Stokes", "Respiración Atáxica"])
+@pytest.mark.parametrize("pattern", ["Normal (respiración tranquila)", "Apnea Central", "Apnea Obstructiva", "Cheyne-Stokes", "Respiración Atáxica"])
 def test_validated_values_are_shown_without_any_not_reliable_mark(temp_ups, pattern):
     sf, pid = temp_ups
     at = _app(sf, pid, pattern)
@@ -89,8 +91,8 @@ def test_the_rate_and_its_news2_band_are_two_cards_each_with_its_own_badge_and_s
     at = _app(sf, pid)
     fr = " ".join(m.value for m in at.markdown if "<strong>Frecuencia Respiratoria</strong>" in m.value)
     band = " ".join(m.value for m in at.markdown if "<strong>Banda NEWS2 de la FR</strong>" in m.value)
-    assert "15.0 resp/min" in fr and "🟣" in fr and "60 / media de los intervalos" in fr and "🟢" not in fr
-    assert "dentro de 12–20 (NEWS2)" in band and "🟢" in band and "Royal College of Physicians" in band
+    assert "15.0 resp/min" in fr and BADGES.METHOD in fr and "60 / media de los intervalos" in fr and BADGES.CLINICAL not in fr
+    assert "dentro de 12–20 (NEWS2)" in band and BADGES.CLINICAL in band and "Royal College of Physicians" in band
 
 
 def test_spo2_cards_carry_the_simulation_provenance(temp_ups):
@@ -107,11 +109,11 @@ def test_central_apnea_is_listed_with_type_declared_borders_and_baseline(temp_up
     sf, pid = temp_ups
     at = _app(sf, pid, "Apnea Central")
     rows = at.dataframe[0].value.to_dict("records")
-    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Criterio BIOCORE)"] == "🟣 central" for r in rows)
+    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Criterio BIOCORE)"] == "[Criterio BIOCORE] central" for r in rows)
     assert rows[0]["Borde"] == "completo" and "recortado" in rows[1]["Borde"]       # el 2.º llega al final del registro
     assert "respiraciones previas" in rows[0]["Línea basal"] and "registro corto" in rows[0]["Línea basal"]
     obstructive = _app(sf, pid, "Apnea Obstructiva").dataframe[0].value.to_dict("records")
-    assert all(r["Tipo (Criterio BIOCORE)"] == "🟣 obstructiva" for r in obstructive)
+    assert all(r["Tipo (Criterio BIOCORE)"] == "[Criterio BIOCORE] obstructiva" for r in obstructive)
 
 
 def test_cheyne_stokes_warns_that_a_short_record_is_not_evaluable(temp_ups):
@@ -128,7 +130,7 @@ def test_a_normal_record_says_no_apneas_without_ruling_them_out_elsewhere(temp_u
 
 
 # ----------------------------------------------------------------------------------------- lo oculto sigue oculto
-@pytest.mark.parametrize("pattern", ["Normal (Quiet Breathing)", "Apnea Central", "Taquipnea (Breathing Fast)"])
+@pytest.mark.parametrize("pattern", ["Normal (respiración tranquila)", "Apnea Central", "Taquipnea (respiración rápida)"])
 def test_hidden_values_stay_hidden(temp_ups, pattern):
     sf, pid = temp_ups
     at = _app(sf, pid, pattern)
@@ -181,13 +183,20 @@ def test_pressing_every_button_but_the_explicit_save_writes_nothing_to_the_ups(t
 # ------------------------------------------------------------------------------------ calculadora y enlace
 def test_the_lab_links_to_the_severity_calculator(temp_ups):
     sf, pid = temp_ups
-    at = _app(sf, pid)
-    link = next(b for b in at.button if "calculadora de severidad" in b.label)
-    link.click().run()
-    assert at.session_state["selected_hub"] == "Clinical Hub" and at.session_state["selected_page"] == CALC_PAGE
+    # tanda 1 de la fase 1: el enlace es una entrada del menú por intención (st.page_link a «calculadoras»)
+    from streamlit.testing.v1 import AppTest as _AT
+
+    at = _AT.from_file(str(Path("app/main.py").resolve()), default_timeout=120)
+    at.session_state["biocore_start_page"] = "respiratorio"
+    at.session_state["twin_shell_ups_session_factory"] = sf
+    at.session_state["twin_shell_ups_patient_id"] = pid
+    at.run()
+    assert at.exception == []
+    links = [(e.proto.page, e.proto.label) for e in at.main.get("page_link")]
+    assert any(page == "calculadoras" and "calculadora de severidad" in label for page, label in links), links
     from importlib import import_module
 
-    assert CALC_PAGE in import_module("app.main").HUBS["Clinical Hub"]
+    assert import_module("app.main").LEGACY_ENTRIES[CALC_PAGE] == ("calculadoras",)
 
 
 def test_the_lab_never_shows_a_severity_category_for_a_minutes_long_record(temp_ups):

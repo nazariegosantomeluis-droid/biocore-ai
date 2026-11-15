@@ -98,7 +98,7 @@ class EngagementTaskEvent:
     """Bloque de tarea del patrón `engagement_task` -- hermano de
     `MotorImageryEvent` (misma estructura reposo -> transición -> meseta ->
     recuperación, mismo `_event_profile()`), pero lo que cambia es el
-    Engagement Index β/(α+θ) (Pope 1995), no la potencia mu. `change_pct` es
+    Índice de engagement β/(α+θ) (Pope 1995), no la potencia mu. `change_pct` es
     el cambio de engagement en la meseta respecto al reposo: +40 -> el
     índice es 1.4x el del baseline; -30 -> 0.7x (desatención). Defaults:
     tarea en t=12s, transición 1s, meseta 12s, recuperación 1s -> termina en
@@ -262,7 +262,7 @@ class EegSignalGenerator:
         return mu_carrier * envelope
 
     def _engagement_task(self, time: np.ndarray, amplitude: float, event: EngagementTaskEvent) -> np.ndarray:
-        """Engagement Index (2026-10-18) -- theta 6Hz, alfa 10Hz y beta 16Hz
+        """Índice de engagement (2026-10-18) -- theta 6Hz, alfa 10Hz y beta 16Hz
         (dentro de las bandas de `EegAnalyzer`) de amplitud constante en
         reposo; durante la tarea, beta sube y alfa/theta bajan con el perfil
         compartido `_event_profile()`.

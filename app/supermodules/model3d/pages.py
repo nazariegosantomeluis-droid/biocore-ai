@@ -206,7 +206,7 @@ def render_imaging_tab() -> None:
         for col, (title, img) in zip(cols, _slice_previews(vol, preview)):
             col.image(img, caption=title, width="stretch")
 
-    if st.button("Reconstruir en 3D", type="primary", key="m3d_build", icon=":material/view_in_ar:"):
+    if st.button("Reconstruir en 3D", key="m3d_build", icon=":material/view_in_ar:"):
         if selection is None:
             st.warning("Elige qué reconstruir.")
             return

@@ -14,6 +14,7 @@ import pytest
 
 from app.engines import digital_twin_organism as dto
 from app.engines.digital_twin_organism import NO_DATA, NOT_MODELED, DigitalTwinOrganism
+from app.utils.design_system import PALETTE
 from domain.physiology.state import Provenance, from_digital_twin_organism
 
 
@@ -30,7 +31,7 @@ def test_an_organism_without_data_shows_no_data_for_the_whole_heart_and_no_numbe
     m = heart.metrics
     assert (m.risk_points, m.rr_points, m.spo2_points) == (None, None, None)
     assert m.signals == {} and not hasattr(heart, "status")
-    assert heart.color == dto.NO_DATA_COLOR == "#64748b"                      # el gris del Cuerpo Digital
+    assert heart.color == dto.NO_DATA_COLOR == PALETTE.NEUTRAL                      # el gris del Cuerpo Digital
     # tras una actualización vacía (nadie midió nada) sigue sin número: ni 50, ni «BAJO», ni un total NEWS2
     organism.update_from_sensors({})
     g = organism.global_state
@@ -63,7 +64,7 @@ def test_heart_rate_only_gives_the_news2_points_and_nothing_else():
     m = heart.metrics
     assert m.risk_points == 0 and not hasattr(m, "health_score")
     assert m.signals == {"heart_rate": 72.0}                                   # ni hrv_modulation ni defaults
-    assert heart.color == "#39ffbe"
+    assert heart.color == PALETTE.STABLE
     # sin pulmones no hay razón FC:FR (ya no sale de FR = 16 por defecto) y el NEWS2 parcial solo tiene el pulso
     assert organism.global_state["hr_rr_ratio"] is None
     assert organism.global_state["news2_partial"].components == {"Pulso": 0}
@@ -80,7 +81,7 @@ def test_the_organism_uses_the_news2_pulse_bands_with_half_up_rounding(hr, point
 
 def test_atrial_fibrillation_at_138_bpm_is_3_points_not_healthy():
     organism, heart = _heart({"ecg": {"heart_rate": 138.0}})
-    assert heart.metrics.risk_points == 3 and heart.color == "#ff3333"
+    assert heart.metrics.risk_points == 3 and heart.color == PALETTE.CRITICAL
     assert any("3 puntos NEWS2" in a for a in organism.global_state["alerts"])
     assert any("3 puntos NEWS2" in a for a in organism.global_state["anomalies"])
 

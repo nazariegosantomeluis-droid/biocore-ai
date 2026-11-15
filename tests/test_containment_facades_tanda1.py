@@ -112,14 +112,13 @@ def test_entropy_complexity_button_is_gone_from_every_page(temp_ups):
 
     sf, pid = temp_ups
     src = Path("app/main.py").read_text(encoding="utf-8")
-    hubs = _ast.literal_eval(re.search(r"^HUBS = (\{.*?^\})", src, re.S | re.M).group(1))
-    pages = [(hub, page) for hub, ps in hubs.items() for page in ps]
-    assert len(pages) >= 12
-    for hub, page in pages:
+    # tanda 1 de la fase 1: las 12 entradas del menú anterior -> sus páginas del menú por intención
+    entries = _ast.literal_eval(re.search(r"^LEGACY_ENTRIES = (\{.*?^\})", src, re.S | re.M).group(1))
+    pages = sorted({url for urls in entries.values() for url in urls})
+    assert len(entries) == 12
+    for page in pages:
         at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=120)
-        at.session_state["biocore_ai_entry_done"] = True
-        at.session_state["selected_hub"] = hub
-        at.session_state["selected_page"] = page
+        at.session_state["biocore_start_page"] = page
         at.session_state["twin_shell_ups_session_factory"] = sf
         at.session_state["twin_shell_ups_patient_id"] = pid
         at.run()

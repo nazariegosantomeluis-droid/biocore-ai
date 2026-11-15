@@ -3,11 +3,11 @@
 Solo muestran lo que tiene golden test, y cada valor lleva su insignia propia (no hay una insignia global de
 "validado": la apnea mixta sigue PENDING_VALIDATION):
 
-- 🟢 validado por fuente: banda NEWS2 de la FR, apnea (≥ 90 % de caída durante ≥ 10 s, Berry 2012, AASM).
-- 🟣 metodología propia / valor BIOCORE: FR (60 / media de intervalos), duración del ciclo, tipo por esfuerzo
+- [Validado por fuente]: banda NEWS2 de la FR, apnea (≥ 90 % de caída durante ≥ 10 s, Berry 2012, AASM).
+- [Criterio BIOCORE] metodología propia / valor BIOCORE: FR (60 / media de intervalos), duración del ciclo, tipo por esfuerzo
   (Criterio BIOCORE), tasa equivalente por hora de registro, SpO₂ del modelo BIOCORE, Tc (Valor BIOCORE).
-- 🔵 HEURISTIC: descripción del patrón respiratorio e irregularidad del generador atáxico.
-- ⏳ PENDING_VALIDATION: apnea mixta.
+- [Heurística]: descripción del patrón respiratorio e irregularidad del generador atáxico.
+- [Pendiente de validación]: apnea mixta.
 
 Siguen fuera: hipopneas, relación I:E, ODI y la categoría de severidad (vive en Calculadoras Clínicas).
 """
@@ -34,7 +34,6 @@ EVENT_TYPE_LABELS = {
     "mixed": "mixta (PENDING_VALIDATION)",
     "unknown": "sin canal de esfuerzo",
 }
-CALCULATOR_PAGE = "🧮 Calculadoras Clínicas"
 
 # Por debajo de este coeficiente de variación de los intervalos entre inspiraciones el patrón se describe como regular.
 # HEURISTIC (decisión firmada de la fase 4): sin fuente clínica.
@@ -42,10 +41,7 @@ PATTERN_REGULAR_CV = 0.10
 # Una desaturación se muestra como tal a partir de 3 puntos bajo la basal (el 3 % de Berry 2012 para desaturación).
 DESATURATION_NOTE_POINTS = 3.0
 
-BADGE_LEGEND = (
-    f"{BADGES.CLINICAL} validado por fuente · {BADGES.METHOD} metodología propia o valor BIOCORE · "
-    f"{BADGES.HEURISTIC} heurística · {BADGES.PENDING} pendiente de validación"
-)
+BADGE_LEGEND = " · ".join(BADGES.label(b) for b in (BADGES.CLINICAL, BADGES.METHOD, BADGES.HEURISTIC, BADGES.PENDING))
 
 
 # ----------------------------------------------------------------------------------------------- texto (funciones puras)
@@ -199,21 +195,21 @@ def render_events_table(analysis) -> None:
             rows.append({
                 "Inicio (s)": round(e["start_time"], 1),
                 "Duración": duration_text(e),
-                "Tipo (Criterio BIOCORE)": (f"{BADGES.PENDING} {kind}" if e["mixed_pending"] else f"{BADGES.METHOD} {kind}"),
+                "Tipo (Criterio BIOCORE)": (f"{BADGES.tag(BADGES.PENDING)} {kind}" if e["mixed_pending"] else f"{BADGES.tag(BADGES.METHOD)} {kind}"),
                 "Borde": "recortado por el final del registro" if e["truncated"] else "completo",
                 "Línea basal": f"{b['n_breaths']} respiraciones previas, {b['window_s']:.0f} s; {b['rule']}"
                                + (" — registro corto: basal disponible declarada" if b["declared_short"] else ""),
             })
         st.dataframe(rows, hide_index=True, width="stretch")
         if any(e["mixed_pending"] for e in analysis.apnea_events):
-            st.caption(f"{BADGES.PENDING} Mixta: PENDING_VALIDATION (la definición del manual AASM no está verificada); "
+            st.caption(f"{BADGES.tag(BADGES.PENDING)} Mixta: PENDING_VALIDATION (la definición del manual AASM no está verificada); "
                        "se calcula y se marca.")
         st.caption(
-            f"{BADGES.CLINICAL} Apnea = caída ≥ 90 % de la excursión respecto a la línea basal previa durante ≥ 10 s "
+            f"{BADGES.tag(BADGES.CLINICAL)} Apnea = caída ≥ 90 % de la excursión respecto a la línea basal previa durante ≥ 10 s "
             "(Berry 2012, AASM). "
-            f"{BADGES.METHOD} Tipo: «esfuerzo ausente» = caída ≥ 90 % del esfuerzo respecto a su basal (Criterio BIOCORE)."
+            f"{BADGES.tag(BADGES.METHOD)} Tipo: «esfuerzo ausente» = caída ≥ 90 % del esfuerzo respecto a su basal (Criterio BIOCORE)."
         )
-        st.caption(f"{BADGES.METHOD} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
+        st.caption(f"{BADGES.tag(BADGES.METHOD)} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
         if any(e.get("gradual_edge") for e in analysis.apnea_events):
             st.caption("«≈ X s, borde gradual ± U s»: U es cuánto cambia la duración del evento si la basal (y con ella el umbral "
                        "del 10 %) se mueve un 2 %, el p95 medido del error de la basal del detector. Puede ser grande en un borde "
@@ -244,16 +240,15 @@ def render_clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> None:
         st.markdown(f"- {note}")
 
 
-def render_calculator_link(key: str) -> None:
+def render_calculator_link() -> None:
     """Enlace a la calculadora de severidad (el lab no categoriza: su registro dura minutos)."""
     st.caption(
         "La severidad de la apnea del sueño se calcula con un índice **por hora de sueño** (Epstein 2009); este laboratorio no la "
         "muestra porque su registro dura minutos."
     )
-    if st.button("Abrir la calculadora de severidad (Calculadoras Clínicas → Escalas)", key=key):
-        st.session_state["selected_hub"] = "Clinical Hub"
-        st.session_state["selected_page"] = CALCULATOR_PAGE
-        st.rerun()
+    from app.utils import navigation as nav
+
+    nav.link("calculadoras", "Abrir la calculadora de severidad (Calculadoras clínicas → Escalas)", icon="🧮")
 
 
 def render_spo2_cards(analysis) -> None:
@@ -270,7 +265,7 @@ def render_spo2_cards(analysis) -> None:
 def render_hidden_notice() -> None:
     st.info(
         "**Sigue fuera** (sin golden test o sin criterio firmado): hipopneas, relación I:E, ODI y la categoría de "
-        "severidad (vive en Calculadoras Clínicas). La apnea **mixta** se calcula y se marca ⏳ PENDING_VALIDATION."
+        "severidad (vive en Calculadoras Clínicas). La apnea **mixta** se calcula y se marca [Pendiente de validación] (PENDING_VALIDATION)."
     )
 
 
@@ -336,3 +331,261 @@ def render_save_to_twin(analysis, pattern_display: str, key: str) -> None:
             f"({', '.join(state.respiratory.descriptors)}); cardiovascular: {len(state.cardiovascular.descriptors)} "
             "(vacío esperado: este laboratorio no mide el corazón)."
         )
+
+
+def render_clinical_references() -> None:
+    """Pestaña «Referencias Clínicas» del laboratorio (tanda 1 de la fase 1: movida aquí SIN cambiar el texto, para
+    que también se lea desde Aprender)."""
+    st.markdown("### 📚 Referencias Clínicas")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"""
+        #### 🫁 Frecuencia respiratoria y SpO₂ según NEWS2
+
+        Puntos NEWS2 de la FR: **12–20 resp/min: 0**; 9–11: 1; 21–24: 2; ≤ 8: 3; ≥ 25: 3. Puntos de la SpO₂ (escala 1):
+        **≥ 96 %: 0**; 94–95: 1; 92–93: 2; ≤ 91: 3. Es una puntuación de alerta, no una etiqueta diagnóstica: fuera de 12–20
+        se dice «fuera de 12–20 (NEWS2)».
+
+        *Fuente: {NEWS2_CITATION}*
+
+        #### 📊 Patrones
+
+        - **Apnea (Berry 2012, AASM):** caída ≥ 90 % de la excursión del flujo respecto a la línea basal previa durante ≥ 10 s
+        - **Cheyne-Stokes (Berry 2012):** ≥ 3 apneas/hipopneas centrales consecutivas separadas por un cambio creciente y decreciente
+          de la amplitud, con ciclo ≥ 40 s (típicamente 45–90 s) y ≥ 5 por hora en ≥ 2 h de registro
+        - **Atáxica (descripción de la simulación):** el generador sortea la duración y la profundidad de cada respiración
+          (irregularidad 0.20, HEURISTIC); no hay afirmación clínica sobre su causa
+        """)
+
+    with col2:
+        st.markdown(f"""
+        #### 😴 Clasificación de la apnea por esfuerzo
+
+        Berry 2012 (§4.1.1, AASM): la clasificación de una apnea como obstructiva, mixta o central **se basa en el esfuerzo
+        respiratorio**. Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).
+
+        - **Central (Criterio BIOCORE):** esfuerzo ausente (caída ≥ 90 % del esfuerzo respecto a su basal)
+        - **Obstructiva (Criterio BIOCORE):** esfuerzo presente; Berry 2012 señala que el movimiento paradójico del tórax y el
+          abdomen se observa a menudo durante una apnea u hipopnea obstructiva
+        - **Mixta:** [Pendiente de validación] (PENDING_VALIDATION; se calcula y se marca; la definición del manual no está verificada)
+        - **Obesidad:** Epstein 2009 incluye la obesidad (IMC > 35) entre los pacientes de alto riesgo que deben evaluarse
+          para apnea obstructiva del sueño
+        - **Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo del colapso
+          repetitivo de la vía aérea superior
+
+        #### 📏 Severidad por índice de eventos por hora
+
+        Se calcula con la calculadora de **Calculadoras Clínicas → Escalas** (Epstein 2009): es un índice por hora de
+        sueño y este laboratorio solo registra minutos.
+
+        *Fuente: {EDUCATION_CITATION}*
+        """)
+
+    st.markdown("---")
+
+    st.markdown(f"""
+    #### 💡 Implicaciones clínicas (texto educativo; no se deriva de la señal simulada)
+
+    La guía de práctica clínica de la AASM pide evaluar, en una persona con apnea obstructiva del sueño, las condiciones
+    secundarias que pueden aparecer como resultado de ella: hipertensión, accidente cerebrovascular, infarto de
+    miocardio, cor pulmonale, menor alerta diurna y accidentes de tráfico.
+
+    **Opciones de tratamiento que enumera la guía** (la estrategia la decide un clínico con la persona, caso a caso):
+    dispositivos de presión positiva en la vía aérea (CPAP), dispositivos orales, tratamientos conductuales (pérdida de
+    peso, ejercicio, terapia posicional, evitar alcohol y sedantes antes de dormir), cirugía y tratamientos adyuvantes.
+
+    *Fuente: {EDUCATION_CITATION}*
+    """)
+
+
+
+# ------------------------------------------------------------------------------------------------- cuestionario
+# Tanda 1 de la fase 1 (2026-11-15, Art. I): el cuestionario se respondía solo. Las tres preguntas conceptuales llevaban
+# «✓» en el texto de la opción correcta, que además venía preseleccionada, y la corrección («✅ Correcto») aparecía antes
+# de que el estudiante eligiera nada; las dos numéricas también preseleccionaban la primera opción. Ahora: ninguna opción
+# preseleccionada (`index=None`), ningún «✓» en las opciones (la correcta se guarda aparte y no siempre es la primera) y
+# ninguna corrección hasta que el estudiante responde. Los textos de las preguntas y de la corrección no cambiaron.
+CONCEPT_QUIZ = {
+    "Diferenciación Apnea": dict(
+        question="""
+        **Pregunta:** Según Berry 2012 (AASM), ¿en qué se basa la clasificación de una apnea como obstructiva, mixta o central?
+
+        Pista: mira la pared torácica y el movimiento abdominal durante las apneas.
+        """,
+        options=[
+            "En la duración: las centrales duran 10 s o más y las obstructivas menos",
+            "En el esfuerzo respiratorio",
+            "En la caída del flujo: las centrales caen ≥ 90 % y las obstructivas ≥ 30 %",
+        ],
+        correct=1,
+        ok=("✅ Correcto: Berry 2012 (§4.1.1) clasifica la apnea según el esfuerzo respiratorio. En este laboratorio, "
+            "central = esfuerzo ausente y obstructiva = esfuerzo presente (Criterio BIOCORE); la mixta queda "
+            "[Pendiente de validación] (PENDING_VALIDATION)."),
+        wrong=("❌ Incorrecto: todas las apneas cumplen la misma regla: caída ≥ 90 % de la excursión del flujo durante ≥ 10 s "
+               "(Berry 2012); una caída de ≥ 30 % es el criterio de hipopnea, no de apnea. Lo que las separa es el esfuerzo "
+               "respiratorio."),
+    ),
+    "Factores de Riesgo": dict(
+        question="""
+        **Pregunta:** Según la guía de la AASM (Epstein 2009), ¿cuál de estos pacientes pertenece a un grupo de ALTO RIESGO
+        que debe evaluarse para apnea obstructiva del sueño?
+        """,
+        options=[
+            "Una persona de 25 años con IMC 22, sin síntomas ni otras condiciones",
+            "Una persona sana que viaja como pasajera",
+            "Una persona con obesidad (IMC > 35)",
+        ],
+        correct=2,
+        ok=("✅ Correcto: la guía de la AASM (Epstein 2009) lista como alto riesgo la obesidad (IMC > 35), la insuficiencia "
+            "cardíaca congestiva, la fibrilación auricular, la hipertensión refractaria al tratamiento, la diabetes tipo 2, "
+            "el ACV, las disritmias nocturnas, la hipertensión pulmonar, las poblaciones de conducción de alto riesgo y la "
+            "evaluación previa a cirugía bariátrica."),
+        wrong=("❌ Incorrecto: esa persona no figura en la lista de alto riesgo de la guía de la AASM (Epstein 2009: obesidad "
+               "con IMC > 35, insuficiencia cardíaca congestiva, fibrilación auricular, hipertensión refractaria, diabetes "
+               "tipo 2, ACV, disritmias nocturnas, hipertensión pulmonar, conducción de alto riesgo, cirugía bariátrica)."),
+    ),
+    "Correlación cardiovascular (guía AASM)": dict(
+        question="""
+        **Pregunta:** ¿Qué condiciones del ritmo cardíaco figuran entre los pacientes de alto riesgo que la guía de la AASM
+        (Epstein 2009) pide evaluar para apnea obstructiva del sueño?
+        """,
+        options=[
+            "Ninguna: la guía no menciona alteraciones del ritmo cardíaco",
+            "Fibrilación auricular y disritmias nocturnas",
+            "Solo la taquicardia sostenida",
+        ],
+        correct=1,
+        ok=("✅ Correcto: la fibrilación auricular y las disritmias nocturnas figuran en la lista de alto riesgo de la guía. "
+            "Berry 2012 añade que un estudio con la definición de hipopnea de ≥ 3 % de desaturación encontró asociación "
+            "entre el índice de eventos y la fibrilación auricular o la ectopia ventricular compleja en hombres mayores "
+            "sin insuficiencia cardíaca declarada."),
+        wrong=("❌ Incorrecto: la guía de la AASM (Epstein 2009) sí las menciona: la fibrilación auricular y las disritmias "
+               "nocturnas están en su lista de pacientes de alto riesgo."),
+    ),
+}
+SIGNAL_QUIZ = ("Frecuencia de esta señal", "Contar las apneas de esta señal")
+
+
+def render_quiz(analysis=None, key_prefix: str = "") -> None:
+    """Cuestionario del laboratorio. Con `analysis` (la señal actual) incluye las dos preguntas cuya respuesta sale de un
+    valor con golden test (FR y conteo de apneas); sin él (p. ej. desde Practicar) solo las tres conceptuales."""
+    st.markdown("### ❓ Cuestionario Interactivo - Apnea del Sueño")
+    options = list(CONCEPT_QUIZ)
+    if analysis is not None:
+        options += list(SIGNAL_QUIZ)
+    quiz_type = st.radio("Seleccionar Tipo de Pregunta:", options, key=f"{key_prefix}resp_quiz_type" if key_prefix else None)
+    if analysis is None:
+        st.caption("Las dos preguntas sobre la señal (frecuencia y conteo de apneas) están en el laboratorio respiratorio, "
+                   "porque su respuesta sale de la señal simulada que estás viendo.")
+
+    if quiz_type == "Frecuencia de esta señal":
+        st.info("**Pregunta:** ¿Cuál es la frecuencia respiratoria de la señal actual (redondeada al entero)?")
+        correct = analysis.respiratory_rate_rounded
+        if correct is None:
+            st.warning("La frecuencia no está disponible en este registro: no hay pregunta que responder.")
+            return
+        choices = sorted({correct, correct + 4, max(1, correct - 4), correct + 9})
+        picked = st.radio("Tu respuesta (resp/min):", choices, index=None, key=f"{key_prefix}resp_quiz_fr")
+        if picked is None:
+            return
+        if picked == correct:
+            st.success(f"✅ Correcto: {analysis.respiratory_rate:.1f}/min medida entre inspiraciones; {fr_band_text(analysis)}.")
+        else:
+            st.error("❌ Incorrecto: mide el tiempo entre dos inspiraciones consecutivas: FR = 60 / ese intervalo (s).")
+        return
+
+    if quiz_type == "Contar las apneas de esta señal":
+        st.info("**Pregunta:** ¿Cuántas apneas (caída ≥ 90 % durante ≥ 10 s) hay en la señal actual?")
+        correct = analysis.apnea_count
+        if correct is None:
+            st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
+            return
+        choices = sorted({correct, correct + 1, correct + 2, max(0, correct - 1)})
+        picked = st.radio("Tu respuesta:", choices, index=None, key=f"{key_prefix}resp_quiz_apneas")
+        if picked is None:
+            return
+        if picked == correct:
+            st.success(f"✅ Correcto: {correct} apnea(s) de ≥ 10 s en {analysis.record_duration_s:.0f} s de registro.")
+        else:
+            st.error("❌ Incorrecto: busca los tramos con flujo casi ausente (≥ 90 % de caída) y mídelos: solo cuentan los de "
+                     "≥ 10 s.")
+        return
+
+    item = CONCEPT_QUIZ[quiz_type]
+    st.info(item["question"])
+    answer = st.radio("Tu respuesta:", item["options"], index=None, key=f"{key_prefix}resp_quiz_{quiz_type}")
+    if answer is None:
+        return
+    if answer == item["options"][item["correct"]]:
+        st.success(item["ok"])
+    else:
+        st.error(item["wrong"])
+
+
+def render_education_topics() -> None:
+    """«Información educativa» del laboratorio (tanda 1 de la fase 1: movida aquí SIN cambiar el texto; el
+    laboratorio la sigue mostrando en su barra lateral y Aprender la muestra en la página)."""
+    st.markdown("### 📚 INFORMACIÓN EDUCATIVA")
+
+    edu_section = st.radio("Seleccionar Tema:", [
+        "Introducción",
+        "Patrones Clínicos",
+        "Apnea del Sueño",
+        "Correlación cardiovascular (guía AASM)"
+    ], key="edu_sidebar")
+
+    if edu_section == "Introducción":
+        st.markdown("""
+        #### ¿Cómo se mide? (Berry 2012, AASM)
+
+        - **Flujo de aire:** sensor térmico oronasal (termistor, termopar o PVDF)
+        - **Esfuerzo respiratorio:** cinturones toracoabdominales
+        - **Oxígeno:** pulsioximetría (SpO2)
+
+        En este laboratorio las tres señales son **simuladas**.
+        """)
+
+    elif edu_section == "Patrones Clínicos":
+        st.markdown("""
+        #### 🫁 Frecuencia respiratoria (NEWS2)
+
+        - 12–20 resp/min: 0 puntos
+        - 9–11 resp/min: 1 punto; 21–24: 2 puntos
+        - ≤ 8 o ≥ 25 resp/min: 3 puntos
+        - Fuera de 12–20 se dice «fuera de 12–20 (NEWS2)», sin etiqueta diagnóstica
+
+        **Cheyne-Stokes (Berry 2012):**
+        - Se puntúa con ≥ 3 apneas/hipopneas centrales consecutivas con ciclo ≥ 40 s y ≥ 5 por hora en ≥ 2 h de registro
+        - Puede reflejar una insuficiencia cardíaca congestiva no reconocida
+        """)
+
+    elif edu_section == "Apnea del Sueño":
+        st.markdown("""
+        #### 😴 Datos de la guía AASM (Epstein 2009)
+
+        - **Prevalencia:** al menos 2–4 % de la población adulta
+        - **Condiciones secundarias que la guía pide evaluar:** hipertensión, ACV, infarto de miocardio, cor pulmonale,
+          menor alerta diurna y accidentes de tráfico
+
+        **Síntomas que la guía pide evaluar:**
+        - Apneas presenciadas
+        - Ronquido
+        - Ahogo o asfixia nocturnos
+        - Somnolencia excesiva no explicada por otros factores
+
+        **Diagnóstico:** la guía acepta dos métodos objetivos: polisomnografía en laboratorio y monitores portátiles en casa
+        """)
+
+    else:  # Correlación
+        st.markdown("""
+        #### 💓 Correlación cardiovascular (guía AASM)
+
+        - Epstein 2009: las consecuencias de la apnea obstructiva del sueño son resultado directo de las alteraciones que produce
+          el colapso repetitivo de la vía aérea superior: fragmentación del sueño, hipoxemia, hipercapnia, grandes oscilaciones
+          de la presión intratorácica y aumento de la actividad simpática
+        - La fibrilación auricular y las disritmias nocturnas figuran entre los pacientes de alto riesgo que se evalúan para AOS
+        - Berry 2012 cita un estudio que asoció el índice de eventos con fibrilación auricular o ectopia ventricular compleja
+          en hombres mayores sin insuficiencia cardíaca declarada
+        """)

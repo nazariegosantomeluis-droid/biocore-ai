@@ -164,37 +164,10 @@ def test_muscular_domain_survives_persistence_round_trip(db_path):
         assert "fatigue_index" not in latest.muscular.descriptors
 
 
-def test_severe_muscle_fatigue_event_uses_same_threshold_as_organism(db_path):
-    """El evento muscular reutiliza el umbral que YA vive en
-    `DigitalTwinOrganism._update_muscles()` (`fatigue > 80` -> tier más alto
-    de `risk_score`) -- no un umbral clínico inventado aquí. El evento lee
-    `fatigue_index` de la señal cruda del organismo aunque ese valor NO se
-    persista como descriptor (lee la señal cruda del organismo)."""
-    SessionLocal = _session_factory(db_path)
-
-    with SessionLocal() as session:
-        patient_id = create_patient(session, display_name="Paciente Fatiga Severa EMG")
-
-        fatigued_organism = DigitalTwinOrganism()
-        fatigued_organism.update_from_sensors({
-            "emg": {"activation": 60.0, "median_frequency": 55.0, "fatigue_index": 90.0}
-        })
-        fatigued_state = from_digital_twin_organism(fatigued_organism, patient_id, Provenance.SIMULACION, 0.9)
-
-        fatigue_events = [
-            e for e in fatigued_state.events if e.event_type == EventType.SEVERE_MUSCLE_FATIGUE_EMG
-        ]
-        assert len(fatigue_events) == 1
-        assert fatigue_events[0].domain == "muscular"
-        assert fatigue_events[0].severity == EventSeverity.WARNING
-        assert fatigue_events[0].related_descriptor is None      # `movement_smoothness` se retiró (fase 0)
-
-        # Bajo el umbral -> sin evento.
-        ok_organism = DigitalTwinOrganism()
-        ok_organism.update_from_sensors({
-            "emg": {"activation": 40.0, "median_frequency": 115.0, "fatigue_index": 30.0}
-        })
-        ok_state = from_digital_twin_organism(ok_organism, patient_id, Provenance.SIMULACION, 0.9)
-        assert not [
-            e for e in ok_state.events if e.event_type == EventType.SEVERE_MUSCLE_FATIGUE_EMG
-        ]
+def test_there_is_no_muscle_fatigue_event_anymore(db_path):
+    """Tanda 1 de la fase 1 (2026-11-15, Art. I): el evento de fatiga > 80 (umbral sin cita) se retiró."""
+    organism = DigitalTwinOrganism()
+    organism.update_from_sensors({"emg": {"activation": 60.0, "median_frequency": 55.0, "fatigue_index": 95.0}})
+    state = from_digital_twin_organism(organism, "p", Provenance.SIMULACION, 0.9)
+    assert [e for e in state.events if e.domain == "muscular"] == []
+    assert not hasattr(EventType, "SEVERE_MUSCLE_FATIGUE_EMG")

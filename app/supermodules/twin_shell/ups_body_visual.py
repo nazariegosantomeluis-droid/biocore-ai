@@ -47,6 +47,8 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import streamlit as st
 
+from app.utils.design_system import PALETTE, no_data_html
+
 from domain.physiology.state import (
     EventSeverity,
     EventType,
@@ -62,12 +64,13 @@ from src.signals.eeg.spectral_model import CHI_CITATION, classify_chi
 _BRAIN_BAND_DESCRIPTORS = ("delta_power", "theta_power", "alpha_power", "beta_power", "gamma_power")
 
 # Único lugar donde severidad -> color se decide, reutilizado por ambos órganos.
-NEUTRAL_COLOR = "#64748b"   # gris — el dominio no tiene datos todavía (persistidos o actuales)
-STABLE_COLOR = "#39d98a"    # verde — datos presentes, sin evento activo en este dominio
+# Tanda 1 de la fase 1 (decisión 4): leen `PALETTE`, la única fuente de color de la app.
+NEUTRAL_COLOR = PALETTE.NEUTRAL   # gris — el dominio no tiene datos todavía (persistidos o actuales)
+STABLE_COLOR = PALETTE.STABLE     # verde — datos presentes, sin evento activo en este dominio
 SEVERITY_COLOR: Dict[EventSeverity, str] = {
-    EventSeverity.INFO: "#39d98a",
-    EventSeverity.WARNING: "#ffc542",
-    EventSeverity.CRITICAL: "#ff4d4d",
+    EventSeverity.INFO: PALETTE.STABLE,
+    EventSeverity.WARNING: PALETTE.WARNING,
+    EventSeverity.CRITICAL: PALETTE.CRITICAL,
 }
 _SEVERITY_RANK = {EventSeverity.INFO: 0, EventSeverity.WARNING: 1, EventSeverity.CRITICAL: 2}
 
@@ -79,8 +82,6 @@ EVENT_VISUAL_MAP: Dict[EventType, Tuple[str, str]] = {
     EventType.PULSE_NEWS2_3_POINTS: ("heart", "⚡ Pulso en banda NEWS2 de 3 puntos (≤40 / ≥131)"),
     # Tanda 0.1 (decisión 1): SpO₂ en la banda de 3 puntos NEWS2 escala 1.
     EventType.SPO2_NEWS2_3_POINTS: ("lungs", "🫁 SpO₂ en banda NEWS2 de 3 puntos (≤91 %)"),
-    # Retirado (solo filas históricas de `ups_events`; el builder ya no lo emite).
-    EventType.HYPOXIA_SPO2_LOW: ("lungs", "🫁 SpO₂ < 95 % (criterio retirado, histórico)"),
 }
 
 _STYLE = """
@@ -109,14 +110,14 @@ _STYLE = """
   text-align: center; padding: 14px 8px; border-radius: 16px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10);
 }
-.biocore-organ-title { font-weight: 700; font-size: 15px; margin-top: 6px; color: #e5e5e5; }
-.biocore-organ-metric { font-size: 13px; color: #9fb4c9; margin-top: 2px; }
+.biocore-organ-title { font-weight: 700; font-size: 15px; margin-top: 6px; color: __TEXT__; }
+.biocore-organ-metric { font-size: 13px; color: __MUTED__; margin-top: 2px; }
 .biocore-organ-alert {
-  margin-top: 6px; font-size: 12px; font-weight: 600; color: #ffb4b4;
-  background: rgba(255,77,77,0.12); border-radius: 8px; padding: 3px 8px; display: inline-block;
+  margin-top: 6px; font-size: 12px; font-weight: 600; color: __CRITICAL__;
+  background: rgba(255,100,100,0.12); border-radius: 8px; padding: 3px 8px; display: inline-block;
 }
 </style>
-"""
+""".replace("__TEXT__", PALETTE.TEXT).replace("__MUTED__", PALETTE.NEUTRAL).replace("__CRITICAL__", PALETTE.CRITICAL)
 
 _HEART_PATH = (
     "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 "
@@ -225,13 +226,13 @@ def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         # (persistido) o get_current_physiological_state() (actual, sin
         # persistir); "sin dato" es honesto para ambos, igual que ya hacían
         # rr_label/spo2_label en _render_lungs_card() más abajo.
-        metric_label = "FC: sin dato"
+        metric_label = no_data_html("FC")          # el «sin dato» único (tanda 1 de la fase 1)
     else:
         # Un ciclo cardíaco por latido — taquicardia se ve/pulsa más rápido que bradicardia,
         # la animación transmite el dato en vez de ser decorativa.
         beat_duration = max(0.35, min(2.2, 60.0 / max(hr.value, 1.0)))
         animation_css = f"animation: biocore-heartbeat {beat_duration:.2f}s ease-in-out infinite; transform-origin: center;"
-        metric_label = f"FC: {hr.value:.0f} bpm"
+        metric_label = f"FC: {hr.value:.0f} lpm"
 
     halo = ""
     if severity in (EventSeverity.WARNING, EventSeverity.CRITICAL):
@@ -280,8 +281,12 @@ def _render_lungs_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         else:
             animation_css = ""
 
-    rr_label = f"{rr.value:.0f} resp/min" if rr is not None else "sin dato"
-    spo2_label = f"{spo2.value:.0f}%" if spo2 is not None else "sin dato"
+    rr_label = f"{rr.value:.0f} resp/min" if rr is not None else None
+    spo2_label = f"{spo2.value:.0f}%" if spo2 is not None else None
+    missing = [name for name, lbl in (("FR", rr_label), ("SpO₂", spo2_label)) if lbl is None]
+    lungs_metric = (no_data_html(" y ".join(missing)) if len(missing) == 2 else
+                    " · ".join(f"{n}: {v}" for n, v in (("FR", rr_label), ("SpO₂", spo2_label)) if v is not None)
+                    + (f" · {no_data_html(missing[0])}" if missing else ""))
 
     halo = ""
     if severity in (EventSeverity.WARNING, EventSeverity.CRITICAL):
@@ -310,7 +315,7 @@ def _render_lungs_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         '</g>'
         '</svg>'
         '<div class="biocore-organ-title">🫁 Pulmones</div>'
-        f'<div class="biocore-organ-metric">RR: {rr_label} · SpO₂: {spo2_label}</div>'
+        f'<div class="biocore-organ-metric">{lungs_metric}</div>'
         f'{alerts_html}'
         '</div>'
     )
@@ -342,7 +347,7 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         # "sin dato" en gris — nunca un color que implique una medición.
         # Espejo exacto del `hr is None` del corazón.
         animation_css = ""
-        metric_label = "Estado: sin dato neurológico"
+        metric_label = no_data_html("EEG")
     else:
         # Fase 0 (2026-11-13): `mental_workload` (= beta_power con otro nombre) se retiró del UPS; el cerebro ya no
         # modula su animación con él (se queda estático con dato, como antes sin derivados).
@@ -353,7 +358,7 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
             dominant = max(present_bands, key=lambda kv: kv[1])[0].replace("_power", "")
             band_label = f"Banda dom.: {dominant.upper()}"
         else:
-            band_label = "Banda dom.: sin dato"
+            band_label = no_data_html("banda dominante")
         metric_label = band_label
 
     halo = ""

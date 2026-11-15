@@ -110,12 +110,12 @@ def test_ecg_monitor_demo_source_shows_measured_hr_not_saturated():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    slider = next(s for s in at.sidebar.slider if s.label == "Demo HR (bpm)")
+    slider = next(s for s in at.sidebar.slider if s.label == "FC demo (lpm)")
     slider.set_value(130)
     at.run(timeout=30)
     assert at.exception == []
     metrics_text = " ".join(md.value for md in at.main.markdown)
-    assert "**Heart Rate**" in metrics_text
+    assert "**Frecuencia cardíaca**" in metrics_text
     assert "220" not in metrics_text, "el 220 fijo no debe reaparecer"
 
 
@@ -144,7 +144,7 @@ def test_ecg_monitor_real_source_mitbih_shows_correct_hr_not_220():
     assert at.exception == []
 
     metrics_text = " ".join(md.value for md in at.main.markdown)
-    assert "**Heart Rate**" in metrics_text
+    assert "**Frecuencia cardíaca**" in metrics_text
     assert "220" not in metrics_text, "el detector roto ya no debe medir señal real tampoco"
     assert f"{known_hr:.0f}" in metrics_text, "el HR mostrado debe ser el real medido, no un valor inventado"
 
@@ -170,7 +170,7 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
     assert at.exception == []
 
     metrics_text = " ".join(md.value for md in at.main.markdown)
-    assert "No disponible" in metrics_text
+    assert "Sin dato: falta Frecuencia cardíaca" in metrics_text   # el componente único (decisión 5)
     assert "220" not in metrics_text
 
 
@@ -196,7 +196,7 @@ def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     assert at.exception == []
 
     metrics_text = " ".join(md.value for md in at.main.markdown)
-    assert "**Heart Rate**" in metrics_text
+    assert "**Frecuencia cardíaca**" in metrics_text
     assert "220" not in metrics_text
     assert f"{known_hr:.0f}" in metrics_text
 

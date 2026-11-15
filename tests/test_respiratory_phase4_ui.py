@@ -12,6 +12,8 @@ import pytest
 from sqlalchemy import text as sql
 from streamlit.testing.v1 import AppTest
 
+from app.utils.design_system import BADGES
+
 from src.signals.respiration import RespiratoryAnalyzer, RespiratoryPattern, RespiratorySignalGenerator
 from app.supermodules.respiratory_lab import views
 
@@ -172,14 +174,14 @@ def test_the_spo2_chart_has_no_unsourced_hypoxemia_lines_and_the_flow_axis_is_re
 def test_each_value_carries_its_own_badge_and_there_is_no_global_one(temp_ups):
     sf, pid = temp_ups
     at = _app(sf, pid, "Apnea Central")
-    assert "🟢" in _card(at, "Banda NEWS2 de la FR")                                    # validado por fuente
-    assert "🟢" in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)") and "Berry" in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)")
-    assert "🟣" in _card(at, "Frecuencia Respiratoria")
-    assert "🟣" in _card(at, "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)")
-    assert "🟣" in _card(at, "SpO2 Basal") and "Howarth 2026" in _card(at, "SpO2 Basal")
-    assert any("🟣" in c.value and "Tc" in c.value and "Valor BIOCORE" in c.value for c in at.sidebar.caption)
-    assert "🔵" in _card(at, "Patrón (descripción de la señal)")
-    assert "Insignias por valor" in _text(at) and "⏳" in _text(at)                       # la leyenda nombra el pendiente
+    assert BADGES.CLINICAL in _card(at, "Banda NEWS2 de la FR")                                    # validado por fuente
+    assert BADGES.CLINICAL in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)") and "Berry" in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)")
+    assert BADGES.METHOD in _card(at, "Frecuencia Respiratoria")
+    assert BADGES.METHOD in _card(at, "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)")
+    assert BADGES.METHOD in _card(at, "SpO2 Basal") and "Howarth 2026" in _card(at, "SpO2 Basal")
+    assert any(BADGES.tag(BADGES.METHOD) in c.value and "Tc" in c.value and "Valor BIOCORE" in c.value for c in at.sidebar.caption)
+    assert BADGES.HEURISTIC in _card(at, "Patrón (descripción de la señal)")
+    assert "Insignias por valor" in _text(at) and BADGES.PENDING in _text(at)                       # la leyenda nombra el pendiente
     assert [m for m in at.main.markdown if "border-left:3px" in m.value] == []          # ni insignia global del módulo
 
 
@@ -187,7 +189,7 @@ def test_the_irregularity_is_shown_as_heuristic_only_for_the_ataxic_pattern(temp
     sf, pid = temp_ups
     ataxic = _app(sf, pid, "Respiración Atáxica")
     card = _card(ataxic, "Irregularidad pedida al generador (CV de duración y profundidad por respiración)")
-    assert "0.20" in card and "🔵" in card
+    assert "0.20" in card and BADGES.HEURISTIC in card
     assert _card(_app(sf, pid), "Irregularidad pedida al generador (CV de duración y profundidad por respiración)") == ""
 
 
@@ -213,15 +215,15 @@ def test_a_mixed_apnea_is_marked_pending_with_its_own_badge():
     at = AppTest.from_function(_script, default_timeout=60).run()
     assert at.exception == []
     row = at.dataframe[0].value.to_dict("records")[0]
-    assert row["Tipo (Criterio BIOCORE)"] == "⏳ mixta (PENDING_VALIDATION)"
-    assert any("⏳ Mixta: PENDING_VALIDATION" in c.value for c in at.caption)
+    assert row["Tipo (Criterio BIOCORE)"] == "[Pendiente de validación] mixta (PENDING_VALIDATION)"
+    assert any("[Pendiente de validación] Mixta: PENDING_VALIDATION" in c.value for c in at.caption)
 
 
 def test_the_status_notice_replaces_the_in_correction_notice_and_names_the_badges(temp_ups):
     sf, pid = temp_ups
     notice = " ".join(i.value for i in _app(sf, pid).info)
-    for token in ("Validado por fuente 🟢", "Con golden test, metodología propia 🟣", "Heurística 🔵",
-                  "Pendiente de validación ⏳", "Sigue fuera"):
+    for token in ("[Validado por fuente]:", "[Criterio BIOCORE] con golden test, metodología propia", "[Heurística]:",
+                  "[Pendiente de validación]:", "Sigue fuera"):
         assert token in notice, token
 
 

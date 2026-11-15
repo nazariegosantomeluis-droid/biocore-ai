@@ -29,7 +29,7 @@ class BiocoreEngine:
     Renombrado desde "biomarcadores propietarios" (2026-08-15): el nombre
     "propietario" no tenía metodología ni cita detrás -- ver CHANGELOG.md.
     "EDA" se retiró de esta lista el mismo día: no hay ningún módulo de señal
-    EDA en el repo, y el único consumidor (Stress Index) se recortó a su
+    EDA en el repo, y el único consumidor (Índice de estrés) se recortó a su
     único componente real (LF/HF de HRV).
 
     `calculate_neurocardiac_coupling_score()` (suma de potencias absolutas +
@@ -292,7 +292,7 @@ class BiocoreEngine:
             # PLV (antes, del NeuroCardiac Coupling pseudocientífico) -- no se
             # renormaliza para "seguir mostrando un número" sin ese componente,
             # eso sería la misma decisión de fórmula que solo el usuario toma
-            # (ver metabolic_efficiency/Stress Index, 2026-08-15).
+            # (ver metabolic_efficiency/Índice de estrés, 2026-08-15).
             readiness_entry = {
                 'available': False,
                 'reason': f"depende del PLV neurocardíaco -- {plv_result.reason}",
@@ -300,16 +300,16 @@ class BiocoreEngine:
             }
 
         return {
-            'Stress Index': {'available': True, 'score': stress, 'status': 'Alto' if stress > 65 else 'Moderado' if stress > 35 else 'Óptimo'},
-            'Recovery Index': {'available': True, 'score': recovery, 'status': 'Bajo' if recovery < 45 else 'Bueno' if recovery < 75 else 'Excelente'},
-            'NeuroCardiac PLV': {
+            'Índice de estrés': {'available': True, 'score': stress, 'status': 'Alto' if stress > 65 else 'Moderado' if stress > 35 else 'Óptimo'},
+            'Índice de recuperación': {'available': True, 'score': recovery, 'status': 'Bajo' if recovery < 45 else 'Bueno' if recovery < 75 else 'Excelente'},
+            'PLV neurocardíaco': {
                 'available': plv_result.available,
                 'plv': plv_result.value,
                 'duration_s': plv_result.duration_s,
                 'reason': plv_result.reason,
             },
-            'Cognitive Load Score': {'available': True, 'score': cognitive, 'status': 'Sobrecarga' if cognitive > 70 else 'Normal'},
-            'Physiological Resilience Score': {'available': True, 'score': resilience, 'status': 'Excelente' if resilience > 75 else 'Promedio'},
-            'Learning Readiness Index': readiness_entry,
+            'Carga cognitiva': {'available': True, 'score': cognitive, 'status': 'Sobrecarga' if cognitive > 70 else 'Normal'},
+            'Resiliencia fisiológica': {'available': True, 'score': resilience, 'status': 'Excelente' if resilience > 75 else 'Promedio'},
+            'Disposición para el aprendizaje': readiness_entry,
         }
     

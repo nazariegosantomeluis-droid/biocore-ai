@@ -130,3 +130,6 @@ _archive/
 data/*.backup-*
 data/*.db-shm
 data/*.db-wal
+
+# ── Registros del servidor MCP de Playwright (capturas de diagnóstico) ──
+.playwright-mcp/

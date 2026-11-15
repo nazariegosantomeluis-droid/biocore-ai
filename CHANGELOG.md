@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-11-15 — Fase 1 de la propuesta, tanda 1: contención, sistema de diseño mínimo y navegación por intención
+
+**Contexto (Art. I)**: el diagnóstico de UX de la fase 1 encontró cuestionarios que se respondían solos, controles placebo, explicaciones de relleno, un «Health Score» sin cita, insignias que eran solo un círculo de color, dos verdes y dos rojos de estado, un gris de «sin dato» sin contraste AA, la clave de IA como primera pantalla y un menú por estructura interna (4 hubs) en vez de por lo que la persona quiere hacer. Tanda en tres partes (A → B → C), con pytest dirigido en verde entre partes y la suite completa en serie al final.
+
+**Decisiones firmadas por Luis (literales)**:
+1. Navegación: Inicio, Aprender, Practicar, Explorar y Ajustes. «Mi progreso» y «Docente» NO se muestran hasta que exista identidad y persistencia.
+2. Inicio: tres puertas (Aprender, Practicar, Explorar), cada una con una línea que diga qué hace. La clave de IA deja de ser la primera pantalla y pasa a Ajustes; si una función necesita IA y no hay clave, se dice ahí mismo, con un enlace a Ajustes.
+3. Insignias de procedencia: etiqueta con TEXTO («Validado por fuente», «Criterio BIOCORE», «Heurística», «Pendiente de validación», «Simulación», etc.) y color neutro, nunca solo un círculo de color. El color queda reservado para el estado clínico, siempre acompañado de una palabra.
+4. Estado clínico: UNA paleta (se eliminan los dos verdes y los dos rojos).
+5. «Sin dato»: UN componente para todo, con contraste AA, que dice qué falta.
+6. Un solo tema (oscuro actual), todo el texto y la pestaña activa en contraste AA.
+7. «lpm» en toda la plataforma; toda la UI en español.
+8. Multisensor: se retira el «Health Score 74.2/100».
+
+### Parte A — Contención (Art. I: fachadas que respondían o explicaban por su cuenta)
+- **Cuestionarios que se respondían solos** (golden test común en `tests/test_fase1_t1_contencion.py`: al abrir, ninguna pregunta muestra «Correcto»/«Incorrecto» ni trae opción preseleccionada; responder mal muestra «Incorrecto» con la explicación). Barrido de TODOS: Respiratorio (3 conceptuales con «✓» en la opción correcta, preseleccionadas y corregidas al abrir; 2 numéricos preseleccionados) → `views.render_quiz`, sin «✓», `index=None`, la correcta no siempre es la primera; EEG (la primera opción preseleccionada: «Calcular puntuación» calificaba respuestas que nadie dio) → `eeg_neuro_lab/teaching.py`, botón deshabilitado hasta responder todo; Academia (quiz y caso ciego) y ECG-12 (preseleccionados, con botón) → `index=None` + botón deshabilitado; caso clínico de Twin OS → igual. `app/ecg_trainer.py` (huérfano, no enrutado) no se tocó.
+- **HRV**: el selector «Capa de Exploración Cognitiva» era placebo (Clínica e Investigación no cambiaban nada); se retiró y sus tres secciones reales quedan como expanders.
+- **ECG-12**: la pestaña «Educativa» solo redirigía; fuera (la página muestra la vista clínica directamente).
+- **`render_metric_explained`**: ya no rellena con texto genérico las capas que el llamador no escribió («Permite priorizar decisiones clínicas…», «Fármacos, estado hemodinámico…»); sin capas, no hay expander.
+- **Decisión 8**: Multisensor sin «Health Score» en Clínica, exporte, IA y Simulación; la firma heurística del módulo describe lo que queda (detección heurística de FC y SpO₂ sobre canales demo, sin índice compuesto). **Decisión 7**: «lpm» y etiquetas en español en lo tocado (FC, EMG, EEG, Multisensor, índices de Biomarcadores, patrones respiratorios, sliders de Twin OS y ECG-12).
+- **Eventos**: con respaldo (`data/biocore_ups.backup-20261115-fase1-t1.db`) se purgaron las 6 filas `hypoxia_spo2_low` y los 6 `health_score` respiratorios históricos; `HYPOXIA_SPO2_LOW` y `SEVERE_MUSCLE_FATIGUE_EMG` (fatiga > 80, sin cita) salieron de `EventType`. Base de desarrollo: 1 paciente / 7 snapshots / 59 → 53 valores / 6 → 0 eventos.
+
+### Parte B — Sistema de diseño mínimo
+- **Tokens**: `PALETTE` (`app/utils/design_system.py`) es la ÚNICA fuente de color; `.streamlit/config.toml` la copia (prueba de paridad). `primaryColor` #1d4ed8 → #4f8ef7 (pestaña activa 2.66:1 → 5.56:1), `NEUTRAL` #64748b → #94a3b8 (3.75:1 → 6.96:1), `CRITICAL` #ff4d4d → #ff6464, `ON_STATE` para texto sobre un relleno de estado (antes blanco), `codeTextColor` = TEXT (el verde por defecto medía 4.42:1 renderizado), `font = "sans-serif"` (la de Streamlit; se quitó el `Inter` que nunca se cargaba). Prueba de contraste WCAG por par (`CONTRAST_PAIRS`, ≥ 4.5 texto, ≥ 3 gráficos) y medición del color REAL renderizado con Playwright (fuera del repo).
+- **Una paleta de estado** (decisión 4): organismo (`NO_DATA_COLOR`, `HAS_DATA_COLOR`, `NEWS2_POINTS_COLOR`: fuera #39ffbe/#ffd700/#ff3333), Cuerpo Digital, cabecera y tarjetas de Twin OS, riesgo heurístico (`patient_analytics` devuelve un nivel, la UI pone el color), ECG-12, gráficas de Respiratorio/EEG: todos leen `PALETTE`. Prueba: ningún hex en `app/` fuera de `design_system.py` (excepciones declaradas: `model3d/`, `reporting.py`, `ecg_trainer.py`).
+- **Etiqueta de procedencia** (decisión 3): `BADGES.*` son palabras; `BADGES.label`, `BADGES.tag` («[Criterio BIOCORE]») y `badge_html` (borde y texto neutros). Fuera los alias `BIOMARKER_*_BADGE` y `PROVENANCE_*_BADGE` y los círculos 🟣/🔵/🔴/⏳ usados como insignia (las clasificaciones clínicas 🟢/🟡/🔴 siguen, siempre con su palabra).
+- **«Sin dato»** (decisión 5): `no_data_html`/`render_no_data` («○ Sin dato: falta X — motivo», NEUTRAL AA) en tarjetas, cabecera NEWS2, tarjetas de órgano, panel de riesgo, Cuerpo Digital y monitor ECG.
+- **Tarjeta de métrica**: `render_metric_card` absorbió los `st.metric` de Twin OS (fuente corta visible; explicación larga al pasar el cursor; `data-label`/`data-value` para las pruebas).
+- **Fuera duplicados**: `render_view_selector`/`render_metric_explained` de `app/utils.py`, `render_metrics_grid` (sin llamadores), el segundo `NO_DATA` de `prediction_engine.py`; sin botones `type="primary"` (blanco sobre PRIMARY: 3.21:1).
+
+### Parte C — Navegación por intención
+- `st.navigation` (decisión 1) con 21 páginas: Inicio; **Aprender** (Teoría de la Academia, Referencias de los laboratorios, ECG en 3D); **Practicar** (Quiz y Caso ciego de la Academia, Desafío ECG-12, Cuestionarios de los laboratorios, Casos clínicos del simulador); **Explorar** (los 11 laboratorios, incluido el gemelo); **Ajustes** (clave de IA). Menú desplegado entero (`expanded=True`).
+- **Inicio** (decisión 2): tres puertas con una línea cada una; Twin OS deja de ser la primera pantalla. La clave de IA vive en Ajustes (solo en `st.session_state`, nunca en `os.environ`); los avisos de «necesita IA» enlazan a Ajustes ahí mismo.
+- Ninguna página se pierde: `LEGACY_ENTRIES` mapea las 12 entradas anteriores y una prueba las abre todas. Enlaces entre páginas por `app/utils/navigation.py::link` (el de Respiratorio a la calculadora de severidad incluido). `streamlit>=1.66.1` en `requirements.txt`; `.playwright-mcp/` en `.gitignore`.
+
+### Verificación
+- Suite completa en serie: **1898 passed**, 1 deseleccionada (la guardia de `domain/`), 0 fallos; base de desarrollo 1 / 7 / 53 / 0 antes y después. La guardia de `domain/` (`test_ups_builder_schema_and_engine_untouched`) pasa en un clon desechable con los cambios confirmados ahí; en el árbol de trabajo falla mientras `domain/` tenga cambios sin commitear, como siempre).
+- Pruebas nuevas: `test_fase1_t1_contencion.py`, `test_fase1_t1_diseno.py`, `test_fase1_t1_navegacion.py`. Adaptadas sin aflojar (mismas garantías sobre el texto en lugar del emoji, o sobre la tarjeta en lugar de `st.metric`): Twin OS, Respiratorio, consolidación visual, Biomarcadores, ECG monitor, organismo, sesión de IA (las garantías de aislamiento de la clave se conservan una a una) y los helpers de navegación de AppTest (`biocore_start_page`).
+- Capturas antes/después (Inicio, Twin OS, Respiratorio a 1280 y 390) fuera del repo. Contraste renderizado: pestaña activa 5.56:1, ítem activo del menú 6.87:1; sin fallas de texto en Inicio, Twin OS ni Respiratorio (los únicos avisos del medidor fueron el valor del slider, que se dibuja sobre el fondo de página, y los min/max ocultos hasta pasar el cursor).
+
+### Pendiente / fuera de alcance
+- Quedan textos en inglés en partes no tocadas (p. ej. «ECG Source» y otros controles del monitor ECG, mensajes de `visualization/` y de `src/`) y «bpm» en texto que generan `clinical/ecg_analyzer.py` y módulos de `src/`; la unidad persistida del UPS y el motor hemodinámico (que no se toca) siguen con `bpm` como nombre interno.
+- `model3d/` conserva sus `st.metric` (estadísticas de malla, no clínicas) y su paleta anatómica.
+
 ## 2026-11-13 — Fase 0, tanda 0.1: residuales (eventos sin cita, índice pulmonar, filas históricas, declaración de la sepsis)
 
 **Contexto (Art. I)**: tras cerrar la fase 0 quedaban dos eventos del UPS y un índice con umbrales sin cita, seis filas históricas de tipos de evento retirados y la pantalla de sepsis sin decir qué calcula el motor y qué está prescrito. Tanda corta.

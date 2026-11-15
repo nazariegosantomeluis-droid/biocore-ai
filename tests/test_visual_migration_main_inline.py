@@ -8,7 +8,7 @@ EJECUCIÓN vía `AppTest`, mismo criterio que las tandas anteriores.
 Alcance real de esta tanda (ver el reporte de la tarea para el detalle
 completo):
   - Biomarkers Lab: los 3 estilos ad hoc de "no disponible" (PLV,
-    Learning Readiness Index, Autonomic Stability) unificados en
+    Disposición para el aprendizaje, Autonomic Stability) unificados en
     `render_metric_card()`, motivo textual preservado verbatim. Leyenda
     de 4 badges reconstruida con `BADGES.label()` en vez de texto propio.
   - EMG Muscle Lab: "Median Frequency" (antes `st.write()` desnudo) ahora
@@ -199,7 +199,8 @@ def test_ecg_lab_and_multisensor_validation_assignments_signed_by_expert():
     import pathlib
     src = pathlib.Path("app/main.py").read_text(encoding="utf-8")
     assert "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database" in src
-    assert "Health Score propietario de BIOCORE. Índice agregado de peso paramétrico no validado" in src
+    assert "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto." in src
+    assert "Health Score propietario" not in src          # decisión 8: retirado
     assert 'validation="VALIDATED",' in src
     assert 'validation_detail=_ECG_VALIDATION_DETAIL,' in src
     assert 'validation="HEURISTIC",' in src
@@ -228,7 +229,7 @@ def test_ecg_lab_still_shows_validated_marker_and_multisensor_heuristic_marker()
     at_multi = AppTest.from_function(_script_multi)
     at_multi.run(timeout=30)
     assert at_multi.exception == []
-    multi_marker = next(md.value for md in at_multi.main.markdown if "Health Score propietario" in md.value)
+    multi_marker = next(md.value for md in at_multi.main.markdown if "Detección heurística de FC y SpO₂" in md.value)
     assert PALETTE.NEUTRAL in multi_marker and "◇" in multi_marker
 
 
@@ -244,17 +245,17 @@ def test_ecg_lab_still_shows_validated_marker_and_multisensor_heuristic_marker()
 
 _UNAVAILABLE_CASES = [
     (
-        "NeuroCardiac PLV",
-        "🟣 Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. Muestra actual: 0s.",
+        "PLV neurocardíaco",
+        "[Criterio BIOCORE] Métrica deshabilitada: el PLV requiere ≥180s de señal ECG+EEG simultánea. Muestra actual: 0s.",
     ),
     (
-        "Learning Readiness Index",
-        "🔵 Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.",
+        "Disposición para el aprendizaje",
+        "[Heurística] Métrica deshabilitada: depende del PLV neurocardíaco (arriba), que no está disponible.",
     ),
     (
-        "Autonomic Stability",
-        "🔴 No disponible — sin fuente de señal real. Requiere presión arterial y PPG-PTT que hoy no "
-        "existen en el pipeline (ver 🔴 Fantasmas abajo).",
+        "Estabilidad autonómica",
+        "[Sin fuente] Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
+        "existen en el pipeline (ver «Fantasmas» abajo).",
     ),
 ]
 
@@ -270,7 +271,7 @@ def test_biomarkers_unavailable_cards_preserve_exact_reason_verbatim(label, exac
     assert at.exception == []
     card = next(md.value for md in at.main.markdown if label in md.value)
     assert exact_reason in card, f"motivo original no preservado verbatim para {label}"
-    assert "no disponible" in card
+    assert f"Sin dato: falta {label}" in card                       # el «sin dato» único (tanda 1 de la fase 1)
     # forma unificada: las 3 pasan ahora por render_metric_card (marco
     # NEUTRAL, mismo patrón que cualquier otro "no disponible" del repo)
     assert PALETTE.NEUTRAL in card
@@ -308,7 +309,7 @@ def test_emg_median_frequency_card_shows_heuristic_badge():
     at.run(timeout=30)
     _click_view(at, "Investigación")
     assert at.exception == []
-    card = next(md.value for md in at.main.markdown if "Median Frequency" in md.value)
+    card = next(md.value for md in at.main.markdown if "Frecuencia mediana" in md.value)
     assert BADGES.label(BADGES.HEURISTIC) in card
     assert "Hz" in card
 
@@ -341,16 +342,16 @@ def test_emg_median_frequency_card_matches_exported_value_same_execution(tmp_pat
     at.run(timeout=30)
     assert at.exception == [], f"excepción al exportar: {at.exception}"
 
-    card = next(md.value for md in at.main.markdown if "Median Frequency" in md.value)
+    card = next(md.value for md in at.main.markdown if "Frecuencia mediana" in md.value)
     import re
-    m_card = re.search(r"Median Frequency</strong>:\s*([\d.]+)\s*Hz", card)
+    m_card = re.search(r"Frecuencia mediana</strong>:\s*([\d.]+)\s*Hz", card)
     assert m_card, f"no se pudo extraer el valor de la tarjeta: {card}"
     card_value = m_card.group(1)
 
     htmls = glob.glob(os.path.join(str(tmp_path), "*EMG_Research*.html"))
     assert htmls, "no se generó el HTML de EMG Research"
     content = open(htmls[0], encoding="utf-8").read()
-    m_export = re.search(r"Median Frequency</strong>:\s*([\d.]+)\s*Hz", content)
+    m_export = re.search(r"Frecuencia mediana</strong>:\s*([\d.]+)\s*Hz", content)
     assert m_export, "no se pudo extraer el valor del export"
     export_value = m_export.group(1)
 
@@ -370,7 +371,8 @@ def test_multisensor_clinica_cards_show_heuristic_badge_never_alarm_colors():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    for label in ("Health Score", "Heart Rate", "SpO2"):
+    assert not any("Health Score" in md.value for md in at.main.markdown)   # decisión 8: retirado
+    for label in ("Frecuencia cardíaca", "SpO₂"):
         # "Health Score" también aparece en el `render_metric_explained()`
         # educativo que se conserva arriba (mismo label, div distinto) --
         # se filtra específicamente por la tarjeta de render_metric_card
@@ -396,7 +398,8 @@ def test_multisensor_simulacion_cards_show_heuristic_badge():
     at.run(timeout=30)
     _click_view(at, "Simulación")
     assert at.exception == []
-    labels = ("Heart Rate (detectado del ECG)", "SpO2 (recalculado)", "Health Score (recalculado)")
+    assert not any("Health Score" in md.value for md in at.main.markdown)   # decisión 8: retirado
+    labels = ("FC detectada del ECG demo", "SpO₂ recalculada del canal demo")
     for label in labels:
         card = next(md.value for md in at.main.markdown if label in md.value)
         assert BADGES.label(BADGES.HEURISTIC) in card, f"{label}: falta el badge heurístico"
@@ -416,7 +419,8 @@ def test_design_system_module_untouched_by_this_tanda():
     sig = inspect.signature(render_metric_card)
     for p in ("label", "value", "provenance", "classification", "grammar", "citation", "unavailable_reason"):
         assert p in sig.parameters
-    assert inspect.signature(resolve_metric_card).parameters.keys() == sig.parameters.keys()
+    # tanda 1 de la fase 1: la tarjeta absorbe `st.metric` y suma `help` (texto al pasar el cursor), solo de render
+    assert set(sig.parameters) - set(inspect.signature(resolve_metric_card).parameters) == {"help"}
 
 
 def test_no_hex_color_literals_introduced_in_the_six_functions():
