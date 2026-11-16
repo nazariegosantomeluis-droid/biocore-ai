@@ -176,7 +176,16 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
 
 def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     """PTB-XL pasa por el mismo camino que MIT-BIH (misma rama `else`
-    retirada) -- confirmado con su propia caché de sesión."""
+    retirada) -- confirmado con su propia caché de sesión.
+
+    Integración 2026-11-16 (Art. I): la página baja el catálogo de PTB-XL de PhysioNet ANTES de leer la caché. Sin red
+    la prueba no puede decir nada: se marca omitida con su motivo, nunca aprobada en silencio. Con red corre igual."""
+    from clinical.ptbxl_metadata import load_ptbxl_database
+
+    try:
+        load_ptbxl_database()
+    except Exception as exc:                       # PtbxlUnavailableError u otro fallo de red/descarga
+        pytest.skip(f"omitida: requiere red a PhysioNet ({type(exc).__name__}: {exc})")
     gen = DynamicECGGenerator(fs=500.0)
     known_hr = 88.0
     real_like_signal = gen.generate(duration=20, hr=known_hr)
