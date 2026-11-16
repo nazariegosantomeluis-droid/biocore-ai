@@ -57,8 +57,13 @@ from app.utils.patient_session import get_shared_ups_engine
 # twin_shell/pages.py al replicar esta conexión al modo caso de Twin OS --
 # un solo lugar para la restricción estructural, la resolución de snapshot
 # y el texto del prompt, ninguno de los dos modos lo duplica.
+from clinical.calculators import NEWS2_CITATION
+from app.engines.simulation_engine import SimulationScenario
 from app.supermodules.twin_shell.pages import (
+    CASE_EXPLANATION_PENDING,
     RICH_SCENARIO_LABELS,
+    case_evidence,
+    render_sepsis_model_declaration,
     _attach_calculated_pa_to_case,
     _build_pa_findings,
     _dedupe_events,
@@ -373,17 +378,11 @@ def render_synthetic_case_section() -> None:
             "🧪 Caso **simulado** por el banco de casos de BIOCORE — no es un paciente real. "
             "Es una variación honesta de uno de los 15 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
-            "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
-            "(Anthropic o Gemini), fundamentado en los descriptores y eventos que este caso contiene."
+            "Diagnostica eligiendo entre 4 opciones. La corrección no usa IA: la respuesta es el escenario que "
+            "generó el caso. Si hay una clave de IA, puedes pedir además una narración opcional."
         )
-
-        if not narrator_is_configured():
-            st.warning(
-                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
-                "simulada de respaldo. " + AI_KEY_HINT
-            )
-            render_settings_link()
-            return
+        # Contención (2026-11-16, Art. I): antes, sin clave de IA el caso no se podía jugar (aunque la respuesta
+        # correcta nunca dependió del modelo). Misma corrección determinista que el caso clínico del gemelo.
 
         if "academia_case_session_factory" not in st.session_state:
             # Mismo engine compartido por proceso que el resto de la app
@@ -481,13 +480,48 @@ def render_synthetic_case_section() -> None:
                 key=f"academia_case_radio_{patient_id}",
             )
             if st.button("✅ Confirmar diagnóstico", key=f"academia_case_confirm_{patient_id}", disabled=choice is None):
-                hidden = st.session_state["academia_case_hidden_scenario"]
+                st.session_state["academia_case_selected"] = choice
+                st.session_state["academia_case_answered"] = True
+                st.rerun()
+        else:
+            selected = st.session_state["academia_case_selected"]
+            hidden = st.session_state["academia_case_hidden_scenario"]
+            correct = selected == hidden
 
-                # PA calculada (2026-08-06, ver CHANGELOG.md): `_build_pa_findings()`
-                # (compartida con Twin OS, definida en twin_shell/pages.py) arma el
-                # Finding con instrucción explícita de porqué fisiológico, el de la
-                # referencia clínica si coexiste, y la nota de divergencia con la cita
-                # adaptada al escenario -- nada de esto se reescribe aquí.
+            # Corrección determinista: la verdad es el escenario que generó el caso; no depende de ninguna IA.
+            if correct:
+                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
+            else:
+                st.error(
+                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
+                    f"{RICH_SCENARIO_LABELS[hidden]}"
+                )
+            st.markdown("**Qué mostró el caso, con su criterio citado:**")
+            for line in case_evidence(state, events):
+                st.markdown(f"- {line}")
+            st.caption(f"Criterio: {NEWS2_CITATION}. {CASE_EXPLANATION_PENDING}")
+            if hidden == SimulationScenario.SEPSIS:
+                with st.expander("Cómo está construido este caso (sepsis)"):
+                    render_sepsis_model_declaration()
+
+            parametros = st.session_state["academia_case_parametros"]
+            st.caption(
+                "🧪 Recordatorio: este caso es una simulación generada por el banco de casos de "
+                f"BIOCORE (`{parametros['escenario']}`, horizonte `{parametros['horizonte_elegido']}`), "
+                "no un paciente real."
+            )
+
+            st.markdown("**Narración con IA (opcional; no es la corrección):**")
+            if not narrator_is_configured():
+                st.caption(AI_OFF + " La corrección de arriba no la necesita. " + AI_KEY_HINT)
+                render_settings_link()
+            elif st.session_state["academia_case_feedback"]:
+                st.markdown(st.session_state["academia_case_feedback"])
+            elif st.session_state["academia_case_feedback_error"]:
+                render_error_state(st.session_state["academia_case_feedback_error"])
+            elif st.button("🤖 Pedir la narración con IA", key=f"academia_case_narrate_{patient_id}"):
+                # PA calculada (2026-08-06, ver CHANGELOG.md): `_build_pa_findings()` (compartida con Twin OS) arma
+                # el Finding de la PA del modelo, el de la referencia clínica si coexiste y la nota de divergencia.
                 references_pa = st.session_state.get("academia_case_reference_pa") or []
                 pa_findings = _build_pa_findings(state, references_pa, hidden.value)
 
@@ -508,7 +542,7 @@ def render_synthetic_case_section() -> None:
                 ] + pa_findings + [
                     Finding(
                         name="Diagnóstico elegido por el estudiante",
-                        value=RICH_SCENARIO_LABELS[choice],
+                        value=RICH_SCENARIO_LABELS[selected],
                         meaning="Evalúalo contra los datos anteriores — no lo repitas como si fuera un campo técnico.",
                     ),
                     Finding(
@@ -536,35 +570,7 @@ def render_synthetic_case_section() -> None:
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state["academia_case_feedback"] = None
                     st.session_state["academia_case_feedback_error"] = f"Error llamando al proveedor de IA: {exc}"
-
-                st.session_state["academia_case_selected"] = choice
-                st.session_state["academia_case_answered"] = True
                 st.rerun()
-        else:
-            selected = st.session_state["academia_case_selected"]
-            hidden = st.session_state["academia_case_hidden_scenario"]
-            correct = selected == hidden
-
-            if correct:
-                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
-            else:
-                st.error(
-                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
-                    f"{RICH_SCENARIO_LABELS[hidden]}"
-                )
-
-            parametros = st.session_state["academia_case_parametros"]
-            st.caption(
-                "🧪 Recordatorio: este caso es una simulación generada por el banco de casos de "
-                f"BIOCORE (`{parametros['escenario']}`, horizonte `{parametros['horizonte_elegido']}`), "
-                "no un paciente real."
-            )
-
-            st.markdown("**Feedback del narrador (fundamentado):**")
-            if st.session_state["academia_case_feedback"]:
-                st.markdown(st.session_state["academia_case_feedback"])
-            elif st.session_state["academia_case_feedback_error"]:
-                render_error_state(st.session_state["academia_case_feedback_error"])
 
             if st.button("➡️ Otro caso", key="academia_case_next"):
                 for k in [

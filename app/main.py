@@ -1046,7 +1046,7 @@ def render_emg_page() -> None:
     _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
 
-EMG_CSV_SAVE_BLOCKER = "archivo sin procedencia verificable (un CSV cargado no dice de quién ni de qué equipo viene)"
+CSV_SAVE_BLOCKER = "archivo sin procedencia verificable (un CSV cargado no dice de quién ni de qué equipo viene)"
 
 
 def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> None:
@@ -1079,7 +1079,7 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> N
     transmitiendo en este momento y sin avisos de calidad
     (`app/supermodules/biosensors/emg.py`: `twin_provenance`, `save_blocker`);
     la demo y la placa simulada van como `SIMULACION`; un CSV cargado no se escribe (2026-11-16: archivo sin
-    procedencia verificable, `EMG_CSV_SAVE_BLOCKER`).
+    procedencia verificable, `CSV_SAVE_BLOCKER`).
     """
     st.markdown("---")
     st.markdown("#### 🔗 Guardar estado al gemelo")
@@ -1097,8 +1097,8 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> N
     if source == 'CSV':
         # Contención antes de la prueba con estudiantes (2026-11-16, Art. I): un CSV cargado se escribía al gemelo
         # como SIMULACION, pero no es una simulación: no se sabe de quién ni de qué equipo viene.
-        st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups", disabled=True, help=EMG_CSV_SAVE_BLOCKER)
-        st.warning(f"⛔ No se guarda al gemelo: {EMG_CSV_SAVE_BLOCKER}.")
+        st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups", disabled=True, help=CSV_SAVE_BLOCKER)
+        st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
         return
 
     from app.supermodules.biosensors import emg as emg_live
@@ -1367,6 +1367,9 @@ def _measure_ecg_heart_rate_tkeo(signal: np.ndarray, fs: float, ECGAnalyzerCls) 
     return float(60.0 * fs / np.mean(np.diff(peaks)))
 
 
+ECG_CSV_SOURCE_LABEL = "CSV local (archivo cargado)"
+
+
 def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGAnalyzerCls) -> None:
     """Tercer y último lab de la integración estrecha (2026-08-24, Capa
     2/5B, tanda de cableado) -- molde idéntico a Respiratory/HRV, con la
@@ -1402,12 +1405,20 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
     st.markdown("#### 🔗 Guardar estado al gemelo")
     source_label = metadata.get('source', 'demo')
 
+    # Contención (2026-11-16, Art. I): un CSV cargado no escribe al gemelo, con el mismo criterio y mensaje que el EMG.
+    # Antes no escribía por accidente (sus metadatos no traían 'source' y caía en la rama demo) y la página le decía
+    # al estudiante que la FC la había elegido él en un slider.
+    if source_label == ECG_CSV_SOURCE_LABEL:
+        st.button("💾 Guardar estado al gemelo", key="ecg_lab_save_to_ups", disabled=True, help=CSV_SAVE_BLOCKER)
+        st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
+        return
+
     if 'demo' in source_label.lower():
         st.info(
             "Fuente demo (sintética) -- nunca escribe HR al gemelo. El HR de esta fuente es un valor "
             "que TÚ elegiste en el slider, no algo medido de un paciente -- guardarlo confundiría "
             "'lo que pediste' con 'lo que se observó', aunque el generador ya sea fiel a ese valor "
-            "(Fase 5B). Cambia a MIT-BIH, PTB-XL, un caso clínico, CSV o hardware ESP32 para guardar "
+            "(Fase 5B). Cambia a MIT-BIH, PTB-XL, un caso clínico o hardware ESP32 para guardar "
             "un HR real."
         )
         return
@@ -1500,6 +1511,7 @@ def render_ecg_monitor_page() -> None:
                 with open(os.path.join(tempfile.gettempdir(), uploaded.name), 'wb') as tmp:
                     tmp.write(uploaded.read())
                 signal, fs, metadata = src_modules['load_biomedical_signal'](os.path.join(tempfile.gettempdir(), uploaded.name))
+                metadata['source'] = ECG_CSV_SOURCE_LABEL       # antes faltaba y la página lo rotulaba «demo»
                 st.success('Señal ECG cargada desde CSV local')
             except Exception as e:
                 render_error_state(
@@ -1721,10 +1733,8 @@ def render_ecg_monitor_page() -> None:
                 if loaded_case.clinical_history:
                     st.write(f"**Historia clínica:** {loaded_case.clinical_history}")
                 st.write(f"**Dificultad:** {loaded_case.difficulty.value}")
-                if loaded_case.clinical_action:
-                    st.write(f"**Acción clínica recomendada:** {loaded_case.clinical_action}")
-                if loaded_case.mortality_risk:
-                    st.write(f"**Riesgo de mortalidad estimado:** {loaded_case.mortality_risk * 100:.0f}%")
+                # Contención (2026-11-16, Art. I): sin «Acción clínica recomendada» ni «Riesgo de mortalidad
+                # estimado» (indicaciones de tratamiento y una cifra por diagnóstico, sin cita; ver case_database.py).
 
         st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
         seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])

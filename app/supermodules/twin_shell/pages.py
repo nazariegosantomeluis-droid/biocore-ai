@@ -35,7 +35,6 @@ from app.engines import (
     PredictionEngine,
 )
 from clinical.calculators import NEWS2_CITATION, PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
-from clinical.ecg_analyzer import pattern_label_es
 from app.engines.digital_twin_organism import NEWS2_POINTS_COLOR, NO_DATA, NO_DATA_COLOR, NOT_MODELED
 from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
 from app.utils.design_system import (
@@ -53,7 +52,7 @@ from domain.physiology.hemodynamics import (
     HemodynamicModelNotEnabledError,
     compute_and_attach_closed_loop_pressure,
 )
-from domain.physiology.ml import build_risk_features, build_synthetic_ecg_from_ups, classify_ecg_signal
+from domain.physiology.ml import build_risk_features
 from domain.physiology.narrator import (
     DataOrigin,
     DepthLevel,
@@ -91,7 +90,6 @@ from domain.physiology.state import (
 from src.ai.patient_analytics import AnomalyDetector, PatientRiskPredictor
 from src.clinical import sepsis_trajectory
 from src.signals.ecg.arrhythmia_types import ARRHYTHMIA_TYPES
-from src.signals.signal_sources import ESP32SignalSource
 
 from .ups_body_visual import render_ups_body
 
@@ -1752,8 +1750,7 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
         # no, parece un bug. No lo es: se explica por qué.
         st.caption(
             "⏳ Este panel integra la **trayectoria** del paciente (tendencia real, no solo el "
-            "instante) — por eso no cambia al mover un slider como el Cuerpo Digital o el "
-            "clasificador de ECG. Se actualiza al guardar un momento en la historia del paciente "
+            "instante) — por eso no cambia al mover un slider como el Cuerpo Digital. Se actualiza al guardar un momento en la historia del paciente "
             "o al ejecutar un escenario."
         )
 
@@ -1828,10 +1825,8 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
                 st.markdown(f"**Factores usados (dato real del UPS):** {', '.join(result['factors_used']) or 'ninguno'}")
                 if result["factors_omitted"]:
                     st.caption(f"Factores omitidos (sin fuente real disponible): {', '.join(result['factors_omitted'])}")
-                if result["recommendations"]:
-                    st.markdown("**Recomendaciones:**")
-                    for rec in result["recommendations"]:
-                        st.write(f"- {rec}")
+                # Contención (2026-11-16, Art. I): se retiraron las «Recomendaciones» («Considere consulta cardiólogo
+                # urgente», «Monitorizar presión arterial diariamente»...): conducta clínica sin cita sobre pesos fijos.
 
         # Detección de anomalías sobre el historial REAL de FC del UPS (no una señal sintética)
         st.markdown("---")
@@ -1856,207 +1851,19 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
             )
 
 
+# Contención antes de la prueba con estudiantes (2026-11-16, Art. I). El «Clasificador de ECG» del gemelo leía un
+# trazado del generador viejo con reglas por umbral: de 40 a 131 lpm daba «Ritmo sinusal normal» con «QRS=0 ms, PR=0 ms,
+# QTc=0 ms — todos dentro de rango» (no medía nada) y a 150 y 180 lpm un «QT largo / riesgo» falso. Se oculta hasta que
+# haya una lectura honesta (opciones B/C del diagnóstico de la integración, en el CHANGELOG). `domain/` no se tocó:
+# `build_synthetic_ecg_from_ups` y `classify_ecg_signal` siguen ahí, sin llamador en la app.
+ECG_CLASSIFIER_IN_REVIEW = (
+    "La lectura automática del ECG del gemelo está en revisión: no se muestra hasta que mida lo que dice medir. "
+    "Para leer un ECG, usa el laboratorio de ECG."
+)
+
+
 def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
-    """Tanda 4, Pieza 2 (2026-07-04): clasificador de ECG real
-    (`clinical.ecg_analyzer.ECGAnalyzer.detect_clinical_pattern`) +
-    explicación por contribución de pesos fijos (`src/interpretability.py`, heurística: no es SHAP ni LIME), integrado al
-    Twin OS. Regla absoluta de esta pieza: ninguna señal de ECG cruda entra
-    al clasificador sin procedencia veraz — la procedencia refleja lo que
-    realmente ocurrió, no lo que el usuario pidió.
-
-    Modo (A, por defecto): forma de onda sintética generada desde el
-    `heart_rate` REAL del estado fisiológico ACTUAL
-    (`get_current_physiological_state()`, Fase 5.1 — antes leía el último
-    snapshot persistido, ver CHANGELOG.md) vía
-    `domain.physiology.ml.build_synthetic_ecg_from_ups` — siempre
-    `Provenance.SIMULACION`.
-
-    Modo (B, opcional): hardware ESP32 real
-    (`src.signals.signal_sources.ESP32SignalSource`). `Provenance.SENSOR_REAL`
-    SOLO si `source.is_hardware_present()` confirma una conexión serial real
-    en ESE MOMENTO — nunca por la sola intención de conectar
-    (`is_connected()`/`.connected` siguen siendo `True` bajo
-    `simulate_if_missing`, por eso no se usan aquí para esta decisión)."""
-
-    with st.expander("🫀 Clasificador de ECG (real, desde tu estado actual)"):
-        st.caption(
-            "detect_clinical_pattern() (reglas por umbral, clinical/ecg_analyzer.py) + explicación por "
-            "contribución de pesos fijos (src/interpretability.py) sobre la señal analizada — "
-            "nunca ruido aleatorio ni un resultado fijo."
-        )
-
-        mode = st.radio(
-            "Fuente de la señal ECG",
-            ["Sintética desde tu estado actual (modo A)", "Hardware real ESP32 (modo B)"],
-            key="twin_shell_ecg_source_mode",
-        )
-
-        signal = None
-        fs: Optional[float] = None
-        provenance_label = None
-        meta_caption = None
-
-        if mode == "Sintética desde tu estado actual (modo A)":
-            # Fase 5.1 (2026-08-30): antes leía `get_latest_state()` (último
-            # snapshot persistido) -- ahora lee el estado ACTUAL en memoria,
-            # mismo punto único de verdad que el Cuerpo Digital. Un slider
-            # movido se refleja aquí al instante, no solo tras "Sincronizar".
-            patient_id = get_active_patient_id()
-            state = get_current_physiological_state(organism, patient_id)
-            synth = build_synthetic_ecg_from_ups(state)
-
-            if synth is None:
-                st.info(
-                    "Todavía no hay heart_rate en tu estado actual — ajusta las señales o "
-                    "corre un escenario primero."
-                )
-            else:
-                signal, fs = synth.signal, synth.fs
-                provenance_label = "SIMULACIÓN"
-                arrhythmia_note = (
-                    " — pulso en la banda de 3 puntos NEWS2 en el estado actual (PULSE_NEWS2_3_POINTS)"
-                    if synth.arrhythmia_event_active else ""
-                )
-                meta_caption = f"FC real de tu estado actual: {synth.heart_rate:.0f} lpm{arrhythmia_note}"
-
-        else:
-            st.caption(
-                "Conecta un ESP32 real por puerto serial. Si no responde ningún dispositivo "
-                "físico, el resultado se etiqueta SIMULACIÓN — nunca SENSOR_REAL por la sola "
-                "intención de conectar."
-            )
-            port = st.text_input("Puerto ESP32 (o 'Auto')", value="Auto", key="twin_shell_ecg_hw_port")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                connect_clicked = st.button("🔌 Conectar hardware ECG", key="twin_shell_ecg_hw_connect")
-            with col_b:
-                disconnect_clicked = st.button("Desconectar", key="twin_shell_ecg_hw_disconnect")
-
-            if connect_clicked:
-                chosen_port = None if port.strip().lower() == "auto" else port.strip()
-                try:
-                    hw_source = ESP32SignalSource(port=chosen_port, fs=250, buffer_seconds=15, simulate_if_missing=True)
-                    hw_source.connect(force_port=chosen_port)
-                    hw_source.start()
-                    st.session_state.twin_shell_ecg_hw_source = hw_source
-                except Exception as exc:
-                    render_error_state(
-                        "No se pudo conectar al ESP32 -- verifica el puerto y que el dispositivo esté "
-                        "encendido.",
-                        exception=exc,
-                    )
-
-            if disconnect_clicked and st.session_state.get("twin_shell_ecg_hw_source") is not None:
-                try:
-                    st.session_state.twin_shell_ecg_hw_source.stop()
-                    st.session_state.twin_shell_ecg_hw_source.disconnect()
-                except Exception:
-                    pass
-                st.session_state.twin_shell_ecg_hw_source = None
-
-            hw_source = st.session_state.get("twin_shell_ecg_hw_source")
-            if hw_source is None:
-                st.info("No hay ninguna fuente de hardware conectada todavía.")
-            else:
-                # Prueba de honestidad de procedencia: is_hardware_present() comprueba una
-                # conexión serial real EN ESTE MOMENTO — no si alguna vez se intentó conectar.
-                hardware_real = hw_source.is_hardware_present()
-                _, buf_signal = hw_source.get_filtered_buffer()
-                if len(buf_signal) < 5:
-                    st.warning(
-                        "El buffer de hardware está casi vacío todavía — espera unos segundos "
-                        "o revisa la conexión."
-                    )
-                else:
-                    signal, fs = buf_signal, hw_source.fs
-                    if hardware_real:
-                        provenance_label = "SENSOR_REAL"
-                        meta_caption = "Dispositivo ESP32 real respondiendo por puerto serial."
-                    else:
-                        provenance_label = "SIMULACIÓN"
-                        meta_caption = (
-                            "⚠️ No se detectó ningún dispositivo físico — el software cayó a "
-                            "modo simulado. Re-etiquetado explícitamente como SIMULACIÓN, nunca "
-                            "como sensor real."
-                        )
-
-        if signal is None:
-            return
-
-        # Procedencia = etiqueta de texto con color NEUTRO (decisión 3); el color queda para el estado clínico.
-        st.markdown(
-            f"<span class='biocore-prov' style='font-family:monospace; font-size:11px; font-weight:700; "
-            f"padding:3px 9px; border-radius:999px; border:1px solid {PALETTE.NEUTRAL}; color:{PALETTE.TEXT};'>"
-            f"PROCEDENCIA: {provenance_label}</span>",
-            unsafe_allow_html=True,
-        )
-        if meta_caption:
-            st.caption(meta_caption)
-
-        result = classify_ecg_signal(signal, fs)
-
-        # Pulido (2026-08-06): el "X% confianza" que vivía aquí era una constante
-        # literal por rama de regla en detect_clinical_pattern() (0.95/0.92/.../0.60),
-        # sin cálculo detrás -- un número con apariencia de métrica que en realidad no
-        # se calculaba (Art. I de la Constitución). Se retiró el campo `confidence`
-        # por completo (EcgClassificationResult ya no lo tiene). En su lugar se
-        # muestra el criterio real que disparó la regla -- primer elemento de
-        # `result.reasoning`, siempre presente y siempre citando el valor medido +
-        # el umbral exacto (p.ej. "QTc=485 ms (umbral > 470 ms)"). Ver CHANGELOG.md.
-        criterion = result.reasoning[0] if result.reasoning else "Sin criterio adicional"
-
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.markdown(
-                f"""
-                <div style='text-align:center; padding:14px; border-radius:12px;
-                            border:1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03);'>
-                    <div style='font-size:11px; letter-spacing:1px; color:{PALETTE.NEUTRAL};'>CLASIFICACIÓN (DERIVADO)</div>
-                    <div style='font-size:19px; font-weight:700; color:{PALETTE.TEXT};'>{pattern_label_es(result.pattern)}</div>
-                    <div style='font-size:13px; color:{PALETTE.NEUTRAL};'>{criterion}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with col2:
-            if result.reasoning:
-                st.markdown("**Hallazgos (criterio medido, no una probabilidad):**")
-                for r in result.reasoning:
-                    st.write(f"- {r}")
-            st.caption(f"Picos R detectados: {result.r_peak_count}")
-
-        st.markdown("---")
-        st.markdown("**Explicación por contribución de pesos fijos (heurística, sobre la señal analizada):**")
-        if result.shap_lime:
-            tab_shap, tab_lime, tab_importance = st.tabs(["Contribución por desviación", "Dirección de riesgo", "Importancia"])
-            with tab_shap:
-                for line in result.shap_lime["shap"]:
-                    st.write(line)
-            with tab_lime:
-                for line in result.shap_lime["lime"]:
-                    st.write(line)
-            with tab_importance:
-                # Pulido rápido (2026-08-04): result.shap_lime["importance"] ya lo
-                # calcula compute_feature_importance() (src/interpretability.py) para
-                # alimentar las narrativas de las dos pestañas de arriba -- aquí solo
-                # se dibuja ese mismo dato como barra, sin recalcular nada.
-                st.caption(
-                    "Importancia por desviación de baseline (|valor-baseline| normalizado a 100% "
-                    "entre las features) -- heurística de pesos fijos; no es SHAP ni LIME, y es la "
-                    "misma cuenta que narran las otras dos pestañas."
-                )
-                importance = result.shap_lime["importance"]
-                importance_df = pd.DataFrame(
-                    {"Importancia (%)": [item["percent"] for item in importance]},
-                    index=[item["label"] for item in importance],
-                )
-                st.bar_chart(importance_df, use_container_width=True)
-        else:
-            st.caption(result.explainability_note or "Explicabilidad no disponible.")
-        # Tanda 2 de la fase 1 (Art. I): con RR casi idénticos, asimetría y curtosis no se calculan; se dice, no se
-        # muestra un número poco fiable.
-        for label, reason in result.unavailable_features.items():
-            st.markdown(no_data_html(label, reason), unsafe_allow_html=True)
+    st.caption(f"🫀 {ECG_CLASSIFIER_IN_REVIEW}")
 
 
 # Etiquetas en español de las 5 claves de `system_risks` (prediction_engine.py); las claves no se tocan.

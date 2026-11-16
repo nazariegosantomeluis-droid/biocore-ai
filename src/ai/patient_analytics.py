@@ -131,7 +131,6 @@ class PatientRiskPredictor:
                 'contributing_factors': {},
                 'factors_used': [],
                 'factors_omitted': omitted,
-                'recommendations': ["No evaluable: no hay ningún factor real para calcular un score de riesgo (no se muestra 0 %)."],
             }
         total_risk = sum(scores[key] * self.risk_weights[key] for key in scores) / used_weight_sum
 
@@ -152,7 +151,8 @@ class PatientRiskPredictor:
             'contributing_factors': scores,
             'factors_used': list(scores.keys()),
             'factors_omitted': omitted,
-            'recommendations': self._get_recommendations(total_risk, scores)
+            # Contención (2026-11-16, Art. I): sin 'recommendations'. Eran indicaciones de conducta clínica sin cita
+            # («Considere consulta cardiólogo urgente»...) sobre una suma de pesos fijos.
         }
     
     def _calculate_bp_risk(self, systolic: float, diastolic: float) -> float:
@@ -184,33 +184,6 @@ class PatientRiskPredictor:
         else:  # HR increasing significantly
             return 0.6
     
-    def _get_recommendations(self, risk_score: float, factors: Dict) -> List[str]:
-        """Generate personalized recommendations based on risk profile.
-
-        Tanda 4: `factors` ahora puede no traer todas las claves (factores
-        omitidos por falta de dato real) — se usa `.get(key, 0.0)` en vez de
-        indexado directo para no fallar cuando faltan."""
-        recommendations = []
-
-        if risk_score >= 0.5:
-            recommendations.append("⚠️ Considere consulta cardiólogo urgente")
-
-        if factors.get('blood_pressure', 0.0) > 0.5:
-            recommendations.append("📋 Monitorizar presión arterial diariamente")
-
-        if factors.get('heart_rate', 0.0) > 0.5:
-            recommendations.append("💓 Frecuencia cardíaca elevada - evaluar causa")
-
-        if factors.get('hrv', 0.0) > 0.5:
-            recommendations.append("😰 HRV baja - posible estrés o fatiga")
-
-        if factors.get('trend', 0.0) > 0.3:
-            recommendations.append("📈 Tendencia adversa detectada en últimas mediciones")
-        
-        if risk_score < 0.3:
-            recommendations.append("✅ Continuar seguimiento de rutina")
-        
-        return recommendations[:3]  # Top 3 recommendations
 
 
 class AnomalyDetector:

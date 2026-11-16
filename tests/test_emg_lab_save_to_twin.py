@@ -202,13 +202,13 @@ def test_a_loaded_emg_csv_is_analyzed_but_never_written_to_the_twin(ups):
     next(r for r in at.radio if r.label == "Origen EMG").set_value("CSV").run(timeout=30)
     assert at.exception == [], at.exception
 
-    from app.main import EMG_CSV_SAVE_BLOCKER
+    from app.main import CSV_SAVE_BLOCKER
 
     assert not any("sin señal emg analizable" in i.value.lower() for i in at.info)    # sí hay señal analizada
     button = _find_save_button(at)
     assert button.disabled
-    assert any(EMG_CSV_SAVE_BLOCKER in w.value for w in at.warning)
-    assert "archivo sin procedencia verificable" in EMG_CSV_SAVE_BLOCKER
+    assert any(CSV_SAVE_BLOCKER in w.value for w in at.warning)
+    assert "archivo sin procedencia verificable" in CSV_SAVE_BLOCKER
     from streamlit.testing.v1.errors import AppTestError
 
     with pytest.raises(AppTestError, match="disabled"):              # como en el navegador: no se puede pulsar

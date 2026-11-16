@@ -131,27 +131,35 @@ def _render_wave(analysis: PpgAnalysis, issues: Tuple[str, ...], height: int = 2
     st.plotly_chart(wave_figure(analysis, height, show_peaks='sin dedo' not in issues), use_container_width=True)
 
 
+SATURATED_REASON = 'No disponible: la señal está saturada (ver el aviso de arriba); no es una señal válida.'
+
+
 def render_ppg_cards(analysis: PpgAnalysis, issues: Tuple[str, ...]) -> None:
     for issue in issues:                       # primero los avisos: dicen si los números de abajo valen
         st.warning(PPG_ISSUE_TEXT[issue])
-    usable = 'sin dedo' not in issues
+    # 2026-11-16 (Art. I): con la señal saturada tampoco hay números: lo que queda bajo el tope no es una onda de pulso
+    # completa, y antes salía una frecuencia.
+    saturated = 'saturada' in issues
+    usable = 'sin dedo' not in issues and not saturated
     rate = analysis.pulse_rate_bpm if usable else None
     cols = st.columns(4)
     with cols[0]:
         render_metric_card('Frecuencia de pulso', None if rate is None else f'{rate:.0f} lpm',
                            provenance=BADGES.PENDING, citation=ELGENDI_2013,
-                           unavailable_reason='No disponible: no se encontraron al menos 3 intervalos de pulso '
-                                              'plausibles en la ventana.')
+                           unavailable_reason=SATURATED_REASON if saturated else
+                           'No disponible: no se encontraron al menos 3 intervalos de pulso plausibles en la ventana.')
     with cols[1]:
         pi = analysis.perfusion_index_pct if usable else None
         render_metric_card('Índice de perfusión (IR)', None if pi is None else f'{pi:.2f} %',
                            provenance=BADGES.PENDING, citation=BEURTON_2019,
-                           unavailable_reason='No disponible: sin pulsos medibles no hay parte pulsátil.')
+                           unavailable_reason=SATURATED_REASON if saturated else
+                           'No disponible: sin pulsos medibles no hay parte pulsátil.')
     with cols[2]:
         ratio = analysis.ratio_r if usable else None
         render_metric_card('R (rojo / infrarrojo)', None if ratio is None else f'{ratio:.3f}',
                            provenance=BADGES.PENDING,
-                           unavailable_reason='No disponible: sin pulsos medibles en las dos luces.')
+                           unavailable_reason=SATURATED_REASON if saturated else
+                           'No disponible: sin pulsos medibles en las dos luces.')
     with cols[3]:
         render_metric_card('SpO₂', None, unavailable_reason=SPO2_REASON)
 

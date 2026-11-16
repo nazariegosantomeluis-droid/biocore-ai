@@ -64,10 +64,10 @@ class ClinicalCase:
     duration_sec: float = 10.0
     lead_type: str = "MLII"  # Predominant lead
     key_findings: Dict[str, Any] = field(default_factory=dict)
-    clinical_action: str = ""  # Recommended action
     difficulty: DifficultyLevel = DifficultyLevel.BASIC
     source: str = "synthetic"  # 'MIT-BIH', 'PTB-XL', 'synthetic'
-    mortality_risk: float = 0.0  # 0-1 scale
+    # Contención (2026-11-16, Art. I): se retiraron `clinical_action` (betabloqueadores, ACLS, PCI o trombólisis,
+    # marcapasos, DAI: indicaciones sin cita) y `mortality_risk` (una cifra por diagnóstico sin fuente).
     
     def __post_init__(self):
         if self.ecg_signal is None:
@@ -117,7 +117,6 @@ def generate_nsr_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
             'qt_interval_ms': 400,
             'axis_degrees': 45
         },
-        clinical_action="No immediate action. Continue routine monitoring.",
         difficulty=DifficultyLevel.BASIC,
         source="synthetic"
     )
@@ -143,10 +142,8 @@ def generate_afib_case(patient_id: str, age: int, sex: str, rate: int = 110) -> 
             'pr_interval_ms': 'absent',
             'qrs_duration_ms': 90
         },
-        clinical_action="Assess rate control, anticoagulation candidacy. Consider rate-control vs rhythm-control strategy.",
         difficulty=DifficultyLevel.INTERMEDIATE,
         source="synthetic",
-        mortality_risk=0.15
     )
 
 
@@ -168,10 +165,8 @@ def generate_pvc_case(patient_id: str, age: int, sex: str, pvc_rate: int = 5) ->
             'wide_qrs': True,
             'morphology': 'Uniform LBBB-like'
         },
-        clinical_action="Assess for structural heart disease if >10 PVCs/min or symptoms. Consider beta-blockers.",
         difficulty=DifficultyLevel.INTERMEDIATE,
         source="synthetic",
-        mortality_risk=0.05 if pvc_rate < 10 else 0.20
     )
 
 
@@ -195,10 +190,8 @@ def generate_vt_case(patient_id: str, age: int, sex: str, sustained: bool = Fals
             'axis_deviation': True,
             'aav_dissociation': True if sustained else False
         },
-        clinical_action="CRITICAL: Hemodynamically stable VT→antiarrhythmic or ablation. Unstable→ACLS protocol.",
         difficulty=DifficultyLevel.ADVANCED,
         source="synthetic",
-        mortality_risk=0.30
     )
 
 
@@ -226,10 +219,8 @@ def generate_av_block_case(patient_id: str, age: int, sex: str, degree: int = 2)
             'pr_interval_ms': 250 if degree == 1 else 200,
             'dropped_beats': True if degree >= 2 else False
         },
-        clinical_action="Degree I: Monitor. Degree II/III: Pacemaker if symptomatic or high-risk.",
         difficulty=DifficultyLevel.ADVANCED if degree >= 2 else DifficultyLevel.INTERMEDIATE,
         source="synthetic",
-        mortality_risk=0.0 if degree == 1 else (0.10 if degree == 2 else 0.25)
     )
 
 
@@ -252,10 +243,8 @@ def generate_bundle_branch_case(patient_id: str, age: int, sex: str, block_type:
             'block_type': block_type,
             'axis': 'Normal' if block_type == 'RBBB' else 'Left deviation'
         },
-        clinical_action=f"{block_type}: Evaluate for underlying disease. LBBB→assess for LV dysfunction.",
         difficulty=DifficultyLevel.INTERMEDIATE,
         source="synthetic",
-        mortality_risk=0.05 if block_type == 'RBBB' else 0.15
     )
 
 
@@ -279,10 +268,8 @@ def generate_stemi_case(patient_id: str, age: int, sex: str, location: str = 'an
             'reciprocal_changes': True,
             'hyperacute_t_waves': True
         },
-        clinical_action="CRITICAL: STEMI protocol. Activate cath lab immediately. PCI or thrombolysis.",
         difficulty=DifficultyLevel.ADVANCED,
         source="synthetic",
-        mortality_risk=0.40
     )
 
 
@@ -304,10 +291,8 @@ def generate_longqt_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
             'prominent_u_wave': True,
             'bifid_t_wave': True
         },
-        clinical_action="Genetic counseling, beta-blockers, ICD consideration. Avoid QT-prolonging drugs.",
         difficulty=DifficultyLevel.ADVANCED,
         source="synthetic",
-        mortality_risk=0.10
     )
 
 

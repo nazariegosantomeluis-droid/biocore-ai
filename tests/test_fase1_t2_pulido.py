@@ -4,6 +4,8 @@
   de cada laboratorio) con AppTest y se lee TODO el texto visible (markdown, avisos, controles, pestañas, tablas y los
   textos de las gráficas Plotly). Los títulos de obras citadas y los nombres propios en su idioma original se exceptúan
   uno por uno, por su texto exacto (`CITED_TITLES_AND_PROPER_NAMES`).
+- Contención (2026-11-16): el mismo recorrido busca indicaciones de tratamiento sin cita (`TREATMENT` de
+  `test_integracion_contencion.py`) en TODAS las páginas y fuentes, no solo en 12 Derivaciones.
 - PRIMARY nunca es color de TEXTO sobre el panel (4.44:1).
 - Asimetría y curtosis con RR casi idénticos: «sin dato», no un número que SciPy declara poco fiable.
 - fpdf sin avisos de obsolescencia (ln= y la sustitución de Arial).
@@ -19,6 +21,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.utils.design_system import PALETTE, contrast_ratio
+from test_integracion_contencion import TREATMENT
 
 MAIN = str(Path("app/main.py").resolve())
 VIEW_RADIO = "Capa de Exploración Cognitiva"
@@ -129,6 +132,8 @@ def test_no_bpm_and_no_listed_english_term_reaches_the_student(url):
     texts = [_without_citations(t) for t in texts]
     offenders = sorted({(m.group(0), t[:120]) for t in texts for m in [FORBIDDEN.search(t)] if m})
     assert offenders == [], offenders
+    treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
+    assert treatments == [], treatments
 
 
 # Integración con main: las fuentes de cada laboratorio que no son la de inicio (sin red ni puerto: MIT-BIH/PTB-XL
@@ -155,6 +160,8 @@ def test_no_bpm_and_no_listed_english_term_in_the_other_sources(url, label, opti
              ("markdown", "caption", "info", "warning", "error", "success") for e in getattr(at.sidebar, kind)]]
     offenders = sorted({(m.group(0), t[:120]) for t in texts for m in [FORBIDDEN.search(t)] if m})
     assert offenders == [], offenders
+    treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
+    assert treatments == [], treatments
 
 
 def test_the_citation_exemption_removes_only_the_exact_title():
@@ -199,8 +206,9 @@ def test_skewness_and_kurtosis_are_nan_when_scipy_declares_them_unreliable():
 
 
 def test_the_twin_ecg_classifier_shows_no_data_for_them_instead_of_a_number(tmp_path):
-    """Con la sepsis aplicada el ECG sintético tiene FC fija sin variabilidad (RR casi idénticos): el panel del
-    clasificador dice «sin dato» para asimetría y curtosis en vez de un número que SciPy declara poco fiable."""
+    """Con la sepsis aplicada el ECG sintético tiene FC fija sin variabilidad (RR casi idénticos): el gemelo no
+    muestra un número de asimetría ni de curtosis que SciPy declara poco fiable (desde la contención del 2026-11-16,
+    ningún número del clasificador: el panel está en revisión)."""
     from domain.physiology.state import create_patient, init_db, make_engine, make_session_factory
 
     engine = make_engine(tmp_path / "t2_twin.db")
@@ -220,9 +228,14 @@ def test_the_twin_ecg_classifier_shows_no_data_for_them_instead_of_a_number(tmp_
     at.selectbox(key="twin_shell_sepsis_horizon").set_value("24h")
     at.button(key="twin_shell_sepsis_apply").click().run()
     assert at.exception == []
-    text = " ".join(_strip(m.value) for m in at.markdown)
-    assert "Sin dato: falta Asimetría de RR" in text and "Sin dato: falta Curtosis de RR" in text
-    assert "casi idénticos" in text
+    # Contención (2026-11-16): el panel del clasificador se ocultó (leía QRS/PR/QTc = 0 ms «dentro de rango»); con
+    # él se fue todo número suyo. La garantía de «sin dato» con RR idénticos sigue probada sobre el clasificador
+    # (`test_contencion_prueba.py::test_the_classifier_still_declines_skewness_and_kurtosis_with_identical_rr`).
+    from app.supermodules.twin_shell.pages import ECG_CLASSIFIER_IN_REVIEW
+
+    text = " ".join(_strip(t) for t in visible_texts(at))
+    assert "Asimetría de RR" not in text and "Curtosis de RR" not in text
+    assert ECG_CLASSIFIER_IN_REVIEW in text
 
 
 # ------------------------------------------------------------------------------------------------------------ fpdf
