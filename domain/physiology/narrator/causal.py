@@ -31,8 +31,9 @@ from typing import Iterator, List, Optional
 
 import anthropic
 
-from .client import DEFAULT_MODEL, NarratorNotConfiguredError, is_configured
+from .client import NarratorNotConfiguredError, is_configured, resolve_model
 from .context import NarrativeContext, build_context
+from .privacy import check_provider_allows
 
 __all__ = [
     "CausalHint",
@@ -105,6 +106,11 @@ class CausalContext:
     target_organ: str
     hints: List[CausalHint] = field(default_factory=lambda: list(_CAUSAL_HINTS))
 
+    @property
+    def origin(self):
+        """De dónde vienen los datos (no va al modelo): el del contexto UPS que envuelve."""
+        return self.narrative.origin
+
     def to_payload(self) -> dict:
         return {
             "target_organ": self.target_organ,
@@ -168,7 +174,7 @@ def _build_causal_messages(context: CausalContext) -> List[dict]:
 
 def stream_causal_narration(
     context: CausalContext,
-    model: str = DEFAULT_MODEL,
+    model: Optional[str] = None,
     max_tokens: int = 4096,
     client: Optional["anthropic.Anthropic"] = None,
 ) -> Iterator[str]:
@@ -185,9 +191,10 @@ def stream_causal_narration(
                 "real a la API de Anthropic — no hay una narración de respaldo simulada."
             )
         client = anthropic.Anthropic()
+    check_provider_allows(client, context.origin)
 
     with client.messages.stream(
-        model=model,
+        model=resolve_model(client, model),
         max_tokens=max_tokens,
         system=_SYSTEM_PROMPT,
         messages=_build_causal_messages(context),

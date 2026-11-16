@@ -79,6 +79,13 @@ fast-simplification>=0.1.7
 # funciona con fpdf2.
 fpdf2>=2.7.0
 
+# EEG en vivo (2026-11-14) -- hardware/eeg_live/: OpenBCI, Muse y Unicorn por
+# BrainFlow (trae sus bibliotecas nativas para Windows, Linux y macOS) y
+# cualquier programa por LSL (pylsl trae liblsl). Opcionales en la práctica: si
+# no se instalan, el EEG Neuro Lab dice qué falta y lo demás funciona.
+brainflow>=5.24.0
+pylsl>=1.18.6
+
 # Development tools (optional)
 pytest>=7.0.0
 pytest-cov>=4.1.0

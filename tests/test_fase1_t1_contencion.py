@@ -114,20 +114,20 @@ def test_the_ecg12_quiz_never_answers_itself():
         from app.supermodules.ecg_12.quiz import render_ecg12_quiz
         render_ecg12_quiz()
 
-    from app.supermodules.ecg_12.quiz import ECG_QUIZ_BANK
+    from educational.quiz_bank import ECG12_QUESTIONS   # integración 2026-11-16: el banco con fuentes
 
     at = AppTest.from_function(_script, default_timeout=60)
     at.run()
     assert at.exception == [] and _no_verdict(at)
     radio = at.radio[0]
-    assert radio.value is None and at.button(key="verify_quiz").disabled
-    q = ECG_QUIZ_BANK[0]
-    radio.set_value(next(o for o in q["options"] if o != q["correct"])).run()
+    assert radio.value is None and at.button(key="ecglab_12_quiz_verify").disabled
+    q = ECG12_QUESTIONS[0]
+    radio.set_value(next(o for o in q.display_choices() if not q.is_correct(o))).run()
     assert _no_verdict(at)
-    at.button(key="verify_quiz").click().run()
+    at.button(key="ecglab_12_quiz_verify").click().run()
     err = " ".join(e.value for e in at.error)
-    assert "Incorrecto" in err and q["explanation"] in err
-    assert len(ECG_QUIZ_BANK) == 19
+    assert "Incorrecto" in err and q.explanation in err
+    assert len(ECG12_QUESTIONS) == 19
 
 
 # ------------------------------------------------------------------------------------------------------ 4. EEG
@@ -136,20 +136,20 @@ def test_the_eeg_quiz_never_answers_itself():
         from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz
         render_eeg_quiz(expanded=True)
 
-    from app.supermodules.eeg_neuro_lab.teaching import EEG_QUIZ
+    from educational.quiz_bank import EEG_QUESTIONS   # integración 2026-11-16: el banco con fuentes
 
     at = AppTest.from_function(_script, default_timeout=60)
     at.run()
     assert at.exception == [] and _no_verdict(at)
-    assert all(r.value is None for r in at.radio) and len(at.radio) == len(EEG_QUIZ)
+    assert all(r.value is None for r in at.radio) and len(at.radio) == len(EEG_QUESTIONS)
     assert at.button(key="submit_eeg_quiz").disabled                                   # antes calificaba la 1ª opción
-    for r, item in zip(at.radio, EEG_QUIZ):
-        r.set_value(next(o for o in item["options"] if o != item["answer"]))
+    for r, item in zip(at.radio, EEG_QUESTIONS):
+        r.set_value(next(o for o in item.display_choices() if not item.is_correct(o)))
     at.run()
     at.button(key="submit_eeg_quiz").click().run()
     text = " ".join(m.value for m in at.markdown)
-    assert text.count("Incorrecto") == len(EEG_QUIZ) and EEG_QUIZ[0]["explanation"] in text
-    assert not any(o in ("Sleep Spindle", "Seizure", "Artifact") for item in EEG_QUIZ for o in item["options"])
+    assert text.count("Incorrecto") == len(EEG_QUESTIONS) and EEG_QUESTIONS[0].explanation in text
+    assert not any(o in ("Sleep Spindle", "Seizure", "Artifact") for item in EEG_QUESTIONS for o in item.choices)
 
 
 def test_case_modes_require_an_explicit_choice_before_confirming():

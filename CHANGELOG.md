@@ -1,5 +1,154 @@
 # Changelog
 
+## 2026-11-16 — Integración de la rama `ecg-plugplay` (Miguel) sobre la fase 1, tanda 1
+
+**Contexto**: `ecg-plugplay` (8 commits de José Miguel Fausto Tapia, 2026-11-13 a 2026-11-16: ECG Plug & Play, cuestionarios con fuente, 12 Derivaciones rehecha, EEG/EMG/pulso/temperatura en vivo, Gemini con candado de privacidad, mejora continua de los cuestionarios) salió de `0eae8b7`, antes de la tanda 1 de la fase 1 (`e10c8cc`: navegación por intención, clave de IA en Ajustes, cuestionarios fuera de los laboratorios, paleta única, insignias con palabras). Merge sin fast-forward; los commits de Miguel conservan su autoría. 31 bloques de conflicto en 11 archivos, más choques que git no marca.
+
+**Cómo quedó cada choque**:
+- **Cuestionarios (los movió la tanda 1; Miguel los rehízo en su lugar viejo).** El banco con fuentes de Miguel (`educational/quiz_bank.py`) entra en las ubicaciones de la tanda 1: `ecg_12/quiz.py` (`ECG12_QUESTIONS`), `eeg_neuro_lab/teaching.py` (`EEG_QUESTIONS` y las referencias del glosario IFCN 2017) y la Academia (`display_choices()`). Se conserva la regla de la tanda 1: el botón de calificar está deshabilitado hasta responder (Miguel mostraba un aviso al pulsar sin responder). En Respiratorio la tanda 1 ya había quitado la «✓» y repartido la correcta en las preguntas conceptuales; de Miguel entra `numeric_choices` en las dos numéricas (antes la correcta quedaba casi siempre segunda).
+- **Clave de IA.** La tanda 1 la movió a Ajustes; Miguel agregó Gemini sobre el panel previo. Ahora Ajustes tiene el selector de proveedor (Anthropic o Gemini, con la nota de términos de Gemini). `render_entry_gate` no vuelve. `AI_KEY_HINT` y el mensaje de bloqueo de `privacy.py` mandaban a «🔑 Poner mi clave» en la barra lateral, que ya no existe: ahora mandan a Ajustes.
+- **12 Derivaciones.** Se toma la página de Miguel (trazado con verdad conocida y lectura por criterios) con las convenciones de la tanda 1: lpm en vez de bpm, sin botón `type="primary"`, y en `report_view.py` las insignias son palabras (`BADGES.tag`) en vez de 🟣/🟢.
+- **Paleta única.** Los diagramas de cableado de los tutoriales y la marca del pico sistólico tenían hex sueltos: ahora salen de `PALETTE` (los que coincidían con tokens existentes, a esos tokens; el naranja del cable y el rojo de la placa del sensor, nuevos en `PALETTE`, solo para diagramas). Las líneas «PROCEDENCIA: …» pierden el círculo de color (🟢/🟡), como ya había hecho la tanda 1 con la del ESP32 viejo; los íconos de estado de conexión se quedan (llevan palabra).
+- **Mejora continua.** Entran el registro de respuestas, el reporte de una pregunta y la «Práctica adaptativa» (Elo). Los paneles «Tu dominio estimado por tema» y «Revisión del banco de preguntas» (`academia/improvement.py::render_continuous_improvement`) **no se montan**: son «Mi progreso» y «Docente», que la decisión 1 deja fuera hasta que haya identidad (hoy el «ID del estudiante» es texto libre). El código y sus pruebas quedan; montarlo es decisión de Luis.
+- **`main.py`.** EMG: el texto honesto de la activación y el RMS de Miguel; ECG Monitoreo: la fuente en vivo nueva; Multisensor y HRV: los textos de la tanda 1 (sin Health Score, secciones en expanders) con el `origin` de Miguel para el narrador; `page_tabs` y `emg_streamer` retirados por ambos lados.
+
+**Pruebas ajustadas** (la regla que vigila cada una no cambia): `test_fase1_t1_contencion.py` (bancos nuevos y sus claves), `test_quiz_bank.py` y `test_learning_analytics.py` (botón deshabilitado sin respuesta; los paneles de mejora continua no están en la Academia y se prueban solos), `test_narrator_gemini.py` (la clave de Gemini se pone en Ajustes), `test_ecg_live_app.py` (receta de navegación `biocore_start_page` y rótulos «FC demo (lpm)»/«Frecuencia cardíaca»), `test_respiratory_phase42.py`/`phase43.py` (las dos versiones decían lo mismo; se suma la aserción de Miguel de que no hay veredicto antes de responder).
+
+**Suite completa** (`pytest tests/ -q`, sin deseleccionar nada): 2168 pasan, 7 se saltan y 1 falla, la misma que en `main` (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis** (pendientes que esta integración no decide):
+1. Montar o no los paneles de mejora continua (decisión 1).
+2. Firma del experto de los criterios de 12 Derivaciones: hoy solo están probados contra el generador propio (lo dice el CHANGELOG de Miguel); hasta la firma deberían leerse como Criterio BIOCORE.
+3. El gemelo sigue alimentado por `TwelveLeadEcgGenerator` (el generador viejo, con los defectos que Miguel describió); pasarlo al nuevo toca `domain/`.
+4. `hardware/ecg_plugplay/inference.py` cita un `NOTAS_PARA_LUIS.md` que no está en el repo.
+5. En el EMG, un CSV cargado se escribe al gemelo como `SIMULACION` (venía así de `main`; el candado de Gemini sí lo trata como origen desconocido).
+
+## 2026-11-16 — Mejora continua de los cuestionarios con ML local: análisis de ítems, Elo y reportes
+
+**Contexto**: se pidió mejora continua de la aplicación con aprendizaje automático y sin depender de APIs. Los cuestionarios no guardaban ninguna respuesta. No había forma de ver qué pregunta fallaba casi todo el mundo, cuál tenía la clave mal puesta, ni de practicar lo más débil de cada quien.
+
+- **Registro local** (`educational/learning_analytics.py`, nuevo):
+  - Cada respuesta de la Academia, del Desafío Educativo de 12 Derivaciones y del quiz del EEG Neuro Lab se guarda en una base SQLite local (`data/local/biocore_learning.db`, fuera de git). Nada sale de la computadora.
+  - El acierto lo decide el banco de preguntas, no quien llama.
+  - Volver a verificar la misma pregunta no cuenta dos veces.
+- **Revisión del banco** (análisis clásico de ítems):
+  - Por pregunta, el índice de dificultad y la discriminación (punto-biserial corregida, con su intervalo de 95 %).
+  - Cortes de Ali & Ruit 2015: dificultad moderada entre 0.4 y 0.8; una discriminación menor de 0.2 pide revisión.
+  - Criterio BIOCORE: se pide revisar la clave si la discriminación es negativa o si el grupo alto prefiere un distractor (prueba binomial).
+  - Con pocos datos la discriminación es ruido (medido: con 120 respuestas, una pregunta buena llegó a 0.16 por azar). Por eso solo se marca cuando todo el intervalo de confianza queda por debajo del corte.
+  - Medido en 40 simulaciones con el modelo de Rasch (de 20 a 100 estudiantes, una pregunta con la clave mal puesta): entre 0 y 2 falsas alarmas en 110 preguntas buenas por grupo de 10 simulaciones, y la clave mal puesta encontrada en 7 a 10 de 10.
+  - Nada cambia solo: el modelo señala; corrige una persona, con su fuente.
+- **Práctica adaptativa** (sistema de Elo para educación, Pelánek 2016):
+  - Una habilidad por estudiante y tema y una dificultad por pregunta, ajustadas en línea.
+  - El botón «🎯 Práctica adaptativa» elige 5 preguntas que el modelo estima que la persona acierta cerca de 3 de cada 4 veces.
+  - En simulación recupera el orden de las dificultades (Spearman > 0.9) y de las habilidades (> 0.75).
+- **Reportes**: «🚩 ¿Algo está mal en esta pregunta?» en los tres cuestionarios. El reporte va a la cola de revisión.
+- **Academia, sección «📈 Mejora continua»**:
+  - «Tu dominio estimado por tema».
+  - La tabla de revisión, con las preguntas que piden revisión primero y su descarga en CSV.
+- `tests/conftest.py` aísla también esta base, como la del UPS.
+- **Pruebas**: `tests/test_learning_analytics.py` (11).
+  - Registro y reportes.
+  - Estudiantes simulados con verdad conocida: la clave mal puesta se marca y las buenas no.
+  - Un distractor preferido por el grupo alto se marca.
+  - Los avisos necesitan evidencia, no solo un valor bajo.
+  - La actualización de Elo es la del artículo; el Elo recupera dificultades y habilidades; las sugerencias apuntan a 75 %.
+  - AppTest de la Academia (registro, reporte, práctica adaptativa, revisión) y de los quizzes de 12 Derivaciones y EEG (una respuesta por intento).
+  - Suite completa: 2095 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis**:
+1. Los cortes de Ali & Ruit son para exámenes con muchos estudiantes. Aquí, con pocos, el intervalo de confianza decide. `MIN_RESPONSES` (20) y la tasa objetivo (75 %) son elecciones de BIOCORE.
+2. El «ID del estudiante» de la Academia es lo que separa a una persona de otra. Los demás cuestionarios usan el mismo ID de la sesión.
+
+## 2026-11-16 — Gemini (nivel gratuito) como segundo proveedor del narrador, con candado de privacidad
+
+**Contexto**: el narrador solo funcionaba con una clave de pago de Anthropic. Se pidió usar una API gratuita; se eligió Gemini. Sus términos para el nivel gratuito (versión del 18 de diciembre de 2025) dicen que Google usa lo que se le manda para mejorar sus productos, que personas pueden leerlo, y piden no mandar información sensible, confidencial o personal. Mandarle la señal de un sensor en vivo, un archivo cargado o una entrada manual de paciente iría contra eso.
+
+- **Proveedor Gemini** (`domain/physiology/narrator/gemini.py`, nuevo):
+  - API REST con la biblioteca estándar (`urllib`), sin dependencias nuevas. La clave va en la cabecera `x-goog-api-key`, no en la URL.
+  - `GeminiClient` se usa igual que el cliente de Anthropic (`client.messages.stream(...)` con `.text_stream`): `stream_narration`, `stream_findings_narration` y `stream_causal_narration` no cambian su forma de llamar.
+  - Respuesta en streaming (SSE). Las partes de razonamiento no se muestran. Si Google corta la respuesta (límite de longitud, filtros), se dice al final. Los errores (clave inválida, sin permiso, modelo no disponible, cuota agotada, sin red) se explican en español.
+  - Google cambia seguido los modelos gratuitos: al validar la clave se listan los que esa clave puede usar y se elige uno «flash».
+  - **No verificado por ejecución contra la API real**: aquí no hay clave de Google ni salida a sus servidores. Las pruebas usan un transporte simulado con el formato de la API.
+- **Candado de privacidad** (`privacy.py`, nuevo): un proveedor sin pago solo recibe datos **simulados** por BIOCORE o de **bases públicas** anonimizadas (MIT-BIH, PTB-XL).
+  - Datos de una persona (un sensor en vivo, una entrada manual de paciente, un juicio clínico con nombre) se bloquean antes de llamar, con el motivo.
+  - Lo que no se sabe de dónde viene (un CSV, una serie RR escrita a mano, un flujo LSL, una ruta nueva) también se bloquea.
+  - Cada laboratorio declara de dónde vienen sus hallazgos: EMG, Monitoreo del ECG, HRV, Multisensor, Patient Pipeline, Academia y el caso clínico del Twin OS.
+  - El contexto del UPS (narrador y razonamiento causal del Twin OS) lo calcula de la procedencia y el `source_detail` de **toda la ventana antes/ahora**, porque el «antes» también va al modelo.
+  - Con Anthropic nada cambia.
+- **Panel de la clave** (`app/utils/ai_session.py`): se elige el proveedor. Con Gemini, la app explica qué dicen sus términos y qué datos sí recibe. La barra lateral dice qué proveedor está activo.
+- **Textos**: los avisos de «IA apagada» y de fallas ya no nombran solo a Anthropic. Una petición bloqueada se muestra como aviso, no como error.
+- `NarratorNotConfiguredError` pasa a `errors.py`, con `ProviderNotAllowedError` como subclase: todo llamador que ya atendía la primera muestra el motivo del bloqueo.
+- **Pruebas**: `tests/test_narrator_gemini.py` (44).
+  - Formato de la petición y del streaming.
+  - Errores y validación de la clave con paginado.
+  - El origen de cada ruta que escribe al UPS (31 casos).
+  - Ninguna petición sale con datos de una persona o desconocidos.
+  - Un «antes» de un sensor real en la ventana basta para bloquear.
+  - Anthropic igual que antes.
+  - AppTest del panel de la clave y del narrador de un laboratorio.
+  - Suite completa: 2084 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet). La guardia de `domain/` cuenta entre las que pasan: falla mientras los cambios de `domain/` no estén commiteados.
+
+**Para Luis**:
+1. Nada de esto se probó contra la API real de Gemini: hace falta una clave de Google AI Studio.
+2. La lista de marcas de `classify_source` es una lista de lo conocido como simulado. Si una ruta nueva escribe al UPS sin marca, Gemini la bloquea hasta que se agregue su marca.
+
+## 2026-11-16 — Pulso por luz (MAX30102) y temperatura (DS18B20) en vivo, con tutoriales
+
+**Contexto (Art. I)**:
+- El Multisensor Fusion Lab solo tenía canales demo: no había forma de ver una onda de pulso ni una temperatura medidas.
+- `preprocess_ppg` (`src/signals/ppg/`) calculaba `pulse_rate` contando las muestras por encima del promedio, no los latidos: daba 60·fs latidos por minuto (3029 con una onda de 72 a 100 Hz). No lo usaba ninguna página.
+
+- **Analizador de la onda de pulso** (`src/signals/ppg/analysis.py`, nuevo):
+  - Picos sistólicos con el método de Elgendi et al. 2013, con sus parámetros: pasa-banda de 0.5 a 8 Hz, W1 = 111 ms, W2 = 667 ms, β = 0.02. Se agrega un periodo refractario de 0.3 s, que no está en el artículo.
+  - Frecuencia de pulso (mediana de los intervalos), índice de perfusión (Beurton et al. 2019) y R = (AC/DC rojo) / (AC/DC infrarrojo), latido a latido.
+  - La SpO₂ no se calcula: hace falta una curva calibrada contra mediciones arteriales (Jubran 2015) que este sensor no trae. La pantalla dice «no disponible» con ese motivo.
+  - Comparado con HeartPy en sus tres grabaciones de ejemplo, fuera del repo:
+    - en la limpia, 24 de 24 latidos iguales (58.8 contra 58.9 lpm);
+    - en las dos con movimiento, encontró todos los latidos que HeartPy aceptó;
+    - el aviso «irregular» salta en las dos con movimiento (22 % y 33 % de intervalos fuera) y no en la limpia (0 %).
+  - `preprocess_ppg` cuenta ahora los picos sistólicos: 72 lpm con la misma onda.
+- **Placa de sensores ESP32** (`hardware/biosensors/`):
+  - Catálogo: pulso por luz con MAX30102 y temperatura con DS18B20, cada uno con conexiones, colocación, seguridad, límites, fuentes y qué hacer si algo falla.
+  - Firmware de MicroPython `ppg_max30102.py`:
+    - configura el sensor con los registros de su hoja de datos (modo SpO2, 100 muestras/s, 18 bits, 4096 nA, 7.2 mA por LED) y lee la FIFO por I2C;
+    - si la FIFO se llena, `seq` salta lo que el sensor tiró;
+    - si no encuentra el sensor o hay otro chip en 0x57, lo dice con `BIO:E`.
+  - Firmware `temp_ds18b20.py`: una lectura por segundo a 12 bits, en grados Celsius; si no hay sonda, lo dice.
+  - Placa simulada con un modelo por sensor (`board.model`): EMG igual que antes, PPG con pulso, respiración, movimiento y dedo fuera, y temperatura que se iguala con la piel o con el aire.
+  - Calidad (`quality.py`):
+    - PPG: «sin dedo», «saturada», «sin pulso» e «irregular» (este dice que el PPG no distingue el movimiento de un ritmo irregular).
+    - Temperatura: «arranque» (85 °C exactos, el valor de encendido del sensor) y la tendencia del último minuto.
+- **Multisensor Fusion Lab**: vista nueva «Sensores en vivo» (`app/supermodules/biosensors/live_view.py`), con «Medir» y «Tutorial» para cada sensor.
+  - Pulso (`ppg.py`): onda de pulso con los picos que contó el detector, frecuencia de pulso, índice de perfusión, R y la SpO₂ como «no disponible». Los avisos van antes de los números.
+  - Temperatura (`temperature.py`): la curva de los últimos 10 minutos, la última lectura con su exactitud (±0.5 °C, hoja de datos), la tendencia y si ya se estabilizó. No dice nada de fiebre: la sonda mide piel, no temperatura central (Taylor 2014).
+  - La vista no entra al Health Score. Nada se guarda al gemelo: la frecuencia cardíaca solo entra por la compuerta validada del ECG Lab, y el gemelo no tiene un campo de temperatura.
+- **Arreglos en lo compartido con el EMG y el EEG en vivo**:
+  - Muestras perdidas: la barra lateral sumaba los saltos de `seq` y el contador `perdidas` del HELLO, que ya los incluye; contaba dos veces. Ahora usa solo los saltos de esta conexión (`status()['perdidas']`).
+  - Una sesión abierta sin muestras ahora dice lo que avisa la placa (por ejemplo, «No se encontró ningún DS18B20…») en el mensaje de estado y en el motivo de la reconexión (`hardware/eeg_live/service.py`). Antes solo decía que no llegaban datos.
+  - El control del filtro de la red solo aparece donde se usa (no en el pulso ni en la temperatura). La temperatura tiene su propia configuración del servicio: búfer de 15 min y ventana de 30 s para estimar cuántas muestras llegan por segundo.
+- **Referencias**:
+  - `clinical/ppg_references.py`: Allen 2007, que pasa del banco de preguntas a este archivo, Elgendi 2013, Jubran 2015 y Beurton 2019.
+  - `clinical/temperature_references.py`: Taylor 2014.
+- **Pruebas**: `tests/test_biosensors_ppg_temp.py` (19), con un juego de herramientas compartido (`tests/biosensor_testkit.py`).
+  - Analizador contra ondas con verdad conocida (de 50 a 170 lpm, con una onda diastólica grande), y la regresión de `preprocess_ppg`.
+  - Firmwares corriendo en la computadora contra un MAX30102 a nivel de registros y sondas DS18B20 simuladas, leídos por un pseudo-terminal con pyserial de verdad:
+    - registros de la hoja de datos;
+    - muestras perdidas con la FIFO llena: exactamente las que tiró el sensor;
+    - sensor ausente u otro chip en 0x57;
+    - una lectura de temperatura por segundo.
+  - Placas simuladas, calidad, muestras perdidas sin contar dos veces y el aviso de la placa en el estado.
+  - AppTest de la vista: sin placa no analiza; la práctica mide el pulso y dice que la SpO₂ no está disponible; los dos tutoriales corren su práctica.
+  - Las pruebas del EMG pasan a usar el mismo juego de herramientas (27).
+  - Suite completa: 2040 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas de la medición del pulso (quieto y con movimiento), las conexiones, los límites y la práctica de temperatura.
+
+**Para Luis**:
+1. Nada de esto se probó con un MAX30102 ni un DS18B20 reales. Los módulos del MAX30102 varían de un fabricante a otro.
+2. La frecuencia de pulso no se guarda al gemelo. ¿Merece su propia compuerta o se queda fuera?
+3. Los umbrales son heurísticas: 50 000 cuentas para decir que hay dedo, 20 % de intervalos a más de 25 % de la mediana para «irregular» y 0.1 °C por minuto para «estable». Están en `PpgQualityHeuristics` y en `quality.py`.
+4. Las otras vistas del Multisensor Fusion Lab siguen con sus canales demo y su Health Score, sin cambios.
+
 ## 2026-11-15 — Fase 1 de la propuesta, tanda 1: contención, sistema de diseño mínimo y navegación por intención
 
 **Contexto (Art. I)**: el diagnóstico de UX de la fase 1 encontró cuestionarios que se respondían solos, controles placebo, explicaciones de relleno, un «Health Score» sin cita, insignias que eran solo un círculo de color, dos verdes y dos rojos de estado, un gris de «sin dato» sin contraste AA, la clave de IA como primera pantalla y un menú por estructura interna (4 hubs) en vez de por lo que la persona quiere hacer. Tanda en tres partes (A → B → C), con pytest dirigido en verde entre partes y la suite completa en serie al final.
@@ -43,6 +192,189 @@
 ### Pendiente / fuera de alcance
 - Quedan textos en inglés en partes no tocadas (p. ej. «ECG Source» y otros controles del monitor ECG, mensajes de `visualization/` y de `src/`) y «bpm» en texto que generan `clinical/ecg_analyzer.py` y módulos de `src/`; la unidad persistida del UPS y el motor hemodinámico (que no se toca) siguen con `bpm` como nombre interno.
 - `model3d/` conserva sus `st.metric` (estadísticas de malla, no clínicas) y su paleta anatómica.
+## 2026-11-15 — EMG en vivo: placa ESP32 + MyoWare 2.0, con tutorial y práctica
+
+**Contexto (Art. I)**: el origen «Live Hardware» del EMG Muscle Lab era una fachada.
+- Usaba `hardware/emg_stream.py`, que no tiene firmware en el repo. Sin datos caía en silencio a la señal demo («usando demo mientras se conecta»), y el análisis y el guardado al gemelo seguían como si nada.
+- Los textos de «Activación muscular» decían «nivel de activación», «indica esfuerzo y riesgo de fatiga» y «sugiere riesgo de lesión». Pero `activation_pct` es el cociente media/pico del EMG rectificado: medido, da unos 21 % en reposo y en contracción sostenida.
+
+- **Placa de sensores ESP32** (`hardware/biosensors/`, nuevo), pensada para varios sensores (hoy, EMG):
+  - Protocolo de texto `BIO:HELLO` / `BIO:D` / `BIO:E` (`protocol.py`), el mismo esquema que la placa de ECG, con la clave `sensor`.
+  - Catálogo (`sensors.py`): conexiones, conversión a mV, colocación y límites del MyoWare 2.0, según su guía avanzada y la de SparkFun; colocación, también de Mesin et al. 2009.
+  - Firmware de MicroPython para la salida RAW a 1000 Hz (`firmware/emg_myoware.py`), con handshake, `seq` y contadores de muestras tarde y perdidas.
+  - Conexión (`serial_backend.py`): busca la placa sola en los puertos USB, verifica el handshake y dice qué hay si no es la placa pedida (la de ECG, otra placa de sensores, MicroPython esperando órdenes o un programa con error). Cuenta las muestras perdidas en el cable. Entra al servicio del EEG en vivo: estados, búfer, reconexión y la regla de procedencia (SENSOR_REAL solo transmitiendo; el HELLO con `sim=1` es SIMULACIÓN).
+  - Placa simulada (`simulator.py`) que habla el mismo protocolo, y avisos de calidad del EMG (`quality.py`: saturada, plana, zumbido de red; umbrales de ingeniería).
+- **EMG Muscle Lab**:
+  - Origen nuevo «Sensor en vivo (ESP32 + MyoWare)» (`app/supermodules/biosensors/`): placa real o práctica con la placa simulada, filtro de red, estado, procedencia y avisos. Sin placa transmitiendo no hay análisis ni respaldo demo.
+  - Tarjeta nueva «RMS del EMG (20-450 Hz)», en mV con la placa: esa sí sube con la contracción. Los textos de «Activación muscular» ahora dicen qué es (promedio/pico, no %MVC) y que no sirve para decir esfuerzo, fatiga ni riesgo.
+  - Guardar al gemelo: SENSOR_REAL solo con la placa real transmitiendo y sin avisos de calidad; con avisos, el guardado se bloquea con el motivo. Con la placa simulada, el índice de fatiga dice «no disponible» (su espectro es fijo).
+  - Vista nueva «Sensor en vivo (tutorial)»:
+    - de dónde sale cada número, material y seguridad;
+    - conexiones con diagrama y firmware para descargar;
+    - colocación de los electrodos, pasos en la app, estados y qué hacer si algo falla;
+    - límites;
+    - práctica: contraer, relajar, despegar un electrodo y desconectar el cable.
+  - Retirados: la rama «Live Hardware», sus imports (`SensorManager`, `EMGStreamer`) y `st.session_state.emg_streamer`.
+- **Red eléctrica** (`hardware/eeg_live/quality.py`, compartido con el EEG en vivo):
+  - El notch usa 1 s de relleno. Con el relleno por defecto, un zumbido de 3 mV dejaba 1.37 mV de oscilación falsa en el borde de la ventana; ahora queda igual que el centro.
+  - El aviso de zumbido mide una línea del espectro (`mains_line_rms`): lo que sobresale en 50 o 60 Hz por encima del piso a los lados, y solo si vale al menos 4 veces ese piso. Antes medía toda la banda de 58 a 62 Hz, y la señal de banda ancha también pone potencia ahí. Medido en ventanas de 2 s: una contracción de 1 mV de RMS daba «zumbido de red» en 297 de 300 ventanas, y bloqueaba el guardado; ahora en 0 de 300, hasta 5 mV. En el EEG, un artefacto muscular de 100 µV salía como ruido de red en 100 de 100 casos; ahora en ninguno. Un zumbido de 0.1 mV en reposo se sigue detectando siempre, y la amplitud medida de la línea coincide con la real (±1 %).
+- **Referencias**: `clinical/emg_references.py` (Mesin 2009).
+- **Pruebas**: `tests/test_biosensors_emg.py` (26) y una más en `tests/test_eeg_live.py`.
+  - Protocolo y conversión a mV contra la hoja del MyoWare.
+  - Conexión con un transporte de prueba: muestras perdidas, qué hay en el puerto, puerto ocupado, cable fuera.
+  - Firmware de MicroPython corriendo en la computadora y leído por un pseudo-terminal con pyserial de verdad.
+  - Placa simulada (RMS contra la fuerza, electrodo flojo, salto como el firmware), calidad, borde del notch y servicio.
+  - Zumbido de red contra banda ancha: una contracción fuerte o un artefacto muscular no son zumbido; una línea en 60 Hz sí, con su amplitud. Esta prueba salió de una falla intermitente: la contracción simulada quedaba justo en el umbral anterior.
+  - AppTest de la página: la demo sigue igual con textos honestos; sin placa no analiza; la práctica guarda como SIMULACIÓN; una placa con HELLO `sim=0` guarda como SENSOR_REAL; un electrodo flojo bloquea el guardado; el tutorial corre su práctica.
+  - Suite completa: 2020 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas de las conexiones y de la práctica (contracción, reposo, electrodo).
+
+**Para Luis**:
+1. Nada de esto se probó con una placa y un MyoWare reales. En la computadora, el Timer simulado de 1000 Hz llega tarde a veces; en la ESP32 hay que mirar `tarde` y `perdidas` del HELLO.
+2. La firma del laboratorio (`_EMG_VALIDATION_DETAIL`) dice «Activación RMS fisiológica», pero `activation_pct` no es un RMS. No toqué la firma (está fijada por pruebas). Ahora hay una tarjeta de RMS de verdad; decide si la firma se refiere a ella. Lo que sí mediría la activación es el %MVC con una contracción máxima de referencia.
+3. El UPS sigue guardando `activation` (promedio/pico) con la unidad «%».
+4. `hardware/emg_stream.py` y `hardware/sensor_manager.py` quedan sin usuarios en la app.
+5. El aviso de zumbido ya no marca una línea que no sobresale de la señal (por ejemplo, 0.1 mV durante una contracción de 1 mV). El factor de 4 veces el piso es de ingeniería: ajústalo con hardware real si hace falta (`MAINS_MIN_RATIO`).
+
+## 2026-11-14 — EEG en vivo: OpenBCI, Muse, Unicorn y LSL, con tutorial y práctica
+
+**Contexto (Art. I)**: la fuente «Hardware EEG en vivo» del EEG Neuro Lab era una fachada.
+- Tomaba una sola señal de la placa ESP32 (`ESP32SignalSource`) y la copiaba a cuatro canales rotulados Fp1, Fp2, C3 y C4: la misma señal desplazada, con ruido encima (`expand_hardware_eeg_to_channels`).
+- Sin hardware caía en silencio a la señal sintética: la casilla «Simular si no hay hardware conectado» venía marcada y la fuente decía «Hardware en vivo (simulado)». La introducción de la página lo prometía como «señal de respaldo sintética».
+- La casilla «Habilitar análisis en tiempo real» solo mostraba un texto; no cambiaba nada.
+- Con cualquier EEG real, la página traducía la banda de más potencia absoluta a un estado. Si dominaba delta decía «Sueño profundo / Ritmo lento» y «descartar encefalopatía de onda lenta», y eso pasa aunque la persona esté despierta, porque la potencia del EEG cae con la frecuencia (componente aperiódico; Donoghue et al. 2020). Lo mismo con un CSV.
+- Al gemelo todo se guardaba como SIMULACIÓN, viniera de donde viniera.
+
+- **Adquisición** (`hardware/eeg_live/`, nuevo):
+  - Catálogo (`devices.py`): OpenBCI Cyton, Cyton + Daisy y Ganglion, Muse 2, Muse S y g.tec Unicorn por BrainFlow; cualquier flujo LSL por pylsl; el tablero sintético de BrainFlow y un simulador de práctica de BIOCORE. Pasos y sistemas, de la documentación de BrainFlow y de OpenBCI (leída el 2026-11-14); canales y muestreo, de los descriptores de BrainFlow 5.24.0, que una prueba compara con la versión instalada.
+  - Conexiones (`backends.py`): los códigos de error de BrainFlow se traducen a un motivo y una acción según cómo se conecta el equipo (puerto, Bluetooth o dongle). El flujo LSL se vuelve a encontrar por nombre e id; se queda con los canales de tipo EEG, convierte a µV la unidad que declara (si no declara, supone µV y lo dice) y rechaza flujos irregulares o de texto.
+  - Servicio (`service.py`): un hilo por fuente con cinco estados: conectando, transmitiendo, sin datos (3 s sin muestras), sin conexión (no abrió, o 10 s sin muestras; reintenta cada 5 s) y detenido. Guarda los últimos 120 s y empieza vacío en cada sesión. La procedencia sale solo mientras transmite: SENSOR_REAL para un equipo real, SIMULACIÓN para los simuladores y «no verificable» para LSL.
+  - Calidad (`quality.py`): quita la tendencia y la red (notch de 60 o 50 Hz) y marca canal plano, canal mucho más amplio que los demás y mucho ruido de red. Umbrales de ingeniería (`QualityHeuristics`); qué hacer, de Tatum 2011.
+  - Simulador (`simulator.py`): alfa de 10 Hz posterior y reactiva al cerrar los ojos (glosario IFCN, Kane 2017), parpadeo en Fp1 y Fp2 con el pulso del generador del laboratorio, electrodo flojo y cable desconectado. La señal es la misma se lea en trozos de cualquier tamaño.
+  - Montaje (`montage.py`): posiciones 10-20 y 10-10 construidas con las reglas del sistema sobre una esfera (Kane 2017, Seeck 2017).
+- **Página**:
+  - Fuente «Hardware EEG en vivo» nueva (`app/supermodules/eeg_neuro_lab/live_source.py`). Pide el dispositivo y lo que necesite (puerto del dongle, con los chips FTDI marcados como el de OpenBCI; o datos opcionales para Bluetooth), busca flujos LSL y tiene filtro de red, conectar y desconectar, y canales a analizar. Un monitor se actualiza cada segundo; avisa de problemas de calidad y de muestras perdidas. Sin señal en vivo no hay análisis, y la página dice por qué.
+  - Con EEG real (en vivo o CSV), la banda de más potencia ya no se traduce a un estado. «Clasificación» explica por qué, y se ocultan la clasificación, la interpretación, la nota clínica y la alerta de cada canal, de los hallazgos y del informe exportado. Con el generador no cambia nada.
+  - Guardar al gemelo: SENSOR_REAL solo con un equipo real transmitiendo; los simuladores, LSL, el generador y el CSV van como SIMULACIÓN, con el origen en `source_detail`. Un canal con avisos de calidad no se guarda.
+  - Con señal en vivo no se ofrecen los paneles de ERD y Engagement: comparan contra el evento que inyecta el generador.
+  - Pestaña nueva «EEG en vivo (tutorial)» (`live_tutorial.py`):
+    - de dónde sale cada número, equipos y seguridad;
+    - dónde va cada electrodo, con un diagrama 10-20 por equipo;
+    - pasos de conexión de cada equipo, estados, procedencia y calidad;
+    - qué se puede concluir;
+    - una práctica con el simulador, el mismo de la fuente «Simulador de práctica».
+  - Retirados: `expand_hardware_eeg_to_channels`, el bloque de `SensorManager`/`ESP32SignalSource` de la página y la casilla «Habilitar análisis en tiempo real». Se corrigió un `NameError` (`analysis_cards`) que tiraba la vista cuando no había canales que analizar.
+- **Referencias**: `clinical/eeg_references.py` (Kane 2017, Seeck 2017 y Tatum 2011), que también usa el banco de preguntas.
+- **Dependencias**: `brainflow>=5.24.0` y `pylsl>=1.18.6` (las dos MIT) en `requirements.txt`. Si no se instalan, la página dice qué falta y lo demás funciona.
+- **Pruebas**: `tests/test_eeg_live.py` (43).
+  - Catálogo contra los descriptores de BrainFlow.
+  - BrainFlow con un módulo falso (errores, nombres, cierre) y con el tablero sintético real.
+  - LSL con un módulo falso (unidades, canales EEG, flujos que no sirven) y con un flujo real en esta máquina.
+  - Simulador: reloj, continuidad, alfa posterior y reactiva, el pulso del generador, electrodo flojo.
+  - Calidad, servicio (desconexión y reconexión, fallos al abrir, canales de más, frecuencia efectiva, búfer circular) y montaje.
+  - AppTest de la página: sin conexión no analiza; la práctica guarda como SIMULACIÓN; un «Cyton» de prueba guarda como SENSOR_REAL; un canal plano no se guarda; el tutorial corre su práctica.
+  - Suite completa: 1993 pasan, 6 se saltan y 1 falla, la misma de siempre (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas del tutorial (montaje del Cyton y de la Muse), de la práctica (ojos abiertos y cerrados, electrodo flojo, cable) y de la fuente en vivo con el simulador.
+
+**Para Luis**:
+1. Nada de esto se probó con un equipo real: falta conectar al menos un Cyton o una Muse. Lo comprobado es el tablero sintético de BrainFlow y un flujo LSL en la misma computadora.
+2. El rechazo de artefactos de `EegAnalyzer` (gradiente de más de 5500 µV/s) se calibró con el generador. En la práctica no siempre descarta el parpadeo modelado, y en el tablero sintético descarta los senos rápidos (de C4 en adelante). Con hardware real hay que recalibrarlo.
+3. Los umbrales de calidad (0.5 µV, 4 veces la mediana, 10 µV de red) son de ingeniería.
+4. Siguen sin fuente los textos «Cómo funciona esta plataforma» y «Cómo interpretar EEG» de la pestaña Clínica (por ejemplo, «Beta elevada indica atención activa o estrés mental»). Los paneles de ERD y Engagement siguen corriendo sobre un CSV con el evento del generador.
+5. Twin OS sigue usando `ESP32SignalSource`.
+
+## 2026-11-14 — 12 Derivaciones rehecha: trazado con verdad conocida y lectura por criterios citados
+
+**Contexto (Art. I)**: en el escenario «Normal», la Vista Clínica de 12 Derivaciones decía «✅ LBBB» (en recuadro verde, con «Wide QRS (>120 ms)») y «Q wave in II: pathological_q».
+- **Generador** (`TwelveLeadEcgGenerator`): ignoraba `qrs_duration`, `pr_interval` y `qt_interval`. El QRS ocupaba el 20 % del ciclo (160 ms a 75 lpm), la P se encimaba con el QRS y la T llegaba al 95 % del ciclo. Los bloqueos y la HVI solo escalaban amplitudes; la elevación del ST se sumaba a las muestras de menor amplitud; aVL y aVF no seguían a Goldberger y las tres aumentadas se multiplicaban por 1.5. La página, además, pasaba `st_segment=0` por defecto (los tres «STEMI» salían sin elevación) y armaba FA, flutter, WPW y QT largo copiando UNA señal escalada a las 12 derivaciones; lo mismo hacía con un CSV que solo traía II.
+- **Analizador** (`TwelveLeadEcgAnalyzer`): no medía el QRS (bloqueo de rama izquierda si la R de I pasaba de 1.2 mV; derecha si más de 50 muestras de V1 cambiaban más de 0.1). Medía el «ST» donde la señal tenía menos amplitud, la «Q patológica» como el mínimo del primer tercio del registro y el eje con la media de todo el registro. El ritmo salía siempre «Sinus», y el «diagnóstico principal», los «diferenciales» y las «recomendaciones», en inglés, no salían de ninguna medición.
+
+- **Generador nuevo** (`src/signals/ecg/twelve_lead_synth.py`): los 13 escenarios de la página.
+  - Cada componente del latido es un vector frontal. I y II salen por proyección; III, aVR, aVL y aVF, por Einthoven y Goldberger (exactas también con ruido). Las precordiales tienen una amplitud por derivación.
+  - Los tiempos son explícitos: PR; QRS; QT = QTc·√RR, con QTc de 415 ms (520 en el QT largo); el fin de la T se coloca donde lo encuentra la tangente.
+  - Cada escenario se construye para cumplir su criterio: QRS ≥ 120 ms con rsR′ y S ancha; R ancha con muesca y sin q; ST en el punto J sobre los umbrales de la ESC 2023; PR < 120 ms con onda delta; Sokolow-Lyon ≥ 3.5 mV; FA con RR irregulares y ondas f; flutter a 300/min, 2:1, con ondas F negativas en II, III y aVF.
+  - Las amplitudes son ilustrativas. La verdad sale aparte (`TwelveLeadTruth`).
+- **Analizador nuevo** (`src/signals/ecg/twelve_lead_measure.py`):
+  - Mide (🟣, método BIOCORE): latidos con el detector TKEO, alineados por velocidad espacial y por correlación; latido mediano con la línea de base del segmento PR; inicio y fin del QRS por la velocidad espacial (2.5 % y 4 % de su máximo); fin de la T por la tangente; P constante en ≥ 80 % de los latidos, con su polaridad en I, II y aVF; ST en el punto J; segmento isoeléctrico.
+  - Compara con criterios citados (🟢):
+    - ritmo sinusal y taquicardia sinusal (Page 2015);
+    - bradicardia sinusal y bloqueo AV de primer grado (Kusumoto 2018);
+    - FA (ESC 2024);
+    - bloqueos de rama completos, bloqueo derecho incompleto, trastorno inespecífico de la conducción y preexcitación (Surawicz 2009);
+    - elevación del ST en ≥ 2 derivaciones contiguas (ESC 2023 3.2.1, Thygesen 2012, Wagner 2009), con los umbrales de V2–V3 por sexo y edad: la página deja elegir o dice para quién se cumple;
+    - HVI por Sokolow-Lyon;
+    - QTc (Rautaharju 2009, Bazett, Drew 2010);
+    - eje (Chou's) y onda T (Rautaharju 2009).
+  - Lo que no puede evaluar lo dice, con el motivo:
+    - con bloqueo de rama, el ST (ESC 2023);
+    - con voltaje de HVI, el umbral de 1 mm;
+    - con QRS ≥ 120 ms, el QTc (Rautaharju 2009);
+    - sin segmento isoeléctrico, el ST, el eje y la T;
+    - lo que piden las derivaciones que faltan.
+  - Si faltan III, aVR, aVL o aVF, los calcula desde I y II.
+- **Página**:
+  - Vista nueva (`app/supermodules/ecg_12/report_view.py`) con hallazgos (🟢, con su fuente), mediciones (🟣), lo no evaluable, los criterios que no se cumplen y la verdad del generador para comparar. Sin recuadro «✅» ni «recomendaciones».
+  - Controles:
+    - ST en el punto J (0–0.6 mV, 0.3 por defecto, solo en los infartos);
+    - QRS, deshabilitado donde el escenario fija el suyo;
+    - selector de umbrales por sexo y edad.
+  - La captura simulada es el mismo generador con 0.025 mV de ruido y deriva de la línea de base. El CSV ya no se rellena: las derivaciones que faltan se dibujan planas y se dice.
+  - Etiquetas: «STEMI Inferior (CD o Cx)», «STEMI Lateral alto (I y aVL, V5-V6)», «(DA)» y la bradicardia con los dos cortes. «Patrones Avanzados» lleva fuentes, y la introducción ya no atribuye la cara inferior solo a la coronaria derecha.
+- **Retirado**: `TwelveLeadEcgAnalyzer` y `create_clinical_summary`. Queda `qrs_axis_from_net`, que usa la calculadora. Las referencias del ECG viven en un solo lugar, `clinical/ecg_references.py`, que también usa el banco de preguntas.
+- **Pruebas**: `tests/test_twelve_lead_measure.py` (61).
+  - Generador: Einthoven/Goldberger; cada escenario construido para su criterio; el analizador no lee la verdad.
+  - Golden test por escenario: QRS ±8 ms, PR ±12, QT −15/+8, eje ±5°, ST en el punto J ±0.03 mV. Con el ruido de la captura simulada: QRS ±10, PR ±15, QT −25/+8, ST ±0.04. En cada escenario se cumplen exactamente los criterios que nombra.
+  - Casos: umbral de V2–V3 por sexo, ST bajo el umbral, exclusiones, solo II, 8 derivaciones, flutter, registros cortos, la vista y la página.
+  - Ajustadas: `test_qrs_axis_einthoven.py` (la misma verdad del eje contra `qrs_axis_from_leads`; el análisis completo sobre un registro de varios latidos y sin «diferenciales») y `test_clinical_calculators.py`.
+  - Barrido aparte de 310 registros (13 escenarios, 3 FC, 5 semillas, 2 niveles de ruido): ningún criterio de más ni de menos.
+  - Suite completa: 1950 pasan, 6 se saltan y 1 falla, la misma de siempre (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis**:
+1. `TwelveLeadEcgGenerator` sigue alimentando al gemelo (`domain/physiology/ml/ecg_signal_source.py`) con los defectos de arriba; pasar el gemelo al generador nuevo toca `domain/`.
+2. Los umbrales técnicos del método (2.5 % y 4 % de la velocidad espacial, P constante en el 80 % de los latidos, R ancha ≥ 60 % del QRS, delta ≥ 30 ms, coeficiente de variación de los RR de 8 %, segmento isoeléctrico de 30 ms y 0.03 mV) son de BIOCORE: están probados contra el generador, no contra registros reales anotados.
+3. El analizador no identifica el flutter ni otros ritmos regulares sin P sinusal (lo dice) y no evalúa el bloqueo de rama izquierda incompleto.
+4. El lector de CSV de la página asume el orden de las columnas cuando no hay encabezado.
+
+## 2026-11-14 — Cuestionarios: respuesta correcta, fuente y calificación honesta
+
+**Contexto (Art. I)**: los cuatro cuestionarios de la app (Academia, pestaña 12 Derivaciones del ECG Lab, EEG Neuro Lab y Respiratory Lab) calificaban con fachadas y enseñaban contenido sin fuente, a veces equivocado.
+- **Calificación**: todas las radios empezaban con la primera opción elegida. En Academia y en 12 Derivaciones, «Responder» o «Verificar» sin tocar nada calificaba esa opción. En el EEG, «Calcular puntuación» sin contestar ya sumaba la tercera pregunta, cuya respuesta (Alpha) era la primera opción. En el Respiratory Lab, la pregunta mostraba «Correcto» o «Incorrecto» antes de contestar; en las tres de texto la correcta iba primera y con «✓», y en las dos numéricas salía casi siempre en el segundo lugar. `LearningEngine.submit_quiz` tomaba un 0 % previo como «sin cuestionarios» y promediaba por pares.
+- **Contenido**: ninguna pregunta de 12 Derivaciones ni del EEG tenía fuente, y en Academia solo dos traían explicación. En 12 Derivaciones, la pericarditis estaba al revés («ST depresivo difuso con PR elevado»); una pregunta afirmaba que desde la derivación II se generan «derivadas sintéticas» de 12 derivaciones; otra pedía un «SNR mayor a 10» sin unidades ni fuente; el patrón de sobrecarga de la HVI se llamaba «pseudo-infarto»; «QB» era una opción; la R máxima en V4 se explicaba con la zona de transición; y las opciones usaban abreviaturas en inglés (RCA, LAD, LCx, LAD/RAD para el eje). En Academia, «¿Cuál derivada muestra mejor el IEC anterior (V1-V4)?» daba la respuesta en el enunciado, las opciones del bloqueo de rama derecha estaban en inglés y «la derivación habitual para detectar FA» (respuesta: II) no es como la guía ESC 2024 la reconoce. En el EEG, la pregunta de crisis se respondía sola («crisis epiléptica» → «Seizure»). El cuadro «Información Clínica» decía «QT: <440 ms (♂)» (la AHA/ACCF/HRS 2009 da QTc prolongado ≥ 450 ms en hombres) y «QRS: 60-120 ms»; «Territorios Vasculares» decía «RCA (Inferior)», cuando II, III y aVF solos pueden ser de la coronaria derecha o de la circunfleja. «Referencias EEG» afirmaba «Gamma: procesamiento cognitivo integrado» y «Beta: alerta y concentración» sin fuente.
+
+**Decisión que cambia**: la Capa 1 (2026-07-13) decidió no redactar explicaciones para las preguntas que no traían. Ahora cada explicación sale de una fuente leída del documento original y citada al lado; ninguna se escribió de memoria. Si la respuesta describe la app y no la clínica (dos preguntas de 12 Derivaciones), la fuente lo dice.
+
+- **Banco** (`educational/quiz_bank.py`, nuevo): un solo lugar para revisar el contenido clínico de los tres bancos (Academia 16, 12 Derivaciones 19, EEG 5), cada pregunta con explicación y fuente. Fuentes, leídas del original el 2026-11-14: AHA/ACCF/HRS 2009 partes III (Surawicz), IV (Rautaharju) y VI (Wagner); parte I de 2007 (Kligfield); Drew 2010 (torsade de pointes); Al-Khatib 2017; Kusumoto 2018 (bradicardia y conducción); ESC 2023 (síndromes coronarios agudos), 2024 (FA) y 2025 (miocarditis y pericarditis); glosario IFCN 2017 (Kane); ACNS 2021 (Hirsch); Allen 2007 (PPG); Biga et al., *Anatomy & Physiology* (CC BY-SA 4.0); y el criterio de Sokolow-Lyon tal como lo resume la tabla del Manual MSD. `QuizQuestion` se mudó aquí con el campo `source` (`learning_engine` lo reexporta). Convención: la correcta se escribe primero (`answer=0`), así un índice mal puesto no pasa desapercibido; el orden en pantalla lo da `display_choices()`, con semilla fija y el lugar de la correcta repartido por igual en cada banco (`balance_positions`). En las numéricas, `numeric_choices`.
+- **Pantallas**: las radios de los cuatro cuestionarios empiezan sin opción (`index=None`) y sin contestar no hay acierto ni mensaje: Academia y 12 Derivaciones piden elegir, y el EEG cuenta las preguntas sin responder como no acertadas y lo dice. Al responder se muestran la explicación y la fuente. Respiratory Lab: sin «✓» y con las opciones barajadas; sus textos y citas no cambian. Las claves de 12 Derivaciones y del EEG quedan con prefijo (`ecglab_12_quiz_*`, `eeg_quiz_*`).
+- **Cuadros de referencia**: «Información Clínica» de 12 Derivaciones (QTc prolongado ≥ 450 ms en hombres y ≥ 460 ms en mujeres, QT corto ≤ 390 ms; QRS hasta 110 ms; los dos cortes del PR; la FC de 60–100 lpm como convención, junto a la bradicardia sinusal < 50 lpm de la guía de 2018), con sus fuentes. «Territorios Vasculares», solo con lo que dice la parte VI. «Referencias EEG», en tabla: el glosario IFCN 2017 al lado de los bordes que usa `EegAnalyzer._band_powers`, que no son iguales.
+- **`submit_quiz`**: promedio de todos los cuestionarios enviados (`quizzes_submitted`).
+- **Pruebas**: `tests/test_quiz_bank.py` (23): estructura de cada banco (una correcta escrita primero, sin opciones repetidas, con explicación y fuente, sin «✓», el enunciado no la contiene y no es la opción más larga en más del 40 % de las preguntas), orden estable y lugares repartidos, que los errores corregidos no vuelvan, `submit_quiz`, y AppTest de Academia, 12 Derivaciones y EEG (nada elegido de inicio, calificación y fuente). Ajustadas: `test_respiratory_phase42.py` y `test_respiratory_phase43.py` (buscan la correcta por su texto, no por «✓», y comprueban que nada viene elegido) y `test_respiratory_ui_phase3.py` (el distractor numérico ya no es fijo). Suite completa: 1889 pasan, 6 se saltan y 1 falla, la misma que falla en `main` (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis** (no se tocó en esta tanda):
+1. **La Vista Clínica de 12 Derivaciones no sirve todavía para enseñar** (Art. I): en el escenario «Normal» marca «✅ LBBB» en recuadro verde, con «Wide QRS (>120 ms)», y «Q wave in II: pathological_q».
+   - `TwelveLeadEcgGenerator._generate_pqrst` ignora `qrs_duration`, `pr_interval` y `qt_interval`: el QRS ocupa el 20 % del ciclo (160 ms a 75 lpm), la P se encima con el QRS y la T termina al 95 % del ciclo (QT de unos 640 ms a 75 lpm), también en «Normal». Los bloqueos y la HVI solo escalan amplitudes (el bloqueo de rama derecha no tiene rsR′); la elevación del ST se suma a las muestras de menor amplitud, no al segmento ST; aVL y aVF no siguen las fórmulas de Goldberger, y las tres aumentadas se multiplican por 1.5.
+   - `TwelveLeadEcgAnalyzer` no mide la duración del QRS: da bloqueo de rama izquierda si la R de I pasa de 1.2 mV, derecha si más de 50 muestras de V1 cambian más de 0.1 entre una y otra, «Q patológica» si el mínimo cae en el primer tercio del registro y mide el «ST» donde la señal tiene menos amplitud. El eje usa la media de todo el registro, con P y T incluidas.
+   - Propuesta: siguiente tanda, rehacer generador y analizador con criterios citados (los mismos del banco de preguntas) y pruebas que recuperen la verdad de cada escenario.
+2. La guía ACC/AHA/HRS 2018 define la bradicardia sinusal como < 50 lpm; `clinical.calculators.classify_heart_rate` y el escenario «Bradicardia sinusal - HR < 60 bpm» usan < 60 (convención). El cuestionario enseña las dos.
+3. Los escenarios «STEMI Inferior (RCA)» y «STEMI Lateral (LCx)» nombran una sola arteria; la parte VI dice que II, III y aVF pueden ser de la CD o de la Cx y no asigna la cara lateral.
+4. «Patrones Avanzados» de 12 Derivaciones (FA «100-160 típico», flutter «> 250 bpm», QT largo «> 500 ms»...) sigue sin fuentes.
+5. `app/ecg_trainer.py` (app aparte): su cuestionario solo califica la pregunta 4 y sus controles empiezan con una opción elegida.
+6. El contenido de `educational/quiz_bank.py` está citado pero no firmado: falta la revisión del validador experto.
+
+## 2026-11-13 — ECG Plug & Play: la placa ESP32 + AD8232 en el ECG Lab, con tutorial
+
+**Contexto (Art. I)**: la fuente «Hardware ESP32 en vivo» del Monitoreo usaba `ESP32SignalSource`. Con el cable desconectado, `_read_serial_line` atrapaba la excepción y `serial_conn` seguía en pie, así que `is_hardware_present()` decía SENSOR_REAL sobre un búfer congelado (fachada). Además, `auto_detect_port` tomaba el primer puerto con «com» en el nombre (también los de Bluetooth) y `_normalize_raw_ecg` escalaba el ADC de 12 bits de la ESP32 como si fuera de 10. No había firmware para la placa ni instrucciones para usarla en clase.
+
+**Decisiones pendientes de Luis** (no se tomaron en esta tanda):
+1. `BiocoreAnalyzer` usa en vivo `delineate_qrs` para las ondas Q, R y S, rotulado como tal; la Sub-Fase 2.5 lo dejó «aislado, Fase 3 no autorizada». Para no usarlo: `BiocoreAnalyzer(fs, waves=False)`.
+2. El encabezado validado del ECG Lab dice «Filtros estándar AHA». La señal de la placa pasa por un filtro de monitoreo de 0.5–40 Hz, que no lo es; lo dicen la barra lateral y el tutorial, con cita.
+3. Hallazgos en el motor de ECG, sin tocar: `segment_qrs_complex` pone la Q en la S (QRS de 0 ms, que `detect_clinical_pattern` reporta «dentro de rango»); `measure_intervals` lanza `ValueError` cuando la primera R queda pegada al borde de la ventana; `classify_ecg_signal` sigue con el detector viejo (falsos «AFib» y «PVC» con 20 µV de ruido, el mismo error del Bug 2). Por eso el módulo solo entrega el patrón por reglas con `pattern=True` (apagado por defecto), y solo si los dos detectores coinciden y los intervalos son fisiológicos.
+
+- **Módulo nuevo** (`hardware/ecg_plugplay/`): busca la placa en un hilo (salta los puertos Bluetooth, prueba primero los chips USB conocidos, confirma con `ECG:HELLO`); adquiere a 250 Hz en ventanas de 1000 muestras con 50 % de solape; revisa cada muestra (huecos de 1 o 2 interpolados y marcados, los más largos no se inventan; electrodo suelto; saturación; filtro estabilizándose); filtro causal de 0.5–40 Hz y notch de 60 Hz; analiza en otro hilo quedándose con la ventana más nueva; con el cable fuera o 2 s sin datos cierra el puerto, vacía el búfer y vuelve a buscar. Procedencia: SENSOR_REAL solo con una placa real mandando datos; la placa simulada y cualquier placa que diga `sim=1` salen SIMULACIÓN. `BiocoreAnalyzer`: FC con `detect_r_peaks_tkeo` (la fórmula del ECG Lab), Q-R-S con `delineate_qrs`, P y T heurísticas rotuladas «no validada», cada parte aislada de las demás. Firmware de MicroPython en `hardware/ecg_plugplay/firmware/main.py`. Supuestos con fuente: ganancia de 1100 (`AD8232_GAIN_SOURCE`, hoja de datos del AD8232, Figura 66) y límites del filtro (`FILTER_LIMITS_SOURCE`, Kligfield et al. 2007), los dos agregados a `THIRD_PARTY_NOTICES.md`.
+- **Monitoreo** (`render_ecg_monitor_page()` → `app/supermodules/ecg_live/monitor_source.py`): la rama nueva entrega el tramo limpio más reciente (de 4 a 10 s y sin NaN, porque `validate_signal` rechaza la señal entera con uno solo) o dice por qué no hay y cae a la demo, como las demás fuentes. Si la placa se declara simulador, la etiqueta lleva «demo» y no escribe la FC al gemelo, igual que la fuente Demo. Botones «Soltar el puerto», «Buscar la placa» y «Leer los últimos segundos».
+- **Tutorial** (pestaña nueva «Placa en vivo (tutorial)» del ECG Lab, `app/supermodules/ecg_live/tutorial.py`): de dónde sale cada número y qué tan validado está; material; seguridad (computadora con batería); conexiones con diagrama; firmware descargable; electrodos (guía de SparkFun); estados; motivos de descarte; qué hacer si falla; límites con fuente; y una práctica con la placa simulada (despegar un electrodo, desconectar el cable, cambiar la FC) que pasa por el mismo código que la placa real y va rotulada SIMULACIÓN.
+- **Sin tocar**: `ESP32SignalSource` y `ESP32ECGStreamer` siguen en Twin OS, el EEG Neuro Lab y `app/ecg_trainer.py`, con los mismos problemas; `domain/` no cambia.
+- **Pruebas**: `tests/test_ecg_plugplay_unidad.py` (18), `test_ecg_plugplay_servicio.py` (11), `test_ecg_plugplay_serial.py` (5: puerto serial virtual y el firmware corriendo con `machine` simulado; solo Linux y Mac), `test_ecg_plugplay_biocore.py` (8, contra el motor real) y `test_ecg_live_app.py` (6 AppTest de la app completa: SENSOR_REAL y SIMULACIÓN, sin placa ⇒ demo con motivo, soltar y volver a buscar, tutorial completo y práctica). Actualizada `test_visual_consolidation_tanda1.py::test_ecg_lab_shows_validated_confidence_marker`: reconoce el marcador por «MIT-BIH» y además por su marco, porque el tutorial también nombra MIT-BIH en texto normal. Suite completa: 1866 pasan, 6 se saltan y 1 falla, la misma que falla en `main` sin este cambio (`test_ecg_hr_detector_consolidation.py::test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo`: PTB-XL necesita red hacia PhysioNet y el entorno de prueba no la tenía). Sin el cambio: 1818 pasan, 6 se saltan, la misma falla.
+- **Sin probar con la placa real.**
 
 ## 2026-11-13 — Fase 0, tanda 0.1: residuales (eventos sin cita, índice pulmonar, filas históricas, declaración de la sepsis)
 
