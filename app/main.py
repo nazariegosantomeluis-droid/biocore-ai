@@ -33,8 +33,10 @@ load_dotenv_file(Path(ROOT_DIR) / ".env")
 
 from app.utils import navigation as nav
 from app.utils.ai_session import (
-    AI_KEY_HINT, ai_client, ai_configured, render_settings_link, render_settings_page, render_sidebar_status,
+    AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_settings_link, render_settings_page,
+    render_sidebar_status,
 )
+from domain.physiology.narrator.privacy import DataOrigin
 
 from app.supermodules import (
     generate_demo_bp_signal,
@@ -138,16 +140,9 @@ except Exception as e:
 # (`filtered = signal`) que ECLIPSABA el bandpass real de
 # `src/signals/emg/preprocessing.py` — la activación y la MDF se calculaban
 # sobre señal cruda. Stub muerto; el analizador filtra internamente.
-try:
-    from hardware.sensor_manager import SensorManager
-except Exception:
-    SensorManager = None
-
-try:
-    from hardware.emg_stream import EMGStreamer
-except Exception:
-    EMGStreamer = None
-
+# 2026-11-14 (Art. I): la rama «Live Hardware» y sus imports (SensorManager, EMGStreamer) se retiraron: sin datos
+# caía en silencio a la señal demo y el lector no tenía firmware en el repo. El EMG en vivo vive ahora en
+# app/supermodules/biosensors/emg.py (placa ESP32 + MyoWare 2.0, protocolo BIO, SENSOR_REAL solo transmitiendo).
 from src.signals.emg import EmgAnalyzer
 
 # Safe Plotly import
@@ -204,8 +199,6 @@ LEGACY_ENTRIES = {
 def init_state() -> None:
     if 'report_requested' not in st.session_state:
         st.session_state.report_requested = False
-    if 'emg_streamer' not in st.session_state:
-        st.session_state.emg_streamer = None
     # 'learning_progress' (Cardio-Fisiología 58%, Neurofisiología 42%, etc.) se quitó
     # 2026-07-14 -- eran números fijos idénticos para cualquier usuario/sesión, sin
     # avance real detrás; el botón "Avanzar en aprendizaje" solo les sumaba 5 por
@@ -269,8 +262,33 @@ def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
             st.write(f'Interpretación rápida: mayor correlación observada entre **{k1}** y **{k2}** ({mat[strongest]:.2f}).')
 
 
-def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]) -> None:
-    """Narrador clínico real (Anthropic, streaming) para hallazgos calculados en
+def _emg_data_origin(source: str, live) -> 'DataOrigin':
+    """De dónde vienen los datos del EMG Muscle Lab, para el narrador (`privacy.py`)."""
+    if source == 'Demo':
+        return DataOrigin.SIMULADO
+    if live is None:                                  # CSV, o la fuente en vivo sin señal
+        return DataOrigin.DESCONOCIDO
+    return DataOrigin.PERSONA if live.provenance == 'SENSOR_REAL' else DataOrigin.SIMULADO
+
+
+_ECG_SOURCE_ORIGIN = {
+    'Demo (sintético)': 'simulado', 'Caso clínico (61 disponibles)': 'simulado',
+    'Base de datos MIT-BIH': 'base_publica', 'Base de datos PTB-XL': 'base_publica',
+}
+
+
+def _ecg_data_origin(source: str, metadata: dict) -> 'DataOrigin':
+    """De dónde vienen los datos del Monitoreo del ECG Lab, para el narrador (`privacy.py`). Los 61 casos clínicos
+    son sintéticos; MIT-BIH y PTB-XL son bases públicas anonimizadas; un CSV no se sabe de quién es."""
+    if source == 'Hardware ESP32 en vivo':
+        label = str((metadata or {}).get('source', ''))
+        return DataOrigin.PERSONA if 'SENSOR_REAL' in label else (
+            DataOrigin.SIMULADO if 'SIMULACIÓN' in label else DataOrigin.DESCONOCIDO)
+    return DataOrigin(_ECG_SOURCE_ORIGIN.get(source, 'desconocido'))
+
+
+def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]], origin=None) -> None:
+    """Narrador clínico real (Anthropic o Gemini, streaming) para hallazgos calculados en
     laboratorios que no persisten en el UPS (EMG/HRV/Multisensor/ECG Monitor no
     tienen dominio en el Unified Physiological State — solo cardiovascular y
     respiratorio están modelados). Ver domain/physiology/narrator/findings.py.
@@ -280,39 +298,45 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
     anclada a una métrica exacta del contexto — pero sin comparación temporal
     (estas señales ad-hoc no tienen historial persistido).
 
-    `findings`: lista de tuplas (nombre_metrica, valor, significado)."""
+    `findings`: lista de tuplas (nombre_metrica, valor, significado). `origin`
+    (2026-11-16): de dónde vienen los datos (`DataOrigin`); sin declarar es
+    DESCONOCIDO, y el nivel gratuito de Gemini no lo recibe."""
     from domain.physiology.narrator import (
+        DataOrigin,
         Finding,
         FindingsContext,
+        GeminiError,
         NarratorNotConfiguredError,
+        ProviderNotAllowedError,
         stream_findings_narration,
     )
 
     if not ai_configured():
         st.warning(
-            "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
-            "Anthropic con streaming — no existe una narración simulada de respaldo. " + AI_KEY_HINT
+            AI_OFF + " Este narrador llama a un modelo de lenguaje real con streaming — no existe una "
+            "narración simulada de respaldo. " + AI_KEY_HINT
         )
         render_settings_link()
         return
 
     st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
     if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
-        context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings])
+        context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings],
+                                  origin=origin or DataOrigin.DESCONOCIDO)
         try:
             st.write_stream(stream_findings_narration(context, client=ai_client()))
+        except ProviderNotAllowedError as exc:
+            st.warning(str(exc))
         except NarratorNotConfiguredError as exc:
             render_error_state(str(exc))
+        except GeminiError as exc:
+            render_error_state(str(exc), exception=exc)
         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
             # Fase 2.3 Tanda 3 (2026-08-29): compartido por EMG/ECG Monitor/
             # Multisensor/HRV (pestaña "IA") -- una sola migración cubre los
             # 4. Antes exponía `{exc}` crudo (puede incluir detalle interno
             # de la respuesta HTTP de la API).
-            render_error_state(
-                "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                "(red o cuota). Intenta de nuevo en unos segundos.",
-                exception=exc,
-            )
+            render_error_state(AI_CALL_FAILED, exception=exc)
 
 
 def render_view_selector(view_id: str = None, views: Optional[List[str]] = None) -> str:
@@ -428,11 +452,19 @@ def render_ecg_lab_page() -> None:
         validation="VALIDATED",
         validation_detail=_ECG_VALIDATION_DETAIL,
     )
-    tab_monitoreo, tab_12_derivaciones = st.tabs(["Monitoreo", "12 Derivaciones"])
+    # ECG Plug & Play (2026-11-13): tercera pestaña con el tutorial de la placa ESP32 + AD8232
+    # (la fuente «Hardware ESP32 en vivo» del Monitoreo) y su práctica con la placa simulada.
+    # Sus widgets llevan key `ecglab_tutorial_*`, namespaced como las otras dos pestañas.
+    from app.supermodules.ecg_live.monitor_source import TUTORIAL_TAB
+    from app.supermodules.ecg_live.tutorial import render_live_tutorial
+
+    tab_monitoreo, tab_12_derivaciones, tab_tutorial = st.tabs(["Monitoreo", "12 Derivaciones", TUTORIAL_TAB])
     with tab_monitoreo:
         render_ecg_monitor_page()
     with tab_12_derivaciones:
         render_ecg_12_page()
+    with tab_tutorial:
+        render_live_tutorial()
 
 
 def render_eeg_neuro_lab_page() -> None:
@@ -865,13 +897,16 @@ def render_emg_page() -> None:
         validation_detail=_EMG_VALIDATION_DETAIL,
     )
 
-    source = st.sidebar.radio('Origen EMG', ['Demo','CSV','Hardware en vivo'])
+    from app.supermodules.biosensors import emg as emg_live
+
+    source = st.sidebar.radio('Origen EMG', ['Demo', 'CSV', emg_live.SOURCE_LABEL])
     pattern = st.sidebar.selectbox('Patrón', ['Isométrica','Rápida','Fatiga'])
     fs = st.sidebar.selectbox('fs (Hz)', [500,1000,2000], index=1)
     duration = st.sidebar.slider('Duración (s)', 5, 60, 15)
 
     signal = None
     time_arr = np.array([])
+    live = None
     if source == 'CSV':
         f = st.file_uploader('CSV EMG', type=['csv'])
         if f:
@@ -884,58 +919,11 @@ def render_emg_page() -> None:
                     "No se pudo leer el archivo CSV de EMG -- verifica el formato.",
                     exception=e,
                 )
-    elif source == 'Hardware en vivo':
-        st.sidebar.markdown("### Hardware EMG")
-        if SensorManager is not None:
-            manager = SensorManager()
-            port_options = manager.available_ports or ["Auto"]
-            selected_port = st.sidebar.selectbox("Puerto EMG", port_options)
-        else:
-            selected_port = st.sidebar.text_input("Puerto EMG manual", value="Auto")
-            st.sidebar.warning("No se pudo enumerar puertos seriales; ingresa el puerto manualmente.")
-
-        connect_emg = st.sidebar.button('Conectar EMG Hardware')
-        disconnect_emg = st.sidebar.button('Desconectar EMG Hardware')
-
-        if connect_emg:
-            if EMGStreamer is None:
-                st.sidebar.error('EMGStreamer no está disponible. Instala pyserial y revisa hardware/emg_stream.py')
-            else:
-                chosen_port = None if selected_port in (None, 'Auto') else selected_port
-                try:
-                    streamer = EMGStreamer(port=chosen_port, baud=115200, fs=fs)
-                    if streamer.connect(force_port=chosen_port):
-                        streamer.start()
-                        st.session_state.emg_streamer = streamer
-                        st.sidebar.success('EMG hardware conectado y transmitiendo.')
-                    else:
-                        st.sidebar.warning('No se pudo conectar el hardware EMG. Usa modo demo o revisa el puerto.')
-                except Exception as exc:
-                    st.sidebar.error(f'Error al conectar EMG: {exc}')
-
-        if disconnect_emg and st.session_state.get('emg_streamer') is not None:
-            try:
-                st.session_state.emg_streamer.stop()
-                st.session_state.emg_streamer.disconnect()
-            except Exception:
-                pass
-            st.session_state.emg_streamer = None
-            st.sidebar.success('EMG hardware desconectado.')
-
-        streamer = st.session_state.get('emg_streamer')
-        if streamer is not None:
-            st.sidebar.info(f"Estado EMG: {streamer.get_status()}")
-            if getattr(streamer, 'last_error', None):
-                st.sidebar.warning(f"Último error EMG: {streamer.last_error}")
-            _, buffer = streamer.get_filtered_buffer()
-            if buffer is not None and len(buffer) >= 5:
-                signal = np.asarray(buffer)
-                time_arr = np.arange(len(signal)) / fs
-            else:
-                st.sidebar.caption("Sin datos de hardware aún — usando demo mientras se conecta.")
-
-        if signal is None:
-            signal = generate_demo_emg_signal(fs, duration, pattern)
+    elif source == emg_live.SOURCE_LABEL:
+        # Sin placa transmitiendo no hay señal: no se usa la demo de respaldo (2026-11-14, Art. I).
+        live = emg_live.render_emg_source(duration)
+        if live is not None:
+            signal, fs = live.signal, live.fs
             time_arr = np.arange(len(signal)) / fs
     else:
         signal = generate_demo_emg_signal(fs, duration, pattern)
@@ -944,12 +932,16 @@ def render_emg_page() -> None:
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — era un
     # "Muscle Fatigue Index" de np.random.uniform(10,80), redundante y desconectado
     # del gemelo real (Digital Twin OS / DigitalTwinOrganism). Ver CHANGELOG.md.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
+    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación',
+                                       emg_live.TUTORIAL_VIEW])
+    if view == emg_live.TUTORIAL_VIEW:
+        emg_live.render_emg_tutorial()
+        return
 
     if signal is None:
-        # Solo alcanzable con Origen=CSV y ningún archivo cargado todavía.
+        # Origen=CSV sin archivo, o sensor en vivo sin placa transmitiendo (la fuente ya dijo por qué).
         # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
-        render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Hardware en vivo.")
+        render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Demo.")
         _render_emg_save_to_twin(fs, source, None)  # declara "sin señal", no finge guardar
         return
 
@@ -959,12 +951,24 @@ def render_emg_page() -> None:
         st.markdown('### Vista Clínica')
         activation = emg_analysis.activation_pct
         st.write('Activación muscular y patrones de contracción')
+        # 2026-11-14 (Art. I): los textos decían «nivel de activación», «riesgo de fatiga» y «riesgo de lesión»,
+        # pero `activation_pct` es media/máximo del EMG rectificado: casi igual en reposo y en contracción.
         render_metric_explained('Activación muscular', f'{activation:.1f}', unit='%',
-                    meaning='Nivel promedio de activación muscular a partir del EMG rectificado.',
-                    importance='Indica esfuerzo y riesgo de fatiga.',
-                    affects='Carga, postura, fatiga, desbalance neuromuscular.',
-                    relations='Se correlaciona con ECG y respiración durante esfuerzo.',
-                    consequences='Elevada activación prolongada sugiere fatiga y riesgo de lesión.')
+                    meaning='Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz).',
+                    importance='Describe la forma de la señal. No es el porcentaje de la contracción máxima (%MVC).',
+                    affects='Cuánto dura la contracción dentro de la ventana y qué tan picuda es la señal.',
+                    relations='Para saber cuánto contraes, mira el RMS: crece con la contracción.',
+                    consequences='En reposo y en una contracción sostenida da valores parecidos: no lo uses para '
+                                 'decir esfuerzo, fatiga ni riesgo.')
+        rms_value = emg_live.rms_mv(emg_live.prepare(signal, fs, None), fs)
+        render_metric_card(
+            'RMS del EMG (20-450 Hz)',
+            None if rms_value is None else (f'{rms_value:.3f} mV' if live is not None else f'{rms_value:.3f} (unidades de la señal)'),
+            provenance=BADGES.METHOD,
+            unavailable_reason=None if rms_value is not None else 'señal demasiado corta para filtrar',
+        )
+        if live is not None:
+            st.caption('mV en la piel aproximados: ganancia 200 del MyoWare y ADC del ESP32 sin calibrar.')
         # Tanda 1 de contención (2026-11-05, Art. I): 'Capa de Descubrimiento Científico' retirada
         # (su botón no medía lo que decía); detalle en CHANGELOG.md.
 
@@ -1010,16 +1014,19 @@ def render_emg_page() -> None:
     elif view == 'IA':
         st.markdown('### Vista IA — Narrador clínico')
         render_findings_narrator('EMG Muscle Lab', [
-            ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Nivel promedio de activación muscular (EMG rectificado, señal filtrada 20-450 Hz).'),
+            ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Cociente entre el promedio y el pico del EMG rectificado (señal filtrada 20-450 Hz); no es %MVC.'),
             ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
             # Fase 0 (2026-11-13, Art. I): con la señal demo (ruido blanco, espectro plano, MDF ≈ fs/4) el índice queda
             # clavado en 0 -- no mide fatiga, así que no se muestra como número; con CSV o hardware sí (HEURISTIC).
+            # 2026-11-14: la placa simulada tampoco modela la fatiga (su espectro es fijo): el índice sería otra constante.
             ('fatigue_index',
-             f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo',
+             (f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo')
+             if not (live is not None and live.provenance != 'SENSOR_REAL') else 'no disponible con la placa simulada',
              'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz (heurístico). '
-             'La señal demo tiene espectro plano: el índice sería una constante, no una medición.'),
-            ('signal_source', source, 'Origen de la señal: demo sintética, CSV cargado, o hardware en vivo.'),
-        ])
+             'La señal demo y la placa simulada tienen un espectro fijo: el índice sería una constante, no una medición.'),
+            ('signal_source', live.label if live is not None else source,
+             'Origen de la señal: demo sintética, CSV cargado, o placa en vivo (real o simulada).'),
+        ], origin=_emg_data_origin(source, live))
 
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
@@ -1036,10 +1043,10 @@ def render_emg_page() -> None:
         st.write('Simulación de contracción isométrica con diferente reclutamiento.')
         st.line_chart(signal)
 
-    _render_emg_save_to_twin(fs, source, emg_analysis)
+    _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
 
-def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
+def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> None:
     """Capa 5A dominio muscular, Tanda 3 (2026-09-10): el EMG Lab escribe al
     UPS por PRIMERA VEZ -- el "Paso 4" del playbook neuro, el mismo botón
     que ganaron ECG/HRV/Respiratory/EEG Lab (Fase 2.4 / Sub-fase 1).
@@ -1065,8 +1072,10 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
     de `_muscular_state()` (`"activation" in signals`) es lo que decide "hay
     músculo que escribir".
 
-    Procedencia `SIMULACION`: señal de `generate_demo_emg_signal` o CSV
-    cargado, nunca un sensor en vivo verificado.
+    Procedencia (2026-11-14): `SENSOR_REAL` solo con la placa real
+    transmitiendo en este momento y sin avisos de calidad
+    (`app/supermodules/biosensors/emg.py`: `twin_provenance`, `save_blocker`);
+    la demo, el CSV y la placa simulada van como `SIMULACION`.
     """
     st.markdown("---")
     st.markdown("#### 🔗 Guardar estado al gemelo")
@@ -1076,21 +1085,26 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
         # con render_empty_state. El botón no finge: declara que no hay
         # señal analizable que persistir. Sin éxito fingido, sin crash.
         st.info(
-            "Sin señal EMG analizable (Origen=CSV sin archivo cargado). No hay nada "
-            "que persistir al gemelo -- carga un CSV o cambia el Origen a Demo / Hardware en vivo."
+            "Sin señal EMG analizable (CSV sin archivo cargado, o placa en vivo sin transmitir). No hay nada "
+            "que persistir al gemelo -- carga un CSV, conecta la placa en vivo o cambia el Origen a Demo."
         )
         return
 
+    from app.supermodules.biosensors import emg as emg_live
+
+    twin_prov, twin_note = emg_live.twin_provenance(live)
     st.caption(
-        f"Escribe la **activación muscular real** ({emg_analysis.activation_pct:.1f}%) y la "
-        f"**frecuencia mediana** ({emg_analysis.median_frequency_hz:.1f} Hz) analizadas de esta "
-        "señal al Unified Physiological State, bajo el mismo paciente que renderiza Digital Twin "
-        "OS -- sus músculos reaccionarán a estos valores la próxima vez que abras esa página. "
-        "La activación viene del `EmgAnalyzer` (señal filtrada 20-450 Hz), NO del slider "
-        "\"Fatiga muscular\" de Twin OS. `fatigue_index` NO se escribe (generador demo de "
-        "espectro plano -- diferido). Procedencia: simulación (señal generada, no un sensor real)."
+        f"Escribe la **«activación muscular»** ({emg_analysis.activation_pct:.1f}%: promedio/pico del EMG "
+        f"rectificado, no %MVC) y la **frecuencia mediana** ({emg_analysis.median_frequency_hz:.1f} Hz) "
+        "analizadas de esta señal al Unified Physiological State, bajo el mismo paciente que renderiza "
+        "Digital Twin OS -- sus músculos reaccionarán a estos valores la próxima vez que abras esa página. "
+        "Vienen del `EmgAnalyzer` (señal filtrada 20-450 Hz), NO del slider \"Fatiga muscular\" de Twin OS. "
+        f"`fatigue_index` NO se escribe (heurístico, sin calibrar -- diferido). {twin_note}"
     )
-    if st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups"):
+    blocker = emg_live.save_blocker(live)
+    if blocker:
+        st.warning(f"⛔ No se guarda al gemelo: {blocker}")
+    elif st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups"):
         from app.engines.digital_twin_organism import DigitalTwinOrganism
 
         session_factory = get_active_session_factory()
@@ -1104,8 +1118,8 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
             }
         })
         state = from_digital_twin_organism(
-            emg_organism, patient_id, provenance=Provenance.SIMULACION,
-            source_detail=f"emg_muscle_lab:origen={source}",
+            emg_organism, patient_id, provenance=twin_prov,
+            source_detail=f"emg_muscle_lab:origen={live.label if live is not None else source}",
         )
         with session_factory() as session:
             snapshot_id = save_state(session, state)
@@ -1582,74 +1596,16 @@ def render_ecg_monitor_page() -> None:
                 st.sidebar.info('Selecciona un registro y pulsa "Cargar" — se descarga en vivo desde PhysioNet.')
 
     elif source == 'Hardware ESP32 en vivo':
-        # Rescatado (Tanda de rescate — Joya 1/3, 2026-07-13). Disciplina de
-        # procedencia de la Tanda 4: SENSOR_REAL solo si is_hardware_present() confirma
-        # una conexión serial real EN ESTE MOMENTO — nunca por la sola intención de
-        # conectar (is_connected()/.connected siguen en True bajo simulate_if_missing).
-        from src.signals.signal_sources import ESP32SignalSource
+        # ECG Plug & Play (2026-11-13, ver CHANGELOG; Art. I): reemplaza a la rama de
+        # ESP32SignalSource, que tras desconectar el cable seguía diciendo SENSOR_REAL sobre un
+        # búfer congelado y podía abrir un puerto Bluetooth. La placa se busca sola, el puerto se
+        # cierra al desconectarse y la procedencia es SENSOR_REAL solo mientras una placa real
+        # manda datos. Código en app/supermodules/ecg_live/ y hardware/ecg_plugplay/.
+        from app.supermodules.ecg_live.monitor_source import render_live_source
 
-        st.sidebar.caption(
-            'Conecta un ESP32 real por puerto serial. Si no responde ningún dispositivo '
-            'físico, la señal se etiqueta SIMULACIÓN — nunca SENSOR_REAL por la sola '
-            'intención de conectar.'
-        )
-        esp32_port = st.sidebar.text_input('Puerto ESP32 (o "Auto")', value='Auto', key='ecg_monitor_esp32_port')
-        col_connect, col_disconnect = st.sidebar.columns(2)
-        with col_connect:
-            connect_clicked = st.button('🔌 Conectar', key='ecg_monitor_esp32_connect')
-        with col_disconnect:
-            disconnect_clicked = st.button('Desconectar', key='ecg_monitor_esp32_disconnect')
-
-        if connect_clicked:
-            chosen_port = None if esp32_port.strip().lower() == 'auto' else esp32_port.strip()
-            try:
-                hw_source = ESP32SignalSource(
-                    port=chosen_port, fs=250, buffer_seconds=15, simulate_if_missing=True
-                )
-                hw_source.connect(force_port=chosen_port)
-                hw_source.start()
-                st.session_state['ecg_monitor_esp32_source'] = hw_source
-            except Exception as e:
-                render_error_state(
-                    "No se pudo conectar al ESP32 -- verifica el puerto y que el dispositivo esté "
-                    "encendido.",
-                    exception=e,
-                )
-
-        if disconnect_clicked and st.session_state.get('ecg_monitor_esp32_source') is not None:
-            try:
-                st.session_state['ecg_monitor_esp32_source'].stop()
-                st.session_state['ecg_monitor_esp32_source'].disconnect()
-            except Exception:
-                pass
-            st.session_state['ecg_monitor_esp32_source'] = None
-
-        hw_source = st.session_state.get('ecg_monitor_esp32_source')
-        if hw_source is None:
-            st.sidebar.info('No hay ninguna fuente de hardware conectada todavía.')
-        else:
-            # Prueba de honestidad de procedencia (mismo patrón que Twin OS, Tanda 4
-            # Pieza 2): is_hardware_present() comprueba una conexión serial real EN ESTE
-            # MOMENTO, no si alguna vez se intentó conectar.
-            hardware_real = hw_source.is_hardware_present()
-            _, buf_signal = hw_source.get_filtered_buffer()
-            if len(buf_signal) < 5:
-                st.sidebar.warning(
-                    'El buffer de hardware está casi vacío todavía — espera unos segundos '
-                    'o revisa la conexión.'
-                )
-            else:
-                signal, fs = buf_signal, hw_source.fs
-                if hardware_real:
-                    st.sidebar.success('PROCEDENCIA: SENSOR_REAL — hardware ESP32 real respondiendo.')
-                    metadata = {'source': 'ESP32 (SENSOR_REAL)'}
-                else:
-                    st.sidebar.warning(
-                        'PROCEDENCIA: SIMULACIÓN — no se detectó ningún dispositivo físico; '
-                        'el software cayó a modo simulado. Re-etiquetado explícitamente, nunca '
-                        'mostrado como sensor real.'
-                    )
-                    metadata = {'source': 'ESP32 (SIMULACIÓN — sin hardware real detectado)'}
+        live = render_live_source()
+        if live is not None:
+            signal, fs, metadata = live
 
     if signal is None:
         hr_demo = st.sidebar.slider('FC demo (lpm)', 40, 140, 72)
@@ -1872,7 +1828,7 @@ def render_ecg_monitor_page() -> None:
                     ', '.join(active_flags) if active_flags else 'ninguno',
                     'Hallazgos marcados por el analizador de umbrales (taquicardia/bradicardia/ST/heurístico simple de posible fibrilación auricular — no un diagnóstico).',
                 ))
-                render_findings_narrator('ECG Monitor', findings)
+                render_findings_narrator('ECG Monitor', findings, origin=_ecg_data_origin(source, metadata))
             else:
                 st.info('El analizador de ECG (`interpret_ecg`) no está disponible en este entorno — no hay hallazgos reales que narrar.')
         except Exception as e:
@@ -1964,9 +1920,15 @@ def render_multisensor_page() -> None:
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Perfusion
     # Proxy" (promedio crudo de PPG), desconectado de ese gemelo real.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
+    # «Sensores en vivo» (2026-11-16): pulso por luz y temperatura con la placa ESP32, y sus tutoriales
+    # (`app/supermodules/biosensors/live_view.py`). No usa `demo_channels`.
+    from app.supermodules.biosensors.live_view import VIEW as LIVE_SENSORS_VIEW, render_live_sensors_view
+    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación', LIVE_SENSORS_VIEW])
 
-    if view == 'Clínica':
+    if view == LIVE_SENSORS_VIEW:
+        render_live_sensors_view()
+
+    elif view == 'Clínica':
         st.markdown('### Vista Clínica')
         record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
         indices = record.compute_physiological_indices()
@@ -2020,7 +1982,7 @@ def render_multisensor_page() -> None:
         render_findings_narrator('Multisensor Fusion Lab', [
             ('frecuencia_cardiaca_lpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG demo.'),
             ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO₂ demo.'),
-        ])
+        ], origin=DataOrigin.SIMULADO)  # canales demo
 
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
@@ -2267,7 +2229,8 @@ def render_hrv_page() -> None:
                     f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'n/a',
                     'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
                 ))
-            render_findings_narrator('HRV Analysis', findings)
+            render_findings_narrator('HRV Analysis', findings, origin=(
+                DataOrigin.SIMULADO if source == rsa_panel.RSA_SOURCE_LABEL else DataOrigin.DESCONOCIDO))
         with st.expander('🧪 Simulación de variabilidad', expanded=False):
             st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (demostración, no un paciente).')
             var = st.slider('Variabilidad (DE %)', 0.0, 10.0, 3.0)
@@ -2502,7 +2465,8 @@ def render_patient_pipeline_page() -> None:
             else:
                 st.caption("Sin ninguna impresión clínica humana guardada todavía para este estado.")
 
-            render_findings_narrator('Patient Pipeline', findings)
+            # Entrada manual de un paciente y juicios clínicos con el nombre de quien los emitió.
+            render_findings_narrator('Patient Pipeline', findings, origin=DataOrigin.PERSONA)
 
 # Consolidación, Tanda 2 (2026-07-13): render_simulation_lab_page() (Simulation
 # Hub) se eliminó — cáscara confirmada por la auditoría de valor: sliders sin
@@ -2520,7 +2484,8 @@ def render_patient_pipeline_page() -> None:
 # EMGStreamer era un chequeo booleano de solo lectura (`is not None`) sobre la
 # referencia ya importada al inicio de este archivo — esa importación, y las
 # conexiones reales que sí la usan (render_emg_page(), y ESP32SignalSource en
-# render_ecg_monitor_page() y en twin_shell/pages.py), no se tocaron. La
+# render_ecg_monitor_page() y en twin_shell/pages.py), no se tocaron (desde el
+# 2026-11-13 el Monitoreo usa hardware/ecg_plugplay en lugar de ESP32SignalSource). La
 # página no centralizaba nada: cada laboratorio (ECG Monitor, EMG Muscle Lab,
 # EEG Neuro Lab, Digital Twin OS) ya gestiona su propia conexión de hardware
 # real de forma independiente, sin pasar por aquí.

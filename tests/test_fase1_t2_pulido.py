@@ -2,7 +2,8 @@
 
 - Ningún «bpm» ni término en inglés de una lista llega al estudiante: se recorren las 21 páginas del menú (y las vistas
   de cada laboratorio) con AppTest y se lee TODO el texto visible (markdown, avisos, controles, pestañas, tablas y los
-  textos de las gráficas Plotly). Las citas bibliográficas (en su idioma original) no contienen esos términos.
+  textos de las gráficas Plotly). Los títulos de obras citadas y los nombres propios en su idioma original se exceptúan
+  uno por uno, por su texto exacto (`CITED_TITLES_AND_PROPER_NAMES`).
 - PRIMARY nunca es color de TEXTO sobre el panel (4.44:1).
 - Asimetría y curtosis con RR casi idénticos: «sin dato», no un número que SciPy declara poco fiable.
 - fpdf sin avisos de obsolescencia (ln= y la sustitución de Arial).
@@ -29,6 +30,23 @@ FORBIDDEN = re.compile(
     r"\bEducational\b|\bwaves?\b|\bAnalysis\b|No acute findings|Routine monitoring|Motor Imagery|API key|"
     r"\bRun\b|\bRaw\b|\bVoltage\b|\bSignal\b|Clinical Findings|\bGenerated\b"
 )
+
+
+# Integración con main (2026-11-16): títulos de obras citadas y nombres propios en su idioma original. Se quitan por su
+# texto EXACTO antes de buscar; cualquier otra aparición del término sigue fallando.
+CITED_TITLES_AND_PROPER_NAMES = (
+    "AD8232 Heart Rate Monitor Hookup Guide",                     # guía de SparkFun (tutorial de la placa ECG)
+    "the ST segment, T and U waves, and the QT interval",          # Rautaharju 2009, Circulation
+    "Heart Rhythm 20",                                             # revista (Page 2015)
+    "Artifact and recording concepts in EEG",                     # Tatum 2011, J Clin Neurophysiol
+    "Lab Streaming Layer",                                        # nombre propio del protocolo LSL
+)
+
+
+def _without_citations(text):
+    for name in CITED_TITLES_AND_PROPER_NAMES:
+        text = text.replace(name, "")
+    return text
 
 
 def _strip(html):
@@ -97,8 +115,51 @@ def test_no_bpm_and_no_listed_english_term_reaches_the_student(url):
             next(r for r in at.main.radio if r.label == VIEW_RADIO).set_value(view).run()
             assert at.exception == [], (view, at.exception)
             texts.extend(visible_texts(at))
+            # Integración con main: cada sensor × cada modo de la vista «Sensores en vivo» (pulso por luz y
+            # temperatura; medir y tutorial).
+            if any(r.label == "Sensor" for r in at.main.radio):
+                sensors = list(next(r for r in at.main.radio if r.label == "Sensor").options)
+                modes = list(next(r for r in at.main.radio if r.label == "Qué quieres hacer").options)
+                for sensor in sensors:
+                    for mode in modes:
+                        next(r for r in at.main.radio if r.label == "Sensor").set_value(sensor).run()
+                        next(r for r in at.main.radio if r.label == "Qué quieres hacer").set_value(mode).run()
+                        assert at.exception == [], (view, sensor, mode, at.exception)
+                        texts.extend(visible_texts(at))
+    texts = [_without_citations(t) for t in texts]
     offenders = sorted({(m.group(0), t[:120]) for t in texts for m in [FORBIDDEN.search(t)] if m})
     assert offenders == [], offenders
+
+
+# Integración con main: las fuentes de cada laboratorio que no son la de inicio (sin red ni puerto: MIT-BIH/PTB-XL
+# piden red; «Hardware ESP32 en vivo» del ECG busca puertos en segundo plano y lo cubre `test_ecg_live_app.py`).
+SOURCES = [
+    ("ecg", "Origen del ECG", "CSV local"),
+    ("ecg", "Origen del ECG", "Caso clínico (61 disponibles)"),
+    ("eeg", "Origen de datos", "Cargar EEG desde CSV"),
+    ("eeg", "Origen de datos", "Hardware EEG en vivo"),
+    ("emg", "Origen EMG", "CSV"),
+    ("emg", "Origen EMG", "Sensor en vivo (ESP32 + MyoWare)"),
+    ("hrv", "Origen de la HRV", "Serie RR manual"),
+]
+
+
+@pytest.mark.parametrize("url,label,option", SOURCES)
+def test_no_bpm_and_no_listed_english_term_in_the_other_sources(url, label, option):
+    at = AppTest.from_file(MAIN, default_timeout=240)
+    at.session_state["biocore_start_page"] = url
+    at.run()
+    next(r for r in at.sidebar.radio if r.label == label).set_value(option).run()
+    assert at.exception == [], at.exception
+    texts = [_without_citations(t) for t in visible_texts(at) + [_strip(e.value) for kind in
+             ("markdown", "caption", "info", "warning", "error", "success") for e in getattr(at.sidebar, kind)]]
+    offenders = sorted({(m.group(0), t[:120]) for t in texts for m in [FORBIDDEN.search(t)] if m})
+    assert offenders == [], offenders
+
+
+def test_the_citation_exemption_removes_only_the_exact_title():
+    assert FORBIDDEN.search(_without_citations("Monitor de Heart Rate"))
+    assert not FORBIDDEN.search(_without_citations("SparkFun, «AD8232 Heart Rate Monitor Hookup Guide»"))
 
 
 def test_the_sweep_would_catch_what_it_was_written_for():

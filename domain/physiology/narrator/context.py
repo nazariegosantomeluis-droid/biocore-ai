@@ -15,9 +15,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from domain.physiology.state import get_events, get_latest_state, get_value_history
+from domain.physiology.state.models import SnapshotRecord, ValueRecord
+
+from .privacy import DataOrigin, classify_source, worst_origin
 
 
 @dataclass(frozen=True)
@@ -80,12 +84,17 @@ class EventContext:
 @dataclass(frozen=True)
 class NarrativeContext:
     """Contexto completo que se envía al modelo como datos estructurados —
-    la única fuente de hechos permitida para la narración."""
+    la única fuente de hechos permitida para la narración.
+
+    `origin` (2026-11-16) no va al modelo: dice de dónde vienen los datos, para
+    que un proveedor sin pago no reciba datos de una persona (`privacy.py`). Si
+    no se sabe, es DESCONOCIDO."""
 
     patient_id: str
     generated_at: str
     descriptors: List[DescriptorContext] = field(default_factory=list)
     events: List[EventContext] = field(default_factory=list)
+    origin: DataOrigin = DataOrigin.DESCONOCIDO
 
     def to_payload(self) -> dict:
         return {
@@ -94,6 +103,19 @@ class NarrativeContext:
             "descriptors": [d.to_payload() for d in self.descriptors],
             "events": [e.to_payload() for e in self.events],
         }
+
+
+def _window_origins(session: Session, patient_id: str, domain: str, name: str, limit: int) -> List[DataOrigin]:
+    """Origen de los valores de la ventana antes/ahora de un descriptor (2026-11-16). El «antes» también va al
+    modelo, y puede venir de otra fuente que el valor actual (p.ej. un sensor real guardado antes)."""
+    stmt = (
+        select(ValueRecord.provenance, ValueRecord.source_detail)
+        .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+        .where(SnapshotRecord.patient_id == patient_id, ValueRecord.domain == domain, ValueRecord.descriptor == name)
+        .order_by(SnapshotRecord.timestamp.desc())
+        .limit(limit)
+    )
+    return [classify_source(provenance, detail) for provenance, detail in session.execute(stmt).all()]
 
 
 def build_context(
@@ -119,8 +141,10 @@ def build_context(
     now_ts = latest.timestamp.isoformat()
 
     descriptors: List[DescriptorContext] = []
+    origins: List[DataOrigin] = []
     for domain_state in latest.all_domains().values():
         for descriptor in domain_state.descriptors.values():
+            origins.append(classify_source(descriptor.provenance.value, descriptor.source_detail))
             history = get_value_history(session, patient_id, domain_state.domain, descriptor.name)
             window = history[-window_snapshots:]
 
@@ -130,6 +154,8 @@ def build_context(
                 before_ts, before_val = window[0]
                 before_value = before_val
                 before_timestamp = before_ts.isoformat()
+                origins.extend(_window_origins(session, patient_id, domain_state.domain, descriptor.name,
+                                               window_snapshots))
 
             descriptors.append(
                 DescriptorContext(
@@ -147,6 +173,8 @@ def build_context(
             )
 
     events = get_events(session, patient_id)[-max_events:]
+    # Un evento no trae `source_detail`; solo cuenta si su procedencia es un sensor real.
+    origins.extend(DataOrigin.PERSONA for e in events if e.provenance.value == "sensor_real")
     event_contexts = [
         EventContext(
             event_type=e.event_type.value,
@@ -166,4 +194,5 @@ def build_context(
         generated_at=datetime.now(timezone.utc).isoformat(),
         descriptors=descriptors,
         events=event_contexts,
+        origin=worst_origin(origins),
     )

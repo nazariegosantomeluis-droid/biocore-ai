@@ -19,6 +19,7 @@ import streamlit as st
 from app.supermodules.respiratory_lab.views import APNEA_CITATION, EDUCATION_CITATION
 from app.utils.design_system import TheoryTopic
 from clinical.calculators import NEWS2_CITATION
+from clinical.eeg_references import KANE_2017
 
 BERRY_2012 = APNEA_CITATION.split(": caída")[0]          # «Berry RB et al. J Clin Sleep Med 2012;8(5):597–619 (AASM)»
 
@@ -118,14 +119,25 @@ OSA_GUIDELINE = TheoryTopic(
     source=f"{EDUCATION_CITATION} · {BERRY_2012}",
 )
 
+# Integración con main (2026-11-16): Miguel retiró de `teaching.py` los rangos sin fuente («Gamma: procesamiento
+# cognitivo integrado»...) y puso la tabla del glosario IFCN 2017 junto a los bordes del laboratorio; el tema la toma tal
+# cual, con su cita.
 EEG_BANDS = TheoryTopic(
     title="Bandas del EEG",
-    detail="- **Banda Delta:** sueño profundo, 0.5-4 Hz\n"
-           "- **Banda Theta:** somnolencia, 4-8 Hz\n"
-           "- **Banda Alfa:** relajación con ojos cerrados, 8-12 Hz\n"
-           "- **Banda Beta:** alerta y concentración, 13-30 Hz\n"
-           "- **Banda Gamma:** procesamiento cognitivo integrado, 30-45 Hz",
-    source=None,                         # el repositorio no cita fuente para estos rangos: se declara, no se inventa
+    detail="| Banda | Glosario IFCN 2017 | Este laboratorio |\n"
+           "|---|---|---|\n"
+           "| Delta | 0.1 a menos de 4 Hz | 0.5–3.5 Hz |\n"
+           "| Theta | 4 a menos de 8 Hz | 4–7.5 Hz |\n"
+           "| Alfa | 8–13 Hz | 8–12 Hz |\n"
+           "| Beta | 14–30 Hz | 13–30 Hz |\n"
+           "| Gamma | más de 30, hasta 80 Hz | 30–45 Hz |\n\n"
+           "- **Delta:** el sueño profundo (NREM N3) está dominado (≥ 20 %) por ondas delta de 0.5–2 Hz y "
+           "más de 75 µV. En la práctica, el límite inferior es 0.5 Hz.\n"
+           "- **Alfa:** ritmo de vigilia sobre las regiones posteriores; se ve mejor con los ojos cerrados y se "
+           "bloquea con la atención, sobre todo visual.\n"
+           "- **Beta:** en vigilia, sobre todo fronto-central; si es difuso puede deberse a fármacos (alcohol, "
+           "barbitúricos, benzodiacepinas, anestésicos intravenosos).",
+    source=KANE_2017,
 )
 
 VCG = TheoryTopic(
@@ -164,6 +176,5 @@ PENDING_LAYERS: List[Tuple[str, str, str]] = [
     (OSA_GUIDELINE.title, "idea", "una frase con fuente que resuma la apnea obstructiva del sueño"),
     (EEG_BANDS.title, "idea", "una frase con fuente sobre qué es una banda del EEG"),
     (EEG_BANDS.title, "mecanismo", "origen de los ritmos (tálamo-corteza), con cita"),
-    (EEG_BANDS.title, "fuente", "cita de los rangos de frecuencia de cada banda (hoy sin fuente en el repositorio)"),
     (VCG.title, "fuente completa", "referencias completas de Kors 1990 y Oehler 2014 (hoy abreviadas)"),
 ]

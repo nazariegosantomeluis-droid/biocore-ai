@@ -1,7 +1,10 @@
 """Clave de IA por sesión de navegador (2026-10-25; desde la tanda 1 de la fase 1, 2026-11-15, en la página
 Ajustes y no como primera pantalla).
 
-La persona puede pegar su API key de Anthropic en Ajustes y usarla solo durante esa sesión. Reglas:
+La persona puede pegar su API key en Ajustes y usarla solo durante esa sesión. Desde el 2026-11-16 puede elegir
+entre Anthropic (de pago) y Gemini (nivel gratuito de Google): `ai_client()` devuelve entonces un `GeminiClient`, que
+el narrador usa igual, y que solo recibe datos simulados o de bases públicas (`domain/physiology/narrator/privacy.py`).
+Reglas:
 
 - La clave vive SOLO en `st.session_state` (memoria de esa sesión en el
   servidor): nunca se escribe en disco ni en `os.environ`. `os.environ` es del
@@ -10,45 +13,74 @@ La persona puede pegar su API key de Anthropic en Ajustes y usarla solo durante 
 - Cada llamada de IA recibe un cliente creado con la clave de SU sesión
   (`ai_client()`); sin clave de sesión se usa la del entorno del servidor
   (`ANTHROPIC_API_KEY`, como siempre) o el narrador declara que está apagado.
-- La clave se verifica contra Anthropic antes de aceptarla, para que un pegado
+- La clave se verifica con el proveedor antes de aceptarla, para que un pegado
   fallido se note en el momento y no después, dentro de un panel.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import streamlit as st
 
-from domain.physiology.narrator import DEFAULT_MODEL
+from domain.physiology.narrator import DEFAULT_GEMINI_MODEL, DEFAULT_MODEL, GeminiClient
 from domain.physiology.narrator import is_configured as env_key_configured
+from domain.physiology.narrator.gemini import validate_key as _validate_gemini_key
 
 SESSION_KEY = "biocore_anthropic_api_key"
+GEMINI_SESSION_KEY = "biocore_gemini_api_key"
+GEMINI_MODEL_KEY = "biocore_gemini_model"
 _INPUT = "biocore_ai_key_input"
 _ERROR = "biocore_ai_key_error"
 _SAVED = "biocore_ai_key_saved"
+_PROVIDER = "biocore_ai_provider"
 
-AI_KEY_HINT = "Pon tu clave en «Ajustes» (menú lateral), o define `ANTHROPIC_API_KEY`."
+ANTHROPIC, GEMINI = "Anthropic (Claude)", "Google Gemini (nivel gratuito)"
+PROVIDERS = (ANTHROPIC, GEMINI)
+
+AI_KEY_HINT = "Pon tu clave (Anthropic o Gemini) en «Ajustes» (menú lateral), o define `ANTHROPIC_API_KEY`."
+AI_OFF = "La IA está apagada (no hay clave de Anthropic ni de Gemini en esta sesión)."
+AI_CALL_FAILED = ("No se pudo completar la narración: la llamada al proveedor de IA falló (red o cuota). Intenta "
+                  "de nuevo en unos segundos.")
+GEMINI_NOTE = (
+    "Nivel gratuito de Gemini. Sus términos dicen que Google usa lo que se le manda para mejorar sus productos, que "
+    "personas pueden leerlo, y piden no mandar información sensible, confidencial o personal; también piden ser "
+    "mayor de 18 años. Por eso, con Gemini BIOCORE solo explica datos simulados o de bases públicas (MIT-BIH, "
+    "PTB-XL): si hay datos de una persona (un sensor en vivo, un archivo cargado, una entrada manual de paciente), la "
+    "explicación se bloquea y dice por qué."
+)
 
 
 def session_api_key() -> Optional[str]:
     return st.session_state.get(SESSION_KEY) or None
 
 
+def session_gemini_key() -> Optional[str]:
+    return st.session_state.get(GEMINI_SESSION_KEY) or None
+
+
 def ai_configured() -> bool:
-    """Hay IA en esta sesión: clave pegada aquí o clave del entorno del servidor."""
-    return bool(session_api_key()) or env_key_configured()
+    """Hay IA en esta sesión: clave pegada aquí (Anthropic o Gemini) o clave del entorno del servidor."""
+    return bool(session_api_key()) or bool(session_gemini_key()) or env_key_configured()
 
 
 def ai_client():
-    """Cliente con la clave de ESTA sesión, o `None` para que el narrador use la
+    """Cliente con la clave de ESTA sesión (Gemini o Anthropic), o `None` para que el narrador use la
     del entorno (su comportamiento de siempre)."""
+    gemini_key = session_gemini_key()
+    if gemini_key:
+        return GeminiClient(gemini_key, model=st.session_state.get(GEMINI_MODEL_KEY) or DEFAULT_GEMINI_MODEL)
     key = session_api_key()
     if not key:
         return None
     import anthropic
 
     return anthropic.Anthropic(api_key=key)
+
+
+def validate_gemini_key(key: str) -> Tuple[Optional[str], Optional[str]]:
+    """(modelo elegido, None) si la clave sirve; (None, motivo) si no. Lista los modelos que la clave puede usar."""
+    return _validate_gemini_key(key)
 
 
 def validate_api_key(key: str) -> Optional[str]:
@@ -80,17 +112,33 @@ def _save_key() -> None:
     if not key:
         st.session_state[_ERROR] = "Pega tu clave en el campo antes de guardarla."
         return
-    problem = validate_api_key(key)
-    if problem:
-        st.session_state[_ERROR] = problem
-        return
-    st.session_state[SESSION_KEY] = key
+    if st.session_state.get(_PROVIDER) == GEMINI:
+        model, problem = validate_gemini_key(key)
+        if problem:
+            st.session_state[_ERROR] = problem
+            return
+        st.session_state.pop(SESSION_KEY, None)
+        st.session_state[GEMINI_SESSION_KEY] = key
+        st.session_state[GEMINI_MODEL_KEY] = model
+    else:
+        problem = validate_api_key(key)
+        if problem:
+            st.session_state[_ERROR] = problem
+            return
+        _forget_gemini()
+        st.session_state[SESSION_KEY] = key
     st.session_state[_SAVED] = True
     st.session_state.pop(_ERROR, None)
 
 
+def _forget_gemini() -> None:
+    st.session_state.pop(GEMINI_SESSION_KEY, None)
+    st.session_state.pop(GEMINI_MODEL_KEY, None)
+
+
 def _forget_key() -> None:
     st.session_state.pop(SESSION_KEY, None)
+    _forget_gemini()
     st.session_state.pop(_SAVED, None)
 
 
@@ -109,22 +157,33 @@ def render_settings_page() -> None:
     st.markdown("### Clave de IA (opcional)")
     st.markdown(
         "Las explicaciones con IA (narrador clínico, pestañas «IA» de los laboratorios, feedback de la "
-        "Academia) llaman a la API de Anthropic con **tu** clave. Sin clave, toda la plataforma funciona "
-        "igual y esos paneles dicen que la IA está apagada."
+        "Academia) llaman a un modelo de lenguaje con **tu** clave: Anthropic (de pago) o Gemini de Google "
+        "(tiene nivel gratuito). Sin clave, toda la plataforma funciona igual y esos paneles dicen que la IA "
+        "está apagada."
     )
-    if session_api_key():
-        st.success("IA activa con tu clave (solo en esta sesión).")
+    if session_gemini_key():
+        st.success("IA activa con Gemini, nivel gratuito (solo datos simulados o de bases públicas; solo en esta "
+                   "sesión).")
+        st.button("Olvidar mi clave", key="biocore_ai_forget", on_click=_forget_key)
+    elif session_api_key():
+        st.success("IA activa con tu clave de Anthropic (solo en esta sesión).")
         st.button("Olvidar mi clave", key="biocore_ai_forget", on_click=_forget_key)
     elif env_key_configured():
         st.info("IA activa con la clave del entorno del servidor (`ANTHROPIC_API_KEY`).")
     else:
         st.info("IA apagada: no hay clave en esta sesión ni en el servidor.")
-    st.text_input("Pega tu clave de API de Anthropic", type="password", key=_INPUT, placeholder="sk-ant-...")
+    provider = st.radio("Proveedor de IA", PROVIDERS, key=_PROVIDER, horizontal=True)
+    if provider == GEMINI:
+        st.text_input("Pega tu clave de API de Gemini (Google AI Studio)", type="password", key=_INPUT,
+                      placeholder="AIza...")
+        st.info(GEMINI_NOTE)
+    else:
+        st.text_input("Pega tu clave de API de Anthropic", type="password", key=_INPUT, placeholder="sk-ant-...")
     st.button("Guardar mi clave", key="biocore_ai_save", on_click=_save_key, type="primary")
     if st.session_state.get(_ERROR):
         st.error(st.session_state[_ERROR])
     st.caption(
-        "Tu clave se verifica con Anthropic y se guarda solo en la memoria de esta sesión del navegador: no "
+        "Tu clave se verifica con el proveedor y se guarda solo en la memoria de esta sesión del navegador: no "
         "se escribe en disco ni va al repositorio, y se pierde al cerrar o recargar la pestaña. Pégala solo "
         "en una instancia de BIOCORE en la que confíes (la tuya, o una servida por HTTPS)."
     )
@@ -132,7 +191,9 @@ def render_settings_page() -> None:
 
 def render_sidebar_status() -> None:
     with st.sidebar:
-        if session_api_key():
+        if session_gemini_key():
+            st.caption("🔑 IA activa con Gemini, nivel gratuito (solo datos simulados o públicos; solo en esta sesión)")
+        elif session_api_key():
             st.caption("🔑 IA activa con tu clave (solo en esta sesión)")
         elif env_key_configured():
             st.caption("🔑 IA activa (clave del entorno del servidor)")

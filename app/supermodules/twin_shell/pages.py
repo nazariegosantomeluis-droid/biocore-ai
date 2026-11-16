@@ -55,17 +55,20 @@ from domain.physiology.hemodynamics import (
 )
 from domain.physiology.ml import build_risk_features, build_synthetic_ecg_from_ups, classify_ecg_signal
 from domain.physiology.narrator import (
+    DataOrigin,
     DepthLevel,
     Finding,
     FindingsContext,
+    GeminiError,
     NarratorNotConfiguredError,
+    ProviderNotAllowedError,
     build_causal_context,
     build_context,
     stream_causal_narration,
     stream_findings_narration,
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
-from app.utils.ai_session import AI_KEY_HINT, ai_client, render_settings_link
+from app.utils.ai_session import AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, render_settings_link
 from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.narrator import stream_narration
 from domain.physiology.scenarios.rich_engine import (
@@ -976,9 +979,8 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
     with st.expander("🩺 Narrador clínico (IA real) — Fase 1.3", expanded=False):
         if not narrator_is_configured():
             st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada en el entorno. El narrador llama a la "
-                "API real de Anthropic con streaming — no existe una narración simulada de "
-                "respaldo. " + AI_KEY_HINT
+                AI_OFF + " El narrador llama a un modelo de lenguaje real con streaming — no existe una "
+                "narración simulada de respaldo. " + AI_KEY_HINT
             )
             render_settings_link()
             return
@@ -1011,18 +1013,18 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
             )
             try:
                 st.write_stream(stream_narration(context, depth, client=ai_client()))
+            except ProviderNotAllowedError as exc:
+                st.warning(str(exc))
             except NarratorNotConfiguredError as exc:
                 render_error_state(str(exc))
+            except GeminiError as exc:
+                render_error_state(str(exc), exception=exc)
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                 # Fase 2.3 Tanda 3 (2026-08-29): mismo patrón que
                 # render_findings_narrator() en app/main.py -- antes exponía
                 # `{exc}` crudo (puede incluir detalle interno de la
                 # respuesta HTTP de la API).
-                render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
-                    exception=exc,
-                )
+                render_error_state(AI_CALL_FAILED, exception=exc)
 
 
 def _dedupe_events(events: list) -> list:
@@ -1381,14 +1383,14 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
     with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=expanded):
         st.caption(
             "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo "
-            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic), fundamentado "
+            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic o Gemini), fundamentado "
             "únicamente en los descriptores y eventos que el UPS realmente persistió."
         )
 
         if not narrator_is_configured():
             st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
+                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
+                "simulada de respaldo. " + AI_KEY_HINT
             )
             render_settings_link()
             return
@@ -1533,7 +1535,8 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
                         ),
                     ),
                 ]
-                findings_context = FindingsContext(lab_name="Caso Clínico Interactivo", findings=findings)
+                findings_context = FindingsContext(lab_name="Caso Clínico Interactivo", findings=findings,
+                                                   origin=DataOrigin.SIMULADO)  # escenario del simulador, efímero
 
                 try:
                     feedback_text = "".join(stream_findings_narration(findings_context, client=ai_client()))
@@ -1544,7 +1547,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
                     st.session_state.clinical_case_feedback_error = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state.clinical_case_feedback = None
-                    st.session_state.clinical_case_feedback_error = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state.clinical_case_feedback_error = f"Error llamando al proveedor de IA: {exc}"
 
                 st.session_state.clinical_case_selected = choice
                 st.session_state.clinical_case_answered = True
@@ -1625,8 +1628,8 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
 
         if not narrator_is_configured():
             st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el razonamiento causal requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
+                AI_OFF + " El razonamiento causal requiere un modelo de lenguaje real, sin narración "
+                "simulada de respaldo. " + AI_KEY_HINT
             )
             render_settings_link()
             return
@@ -1653,14 +1656,14 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
             )
             try:
                 st.write_stream(stream_causal_narration(causal_context, client=ai_client()))
+            except ProviderNotAllowedError as exc:
+                st.warning(str(exc))
             except NarratorNotConfiguredError as exc:
                 render_error_state(str(exc))
+            except GeminiError as exc:
+                render_error_state(str(exc), exception=exc)
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
-                render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
-                    exception=exc,
-                )
+                render_error_state(AI_CALL_FAILED, exception=exc)
 
 
 # NOTA (Tanda 3, 2026-07-03): render_simulation_lab() — el navegador de 12

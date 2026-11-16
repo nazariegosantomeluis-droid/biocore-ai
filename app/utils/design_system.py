@@ -108,6 +108,12 @@ class PALETTE:
     GRID = "#334155"
     SERIES_2 = "#c4b5fd"
 
+    # Diagramas de cableado y marcas de ondas de los tutoriales de hardware (integración 2026-11-16): colores
+    # categóricos para distinguir cables o puntos dibujados, siempre con su rótulo al lado; no son estado clínico.
+    WIRE_ORANGE = "#fb923c"
+    SENSOR_BOARD = "#7f1d1d"
+    DIAGRAM_SERIES = (CRITICAL, NEUTRAL, STABLE, WARNING, WIRE_ORANGE, ACCENT_ON_DARK)
+
 
 # Pares (frente, fondo, mínimo WCAG) que la prueba de contraste exige: 4.5 texto normal, 3.0 objeto gráfico.
 CONTRAST_PAIRS = (

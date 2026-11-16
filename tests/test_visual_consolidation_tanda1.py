@@ -122,7 +122,9 @@ def test_ecg_lab_shows_validated_confidence_marker():
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    markers = [md.value for md in at.main.markdown if "MIT-BIH" in md.value]
+    # ECG Plug & Play (2026-11-13): la pestaña del tutorial también nombra MIT-BIH en texto
+    # normal, así que el marcador se reconoce además por su marco (`render_validation_marker`).
+    markers = [md.value for md in at.main.markdown if "MIT-BIH" in md.value and "border-left" in md.value]
     assert len(markers) == 1
     assert PALETTE.STABLE in markers[0], "el marco de un módulo validado debe usar STABLE, no un color de alarma"
     assert "AHA" in markers[0]
