@@ -27,6 +27,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
 from educational.quiz_bank import EEG_QUESTIONS, KANE_2017
+from app.utils.learning_log import log_answer, render_report_box
+from educational.learning_analytics import new_attempt
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -745,6 +747,14 @@ with col2:
             user_answers.append(st.radio(item.prompt, item.display_choices(), index=None, key=f"eeg_quiz_{idx}"))
 
         if st.button("Calcular puntuación", key="submit_eeg_quiz"):
+            # Mejora continua (2026-11-16): cada envío distinto es un intento; volver a pulsar sin cambiar nada no
+            # lo repite, y las preguntas sin responder no se guardan.
+            if st.session_state.get("eeg_quiz_logged") != tuple(user_answers):
+                attempt = new_attempt()
+                for item, answer in zip(EEG_QUESTIONS, user_answers):
+                    if answer is not None:
+                        log_answer("eeg", item, answer, attempt)
+                st.session_state["eeg_quiz_logged"] = tuple(user_answers)
             score = sum(1 for answer, item in zip(user_answers, EEG_QUESTIONS) if item.is_correct(answer))
             unanswered = sum(1 for answer in user_answers if answer is None)
             st.success(f"Has respondido {score} de {len(EEG_QUESTIONS)} correctamente.")
@@ -757,6 +767,7 @@ with col2:
                 st.write(f"- Explicación: {item.explanation}")
                 st.caption(f"Fuente: {item.source}")
                 st.write("---")
+        render_report_box("eeg", EEG_QUESTIONS, key="eeg_quiz_report", in_expander=True)
 
 st.markdown("---")
 st.markdown("*Fase 3: EEG Neuro Lab - inicio del laboratorio de electroencefalografía clínica educativa en español.*")

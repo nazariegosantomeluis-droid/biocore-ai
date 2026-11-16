@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-11-16 — Mejora continua de los cuestionarios con ML local: análisis de ítems, Elo y reportes
+
+**Contexto**: se pidió mejora continua de la aplicación con aprendizaje automático y sin depender de APIs. Los cuestionarios no guardaban ninguna respuesta. No había forma de ver qué pregunta fallaba casi todo el mundo, cuál tenía la clave mal puesta, ni de practicar lo más débil de cada quien.
+
+- **Registro local** (`educational/learning_analytics.py`, nuevo):
+  - Cada respuesta de la Academia, del Desafío Educativo de 12 Derivaciones y del quiz del EEG Neuro Lab se guarda en una base SQLite local (`data/local/biocore_learning.db`, fuera de git). Nada sale de la computadora.
+  - El acierto lo decide el banco de preguntas, no quien llama.
+  - Volver a verificar la misma pregunta no cuenta dos veces.
+- **Revisión del banco** (análisis clásico de ítems):
+  - Por pregunta, el índice de dificultad y la discriminación (punto-biserial corregida, con su intervalo de 95 %).
+  - Cortes de Ali & Ruit 2015: dificultad moderada entre 0.4 y 0.8; una discriminación menor de 0.2 pide revisión.
+  - Criterio BIOCORE: se pide revisar la clave si la discriminación es negativa o si el grupo alto prefiere un distractor (prueba binomial).
+  - Con pocos datos la discriminación es ruido (medido: con 120 respuestas, una pregunta buena llegó a 0.16 por azar). Por eso solo se marca cuando todo el intervalo de confianza queda por debajo del corte.
+  - Medido en 40 simulaciones con el modelo de Rasch (de 20 a 100 estudiantes, una pregunta con la clave mal puesta): entre 0 y 2 falsas alarmas en 110 preguntas buenas por grupo de 10 simulaciones, y la clave mal puesta encontrada en 7 a 10 de 10.
+  - Nada cambia solo: el modelo señala; corrige una persona, con su fuente.
+- **Práctica adaptativa** (sistema de Elo para educación, Pelánek 2016):
+  - Una habilidad por estudiante y tema y una dificultad por pregunta, ajustadas en línea.
+  - El botón «🎯 Práctica adaptativa» elige 5 preguntas que el modelo estima que la persona acierta cerca de 3 de cada 4 veces.
+  - En simulación recupera el orden de las dificultades (Spearman > 0.9) y de las habilidades (> 0.75).
+- **Reportes**: «🚩 ¿Algo está mal en esta pregunta?» en los tres cuestionarios. El reporte va a la cola de revisión.
+- **Academia, sección «📈 Mejora continua»**:
+  - «Tu dominio estimado por tema».
+  - La tabla de revisión, con las preguntas que piden revisión primero y su descarga en CSV.
+- `tests/conftest.py` aísla también esta base, como la del UPS.
+- **Pruebas**: `tests/test_learning_analytics.py` (11).
+  - Registro y reportes.
+  - Estudiantes simulados con verdad conocida: la clave mal puesta se marca y las buenas no.
+  - Un distractor preferido por el grupo alto se marca.
+  - Los avisos necesitan evidencia, no solo un valor bajo.
+  - La actualización de Elo es la del artículo; el Elo recupera dificultades y habilidades; las sugerencias apuntan a 75 %.
+  - AppTest de la Academia (registro, reporte, práctica adaptativa, revisión) y de los quizzes de 12 Derivaciones y EEG (una respuesta por intento).
+  - Suite completa: 2095 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+
+**Para Luis**:
+1. Los cortes de Ali & Ruit son para exámenes con muchos estudiantes. Aquí, con pocos, el intervalo de confianza decide. `MIN_RESPONSES` (20) y la tasa objetivo (75 %) son elecciones de BIOCORE.
+2. El «ID del estudiante» de la Academia es lo que separa a una persona de otra. Los demás cuestionarios usan el mismo ID de la sesión.
+
 ## 2026-11-16 — Gemini (nivel gratuito) como segundo proveedor del narrador, con candado de privacidad
 
 **Contexto**: el narrador solo funcionaba con una clave de pago de Anthropic. Se pidió usar una API gratuita; se eligió Gemini. Sus términos para el nivel gratuito (versión del 18 de diciembre de 2025) dicen que Google usa lo que se le manda para mejorar sus productos, que personas pueden leerlo, y piden no mandar información sensible, confidencial o personal. Mandarle la señal de un sensor en vivo, un archivo cargado o una entrada manual de paciente iría contra eso.

@@ -29,6 +29,7 @@ from app.supermodules.ecg_12.report_view import render_twelve_lead_report
 from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM, get_type
 from clinical.calculators import QRS_AXIS_CITATION
 from educational.quiz_bank import ECG12_QUESTIONS
+from app.utils.learning_log import log_answer, render_report_box, session_attempt
 from clinical.ecg_references import (
     DREW_2010, KUSUMOTO_2018, PAGE_2015, RAUTAHARJU_2009, SURAWICZ_2009, VAN_GELDER_2024, WAGNER_2009,
 )
@@ -446,6 +447,8 @@ if "ecg_data" in st.session_state:
         if selected_answer is None:
             st.warning("Elige una respuesta antes de verificar.")
         else:
+            # Mejora continua (2026-11-16): la primera respuesta de cada pregunta en la sesión, a la base local.
+            log_answer("ecg12", current_question, selected_answer, session_attempt("ecglab_12_quiz_attempt"))
             if current_question.is_correct(selected_answer):
                 st.success(f"✅ Correcto. {current_question.explanation}")
             else:
@@ -454,6 +457,7 @@ if "ecg_data" in st.session_state:
                     f"{current_question.explanation}"
                 )
             st.caption(f"Fuente: {current_question.source}")
+    render_report_box("ecg12", [current_question], key=f"ecglab_12_report_{question_index}")
 
 with col2:
     st.markdown("## 📊 Métricas")

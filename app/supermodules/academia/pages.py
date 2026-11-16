@@ -33,6 +33,11 @@ from domain.physiology.narrator import (
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
 from app.utils.ai_session import AI_KEY_HINT, AI_OFF, ai_client
+from app.utils.learning_log import log_answer, render_report_box
+from app.supermodules.academia import improvement
+from educational.learning_analytics import new_attempt
+
+BANK = "academia"                   # nombre del banco en la base de la mejora continua
 from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
@@ -191,11 +196,14 @@ def render_lessons_quizzes_tab() -> None:
         level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level")
         if st.button("Iniciar Quiz", key="academia_start_quiz"):
             questions = generate_quiz(topic="ecg_basics", level=level, lesson=lesson)
-            st.session_state["academia_quiz"] = {
-                "lesson_id": lesson, "questions": questions, "responses": {}, "current_q": 0,
-                "answered_current": False, "feedback": None, "feedback_error": None,
-            }
+            st.session_state["academia_quiz"] = _new_quiz(lesson, questions)
             st.rerun()
+        # Mejora continua (2026-11-16): preguntas a la medida de quien responde (modelo de Elo, local).
+        if st.button("🎯 Práctica adaptativa", key="academia_adaptive_quiz"):
+            chosen = improvement.adaptive_questions()
+            st.session_state["academia_quiz"] = _new_quiz(improvement.ADAPTIVE_LESSON, dict(enumerate(chosen)))
+            st.rerun()
+        st.caption(improvement.ADAPTIVE_CAPTION)
 
     with col2:
         quiz_state = st.session_state.get("academia_quiz")
@@ -232,6 +240,7 @@ def render_lessons_quizzes_tab() -> None:
                 elif clicked:
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
+                    log_answer(BANK, q, selected, quiz_state.setdefault("attempt", new_attempt()))
                     quiz_state["feedback"] = None
                     quiz_state["feedback_error"] = None
                     if narrator_is_configured():
@@ -277,6 +286,7 @@ def render_lessons_quizzes_tab() -> None:
                     st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
                 if q.source:
                     st.caption(f"Fuente: {q.source}")
+                render_report_box(BANK, [q], key=f"academia_report_{current}")
 
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:
@@ -313,6 +323,15 @@ def render_lessons_quizzes_tab() -> None:
 
     st.markdown("---")
     render_synthetic_case_section()
+    improvement.render_continuous_improvement()
+
+
+def _new_quiz(lesson_id: str, questions) -> dict:
+    """Estado de un quiz nuevo. `attempt` agrupa sus respuestas para la mejora continua (cada quiz es un intento)."""
+    return {
+        "lesson_id": lesson_id, "questions": questions, "responses": {}, "current_q": 0,
+        "answered_current": False, "feedback": None, "feedback_error": None, "attempt": new_attempt(),
+    }
 
 
 def render_synthetic_case_section() -> None:

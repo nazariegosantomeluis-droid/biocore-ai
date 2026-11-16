@@ -24,3 +24,17 @@ def _ups_db_aislada(tmp_path_factory):
         yield db.DEFAULT_DB_PATH
     finally:
         db.DEFAULT_DB_PATH = original
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _learning_db_aislada(tmp_path_factory):
+    """Lo mismo para la base local de la mejora continua de los cuestionarios (2026-11-16): las pruebas que responden
+    un cuestionario no escriben en `data/local/biocore_learning.db`."""
+    import educational.learning_analytics as la
+
+    original = la.DEFAULT_DB_PATH
+    la.DEFAULT_DB_PATH = tmp_path_factory.mktemp("learning_suite") / "biocore_learning_suite.db"
+    try:
+        yield la.DEFAULT_DB_PATH
+    finally:
+        la.DEFAULT_DB_PATH = original
