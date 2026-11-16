@@ -90,7 +90,8 @@ def quality_rows():
         ('Señal plana', f'Menos de {h.flat_rms_uv} µV de RMS entre 0.5 y 40 Hz', ISSUE_TEXT['plano']),
         ('Mucho más amplio que los demás', f'Más de {h.outlier_ratio:g} veces la mediana de los otros canales',
          ISSUE_TEXT['distinto']),
-        ('Mucho ruido de la red', f'Más de {h.mains_rms_uv:g} µV de RMS alrededor de 50 o 60 Hz, antes del filtro',
+        ('Mucho ruido de la red', f'Un pico en 50 o 60 Hz de más de {h.mains_rms_uv:g} µV de RMS por encima del '
+                                  'espectro a su alrededor, antes del filtro',
          ISSUE_TEXT['red']),
     ]
 

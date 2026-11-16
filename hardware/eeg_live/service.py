@@ -29,6 +29,10 @@ import numpy as np
 from .backends import Backend, BackendError, StreamDescription
 from .devices import EegDevice
 
+# El servicio solo usa `device.key` y `device.name`: también lo usa la placa de sensores ESP32
+# (`hardware/biosensors/`), con su propio catálogo.
+Device = Any
+
 
 class LiveState(str, Enum):
     STOPPED = 'detenido'
@@ -87,9 +91,10 @@ class _Ring:
 
 
 class EegLiveService:
-    """Lee una fuente de EEG en segundo plano. `key` identifica el dispositivo y sus parámetros."""
+    """Lee una fuente en vivo en segundo plano (un equipo de EEG o la placa de sensores ESP32). `key` identifica el
+    dispositivo y sus parámetros; `device` necesita solo `.key` y `.name` (un `EegDevice` o un `BioSensor`)."""
 
-    def __init__(self, device: EegDevice, backend_factory: Callable[[], Backend],
+    def __init__(self, device: 'EegDevice | Device', backend_factory: Callable[[], Backend],
                  config: Optional[LiveConfig] = None, key: str = '') -> None:
         self.device = device
         self.key = key or device.key
@@ -102,6 +107,7 @@ class EegLiveService:
         self._state = LiveState.STOPPED
         self._message = 'Detenido.'
         self._desc: Optional[StreamDescription] = None
+        self._backend: Optional[Backend] = None
         self._ring: Optional[_Ring] = None
         self._arrivals: Deque[Tuple[float, int]] = deque()
         self._stream_started: Optional[float] = None
@@ -179,7 +185,18 @@ class EegLiveService:
                 'connections': self._connections,
                 'warnings': list(self._warnings),
                 'events': list(self._events)[-10:],
+                'backend_status': self._backend_status(),
             }
+
+    def _backend_status(self) -> Dict[str, Any]:
+        """Lo que la fuente cuenta de sí misma (`status()`, si lo tiene): firmware, muestras perdidas, avisos."""
+        status = getattr(self._backend, 'status', None)
+        if status is None or self._state not in (LiveState.STREAMING, LiveState.NO_DATA):
+            return {}
+        try:
+            return dict(status())
+        except Exception:
+            return {}
 
     def _effective_fs(self) -> Optional[float]:
         cfg = self.config
@@ -207,7 +224,7 @@ class EegLiveService:
             if self._stop.is_set():
                 self._close(backend)
                 break
-            self._begin(desc)
+            self._begin(desc, backend)
             reason = 'Detenido.'
             try:
                 reason = self._stream(backend, desc)
@@ -223,9 +240,10 @@ class EegLiveService:
         except Exception:
             pass
 
-    def _begin(self, desc: StreamDescription) -> None:
+    def _begin(self, desc: StreamDescription, backend: Optional[Backend] = None) -> None:
         with self._lock:
             self._desc = desc
+            self._backend = backend
             self._ring = _Ring(len(desc.channels), int(round(self.config.buffer_seconds * desc.fs)))
             self._arrivals.clear()
             self._stream_started = None
@@ -271,7 +289,7 @@ class EegLiveService:
         if self._stop.is_set():           # ya lo detuvieron: el estado se queda en DETENIDO
             return
         self._warn(reason)
-        self._set_state(LiveState.FAILED, f'{reason} Se reintenta en {self.config.retry_s:.0f} s.')
+        self._set_state(LiveState.FAILED, f'{reason} Se reintenta en {self.config.retry_s:g} s.')
         self._stop.wait(self.config.retry_s)
 
     # ------------------------------------------------------------ estado

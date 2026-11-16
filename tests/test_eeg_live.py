@@ -409,6 +409,23 @@ def test_prepare_removes_trend_and_mains():
     assert np.allclose(prepare(raw, FS, None)[0], raw[0] - np.polyval(np.polyfit(t, raw[0], 1), t), atol=1e-6)
 
 
+def test_muscle_artifact_is_not_reported_as_mains_noise():
+    """Regresión: el artefacto muscular es de banda ancha y pone potencia en 58-62 Hz; medir solo esa banda lo
+    reportaba como ruido de la red. Una línea en 60 Hz sí cuenta."""
+    from scipy.signal import butter, lfilter
+    rng = np.random.default_rng(5)
+    n, t = int(8 * FS), np.arange(int(8 * FS)) / FS
+    b, a = butter(2, [20 / (FS / 2), 120 / (FS / 2)], btype='band')
+    muscle = lfilter(b, a, rng.normal(0, 1, n))
+    raw = np.vstack([rng.normal(0, 10, n) + 100 * muscle / np.std(muscle), rng.normal(0, 10, n),
+                     rng.normal(0, 10, n)])
+    quality = assess_channels(raw, prepare(raw, FS, 60.0), FS, ('A', 'B', 'C'), 60.0)
+    assert 'red' not in quality['A'].issues and quality['A'].mains_rms_uv == pytest.approx(0.0, abs=2.0)
+    raw[0] = rng.normal(0, 10, n) + 20 * np.sqrt(2) * np.sin(2 * np.pi * 60 * t)
+    quality = assess_channels(raw, prepare(raw, FS, 60.0), FS, ('A', 'B', 'C'), 60.0)
+    assert quality['A'].issues == ('red',) and quality['A'].mains_rms_uv == pytest.approx(20.0, rel=0.05)
+
+
 def test_flat_channel_and_mains_check_off():
     rng = np.random.default_rng(0)
     raw = np.vstack([rng.normal(0, 10, 2500), np.full(2500, 187500.0), rng.normal(0, 10, 2500)])

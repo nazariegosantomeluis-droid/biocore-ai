@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-11-15 — EMG en vivo: placa ESP32 + MyoWare 2.0, con tutorial y práctica
+
+**Contexto (Art. I)**: el origen «Live Hardware» del EMG Muscle Lab era una fachada.
+- Usaba `hardware/emg_stream.py`, que no tiene firmware en el repo. Sin datos caía en silencio a la señal demo («usando demo mientras se conecta»), y el análisis y el guardado al gemelo seguían como si nada.
+- Los textos de «Activación muscular» decían «nivel de activación», «indica esfuerzo y riesgo de fatiga» y «sugiere riesgo de lesión». Pero `activation_pct` es el cociente media/pico del EMG rectificado: medido, da unos 21 % en reposo y en contracción sostenida.
+
+- **Placa de sensores ESP32** (`hardware/biosensors/`, nuevo), pensada para varios sensores (hoy, EMG):
+  - Protocolo de texto `BIO:HELLO` / `BIO:D` / `BIO:E` (`protocol.py`), el mismo esquema que la placa de ECG, con la clave `sensor`.
+  - Catálogo (`sensors.py`): conexiones, conversión a mV, colocación y límites del MyoWare 2.0, según su guía avanzada y la de SparkFun; colocación, también de Mesin et al. 2009.
+  - Firmware de MicroPython para la salida RAW a 1000 Hz (`firmware/emg_myoware.py`), con handshake, `seq` y contadores de muestras tarde y perdidas.
+  - Conexión (`serial_backend.py`): busca la placa sola en los puertos USB, verifica el handshake y dice qué hay si no es la placa pedida (la de ECG, otra placa de sensores, MicroPython esperando órdenes o un programa con error). Cuenta las muestras perdidas en el cable. Entra al servicio del EEG en vivo: estados, búfer, reconexión y la regla de procedencia (SENSOR_REAL solo transmitiendo; el HELLO con `sim=1` es SIMULACIÓN).
+  - Placa simulada (`simulator.py`) que habla el mismo protocolo, y avisos de calidad del EMG (`quality.py`: saturada, plana, zumbido de red; umbrales de ingeniería).
+- **EMG Muscle Lab**:
+  - Origen nuevo «Sensor en vivo (ESP32 + MyoWare)» (`app/supermodules/biosensors/`): placa real o práctica con la placa simulada, filtro de red, estado, procedencia y avisos. Sin placa transmitiendo no hay análisis ni respaldo demo.
+  - Tarjeta nueva «RMS del EMG (20-450 Hz)», en mV con la placa: esa sí sube con la contracción. Los textos de «Activación muscular» ahora dicen qué es (promedio/pico, no %MVC) y que no sirve para decir esfuerzo, fatiga ni riesgo.
+  - Guardar al gemelo: SENSOR_REAL solo con la placa real transmitiendo y sin avisos de calidad; con avisos, el guardado se bloquea con el motivo. Con la placa simulada, el índice de fatiga dice «no disponible» (su espectro es fijo).
+  - Vista nueva «Sensor en vivo (tutorial)»:
+    - de dónde sale cada número, material y seguridad;
+    - conexiones con diagrama y firmware para descargar;
+    - colocación de los electrodos, pasos en la app, estados y qué hacer si algo falla;
+    - límites;
+    - práctica: contraer, relajar, despegar un electrodo y desconectar el cable.
+  - Retirados: la rama «Live Hardware», sus imports (`SensorManager`, `EMGStreamer`) y `st.session_state.emg_streamer`.
+- **Red eléctrica** (`hardware/eeg_live/quality.py`, compartido con el EEG en vivo):
+  - El notch usa 1 s de relleno. Con el relleno por defecto, un zumbido de 3 mV dejaba 1.37 mV de oscilación falsa en el borde de la ventana; ahora queda igual que el centro.
+  - El aviso de zumbido mide una línea del espectro (`mains_line_rms`): lo que sobresale en 50 o 60 Hz por encima del piso a los lados, y solo si vale al menos 4 veces ese piso. Antes medía toda la banda de 58 a 62 Hz, y la señal de banda ancha también pone potencia ahí. Medido en ventanas de 2 s: una contracción de 1 mV de RMS daba «zumbido de red» en 297 de 300 ventanas, y bloqueaba el guardado; ahora en 0 de 300, hasta 5 mV. En el EEG, un artefacto muscular de 100 µV salía como ruido de red en 100 de 100 casos; ahora en ninguno. Un zumbido de 0.1 mV en reposo se sigue detectando siempre, y la amplitud medida de la línea coincide con la real (±1 %).
+- **Referencias**: `clinical/emg_references.py` (Mesin 2009).
+- **Pruebas**: `tests/test_biosensors_emg.py` (26) y una más en `tests/test_eeg_live.py`.
+  - Protocolo y conversión a mV contra la hoja del MyoWare.
+  - Conexión con un transporte de prueba: muestras perdidas, qué hay en el puerto, puerto ocupado, cable fuera.
+  - Firmware de MicroPython corriendo en la computadora y leído por un pseudo-terminal con pyserial de verdad.
+  - Placa simulada (RMS contra la fuerza, electrodo flojo, salto como el firmware), calidad, borde del notch y servicio.
+  - Zumbido de red contra banda ancha: una contracción fuerte o un artefacto muscular no son zumbido; una línea en 60 Hz sí, con su amplitud. Esta prueba salió de una falla intermitente: la contracción simulada quedaba justo en el umbral anterior.
+  - AppTest de la página: la demo sigue igual con textos honestos; sin placa no analiza; la práctica guarda como SIMULACIÓN; una placa con HELLO `sim=0` guarda como SENSOR_REAL; un electrodo flojo bloquea el guardado; el tutorial corre su práctica.
+  - Suite completa: 2020 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas de las conexiones y de la práctica (contracción, reposo, electrodo).
+
+**Para Luis**:
+1. Nada de esto se probó con una placa y un MyoWare reales. En la computadora, el Timer simulado de 1000 Hz llega tarde a veces; en la ESP32 hay que mirar `tarde` y `perdidas` del HELLO.
+2. La firma del laboratorio (`_EMG_VALIDATION_DETAIL`) dice «Activación RMS fisiológica», pero `activation_pct` no es un RMS. No toqué la firma (está fijada por pruebas). Ahora hay una tarjeta de RMS de verdad; decide si la firma se refiere a ella. Lo que sí mediría la activación es el %MVC con una contracción máxima de referencia.
+3. El UPS sigue guardando `activation` (promedio/pico) con la unidad «%».
+4. `hardware/emg_stream.py` y `hardware/sensor_manager.py` quedan sin usuarios en la app.
+5. El aviso de zumbido ya no marca una línea que no sobresale de la señal (por ejemplo, 0.1 mV durante una contracción de 1 mV). El factor de 4 veces el piso es de ingeniería: ajústalo con hardware real si hace falta (`MAINS_MIN_RATIO`).
+
 ## 2026-11-14 — EEG en vivo: OpenBCI, Muse, Unicorn y LSL, con tutorial y práctica
 
 **Contexto (Art. I)**: la fuente «Hardware EEG en vivo» del EEG Neuro Lab era una fachada.

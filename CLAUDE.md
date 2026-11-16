@@ -21,14 +21,14 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
 | Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
 | Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/`: pestaña Clínica (`page_content.py`; su fuente «Hardware EEG en vivo» en `live_source.py`) + pestaña EEG en vivo (tutorial) (`live_tutorial.py`) |
-| Clinical Hub | EMG Muscle Lab | `render_emg_page()` en `app/main.py` |
+| Clinical Hub | EMG Muscle Lab | `render_emg_page()` en `app/main.py`; su fuente «Sensor en vivo (ESP32 + MyoWare)» y la vista Sensor en vivo (tutorial) en `app/supermodules/biosensors/emg.py` |
 | Clinical Hub | HRV Analysis | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
 | Clinical Hub | Biomarkers Lab | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
 | Clinical Hub | Calculadoras Clínicas | `app/supermodules/calculators/` + `clinical/calculators.py` |
 | Clinical Hub | Patient Pipeline | `render_patient_pipeline_page()` en `app/main.py` |
 | Laboratorio 3D | Crea tu modelo 3D | `app/supermodules/model3d/` |
 
-- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos).
+- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos). `hardware/biosensors/` (placa de sensores ESP32 con el protocolo `BIO:`: firmware, conexión y simulador; hoy, EMG con MyoWare 2.0; entra al mismo servicio que el EEG en vivo).
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
 
 ## El UPS (`domain/physiology/state/`)

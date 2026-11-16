@@ -137,16 +137,9 @@ except Exception as e:
 # (`filtered = signal`) que ECLIPSABA el bandpass real de
 # `src/signals/emg/preprocessing.py` — la activación y la MDF se calculaban
 # sobre señal cruda. Stub muerto; el analizador filtra internamente.
-try:
-    from hardware.sensor_manager import SensorManager
-except Exception:
-    SensorManager = None
-
-try:
-    from hardware.emg_stream import EMGStreamer
-except Exception:
-    EMGStreamer = None
-
+# 2026-11-14 (Art. I): la rama «Live Hardware» y sus imports (SensorManager, EMGStreamer) se retiraron: sin datos
+# caía en silencio a la señal demo y el lector no tenía firmware en el repo. El EMG en vivo vive ahora en
+# app/supermodules/biosensors/emg.py (placa ESP32 + MyoWare 2.0, protocolo BIO, SENSOR_REAL solo transmitiendo).
 from src.signals.emg import EmgAnalyzer
 
 # Safe Plotly import
@@ -250,8 +243,6 @@ def init_state() -> None:
         st.session_state.report_requested = False
     if 'page_tabs' not in st.session_state:
         st.session_state.page_tabs = PAGE_TABS
-    if 'emg_streamer' not in st.session_state:
-        st.session_state.emg_streamer = None
     # 'learning_progress' (Cardio-Fisiología 58%, Neurofisiología 42%, etc.) se quitó
     # 2026-07-14 -- eran números fijos idénticos para cualquier usuario/sesión, sin
     # avance real detrás; el botón "Avanzar en aprendizaje" solo les sumaba 5 por
@@ -961,13 +952,16 @@ def render_emg_page() -> None:
         validation_detail=_EMG_VALIDATION_DETAIL,
     )
 
-    source = st.sidebar.radio('Origen EMG', ['Demo','CSV','Live Hardware'])
+    from app.supermodules.biosensors import emg as emg_live
+
+    source = st.sidebar.radio('Origen EMG', ['Demo', 'CSV', emg_live.SOURCE_LABEL])
     pattern = st.sidebar.selectbox('Patrón', ['Isométrica','Rápida','Fatiga'])
     fs = st.sidebar.selectbox('fs (Hz)', [500,1000,2000], index=1)
     duration = st.sidebar.slider('Duración (s)', 5, 60, 15)
 
     signal = None
     time_arr = np.array([])
+    live = None
     if source == 'CSV':
         f = st.file_uploader('CSV EMG', type=['csv'])
         if f:
@@ -980,58 +974,11 @@ def render_emg_page() -> None:
                     "No se pudo leer el archivo CSV de EMG -- verifica el formato.",
                     exception=e,
                 )
-    elif source == 'Live Hardware':
-        st.sidebar.markdown("### Hardware EMG")
-        if SensorManager is not None:
-            manager = SensorManager()
-            port_options = manager.available_ports or ["Auto"]
-            selected_port = st.sidebar.selectbox("Puerto EMG", port_options)
-        else:
-            selected_port = st.sidebar.text_input("Puerto EMG manual", value="Auto")
-            st.sidebar.warning("No se pudo enumerar puertos seriales; ingresa el puerto manualmente.")
-
-        connect_emg = st.sidebar.button('Conectar EMG Hardware')
-        disconnect_emg = st.sidebar.button('Desconectar EMG Hardware')
-
-        if connect_emg:
-            if EMGStreamer is None:
-                st.sidebar.error('EMGStreamer no está disponible. Instala pyserial y revisa hardware/emg_stream.py')
-            else:
-                chosen_port = None if selected_port in (None, 'Auto') else selected_port
-                try:
-                    streamer = EMGStreamer(port=chosen_port, baud=115200, fs=fs)
-                    if streamer.connect(force_port=chosen_port):
-                        streamer.start()
-                        st.session_state.emg_streamer = streamer
-                        st.sidebar.success('EMG hardware conectado y transmitiendo.')
-                    else:
-                        st.sidebar.warning('No se pudo conectar el hardware EMG. Usa modo demo o revisa el puerto.')
-                except Exception as exc:
-                    st.sidebar.error(f'Error al conectar EMG: {exc}')
-
-        if disconnect_emg and st.session_state.get('emg_streamer') is not None:
-            try:
-                st.session_state.emg_streamer.stop()
-                st.session_state.emg_streamer.disconnect()
-            except Exception:
-                pass
-            st.session_state.emg_streamer = None
-            st.sidebar.success('EMG hardware desconectado.')
-
-        streamer = st.session_state.get('emg_streamer')
-        if streamer is not None:
-            st.sidebar.info(f"Estado EMG: {streamer.get_status()}")
-            if getattr(streamer, 'last_error', None):
-                st.sidebar.warning(f"Último error EMG: {streamer.last_error}")
-            _, buffer = streamer.get_filtered_buffer()
-            if buffer is not None and len(buffer) >= 5:
-                signal = np.asarray(buffer)
-                time_arr = np.arange(len(signal)) / fs
-            else:
-                st.sidebar.caption("Sin datos de hardware aún — usando demo mientras se conecta.")
-
-        if signal is None:
-            signal = generate_demo_emg_signal(fs, duration, pattern)
+    elif source == emg_live.SOURCE_LABEL:
+        # Sin placa transmitiendo no hay señal: no se usa la demo de respaldo (2026-11-14, Art. I).
+        live = emg_live.render_emg_source(duration)
+        if live is not None:
+            signal, fs = live.signal, live.fs
             time_arr = np.arange(len(signal)) / fs
     else:
         signal = generate_demo_emg_signal(fs, duration, pattern)
@@ -1040,12 +987,16 @@ def render_emg_page() -> None:
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — era un
     # "Muscle Fatigue Index" de np.random.uniform(10,80), redundante y desconectado
     # del gemelo real (Digital Twin OS / DigitalTwinOrganism). Ver CHANGELOG.md.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
+    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación',
+                                       emg_live.TUTORIAL_VIEW])
+    if view == emg_live.TUTORIAL_VIEW:
+        emg_live.render_emg_tutorial()
+        return
 
     if signal is None:
-        # Solo alcanzable con Origen=CSV y ningún archivo cargado todavía.
+        # Origen=CSV sin archivo, o sensor en vivo sin placa transmitiendo (la fuente ya dijo por qué).
         # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
-        render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Live Hardware.")
+        render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Demo.")
         _render_emg_save_to_twin(fs, source, None)  # declara "sin señal", no finge guardar
         return
 
@@ -1055,14 +1006,24 @@ def render_emg_page() -> None:
         st.markdown('### Vista Clínica')
         activation = emg_analysis.activation_pct
         st.write('Activación muscular y patrones de contracción')
+        # 2026-11-14 (Art. I): los textos decían «nivel de activación», «riesgo de fatiga» y «riesgo de lesión»,
+        # pero `activation_pct` es media/máximo del EMG rectificado: casi igual en reposo y en contracción.
         render_metric_explained('Activación muscular', f'{activation:.1f}', unit='%',
-                    meaning='Nivel promedio de activación muscular a partir del EMG rectificado.',
-                    importance='Indica esfuerzo y riesgo de fatiga.',
-                    affects='Carga, postura, fatiga, desbalance neuromuscular.',
-                    relations='Se correlaciona con ECG y respiración durante esfuerzo.',
-                    consequences='Elevada activación prolongada sugiere fatiga y riesgo de lesión.')
-        st.write('¿Qué significa?: Nivel de reclutamiento motor. Por qué importa: indica esfuerzo y fatiga.')
-        st.write('Qué lo afecta: carga, postura, fatiga, neurogenic factors.')
+                    meaning='Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz).',
+                    importance='Describe la forma de la señal. No es el porcentaje de la contracción máxima (%MVC).',
+                    affects='Cuánto dura la contracción dentro de la ventana y qué tan picuda es la señal.',
+                    relations='Para saber cuánto contraes, mira el RMS: crece con la contracción.',
+                    consequences='En reposo y en una contracción sostenida da valores parecidos: no lo uses para '
+                                 'decir esfuerzo, fatiga ni riesgo.')
+        rms_value = emg_live.rms_mv(emg_live.prepare(signal, fs, None), fs)
+        render_metric_card(
+            'RMS del EMG (20-450 Hz)',
+            None if rms_value is None else (f'{rms_value:.3f} mV' if live is not None else f'{rms_value:.3f} (unidades de la señal)'),
+            provenance=BADGES.METHOD,
+            unavailable_reason=None if rms_value is not None else 'señal demasiado corta para filtrar',
+        )
+        if live is not None:
+            st.caption('mV en la piel aproximados: ganancia 200 del MyoWare y ADC del ESP32 sin calibrar.')
         # Tanda 1 de contención (2026-11-05, Art. I): 'Capa de Descubrimiento Científico' retirada
         # (su botón no medía lo que decía); detalle en CHANGELOG.md.
 
@@ -1108,15 +1069,18 @@ def render_emg_page() -> None:
     elif view == 'IA':
         st.markdown('### Vista IA — Narrador clínico')
         render_findings_narrator('EMG Muscle Lab', [
-            ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Nivel promedio de activación muscular (EMG rectificado, señal filtrada 20-450 Hz).'),
+            ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Cociente entre el promedio y el pico del EMG rectificado (señal filtrada 20-450 Hz); no es %MVC.'),
             ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
             # Fase 0 (2026-11-13, Art. I): con la señal demo (ruido blanco, espectro plano, MDF ≈ fs/4) el índice queda
             # clavado en 0 -- no mide fatiga, así que no se muestra como número; con CSV o hardware sí (HEURISTIC).
+            # 2026-11-14: la placa simulada tampoco modela la fatiga (su espectro es fijo): el índice sería otra constante.
             ('fatigue_index',
-             f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo',
+             (f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo')
+             if not (live is not None and live.provenance != 'SENSOR_REAL') else 'no disponible con la placa simulada',
              'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz (heurístico). '
-             'La señal demo tiene espectro plano: el índice sería una constante, no una medición.'),
-            ('signal_source', source, 'Origen de la señal: demo sintética, CSV cargado, o hardware en vivo.'),
+             'La señal demo y la placa simulada tienen un espectro fijo: el índice sería una constante, no una medición.'),
+            ('signal_source', live.label if live is not None else source,
+             'Origen de la señal: demo sintética, CSV cargado, o placa en vivo (real o simulada).'),
         ])
 
     elif view == 'Simulación':
@@ -1134,10 +1098,10 @@ def render_emg_page() -> None:
         st.write('Simulación de contracción isométrica con diferente reclutamiento.')
         st.line_chart(signal)
 
-    _render_emg_save_to_twin(fs, source, emg_analysis)
+    _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
 
-def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
+def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> None:
     """Capa 5A dominio muscular, Tanda 3 (2026-09-10): el EMG Lab escribe al
     UPS por PRIMERA VEZ -- el "Paso 4" del playbook neuro, el mismo botón
     que ganaron ECG/HRV/Respiratory/EEG Lab (Fase 2.4 / Sub-fase 1).
@@ -1163,8 +1127,10 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
     de `_muscular_state()` (`"activation" in signals`) es lo que decide "hay
     músculo que escribir".
 
-    Procedencia `SIMULACION`: señal de `generate_demo_emg_signal` o CSV
-    cargado, nunca un sensor en vivo verificado.
+    Procedencia (2026-11-14): `SENSOR_REAL` solo con la placa real
+    transmitiendo en este momento y sin avisos de calidad
+    (`app/supermodules/biosensors/emg.py`: `twin_provenance`, `save_blocker`);
+    la demo, el CSV y la placa simulada van como `SIMULACION`.
     """
     st.markdown("---")
     st.markdown("#### 🔗 Guardar estado al gemelo")
@@ -1174,21 +1140,26 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
         # con render_empty_state. El botón no finge: declara que no hay
         # señal analizable que persistir. Sin éxito fingido, sin crash.
         st.info(
-            "Sin señal EMG analizable (Origen=CSV sin archivo cargado). No hay nada "
-            "que persistir al gemelo -- carga un CSV o cambia el Origen a Demo / Live Hardware."
+            "Sin señal EMG analizable (CSV sin archivo cargado, o placa en vivo sin transmitir). No hay nada "
+            "que persistir al gemelo -- carga un CSV, conecta la placa en vivo o cambia el Origen a Demo."
         )
         return
 
+    from app.supermodules.biosensors import emg as emg_live
+
+    twin_prov, twin_note = emg_live.twin_provenance(live)
     st.caption(
-        f"Escribe la **activación muscular real** ({emg_analysis.activation_pct:.1f}%) y la "
-        f"**frecuencia mediana** ({emg_analysis.median_frequency_hz:.1f} Hz) analizadas de esta "
-        "señal al Unified Physiological State, bajo el mismo paciente que renderiza Digital Twin "
-        "OS -- sus músculos reaccionarán a estos valores la próxima vez que abras esa página. "
-        "La activación viene del `EmgAnalyzer` (señal filtrada 20-450 Hz), NO del slider "
-        "\"Fatiga muscular\" de Twin OS. `fatigue_index` NO se escribe (generador demo de "
-        "espectro plano -- diferido). Procedencia: simulación (señal generada, no un sensor real)."
+        f"Escribe la **«activación muscular»** ({emg_analysis.activation_pct:.1f}%: promedio/pico del EMG "
+        f"rectificado, no %MVC) y la **frecuencia mediana** ({emg_analysis.median_frequency_hz:.1f} Hz) "
+        "analizadas de esta señal al Unified Physiological State, bajo el mismo paciente que renderiza "
+        "Digital Twin OS -- sus músculos reaccionarán a estos valores la próxima vez que abras esa página. "
+        "Vienen del `EmgAnalyzer` (señal filtrada 20-450 Hz), NO del slider \"Fatiga muscular\" de Twin OS. "
+        f"`fatigue_index` NO se escribe (heurístico, sin calibrar -- diferido). {twin_note}"
     )
-    if st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups"):
+    blocker = emg_live.save_blocker(live)
+    if blocker:
+        st.warning(f"⛔ No se guarda al gemelo: {blocker}")
+    elif st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups"):
         from app.engines.digital_twin_organism import DigitalTwinOrganism
 
         session_factory = get_active_session_factory()
@@ -1202,8 +1173,8 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
             }
         })
         state = from_digital_twin_organism(
-            emg_organism, patient_id, provenance=Provenance.SIMULACION,
-            source_detail=f"emg_muscle_lab:origen={source}",
+            emg_organism, patient_id, provenance=twin_prov,
+            source_detail=f"emg_muscle_lab:origen={live.label if live is not None else source}",
         )
         with session_factory() as session:
             snapshot_id = save_state(session, state)
