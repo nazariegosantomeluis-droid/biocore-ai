@@ -144,7 +144,7 @@ def test_full_analysis_reports_lad_and_its_differentials_at_minus_32():
     }
     interp = TwelveLeadEcgAnalyzer().analyze_12lead(signals)
     assert interp.qrs_axis.category == "LAD"
-    assert interp.qrs_axis.description == "Left Axis Deviation: -32°"
+    assert interp.qrs_axis.description == "Desviación del eje a la izquierda: -32°"   # tanda 2: en español
     assert "Left anterior fascicular block" in interp.differential_diagnoses
 
 

@@ -41,6 +41,8 @@ RESPIRATORY_STATUS_NOTICE = (
     "solo FR y SpO₂ basal, como simulación. La señal es simulada: los resultados no son una medición de un paciente."
 )
 
+RESPIRATORY_STATUS_SUMMARY = "🫁 Estado del módulo: señal simulada; cada valor lleva su etiqueta de procedencia (ver detalle)"
+
 
 def render_views():
     # Consolidación, Tanda 1 (2026-07-13): la pestaña "IA" se eliminó — era una
@@ -59,8 +61,11 @@ def render_views():
     # título de módulo consistente con el resto de la app).
     # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado mientras la apnea mixta siga
     # PENDING_VALIDATION; la confianza va por valor (ver `RESPIRATORY_STATUS_NOTICE` y `views.BADGE_LEGEND`).
-    render_module_header("Respiratory Lab", icon="💨", validation=None)
-    st.info(RESPIRATORY_STATUS_NOTICE, icon="🫁")
+    render_module_header("Laboratorio respiratorio", icon="💨", validation=None)
+    # Tanda 2 de la fase 1: el recuadro ocupaba toda la pantalla de un teléfono. Queda plegado; su etiqueta es el resumen
+    # de una línea y el detalle (sin cambios) se abre a demanda.
+    with st.expander(RESPIRATORY_STATUS_SUMMARY, expanded=False):
+        st.info(RESPIRATORY_STATUS_NOTICE, icon="🫁")
     tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
 
     with tabs[0]:
@@ -72,11 +77,11 @@ def render_views():
                 pass  # el error ya está junto al control afectado; las otras pestañas se siguen dibujando
             except Exception as e:
                 render_error_state(
-                    "No se pudo renderizar la Vista Clínica de Respiratory Lab.",
+                    "No se pudo renderizar la Vista Clínica del Laboratorio respiratorio.",
                     exception=e,
                 )
         else:
-            st.info("Respiratory Lab no encontrado. Implementación de plantilla.")
+            st.info("Laboratorio respiratorio no encontrado. Implementación de plantilla.")
 
     with tabs[1]:
         _render_investigacion_tab()
@@ -196,4 +201,4 @@ def run():
     try:
         main()
     except Exception as e:
-        render_error_state("No se pudo cargar Respiratory Lab.", exception=e)
+        render_error_state("No se pudo cargar el Laboratorio respiratorio.", exception=e)

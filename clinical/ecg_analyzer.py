@@ -99,6 +99,25 @@ VPP_WINDOW_MS = 50.0           # misma ventana que usa el mapeo fiducial de TKEO
 VPP_CV_THRESHOLD = 0.15        # PROVISIONAL -- sugerido por el experto
 
 
+# Tanda 2 de la fase 1 (2026-11-15, decisión 7): el patrón es un valor interno (lo comparan el resto del código y las
+# pruebas); al estudiante se le muestra su nombre en español con esta tabla. Un patrón sin entrada se muestra tal cual.
+PATTERN_LABELS_ES = {
+    "Normal Sinus Rhythm": "Ritmo sinusal normal",
+    "STEMI": "Infarto con elevación del ST (STEMI)",
+    "AFib": "Fibrilación auricular",
+    "PVC": "Extrasístoles ventriculares (PVC)",
+    "VT": "Taquicardia ventricular",
+    "AV Block": "Bloqueo AV",
+    "Long QT / Risk": "QT largo / riesgo",
+    "LBBB": "Bloqueo de rama izquierda (LBBB)",
+    "RBBB": "Bloqueo de rama derecha (RBBB)",
+}
+
+
+def pattern_label_es(pattern: str) -> str:
+    return PATTERN_LABELS_ES.get(pattern, pattern)
+
+
 class ECGAnalyzer:
     """Professional ECG analysis engine for clinical interpretation."""
     
@@ -1135,7 +1154,7 @@ class ECGAnalyzer:
             pattern = "AFib"
             details.append(
                 f"RR muy variable: desviación estándar {arrhythmias.get('rr_std_ms', 0.0):.0f} ms "
-                f"con FC={hr:.0f} bpm (umbral: DE>150 ms y FC>90 bpm)"
+                f"con FC={hr:.0f} lpm (umbral: DE>150 ms y FC>90 lpm)"
             )
         elif any('Ectopic beats' in x for x in arrhythmias.get('arrhythmias', [])):
             pattern = "PVC"
@@ -1145,7 +1164,7 @@ class ECGAnalyzer:
             )
         elif hr > 120 and qrs > 110:
             pattern = "VT"
-            details.append(f"FC={hr:.0f} bpm (umbral > 120) con QRS={qrs:.0f} ms (umbral > 110)")
+            details.append(f"FC={hr:.0f} lpm (umbral > 120) con QRS={qrs:.0f} ms (umbral > 110)")
         elif qrs > 120 and hr >= 40 and hr <= 110:
             if pr < 200:
                 pattern, bbb_detail = self._classify_bbb(qrs, leads_v1_v6, reference_lead_signal)
@@ -1164,7 +1183,7 @@ class ECGAnalyzer:
             details.append(bbb_detail)
         else:
             details.append(
-                f"FC={hr:.0f} bpm, QRS={qrs:.0f} ms, PR={pr:.0f} ms, QTc={qtc:.0f} ms -- todos dentro de rango"
+                f"FC={hr:.0f} lpm, QRS={qrs:.0f} ms, PR={pr:.0f} ms, QTc={qtc:.0f} ms -- todos dentro de rango"
             )
 
         if len(r_peaks) < 3:

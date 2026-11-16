@@ -242,6 +242,20 @@ def _trapz(y: np.ndarray, x: np.ndarray) -> float:
     return float(np.sum((x[1:] - x[:-1]) * 0.5 * (y[1:] + y[:-1])))
 
 
+# Tanda 2 de la fase 1 (decisión 7): nombre de banda en español para mostrar (las claves internas siguen en inglés).
+BAND_LABELS_ES = {"delta": "DELTA", "theta": "THETA", "alpha": "ALFA", "beta": "BETA", "gamma": "GAMMA"}
+# Etiquetas en español de las claves de `findings` (las claves no cambian: las leen el exporte y las pruebas).
+FINDING_LABELS_ES = {
+    "Dominant Band": "Banda dominante", "Classification": "Clasificación", "Clinical Note": "Nota clínica",
+    "Delta Power": "Potencia delta", "Theta Power": "Potencia theta", "Alpha Power": "Potencia alfa",
+    "Beta Power": "Potencia beta", "Gamma Power": "Potencia gamma", "Alert": "Alerta",
+}
+
+
+def band_label_es(band) -> str:
+    return BAND_LABELS_ES.get(str(band).lower(), str(band).upper())
+
+
 @dataclass
 class EegAnalysis:
     # `None` únicamente cuando `available=False` (degradación tipo-PLV,
@@ -547,8 +561,8 @@ class EegAnalyzer:
         clinical_note: str
     ) -> str:
         return (
-            f"Dominante: {dominant_band.upper()} | Clasificación: {classification}. "
+            f"Dominante: {band_label_es(dominant_band)} | Clasificación: {classification}. "
             f"Interpretación: {clinical_note} "
-            f"Power: Δ={band_power['delta']:.2f}, θ={band_power['theta']:.2f}, "
+            f"Potencia: Δ={band_power['delta']:.2f}, θ={band_power['theta']:.2f}, "
             f"α={band_power['alpha']:.2f}, β={band_power['beta']:.2f}, γ={band_power['gamma']:.2f}."
         )

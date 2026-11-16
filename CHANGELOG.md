@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-15 — Fase 1 de la propuesta, tanda 2: primera vista, teoría en capas y pulido (preparación para la prueba con estudiantes)
+
+**Contexto (Art. I)**: antes de la prueba de uso con estudiantes de medicina quedaban inglés y «bpm» a la vista (también en textos que generan `clinical/ecg_analyzer.py` y `src/`), una asimetría y una curtosis que SciPy declaraba «poco fiables» mostradas como números, la suite con 180 avisos, la teoría de Aprender como bloques largos sin capas, y pantallas cuya primera vista no mostraba lo importante (el trazo del ECG a ~950 px, el recuadro de estado del Respiratorio ocupando un teléfono entero). Intérprete: el `python` del PATH de Luis (Python 3.13.11, Streamlit 1.67.0). Sin contenido médico nuevo.
+
+### Parte A — Pulido del sistema de diseño y de la suite
+- **Botón principal**: vuelve `type="primary"` (ECG-12 «Generar», Laboratorio 3D «Reconstruir», Ajustes «Guardar mi clave»). Streamlit no expone el color del texto del botón y lo pinta blanco (3.21:1 sobre PRIMARY); el CSS de `inject_global_theme` lo fija en ON_STATE: **5.56:1 medido renderizado**; con el cursor encima Streamlit oscurecía el fondo a #0b5fef (3.31:1 medido), así que el estado hover/activo usa ACCENT_ON_DARK (**9.98:1 medido**). Pares nuevos en `CONTRAST_PAIRS`.
+- **PRIMARY nunca es texto sobre el panel** (4.44:1): prueba que lo vigila en el código y `linkColor` = ACCENT_ON_DARK en `config.toml`.
+- **Inglés y «bpm» visibles** (decisión 7 de la tanda 1, completada): títulos de los laboratorios, fuente de ECG/HRV/EMG, opciones del EEG, clasificador de ECG de Twin OS (`PATTERN_LABELS_ES`: el patrón interno no cambia), informe del ECG de 12 derivaciones (eje, ritmo, diagnóstico, significancia y recomendaciones traducidos tal cual; la lógica que leía «tachycardia»/«INFARCTION» se adaptó), hallazgos y bandas del EEG (`FINDING_LABELS_ES`, `band_label_es`), interpretación del monitor ECG, texto educativo del ECG-12, exportes PDF/HTML («Informe», «Generado», «Métricas», «Hallazgos clínicos», «Notas»), modo manual de Biomarcadores. Prueba nueva: recorre las 21 páginas (y las vistas de cada laboratorio) con AppTest y falla si aparece «bpm» o un término de la lista en cualquier texto visible, incluidas gráficas y tablas.
+- **Asimetría y curtosis** (`src/feature_extraction.py`): SÍ llegaban a pantalla (Twin OS → Clasificador de ECG → explicación por contribución). Con RR casi idénticos (ritmo sintético de la sepsis, FC fija) SciPy avisa «Results may be unreliable»: ahora son NaN y el panel muestra el «sin dato» único («los intervalos RR son casi idénticos…»), en vez de un número que la propia librería declara poco fiable.
+- **Avisos de la suite**: fpdf sin `ln=` (ahora `new_x`/`new_y`) y con fuente núcleo explícita (`helvetica`) en `app/reporting.py` y `src/rural_health/offline_support.py`; la prueba del PDF sigue verificando la honestidad. La prueba que provoca a propósito una señal de 10 muestras filtra en ESA prueba el aviso de SciPy, con su motivo. **180 → 54 avisos**; los restantes son de terceros y no se tocaron (ver la entrega).
+
+### Parte B — Teoría en capas (Aprender)
+- Componente único `TheoryTopic` + `render_theory_topic` (`design_system.py`): (1) la idea en una frase, (2) el mecanismo, (3) el detalle con su fuente; 2 y 3 a demanda. Una capa sin contenido con fuente se omite, nunca se rellena.
+- `app/supermodules/learn_theory.py`: 8 temas (12 derivaciones; NEWS2 de FR y SpO₂; cómo se mide la respiración; patrones respiratorios; clasificación de la apnea por esfuerzo; apnea obstructiva y guía AASM; bandas del EEG; ECG en 3D). Cada capa es texto que YA existía con su cita o etiqueta; una prueba lo comprueba línea por línea contra el archivo de origen. 11 capas omitidas por falta de contenido con fuente quedan en `PENDING_LAYERS` para la firma de Luis (entre ellas: la fuente de los rangos de las bandas del EEG, que el repositorio no tiene: se declara «no citada», no se inventa). No hay imágenes en el repositorio para estos temas.
+
+### Parte C — Primera vista (solo orden y plegado; ningún cálculo cambió)
+- **ECG**: el trazo pasa arriba de la FC y de «Guardar al gemelo»; fuera el encabezado «Monitoreo» repetido (lo dice la pestaña). Primer trazo: 924 → 448 px (1280) y 1088 → 569 px (390).
+- **Respiratorio**: el recuadro «Estado del módulo» queda plegado en un resumen de una línea; el detalle, intacto, a demanda.
+- **Gemelo digital**: al abrir, el caso clínico (abierto) y el Cuerpo Digital (la prueba de las tarjetas del organismo distingue ahora las del Cuerpo Digital, que leen el UPS); sliders, barorreflejo y acoplamiento neuro-cardíaco, plegados.
+- **HRV, EEG y Biomarcadores**: ≤ 5 paneles al abrir (25 → 5, 11 → 5, 10 → 5); el resto en pestañas o expanders. La medición del diagnóstico contaba también el contenido de expanders cerrados (Streamlit 1.67 lo deja con tamaño en el DOM); se reporta además la cuenta corregida, igual para antes y después.
+
+### Verificación
+- Suite completa en serie con el intérprete de Luis: **1944 passed**, 1 deseleccionada (la guardia de `domain/`, que falla mientras `domain/` tenga cambios sin commitear), 0 fallos, **54 avisos** (antes 1899 passed y 180 avisos). Base de desarrollo intacta (1 paciente / 7 snapshots / 53 valores / 0 eventos antes y después. Un rastreador de textos corrido FUERA de pytest había creado 6 pacientes vacíos durante la tanda; se borraron solo esos 6, con respaldo `data/biocore_ups.backup-20261116-fase1-t2-antes-de-limpiar.db`).
+- Pruebas nuevas: `test_fase1_t2_pulido.py`, `test_fase1_t2_teoria.py`, `test_fase1_t2_primera_vista.py`. Adaptadas sin aflojar: etiquetas traducidas (títulos de los labs, fuentes, patrones de EEG, eje del QRS) y la prueba del botón principal (ahora exige el texto ON_STATE y el hover, en vez de prohibir el botón).
+- Capturas y mediciones antes/después fuera del repo.
+
+### Pendiente / fuera de alcance
+- Teoría: las 11 capas de `PENDING_LAYERS` esperan contenido con fuente firmado por Luis.
+- «Digital Twin OS»/«Twin OS» se conservan como nombre propio; «engagement» (índice de Pope 1995) y siglas como LAD/RCA/LCx, ACVPU y NEWS2 no se tradujeron: decisión de terminología para Luis.
+- El caso clínico interactivo de Twin OS no funciona sin clave de IA (el feedback lo da el narrador); `ECGAnalyzer.clinical_summary`, `create_clinical_summary` y `visualization/ecg_clinical_plot.py` siguen en inglés pero ninguna pantalla los usa.
+
 ## 2026-11-15 — Fase 1 de la propuesta, tanda 1: contención, sistema de diseño mínimo y navegación por intención
 
 **Contexto (Art. I)**: el diagnóstico de UX de la fase 1 encontró cuestionarios que se respondían solos, controles placebo, explicaciones de relleno, un «Health Score» sin cita, insignias que eran solo un círculo de color, dos verdes y dos rojos de estado, un gris de «sin dato» sin contraste AA, la clave de IA como primera pantalla y un menú por estructura interna (4 hubs) en vez de por lo que la persona quiere hacer. Tanda en tres partes (A → B → C), con pytest dirigido en verde entre partes y la suite completa en serie al final.

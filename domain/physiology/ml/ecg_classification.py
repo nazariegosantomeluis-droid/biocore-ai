@@ -10,13 +10,14 @@ sobre esa misma señal.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from clinical.ecg_analyzer import ECGAnalyzer
-from src.feature_extraction import compute_psd, extract_features
+from src.feature_extraction import UNRELIABLE_MOMENT_REASON, compute_psd, extract_features
+from clinical.ecg_analyzer import pattern_label_es
 from src.interpretability import generate_shap_lime_report
 
 # compute_psd exige >=4 intervalos RR (>=5 picos R) — por debajo de eso no
@@ -41,6 +42,8 @@ class EcgClassificationResult:
     r_peak_count: int
     shap_lime: Optional[Dict[str, Any]]
     explainability_note: Optional[str]
+    # Tanda 2 de la fase 1: métricas HRV que no se pudieron calcular de forma fiable -> {etiqueta: motivo}
+    unavailable_features: Dict[str, str] = field(default_factory=dict)
 
 
 def classify_ecg_signal(signal: np.ndarray, fs: float) -> EcgClassificationResult:
@@ -55,11 +58,15 @@ def classify_ecg_signal(signal: np.ndarray, fs: float) -> EcgClassificationResul
 
     shap_lime = None
     note = None
+    unavailable = {}
     if len(rr_intervals) >= MIN_RR_INTERVALS_FOR_EXPLAINABILITY:
         try:
             frequencies, power_spectrum = compute_psd(rr_intervals)
             hrv_features = extract_features(rr_intervals, power_spectrum, frequencies)
-            shap_lime = generate_shap_lime_report(hrv_features, result["pattern"])
+            shap_lime = generate_shap_lime_report(hrv_features, pattern_label_es(result["pattern"]))
+            unavailable = {label: UNRELIABLE_MOMENT_REASON for key, label in (("Skewness", "Asimetría de RR"),
+                                                                             ("Kurtosis", "Curtosis de RR"))
+                           if np.isnan(hrv_features.get(key, 0.0))}
         except Exception as exc:  # cálculo real que puede fallar con datos límite — no fabricar respaldo
             note = f"No se pudo calcular la explicación por contribución: {exc}"
     else:
@@ -76,4 +83,5 @@ def classify_ecg_signal(signal: np.ndarray, fs: float) -> EcgClassificationResul
         r_peak_count=len(r_peaks),
         shap_lime=shap_lime,
         explainability_note=note,
+        unavailable_features=unavailable,
     )

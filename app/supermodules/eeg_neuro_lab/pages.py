@@ -40,7 +40,7 @@ def render_views():
     # vivo desde Tanda 3) hacen el trabajo fino que un `validation=`
     # único no puede.
     render_module_header(
-        "EEG Neuro Lab", icon="🧠",
+        "Laboratorio de EEG", icon="🧠",
         subtitle="Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales",
         validation=None,
     )
@@ -52,9 +52,9 @@ def render_views():
             try:
                 runpy.run_path(MODULE_EMOJI, run_name='__main__')
             except Exception as e:
-                render_error_state("No se pudo renderizar la Vista Clínica de EEG Neuro Lab.", exception=e)
+                render_error_state("No se pudo renderizar la Vista Clínica del Laboratorio de EEG.", exception=e)
         else:
-            render_empty_state("EEG Neuro Lab no encontrado", action="verifica la instalación del módulo")
+            render_empty_state("Laboratorio de EEG no encontrado", action="verifica la instalación del módulo")
 
 
 def main():
@@ -72,4 +72,4 @@ def run():
     try:
         main()
     except Exception as e:
-        render_error_state("No se pudo cargar EEG Neuro Lab.", exception=e)
+        render_error_state("No se pudo cargar el Laboratorio de EEG.", exception=e)

@@ -498,7 +498,7 @@ def _render_osa_severity() -> None:
     st.markdown("---")
     st.markdown("#### Severidad de la apnea del sueño (índice de eventos por hora)")
     st.caption(
-        "Calculadora pura: tú aportas los eventos y las horas. El Respiratory Lab no calcula esta categoría porque "
+        "Calculadora pura: tú aportas los eventos y las horas. El Laboratorio respiratorio no calcula esta categoría porque "
         "su registro dura minutos y el índice es por hora de sueño."
     )
     c1, c2 = st.columns(2)

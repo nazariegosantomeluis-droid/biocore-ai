@@ -35,7 +35,7 @@ ECG_QUIZ_BANK: List[Dict[str, str]] = [
         'question': 'Una onda delta y PR corto son signos de:',
         'options': ['AF', 'Flutter', 'WPW', 'LBBB'],
         'correct': 'WPW',
-        'explanation': 'El síndrome de Wolff-Parkinson-White se caracteriza por delta wave y PR corto.'
+        'explanation': 'El síndrome de Wolff-Parkinson-White se caracteriza por onda delta y PR corto.'
     },
     {
         'question': 'Ausencia de ondas P y ritmo irregular indican:',

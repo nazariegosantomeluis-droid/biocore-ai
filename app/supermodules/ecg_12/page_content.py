@@ -22,6 +22,12 @@ if PROJECT_ROOT not in sys.path:
 
 from src.signals.ecg.twelve_lead_generator import TwelveLeadEcgGenerator, EcgParameters, generate_12lead_example
 from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer, create_clinical_summary
+
+# Tanda 2 de la fase 1 (decisión 7): etiquetas en español de códigos internos del analizador (no se cambian los códigos).
+_AXIS_CATEGORY_ES = {"Normal": "normal", "LAD": "desviación izquierda", "RAD": "desviación derecha",
+                     "Extreme": "desviación extrema", "Unknown": "no determinado"}
+_LOCATION_ES = {"anterior": "anterior", "inferior": "inferior", "lateral": "lateral", "other": "otra"}
+_ABNORMALITY_ES = {"inversion": "inversión", "pathological_q": "Q patológica"}
 from src.signals.ecg.advanced_patterns import AdvancedEcgPatterns
 from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM, get_type
 
@@ -249,7 +255,7 @@ with col1:
             "Hipertrofia ventricular izquierda (LVH)",
             "💓 Fibrilación Auricular - Ritmo irregularmente irregular",
             "💓 Flutter Auricular - Ondas flutter regulares",
-            "⚡ Síndrome WPW - Vía accesoria (PR corto, delta wave)",
+            "⚡ Síndrome WPW - Vía accesoria (PR corto, onda delta)",
             "⚠️ Síndrome QT largo - QT prolongado, riesgo de torsadas",
         ],
     )
@@ -266,7 +272,7 @@ with col1:
         "Hipertrofia ventricular izquierda (LVH)": "lvh",
         "💓 Fibrilación Auricular - Ritmo irregularmente irregular": "af",
         "💓 Flutter Auricular - Ondas flutter regulares": "flutter",
-        "⚡ Síndrome WPW - Vía accesoria (PR corto, delta wave)": "wpw",
+        "⚡ Síndrome WPW - Vía accesoria (PR corto, onda delta)": "wpw",
         "⚠️ Síndrome QT largo - QT prolongado, riesgo de torsadas": "long_qt",
     }
 
@@ -331,7 +337,7 @@ with col1:
         apply_filter = st.checkbox(
             "Aplicar filtro banda (0.5-40 Hz)",
             value=True,
-            help="Activa un filtro bandpass para limpiar el ECG antes de mostrar el 12-lead.",
+            help="Activa un filtro pasa banda para limpiar el ECG antes de mostrar las 12 derivaciones.",
         )
 
         uploaded_ecg = None
@@ -355,7 +361,7 @@ with col1:
             "V1-V6 (precordiales, septal → lateral)"
         )
 
-    if st.button("🔄 Generar ECG de 12 derivaciones", use_container_width=True):
+    if st.button("🔄 Generar ECG de 12 derivaciones", type="primary", use_container_width=True):
         st.session_state.generate_ecg = True
 
 # Generate and display ECG
@@ -503,7 +509,7 @@ if "ecg_data" in st.session_state:
     )
     st.markdown(
         f"> **{interpretation.rhythm}**, eje QRS de **{interpretation.qrs_axis.axis_degrees:.0f}°** "
-        f"({interpretation.qrs_axis.category}){st_summary}{block_summary}. "
+        f"({_AXIS_CATEGORY_ES.get(interpretation.qrs_axis.category, interpretation.qrs_axis.category)}){st_summary}{block_summary}. "
         f"{interpretation.clinical_significance}"
     )
 
@@ -524,7 +530,7 @@ if "ecg_data" in st.session_state:
         # tarjeta de métrica sin `classification=` habría aplanado el color
         # a NEUTRAL siempre -- una regresión visual real (perder la
         # distinción crítico/normal), no solo un re-skin. Ver CHANGELOG.md.
-        if "INFARCTION" in interpretation.primary_diagnosis:
+        if "INFARTO" in interpretation.primary_diagnosis:
             st.markdown(
                 f'<div style="background:{PALETTE.CRITICAL}; padding:15px; border-radius:8px; color:{PALETTE.ON_STATE};">'
                 f'🔴 CRÍTICO: {interpretation.primary_diagnosis}</div>',
@@ -547,7 +553,7 @@ if "ecg_data" in st.session_state:
         if interpretation.st_findings:
             st.markdown("**Elevaciones/Depresiones ST:**")
             for f in interpretation.st_findings:
-                st.write(f"  • {f.lead}: {f.elevation_mv:+.2f} mV ({f.location})")
+                st.write(f"  • {f.lead}: {f.elevation_mv:+.2f} mV ({_LOCATION_ES.get(f.location, f.location)})")
 
         # Conduction blocks
         if interpretation.conduction_blocks:
@@ -559,7 +565,7 @@ if "ecg_data" in st.session_state:
         if interpretation.wave_abnormalities:
             st.markdown("**Anomalías de Ondas:**")
             for w in interpretation.wave_abnormalities:
-                st.write(f"  • {w.wave_type} wave in {', '.join(w.leads_affected)}: {w.abnormality}")
+                st.write(f"  • Onda {w.wave_type} en {', '.join(w.leads_affected)}: {_ABNORMALITY_ES.get(w.abnormality, w.abnormality)}")
 
     with col_analysis2:
         st.markdown("### 📋 Recomendaciones Clínicas")
@@ -637,7 +643,7 @@ with col2:
     - **LAD** (Anterior): V1-V4
     - **LCx** (Lateral): I, aVL, V5-V6
     - **RCA** (Inferior): II, III, aVF
-    - **Posterior**: V1-V2 (reciprocal)
+    - **Posterior**: V1-V2 (recíproca)
     """)
 
     st.markdown("---")
@@ -645,16 +651,16 @@ with col2:
     st.markdown("### 💓 Patrones Avanzados")
     with st.expander("Arritmias Supraventriculares"):
         st.write("""
-        **Fibrilación Auricular (AF)**
+        **Fibrilación Auricular (FA)**
         - Ausencia de ondas P definidas
-        - Baseline con fibrilación fina/gruesa
+        - Línea de base con fibrilación fina/gruesa
         - Ritmo irregularmente irregular
         - FC variable (100-160 típico)
 
         **Flutter Auricular**
-        - Ondas flutter regulares (sawtooth)
+        - Ondas de flutter regulares (en dientes de sierra)
         - FC > 250 lpm auricular
-        - VR depende de AV bloqueo (2:1, 3:1, etc.)
+        - La respuesta ventricular depende del bloqueo AV (2:1, 3:1, etc.)
         - Ritmo regular/regularizado
         """)
 
@@ -662,15 +668,15 @@ with col2:
         st.write("""
         **WPW (Wolff-Parkinson-White)**
         - PR corto (<120 ms)
-        - Delta wave (slurred QRS onset)
+        - Onda delta (inicio empastado del QRS)
         - QRS prolongado (>120 ms)
-        - ST depression secundaria
-        - Riesgo de AF preexcitada
+        - Depresión del ST secundaria
+        - Riesgo de FA preexcitada
 
-        **Long QT Syndrome**
+        **Síndrome de QT largo**
         - QT muy prolongado (>500 ms)
-        - T wave prominente/bífido
-        - U waves visibles
+        - Onda T prominente/bífida
+        - Ondas U visibles
         - Riesgo de torsades de pointes
         """)
 
@@ -687,4 +693,4 @@ with col2:
     """)
 
 st.markdown("---")
-st.markdown("*Sistema de Educación Electrocardiográfica Profesional | 12-Lead ECG Educational Lab*")
+st.markdown("*Sistema de Educación Electrocardiográfica Profesional | Laboratorio educativo de ECG de 12 derivaciones*")

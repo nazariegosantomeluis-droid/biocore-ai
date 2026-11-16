@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 try:
-    from fpdf import FPDF
+    from fpdf import FPDF, XPos, YPos
 except ImportError:
-    FPDF = None  # type: ignore
+    FPDF = XPos = YPos = None  # type: ignore
 
 
 @dataclass
@@ -67,11 +67,12 @@ def generate_pdf_report(patient: Dict[str, str], summary: str, path: str = 'rura
     os.makedirs(os.path.dirname(path), exist_ok=True)
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 12, 'Reporte Biomédico', ln=True)
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(0, 10, f"Paciente: {patient.get('name', 'N/A')}", ln=True)
-    pdf.cell(0, 10, f"Edad: {patient.get('age', 'N/A')}", ln=True)
+    # Tanda 2 de la fase 1: fuente núcleo explícita y new_x/new_y (ln= y la sustitución de Arial están obsoletos).
+    pdf.set_font('helvetica', 'B', 14)
+    pdf.cell(0, 12, 'Reporte Biomédico', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font('helvetica', '', 12)
+    pdf.cell(0, 10, f"Paciente: {patient.get('name', 'N/A')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Edad: {patient.get('age', 'N/A')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.multi_cell(0, 8, summary)
     pdf.output(path)
     return path

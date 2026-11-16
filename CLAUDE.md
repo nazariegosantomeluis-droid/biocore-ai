@@ -16,9 +16,9 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Sección | Página (`url_path`) | Dónde vive |
 |---|---|---|
 | (sin encabezado) | Inicio (`inicio`) | `render_home_page()` en `app/main.py`: tres puertas |
-| Aprender | Teoría (Academia) (`teoria`) | `academia.pages.render_theory_section` |
-| Aprender | Referencias de los laboratorios (`referencias`) | referencias e información educativa de Respiratorio (`views`) y EEG (`eeg_neuro_lab/teaching.py`) |
-| Aprender | ECG en 3D (`ecg-3d`) | `model3d.panels.render_vcg_panel` (vectocardiograma) |
+| Aprender | Teoría (Academia) (`teoria`) | teoría en capas: `app/supermodules/learn_theory.py` (tabla de 12 derivaciones de `educational.ecg_academy`) |
+| Aprender | Referencias de los laboratorios (`referencias`) | teoría en capas (`learn_theory.py`) con el texto de Respiratorio (`views`) y EEG (`eeg_neuro_lab/teaching.py`) |
+| Aprender | ECG en 3D (`ecg-3d`) | teoría en capas (`learn_theory.py`) + `model3d.panels.render_vcg_panel` (vectocardiograma) |
 | Practicar | Quiz de la Academia (`quiz`) | `academia.pages.render_quiz_section` |
 | Practicar | Caso ciego (`caso-ciego`) | `academia.pages.render_synthetic_case_section` |
 | Practicar | Desafío ECG de 12 derivaciones (`desafio-ecg`) | `app/supermodules/ecg_12/quiz.py` |
@@ -33,14 +33,16 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Explorar | Variabilidad cardíaca (HRV) (`hrv`) | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
 | Explorar | Biomarcadores (`biomarcadores`) | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
 | Explorar | Calculadoras clínicas (`calculadoras`) | `app/supermodules/calculators/` + `clinical/calculators.py` |
-| Explorar | Pipeline de pacientes (`pacientes`) | `render_patient_pipeline_page()` en `app/main.py` |
+| Explorar | Flujo de pacientes (`pacientes`) | `render_patient_pipeline_page()` en `app/main.py` |
 | Explorar | Crea tu modelo 3D (`modelo-3d`) | `app/supermodules/model3d/` |
 | Ajustes | Ajustes (`ajustes`) | `app/utils/ai_session.py::render_settings_page` (clave de IA solo en `st.session_state`) |
 
-- **Sistema de diseño (tanda 1 de la fase 1):** `PALETTE` en `app/utils/design_system.py` es la ÚNICA fuente de color (estado clínico STABLE/WARNING/CRITICAL, NEUTRAL para «sin dato» y texto secundario, PRIMARY para la pestaña activa); `.streamlit/config.toml` la copia y una prueba exige que coincidan; `CONTRAST_PAIRS` lista los pares WCAG que `tests/test_fase1_t1_diseno.py` mide. Ningún hex fuera de `design_system.py` (excepciones: `model3d/`, `reporting.py`, `ecg_trainer.py`). Un solo tema (oscuro). Componentes únicos: etiqueta de procedencia con TEXTO (`BADGES.*` son palabras: «Validado por fuente», «Criterio BIOCORE», «Heurística», «Pendiente de validación», «Simulación», «Sin fuente»; `BADGES.label`/`BADGES.tag`/`badge_html`, color neutro), «sin dato» (`no_data_html`/`render_no_data`: dice qué falta) y la tarjeta de métrica (`render_metric_card`, que absorbió los `st.metric` de Twin OS; lleva `data-label`/`data-value` para las pruebas). El color va siempre con una palabra. Sin botones `type="primary"` (el blanco sobre PRIMARY no llega a AA).
+- **Sistema de diseño (tanda 1 de la fase 1):** `PALETTE` en `app/utils/design_system.py` es la ÚNICA fuente de color (estado clínico STABLE/WARNING/CRITICAL, NEUTRAL para «sin dato» y texto secundario, PRIMARY para la pestaña activa); `.streamlit/config.toml` la copia y una prueba exige que coincidan; `CONTRAST_PAIRS` lista los pares WCAG que `tests/test_fase1_t1_diseno.py` mide. Ningún hex fuera de `design_system.py` (excepciones: `model3d/`, `reporting.py`, `ecg_trainer.py`). Un solo tema (oscuro). Componentes únicos: etiqueta de procedencia con TEXTO (`BADGES.*` son palabras: «Validado por fuente», «Criterio BIOCORE», «Heurística», «Pendiente de validación», «Simulación», «Sin fuente»; `BADGES.label`/`BADGES.tag`/`badge_html`, color neutro), «sin dato» (`no_data_html`/`render_no_data`: dice qué falta) y la tarjeta de métrica (`render_metric_card`, que absorbió los `st.metric` de Twin OS; lleva `data-label`/`data-value` para las pruebas). El color va siempre con una palabra. Botón principal (tanda 2): texto ON_STATE sobre PRIMARY (5.56:1) y, con el cursor encima, sobre ACCENT_ON_DARK (9.98:1), por CSS en `inject_global_theme` (Streamlit no expone ese color y lo pinta blanco, 3.21:1). PRIMARY nunca es color de texto sobre el panel (4.44:1); `linkColor` = ACCENT_ON_DARK.
 
 - **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio).
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
+- **Teoría en capas (tanda 2 de la fase 1):** `TheoryTopic` + `render_theory_topic` (`design_system.py`) es el único componente de teoría: (1) la idea en una frase, (2) el mecanismo y (3) el detalle con su fuente, estas dos a demanda. Los temas viven en `app/supermodules/learn_theory.py` y SOLO usan texto que ya existe en el repositorio con su cita o etiqueta (`ORIGINS`; `tests/test_fase1_t2_teoria.py` lo verifica línea por línea). Capa sin contenido con fuente: se omite y queda en `PENDING_LAYERS` para la firma de Luis.
+- **Idioma (tanda 2):** ningún «bpm» ni inglés visible; `tests/test_fase1_t2_pulido.py` recorre las 21 páginas con AppTest. Los valores internos no se traducen: se muestran con su etiqueta (`clinical.ecg_analyzer.pattern_label_es`, `eeg_analyzer.FINDING_LABELS_ES`/`band_label_es`, `format_func`). «Digital Twin OS»/«Twin OS» se conserva como nombre propio.
 
 ## El UPS (`domain/physiology/state/`)
 
@@ -72,7 +74,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 ## Comandos
 
 ```bash
-source .venv/Scripts/activate          # Windows + Git Bash; Python 3.13 (única versión probada)
+python                                 # el de Luis: el del PATH (Python 3.13.11, Streamlit 1.67.0); el .venv tiene Streamlit 1.66.1
 pytest tests/ -q                       # suite completa; varios minutos
 pytest tests/test_containment_facades_tanda1.py -q    # contención de fachadas (AppTest)
 streamlit run app/main.py

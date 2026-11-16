@@ -62,7 +62,7 @@ def interpret_ecg(signal: np.ndarray, fs: float, time: Optional[np.ndarray] = No
 
     flags = compute_clinical_flags(intervals, st_flags)
     description = []
-    description.append(f"Frecuencia cardíaca estimada: {intervals.get('bpm', float('nan')):.1f} bpm")
+    description.append(f"Frecuencia cardíaca estimada: {intervals.get('bpm', float('nan')):.1f} lpm")
     if st_flags['st_elevation']:
         description.append('Se detecta posible elevación del segmento ST.')
     if st_flags['st_depression']:

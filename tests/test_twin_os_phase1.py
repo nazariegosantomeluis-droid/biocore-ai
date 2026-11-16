@@ -58,6 +58,8 @@ def _text(at):
     for e in at.markdown:
         visible = " ".join(re.sub(r"<[^>]+>", " ", str(e.value)).split())
         out["md"].append(visible)
+        if "biocore-organ-card" in str(e.value):            # tarjeta del Cuerpo Digital (lee el UPS), no la del organismo
+            out.setdefault("body_cards", []).append(visible)
         card = _CARD.search(str(e.value))
         if card and card.group(1) not in _BAROREFLEX_CARDS:   # la tarjeta de métrica única absorbió a `st.metric`: (etiqueta, valor, fuente visible + ayuda)
             out["metric"].append((card.group(1), card.group(2) or NO_DATA,
@@ -115,7 +117,10 @@ CARDS = ("❤️ Corazón", "🧠 Cerebro", "💨 Pulmones", "💪 Músculos", "
 
 
 def _card(texts, organ_name):
-    return next(t for t in texts["md"] if t.startswith(organ_name))
+    """Tarjeta del organismo en la cuadrícula de órganos. Desde la tanda 2 el Cuerpo Digital (que lee el UPS) se dibuja
+    antes y sus tarjetas empiezan con el mismo nombre: se excluyen."""
+    body = set(texts.get("body_cards", []))
+    return next(t for t in texts["md"] if t.startswith(organ_name) and t not in body)
 
 
 def _header(texts):

@@ -49,6 +49,10 @@ def test_analyze_at_the_threshold_filters_and_degrades_by_the_existing_path():
     assert "insuficiente tras rechazo de artefactos" in result.reason
 
 
+# Señal de 10 muestras a propósito (más corta que el filtro): SciPy avisa «invalid value encountered in divide» al
+# diseñar el filtro sobre ella. Es el caso degenerado que la prueba provoca para comprobar que todo dice «no
+# disponible»; el aviso no indica un fallo del código (tanda 2 de la fase 1).
+@pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
 def test_short_signal_propagates_as_unavailable_all_the_way_to_the_ratios_and_chi():
     """El camino completo que recorre la página: analyze() -> DAR/TBR
     (`classify_*`), BAR, band power, y χ (`fit_aperiodic_component` con el

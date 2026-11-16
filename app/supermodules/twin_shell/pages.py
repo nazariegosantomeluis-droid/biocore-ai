@@ -35,6 +35,7 @@ from app.engines import (
     PredictionEngine,
 )
 from clinical.calculators import PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
+from clinical.ecg_analyzer import pattern_label_es
 from app.engines.digital_twin_organism import NEWS2_POINTS_COLOR, NO_DATA, NO_DATA_COLOR, NOT_MODELED
 from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
 from app.utils.design_system import (
@@ -516,7 +517,7 @@ def render_neuro_cardiac_composer() -> None:
 
     st.markdown("#### 🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)")
     st.caption(
-        "Une la última medición **neurológica** guardada (el BAR, Ratio Beta/Alfa del EEG Lab, "
+        "Une la última medición **neurológica** guardada (el BAR, Ratio Beta/Alfa del Laboratorio de EEG, "
         "una medida de activación cortical) con la última **frecuencia cardíaca medida** guardada "
         "(ECG/HRV/este panel) en un mismo momento, y evalúa la regla validada arousal→↑FC "
         "(`AROUSAL_TAQUICARDIA_BAR`: si el BAR pasa de 1.8, la FC sube +15 lpm; Guyton 14ª ed. "
@@ -581,7 +582,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         sep_col1, sep_col2 = st.columns([3, 2])
         sepsis_horizon = sep_col1.selectbox(
             "Horizonte", list(sepsis_trajectory.HORIZON_PHASES),
-            format_func=lambda h: f"{h} — {sepsis_trajectory.phase_of(h)}",
+            format_func=lambda h: f"{'ahora' if h == 'now' else h} — {sepsis_trajectory.phase_of(h)}",
             key="twin_shell_sepsis_horizon", label_visibility="collapsed",
         )
         if sep_col2.button("Aplicar punto", key="twin_shell_sepsis_apply", use_container_width=True):
@@ -1345,7 +1346,7 @@ def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
     return pa_findings
 
 
-def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
+def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = False) -> None:
     """Modo Caso Clínico Interactivo v1 (2026-07-12) — diagnóstico por
     opción múltiple. Convierte al estudiante de espectador en clínico,
     reutilizando TODO lo existente: los 15 escenarios reales
@@ -1377,7 +1378,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
     viene de `get_latest_state`/`get_events`, que nunca exponen el
     escenario que los generó (no es un campo del UPS)."""
 
-    with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=False):
+    with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=expanded):
         st.caption(
             "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo "
             "entre 4 opciones; el feedback lo genera el narrador real (Anthropic), fundamentado "
@@ -1732,11 +1733,11 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
             return
 
         include_age = st.checkbox(
-            "Incluir edad ingresada en Biomarkers Lab (dato real ingresado por el usuario, no del UPS)",
+            "Incluir edad ingresada en Biomarcadores (dato real ingresado por el usuario, no del UPS)",
             value=False,
             key="twin_shell_risk_include_age",
             help="El UPS no modela demografía — esta edad viene del campo 'Edad' de Clinical Hub → "
-                 "Biomarkers Lab. Si no visitaste esa página todavía, no hay edad que incluir (el "
+                 "Biomarcadores. Si no visitaste esa página todavía, no hay edad que incluir (el "
                  "checkbox simplemente no aporta nada, sin romperse). Se omite por defecto para no "
                  "mezclar fuentes sin que lo pidas.",
         )
@@ -1973,7 +1974,7 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 <div style='text-align:center; padding:14px; border-radius:12px;
                             border:1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03);'>
                     <div style='font-size:11px; letter-spacing:1px; color:{PALETTE.NEUTRAL};'>CLASIFICACIÓN (DERIVADO)</div>
-                    <div style='font-size:19px; font-weight:700; color:{PALETTE.TEXT};'>{result.pattern}</div>
+                    <div style='font-size:19px; font-weight:700; color:{PALETTE.TEXT};'>{pattern_label_es(result.pattern)}</div>
                     <div style='font-size:13px; color:{PALETTE.NEUTRAL};'>{criterion}</div>
                 </div>
                 """,
@@ -2014,6 +2015,10 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 st.bar_chart(importance_df, use_container_width=True)
         else:
             st.caption(result.explainability_note or "Explicabilidad no disponible.")
+        # Tanda 2 de la fase 1 (Art. I): con RR casi idénticos, asimetría y curtosis no se calculan; se dice, no se
+        # muestra un número poco fiable.
+        for label, reason in result.unavailable_features.items():
+            st.markdown(no_data_html(label, reason), unsafe_allow_html=True)
 
 
 # Etiquetas en español de las 5 claves de `system_risks` (prediction_engine.py); las claves no se tocan.
@@ -2115,11 +2120,16 @@ def main() -> None:
     # de un estilo ad-hoc.
     render_module_header("Digital Twin OS", icon="🧬", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
 
+    # Tanda 2 de la fase 1 (primera vista): al abrir, el Cuerpo Digital y el caso clínico; sliders, barorreflejo y
+    # paneles avanzados, plegados. Solo cambió el orden: los sliders siguen ANTES porque alimentan al organismo.
     render_sensor_controls(organism)
+    render_clinical_case_mode(organism, expanded=True)
+    render_synced_digital_twin_body(organism)
     render_ambient_header(organism)
     render_organ_grid(organism)
     render_couplings(organism)
-    render_neuro_cardiac_composer()
+    with st.expander("🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)"):
+        render_neuro_cardiac_composer()
     st.divider()
     render_organ_panel(organism)
     st.divider()
@@ -2127,10 +2137,9 @@ def main() -> None:
     st.markdown("### 🧭 Herramientas avanzadas")
     render_scenario_and_interventions(organism)
     render_ups_scenario_simulator(organism)
-    render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
-    render_synced_digital_twin_body(organism)
+    with st.expander("🔁 Barorreflejo: el lazo cerrado por dentro"):
+        render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
     render_clinical_narrator(organism)
-    render_clinical_case_mode(organism)
     render_causal_reasoning(organism)
     render_ml_risk_panel(organism)
     render_ecg_classifier_panel(organism)

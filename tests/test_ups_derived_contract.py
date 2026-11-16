@@ -199,7 +199,7 @@ def test_route_respiratory_lab_is_unchanged_two_fields_with_their_provenance(ups
 
 def test_route_ecg_lab_writes_only_heart_rate_with_the_confidence_the_detector_computed(ups):
     def choose_sinus_case(at):
-        [r for r in at.sidebar.radio if r.label == "ECG Source"][0].set_value("Caso clínico (61 disponibles)").run()
+        [r for r in at.sidebar.radio if r.label == "Origen del ECG"][0].set_value("Caso clínico (61 disponibles)").run()
         [x for x in at.sidebar.selectbox if x.label == "Diagnóstico primario"][0].set_value("I°AV").run()
 
     at, state = _press(ups, "Clinical Hub", "🫀 ECG Lab", "ecg_lab_save_to_ups", before=choose_sinus_case)

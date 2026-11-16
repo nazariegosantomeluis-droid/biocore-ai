@@ -46,16 +46,16 @@ def qrs_axis_from_net(lead_i_net: float, avf_net: float) -> QrsAxis:
 
     if -30 <= axis_deg <= 90:
         category = "Normal"
-        description = f"Normal axis: {axis_deg:.0f}°"
+        description = f"Eje normal: {axis_deg:.0f}°"
     elif -90 <= axis_deg < -30:
         category = "LAD"
-        description = f"Left Axis Deviation: {axis_deg:.0f}°"
+        description = f"Desviación del eje a la izquierda: {axis_deg:.0f}°"
     elif axis_deg > 90:
         category = "RAD"
-        description = f"Right Axis Deviation: {axis_deg:.0f}°"
+        description = f"Desviación del eje a la derecha: {axis_deg:.0f}°"
     else:  # -180 a -90: antes salía "LAD", pero no es desviación izquierda
         category = "Extreme"
-        description = f"Extreme axis deviation (indeterminate axis): {axis_deg:.0f}°"
+        description = f"Desviación extrema del eje (eje indeterminado): {axis_deg:.0f}°"
 
     return QrsAxis(axis_degrees=axis_deg, category=category, description=description)
 
@@ -103,14 +103,14 @@ class EcgInterpretation:
 
 class TwelveLeadEcgAnalyzer:
     """Professional ECG analyzer"""
-    
+
     # Lead groupings for interpretation
     ANTERIOR_LEADS = ['V1', 'V2', 'V3', 'V4']
     SEPTAL_LEADS = ['V1', 'V2']
     LATERAL_LEADS = ['I', 'aVL', 'V5', 'V6']
     INFERIOR_LEADS = ['II', 'III', 'aVF']
     RIGHT_LEADS = ['aVR', 'V1']
-    
+
     # Anatomical locations for STEMI
     STEMI_LOCATIONS = {
         ('V1', 'V2', 'V3', 'V4'): ('Anterior', 'LAD territory'),
@@ -119,66 +119,66 @@ class TwelveLeadEcgAnalyzer:
         ('II', 'III', 'aVF'): ('Inferior', 'RCA territory'),
         ('V1', 'V2', 'II', 'III', 'aVF'): ('Posterior', 'Posterior wall'),
     }
-    
+
     def __init__(self):
         """Initialize analyzer"""
         pass
-    
+
     def analyze_12lead(self, ecg_signals: Dict[str, np.ndarray]) -> EcgInterpretation:
         """
         Perform complete 12-lead ECG analysis
-        
+
         Args:
             ecg_signals: Dictionary with leads I-III, aVR-aVF, V1-V6, and 'time' array
-            
+
         Returns:
             Complete ECG interpretation with findings
         """
         # Extract signals
         time = ecg_signals.get('time', None)
-        
+
         # Determine QRS axis
         qrs_axis = self._determine_qrs_axis(
             ecg_signals.get('I', None),
             ecg_signals.get('aVF', None),
             ecg_signals.get('II', None)
         )
-        
+
         # Detect ST segment abnormalities
         st_findings = self._detect_st_abnormalities(ecg_signals)
-        
+
         # Determine STEMI location if present
         stemi_location = self._localize_stemi(st_findings) if st_findings else None
-        
+
         # Detect conduction blocks
         conduction_blocks = self._detect_conduction_blocks(ecg_signals)
-        
+
         # Detect wave abnormalities
         wave_abnormalities = self._detect_wave_abnormalities(ecg_signals)
-        
+
         # Determine rhythm
         rhythm = self._determine_rhythm(ecg_signals)
-        
+
         # Generate primary diagnosis
         primary_diagnosis = self._generate_primary_diagnosis(
             stemi_location, conduction_blocks, qrs_axis, rhythm
         )
-        
+
         # Generate differential diagnoses
         differential = self._generate_differential_diagnoses(
             st_findings, wave_abnormalities, qrs_axis
         )
-        
+
         # Clinical significance
         clinical_sig = self._assess_clinical_significance(
             st_findings, conduction_blocks, wave_abnormalities, rhythm
         )
-        
+
         # Recommendations
         recommendations = self._generate_recommendations(
             primary_diagnosis, st_findings, rhythm
         )
-        
+
         return EcgInterpretation(
             qrs_axis=qrs_axis,
             st_findings=st_findings,
@@ -190,11 +190,11 @@ class TwelveLeadEcgAnalyzer:
             clinical_significance=clinical_sig,
             recommendations=recommendations
         )
-    
+
     def _determine_qrs_axis(self, lead_i: np.ndarray, aVF: np.ndarray, lead_ii: np.ndarray) -> QrsAxis:
         """Eje desde el área neta de I y aVF; la fórmula vive en `qrs_axis_from_net()`."""
         if lead_i is None or aVF is None:
-            return QrsAxis(axis_degrees=0, category="Unknown", description="Insufficient data")
+            return QrsAxis(axis_degrees=0, category="Unknown", description="Datos insuficientes")
 
         # Área neta de cada derivación = proyección del vector medio
         return qrs_axis_from_net(float(np.mean(lead_i)), float(np.mean(aVF)))
@@ -202,24 +202,24 @@ class TwelveLeadEcgAnalyzer:
     def _detect_st_abnormalities(self, ecg_signals: Dict[str, np.ndarray]) -> List[StSegmentFinding]:
         """Detect ST segment elevation/depression"""
         findings = []
-        
+
         # ST segment usually at 40% of cardiac cycle after QRS
         # Simplified: measure elevation relative to baseline
-        
+
         for lead_name in ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']:
             signal = ecg_signals.get(lead_name, None)
             if signal is None:
                 continue
-            
+
             # Find ST segment (between QRS and T wave)
             # Simplified: find the baseline region with lowest amplitude
             sorted_signal = np.sort(np.abs(signal))
             baseline_threshold = sorted_signal[len(sorted_signal)//4]
-            
+
             # Measure ST level
             st_region = signal[np.abs(signal) < baseline_threshold * 2]
             st_level = np.mean(st_region) if len(st_region) > 0 else 0
-            
+
             # Determine location based on lead grouping
             if lead_name in self.ANTERIOR_LEADS:
                 location = "anterior"
@@ -229,7 +229,7 @@ class TwelveLeadEcgAnalyzer:
                 location = "lateral"
             else:
                 location = "other"
-            
+
             # Determine severity
             if abs(st_level) < 0.05:
                 severity = "normal"
@@ -240,74 +240,74 @@ class TwelveLeadEcgAnalyzer:
                 severity = "moderate"
             else:
                 severity = "significant"
-            
+
             findings.append(StSegmentFinding(
                 lead=lead_name,
                 elevation_mv=st_level,
                 location=location,
                 severity=severity
             ))
-        
+
         return findings
-    
+
     def _localize_stemi(self, st_findings: List[StSegmentFinding]) -> Optional[str]:
         """Localize myocardial infarction based on ST elevation pattern"""
         if not st_findings:
             return None
-        
+
         # Find leads with significant ST elevation
         elevated_leads = {f.lead for f in st_findings if f.severity in ["moderate", "significant"] and f.elevation_mv > 0}
-        
+
         # Specific patterns
         if elevated_leads & set(self.ANTERIOR_LEADS):
-            return "Anterior STEMI (LAD territory)"
+            return "STEMI anterior (territorio de la DA)"
         elif elevated_leads & set(self.INFERIOR_LEADS):
-            return "Inferior STEMI (RCA/LCx territory)"
+            return "STEMI inferior (territorio de la CD/Cx)"
         elif elevated_leads & set(self.LATERAL_LEADS):
-            return "Lateral STEMI (LCx territory)"
-        
+            return "STEMI lateral (territorio de la Cx)"
+
         return None
-    
+
     def _detect_conduction_blocks(self, ecg_signals: Dict[str, np.ndarray]) -> List[ConductionBlock]:
         """Detect conduction abnormalities"""
         blocks = []
-        
+
         # Simplified block detection based on QRS width and morphology
         # In real implementation, would measure PR interval, QRS duration precisely
-        
+
         v1 = ecg_signals.get('V1', None)
         v6 = ecg_signals.get('V6', None)
         lead_i = ecg_signals.get('I', None)
         lead_ii = ecg_signals.get('II', None)
-        
+
         if v1 is not None and v6 is not None:
             # Estimate QRS duration (simplified)
             v1_transitions = np.sum(np.abs(np.diff(v1)) > 0.1)
-            
+
             # RBBB pattern: RSR' in V1, wide S in V6
             if v1_transitions > 50:
                 blocks.append(ConductionBlock(
                     block_type="RBBB",
                     degree=1,
                     affected_leads=['V1', 'V2', 'V3', 'I', 'V5', 'V6'],
-                    description="Right Bundle Branch Block: Wide QRS (>120 ms), RSR' in V1-V2, wide S in lateral leads"
+                    description="Bloqueo de rama derecha: QRS ancho (>120 ms), RSR' en V1-V2, S ancha en derivaciones laterales"
                 ))
-            
+
             # LBBB pattern: Wide notched R in I/V6, deep S in V1
             if lead_i is not None and lead_i.max() > 1.2:
                 blocks.append(ConductionBlock(
                     block_type="LBBB",
                     degree=1,
                     affected_leads=['I', 'aVL', 'V5', 'V6'],
-                    description="Left Bundle Branch Block: Wide QRS (>120 ms), broad notched R in lateral leads"
+                    description="Bloqueo de rama izquierda: QRS ancho (>120 ms), R ancha y mellada en derivaciones laterales"
                 ))
-        
+
         return blocks
-    
+
     def _detect_wave_abnormalities(self, ecg_signals: Dict[str, np.ndarray]) -> List[WaveAbnormality]:
         """Detect abnormal P, QRS, T waves"""
         abnormalities = []
-        
+
         # T wave inversion in specific patterns
         for lead_name in self.ANTERIOR_LEADS:
             signal = ecg_signals.get(lead_name, None)
@@ -319,9 +319,9 @@ class TwelveLeadEcgAnalyzer:
                         wave_type="T",
                         leads_affected=[lead_name],
                         abnormality="inversion",
-                        description=f"T wave inversion in {lead_name}"
+                        description=f"Inversión de la onda T en {lead_name}"
                     ))
-        
+
         # Pathological Q waves (especially in leads II, III, aVF for inferior MI)
         for lead_name in self.INFERIOR_LEADS:
             signal = ecg_signals.get(lead_name, None)
@@ -336,37 +336,37 @@ class TwelveLeadEcgAnalyzer:
                             wave_type="Q",
                             leads_affected=[lead_name],
                             abnormality="pathological_q",
-                            description=f"Pathological Q wave in {lead_name}"
+                            description=f"Onda Q patológica en {lead_name}"
                         ))
-        
+
         return abnormalities
-    
+
     def _determine_rhythm(self, ecg_signals: Dict[str, np.ndarray]) -> str:
         """Determine cardiac rhythm"""
         time = ecg_signals.get('time', None)
         lead_ii = ecg_signals.get('II', None)
-        
+
         if lead_ii is None or time is None:
-            return "Unknown rhythm"
-        
+            return "Ritmo no determinado"
+
         # Count QRS complexes by peak detection (simplified)
         from scipy.signal import find_peaks
-        
+
         peaks, _ = find_peaks(lead_ii, height=0.5, distance=50)
-        
+
         if len(peaks) > 0:
             total_time = time[-1] - time[0]
             heart_rate = (len(peaks) / total_time) * 60
-            
+
             if 60 <= heart_rate <= 100:
-                return f"Sinus rhythm, HR {heart_rate:.0f} bpm (normal)"
+                return f"Ritmo sinusal, FC {heart_rate:.0f} lpm (normal)"
             elif heart_rate > 100:
-                return f"Sinus tachycardia, HR {heart_rate:.0f} bpm"
+                return f"Taquicardia sinusal, FC {heart_rate:.0f} lpm"
             elif heart_rate < 60:
-                return f"Sinus bradycardia, HR {heart_rate:.0f} bpm"
-        
-        return "Unable to determine rhythm"
-    
+                return f"Bradicardia sinusal, FC {heart_rate:.0f} lpm"
+
+        return "No se pudo determinar el ritmo"
+
     def _generate_primary_diagnosis(
         self, 
         stemi_location: Optional[str], 
@@ -376,18 +376,18 @@ class TwelveLeadEcgAnalyzer:
     ) -> str:
         """Generate primary diagnosis"""
         if stemi_location:
-            return f"ACUTE MYOCARDIAL INFARCTION - {stemi_location}"
-        
+            return f"INFARTO AGUDO DE MIOCARDIO - {stemi_location}"
+
         if conduction_blocks:
             return f"{conduction_blocks[0].block_type}"
-        
-        if "tachycardia" in rhythm:
-            return "Sinus Tachycardia"
-        elif "bradycardia" in rhythm:
-            return "Sinus Bradycardia"
-        
-        return "Normal ECG or non-specific findings"
-    
+
+        if "taquicardia" in rhythm.lower():
+            return "Taquicardia sinusal"
+        elif "bradicardia" in rhythm.lower():
+            return "Bradicardia sinusal"
+
+        return "ECG normal o hallazgos inespecíficos"
+
     def _generate_differential_diagnoses(
         self,
         st_findings: List[StSegmentFinding],
@@ -396,26 +396,26 @@ class TwelveLeadEcgAnalyzer:
     ) -> List[str]:
         """Generate differential diagnoses"""
         differentials = []
-        
+
         if st_findings:
             differentials.append("Acute myocardial infarction")
             differentials.append("Myocarditis/Pericarditis")
-        
+
         if any(w.abnormality == "pathological_q" for w in wave_abnormalities):
             differentials.append("Chronic myocardial infarction")
             differentials.append("Cardiomyopathy")
-        
+
         if qrs_axis.category == "LAD":
             differentials.append("Left anterior fascicular block")
             differentials.append("Inferior myocardial infarction")
             differentials.append("Wolff-Parkinson-White syndrome")
-        
+
         if qrs_axis.category == "RAD":
             differentials.append("Chronic lung disease")
             differentials.append("Lateral myocardial infarction")
-        
+
         return differentials
-    
+
     def _assess_clinical_significance(
         self,
         st_findings: List[StSegmentFinding],
@@ -425,19 +425,19 @@ class TwelveLeadEcgAnalyzer:
     ) -> str:
         """Assess clinical urgency and significance"""
         if any(f.severity == "significant" for f in st_findings):
-            return "🔴 CRITICAL: ST elevation suggests acute MI. Activate emergency protocol immediately. Cardiology consultation required."
-        
+            return "🔴 CRÍTICO: la elevación del ST sugiere un IAM agudo. Activar el protocolo de emergencia de inmediato. Se requiere interconsulta con cardiología."
+
         if conduction_blocks and "3rd degree" in str(conduction_blocks):
-            return "🔴 CRITICAL: Complete heart block. Pacemaker consideration required. Immediate cardiology consultation."
-        
-        if "bradycardia" in rhythm and "bradycardia" in rhythm and float(rhythm.split()[-2]) < 40:
-            return "🟠 URGENT: Severe bradycardia. Monitor for hemodynamic compromise."
-        
+            return "🔴 CRÍTICO: bloqueo cardíaco completo. Valorar marcapasos. Interconsulta inmediata con cardiología."
+
+        if "bradicardia" in rhythm.lower() and float(rhythm.split()[-2]) < 40:
+            return "🟠 URGENTE: bradicardia severa. Vigilar el compromiso hemodinámico."
+
         if wave_abnormalities:
-            return "🟡 ABNORMAL: ECG shows pathological findings. Cardiology consultation recommended."
-        
-        return "✅ NORMAL: No acute findings. Routine monitoring appropriate."
-    
+            return "🟡 ANORMAL: el ECG muestra hallazgos patológicos. Se recomienda interconsulta con cardiología."
+
+        return "✅ NORMAL: sin hallazgos agudos. Monitorización de rutina."
+
     def _generate_recommendations(
         self,
         primary_diagnosis: str,
@@ -446,40 +446,40 @@ class TwelveLeadEcgAnalyzer:
     ) -> List[str]:
         """Generate clinical recommendations"""
         recommendations = []
-        
-        if "INFARCTION" in primary_diagnosis:
+
+        if "INFARTO" in primary_diagnosis:
             recommendations.extend([
-                "1. ACTIVATE STEMI protocol immediately",
-                "2. Call cardiology/interventional cardiology STAT",
-                "3. Prepare for emergent cardiac catheterization",
-                "4. Obtain troponin, electrolytes, CBC",
-                "5. Start aspirin, heparin, antiplatelet therapy per protocol",
-                "6. 12-lead ECG to be repeated in 10-15 minutes",
-                "7. Notify cardiologist of lead location for optimal revascularization strategy"
+                "1. ACTIVAR el protocolo STEMI de inmediato",
+                "2. Llamar a cardiología / cardiología intervencionista con urgencia",
+                "3. Preparar un cateterismo cardíaco urgente",
+                "4. Pedir troponina, electrolitos y biometría hemática",
+                "5. Iniciar aspirina, heparina y antiagregación según el protocolo",
+                "6. Repetir el ECG de 12 derivaciones en 10-15 minutos",
+                "7. Informar a cardiología la localización por derivaciones para planear la revascularización"
             ])
-        
-        elif "bradycardia" in rhythm:
+
+        elif "bradicardia" in rhythm.lower():
             recommendations.extend([
-                "1. Assess hemodynamic status",
-                "2. Monitor for progression to heart block",
-                "3. Prepare pacing capability if HR < 40",
-                "4. Cardiology consultation if symptomatic"
+                "1. Evaluar el estado hemodinámico",
+                "2. Vigilar la progresión a bloqueo cardíaco",
+                "3. Tener lista la estimulación (marcapasos) si la FC < 40",
+                "4. Interconsulta con cardiología si hay síntomas"
             ])
-        
-        elif "tachycardia" in rhythm:
+
+        elif "taquicardia" in rhythm.lower():
             recommendations.extend([
-                "1. Assess for underlying cause (infection, hyperthyroidism, pain)",
-                "2. Monitor vital signs and symptoms",
-                "3. Consider rate control if sustained"
+                "1. Buscar la causa subyacente (infección, hipertiroidismo, dolor)",
+                "2. Vigilar signos vitales y síntomas",
+                "3. Considerar el control de la frecuencia si se sostiene"
             ])
-        
+
         else:
             recommendations.extend([
-                "1. Routine clinical correlation",
-                "2. Repeat ECG if clinical change",
-                "3. Continue standard monitoring"
+                "1. Correlación clínica de rutina",
+                "2. Repetir el ECG si cambia la clínica",
+                "3. Continuar la monitorización estándar"
             ])
-        
+
         return recommendations
 
 
@@ -526,16 +526,16 @@ RECOMMENDATIONS:
 
 if __name__ == "__main__":
     from twelve_lead_generator import generate_12lead_example
-    
+
     print("Testing ECG analyzer...")
-    
+
     # Generate test ECG (anterior STEMI)
     ecg = generate_12lead_example(condition='anterior_stemi')
-    
+
     # Analyze
     analyzer = TwelveLeadEcgAnalyzer()
     interpretation = analyzer.analyze_12lead(ecg)
-    
+
     # Display results
     summary = create_clinical_summary(interpretation)
     print(summary)

@@ -26,6 +26,7 @@ import shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz, render_eeg_references
+from src.signals.eeg.eeg_analyzer import FINDING_LABELS_ES, band_label_es
 from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, PALETTE, render_error_state, render_metric_card, resolve_metric_card
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
@@ -180,44 +181,21 @@ if Eeg_import_error is not None or EegSignalGenerator is None:
 # retirados -- duplicaban el `<h1>` que `pages.py::render_views()` ya
 # dibuja vía `render_module_header("EEG Neuro Lab", ..., subtitle=...)`
 # antes de invocar este archivo por `runpy`. Ver CHANGELOG.md.
-st.markdown("### Cómo funciona esta plataforma")
-st.write(
-    "Este laboratorio estudia la señal EEG en tres fases: adquisición, espectro y clasificación clínica. "
-    "Primero convertimos la señal temporal en densidad espectral usando el método de Welch. "
-    "Luego integramos la potencia dentro de las bandas Delta, Theta, Alpha, Beta y Gamma para obtener una descripción cuantitativa del ritmo cerebral. "
-    "Finalmente, el módulo de interpretación asocia la banda dominante con estados como relajación, alerta, somnolencia o sueño profundo."
-)
-
-st.markdown('<a id="como-interpretar-eeg"></a>', unsafe_allow_html=True)
-st.markdown("### Cómo interpretar EEG")
-st.markdown(
-    "- Potencia Delta alta sugiere sueño profundo o actividad cortical lenta.\n"
-    "- Alpha dominante se asocia a relajación y ojos cerrados.\n"
-    "- Beta elevada indica atención activa o estrés mental.\n"
-    "- Picos rápidos pueden ser artefactos o actividad espigada en epilepsias.\n"
-)
-
-st.write(
-    "La opción de hardware en vivo abre un flujo de análisis continuo pensado para dispositivos EEG reales. "
-    "Si no hay un equipo físico conectado, la plataforma mantiene la experiencia con una señal de respaldo sintética y un análisis instantáneo. "
-    "Cuando el hardware real esté disponible, el sistema podrá recibir datos de muestra en tiempo real, calcular la potencia de banda y actualizar las métricas al vuelo."
-)
-
-st.markdown("---")
+# Tanda 2 de la fase 1: «Cómo funciona» e «interpretar» pasaron al final, en pestañas (a demanda).
 
 # Sidebar
-st.sidebar.markdown("# EEG Neuro Lab")
+st.sidebar.markdown("# Laboratorio de EEG")
 st.sidebar.markdown("### Parámetros de generación")
 pattern = st.sidebar.selectbox(
     "Patrón EEG",
     [
-        "Alpha (relajado)",
+        "Alfa (relajado)",
         "Beta (activo)",
         "Theta (sueño ligero)",
         "Delta (sueño profundo)",
-        "Sleep Spindle",
-        "Seizure (espigas)",
-        "Artifact (parpadeo)",
+        "Huso de sueño",
+        "Crisis (espigas)",
+        "Artefacto (parpadeo)",
         mu_erd_panel.MOTOR_IMAGERY_LABEL,
         engagement_panel.ENGAGEMENT_TASK_LABEL,
     ]
@@ -357,13 +335,13 @@ else:
 
 # Generate or load EEG
 pattern_map = {
-    "Alpha (relajado)": "alpha",
+    "Alfa (relajado)": "alpha",
     "Beta (activo)": "beta",
     "Theta (sueño ligero)": "theta",
     "Delta (sueño profundo)": "delta",
-    "Sleep Spindle": "sleep_spindle",
-    "Seizure (espigas)": "seizure",
-    "Artifact (parpadeo)": "artifact",
+    "Huso de sueño": "sleep_spindle",
+    "Crisis (espigas)": "seizure",
+    "Artefacto (parpadeo)": "artifact",
     mu_erd_panel.MOTOR_IMAGERY_LABEL: "motor_imagery",
     engagement_panel.ENGAGEMENT_TASK_LABEL: "engagement_task",
 }
@@ -443,27 +421,29 @@ with col1:
         fig.update_layout(height=250 * display_rows, template='plotly_dark', paper_bgcolor=PALETTE.BACKGROUND, plot_bgcolor=PALETTE.BACKGROUND, font=dict(color=PALETTE.TEXT))
         st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("## 🧠 Análisis de Potencia de Banda")
-        analysis_cards = []
-        for lead in display_leads:
-            result = analyzer.analyze(eeg_data[lead])
-            analysis_cards.append((lead, result))
-            st.markdown(f"### Canal {lead}")
-            # Arco 2A: `result.available=False` (degradación tipo-PLV) deja
-            # `summary=None`/`band_power={}` -- mostrar el motivo en vez de
-            # `.write(None)` o un KeyError sobre un dict vacío.
-            if not result.available:
-                st.caption(f"⚠️ {result.reason}")
-                continue
-            st.write(result.summary)
-            band_table = {
-                'Delta': f"{result.band_power['delta']:.2f}",
-                'Theta': f"{result.band_power['theta']:.2f}",
-                'Alpha': f"{result.band_power['alpha']:.2f}",
-                'Beta': f"{result.band_power['beta']:.2f}",
-                'Gamma': f"{result.band_power['gamma']:.2f}",
-            }
-            st.write(band_table)
+        # Tanda 2 de la fase 1: el detalle por canal, a demanda (el cálculo no cambia).
+        with st.expander("🧠 Análisis de potencia de banda por canal", expanded=False):
+            st.markdown("## 🧠 Análisis de Potencia de Banda")
+            analysis_cards = []
+            for lead in display_leads:
+                result = analyzer.analyze(eeg_data[lead])
+                analysis_cards.append((lead, result))
+                st.markdown(f"### Canal {lead}")
+                # Arco 2A: `result.available=False` (degradación tipo-PLV) deja
+                # `summary=None`/`band_power={}` -- mostrar el motivo en vez de
+                # `.write(None)` o un KeyError sobre un dict vacío.
+                if not result.available:
+                    st.caption(f"⚠️ {result.reason}")
+                    continue
+                st.write(result.summary)
+                band_table = {
+                    'Delta': f"{result.band_power['delta']:.2f}",
+                    'Theta': f"{result.band_power['theta']:.2f}",
+                    'Alfa': f"{result.band_power['alpha']:.2f}",
+                    'Beta': f"{result.band_power['beta']:.2f}",
+                    'Gamma': f"{result.band_power['gamma']:.2f}",
+                }
+                st.write(band_table)
 
         if motor_event is not None:
             mu_erd_panel.render_mu_erd_panel(eeg_data[display_leads[0]], display_leads[0], fs, time, motor_event)
@@ -493,72 +473,74 @@ with col2:
         # así que el marco queda NEUTRAL por default -- no se fabrica un
         # semáforo que nadie validó.
         render_metric_card(
-            "Banda dominante", overall.dominant_band.upper(),
+            "Banda dominante", band_label_es(overall.dominant_band),
             provenance=BADGES.HEURISTIC,
         )
         render_metric_card(
             "Clasificación", overall.classification,
             provenance=BADGES.HEURISTIC,
         )
-        st.markdown("### Interpretación Clínica")
-        st.write(
-            "Este laboratorio simula ondas EEG típicas y las clasifica en patrones de alerta, relajación y sueño."
-        )
-        st.markdown("### Hallazgos clínicos EEG")
-        # Consolidación Visual Tanda 3 (2026-09-21): DAR/TBR/BAR ya no se
-        # leen desde `overall.findings` (donde llegaban como texto plano
-        # pre-formateado con su badge incrustado a mano, p.ej.
-        # `f"{dar_badge} {dar:.2f} ({dar_label})"` -- construido en
-        # `eeg_analyzer.py`, sin marco de honestidad alrededor). Se
-        # recalculan aquí exactamente como ya hace el botón "Exportar
-        # informe EEG" más abajo (`classify_dar(overall.dar)`/
-        # `classify_tbr(overall.tbr)`, MISMA expresión, cero cambio de
-        # valor) y se renderizan con `render_metric_card` -- honestidad
-        # visible también en la vista EN VIVO, no solo en el export. Las
-        # tres claves de ratio se excluyen del loop genérico de abajo para
-        # no mostrar el mismo valor dos veces con dos estilos distintos.
-        _ratio_keys = {'Delta/Alpha Ratio (DAR)', 'Theta/Beta Ratio (TBR)', 'Beta/Alpha Ratio (BAR)'}
-        if classify_dar is not None:
-            if overall.dar is not None:
+        with st.expander("Interpretación y hallazgos: DAR, TBR, BAR y potencias", expanded=False):
+            st.markdown("### Interpretación Clínica")
+            st.write(
+                "Este laboratorio simula ondas EEG típicas y las clasifica en patrones de alerta, relajación y sueño."
+            )
+            st.markdown("### Hallazgos clínicos EEG")
+            # Consolidación Visual Tanda 3 (2026-09-21): DAR/TBR/BAR ya no se
+            # leen desde `overall.findings` (donde llegaban como texto plano
+            # pre-formateado con su badge incrustado a mano, p.ej.
+            # `f"{dar_badge} {dar:.2f} ({dar_label})"` -- construido en
+            # `eeg_analyzer.py`, sin marco de honestidad alrededor). Se
+            # recalculan aquí exactamente como ya hace el botón "Exportar
+            # informe EEG" más abajo (`classify_dar(overall.dar)`/
+            # `classify_tbr(overall.tbr)`, MISMA expresión, cero cambio de
+            # valor) y se renderizan con `render_metric_card` -- honestidad
+            # visible también en la vista EN VIVO, no solo en el export. Las
+            # tres claves de ratio se excluyen del loop genérico de abajo para
+            # no mostrar el mismo valor dos veces con dos estilos distintos.
+            _ratio_keys = {'Delta/Alpha Ratio (DAR)', 'Theta/Beta Ratio (TBR)', 'Beta/Alpha Ratio (BAR)'}
+            if classify_dar is not None:
+                if overall.dar is not None:
+                    render_metric_card(
+                        'DAR (Delta/Alfa)', f'{overall.dar:.2f}',
+                        classification=classify_dar(overall.dar), citation=DAR_CITATION,
+                    )
+                else:
+                    render_metric_card(
+                        'DAR (Delta/Alfa)', None,
+                        unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
+                    )
+            if classify_tbr is not None:
+                if overall.tbr is not None:
+                    render_metric_card(
+                        'TBR (Theta/Beta)', f'{overall.tbr:.2f}',
+                        classification=classify_tbr(overall.tbr), citation=TBR_CITATION,
+                    )
+                else:
+                    render_metric_card(
+                        'TBR (Theta/Beta)', None,
+                        unavailable_reason='indefinido -- sin ritmo beta medible (beta_power ~0)',
+                    )
+            # BAR: sin `classify_bar()` a propósito (decisión firme, ver
+            # `design_system.py`/CHANGELOG.md -- Schutter 2006 no establece
+            # zonas clínicas de 3 niveles). `GRAMMAR_NEUTRAL_STATE` sin
+            # `classification=`: el marco queda NEUTRAL, la forma honesta de
+            # mostrar un estado sin fabricar un semáforo.
+            if overall.bar is not None:
                 render_metric_card(
-                    'DAR (Delta/Alfa)', f'{overall.dar:.2f}',
-                    classification=classify_dar(overall.dar), citation=DAR_CITATION,
+                    'BAR (Beta/Alfa)', f'{overall.bar:.2f}',
+                    provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE, citation=BAR_CITATION,
                 )
             else:
                 render_metric_card(
-                    'DAR (Delta/Alfa)', None,
+                    'BAR (Beta/Alfa)', None,
                     unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
                 )
-        if classify_tbr is not None:
-            if overall.tbr is not None:
-                render_metric_card(
-                    'TBR (Theta/Beta)', f'{overall.tbr:.2f}',
-                    classification=classify_tbr(overall.tbr), citation=TBR_CITATION,
-                )
-            else:
-                render_metric_card(
-                    'TBR (Theta/Beta)', None,
-                    unavailable_reason='indefinido -- sin ritmo beta medible (beta_power ~0)',
-                )
-        # BAR: sin `classify_bar()` a propósito (decisión firme, ver
-        # `design_system.py`/CHANGELOG.md -- Schutter 2006 no establece
-        # zonas clínicas de 3 niveles). `GRAMMAR_NEUTRAL_STATE` sin
-        # `classification=`: el marco queda NEUTRAL, la forma honesta de
-        # mostrar un estado sin fabricar un semáforo.
-        if overall.bar is not None:
-            render_metric_card(
-                'BAR (Beta/Alfa)', f'{overall.bar:.2f}',
-                provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE, citation=BAR_CITATION,
-            )
-        else:
-            render_metric_card(
-                'BAR (Beta/Alfa)', None,
-                unavailable_reason='indefinido -- sin ritmo alfa medible (alpha_power ~0)',
-            )
-        for key, value in overall.findings.items():
-            if key in _ratio_keys:
-                continue
-            st.write(f"**{key}:** {value}")
+            for key, value in overall.findings.items():
+                if key in _ratio_keys:
+                    continue
+                shown = band_label_es(value) if key == "Dominant Band" else value
+                st.write(f"**{FINDING_LABELS_ES.get(key, key)}:** {shown}")
 
         if export_lab_report is not None and st.button("Exportar informe EEG"):
             metrics = {
@@ -827,8 +809,34 @@ with col2:
                 )
 
     st.markdown("---")
-    render_eeg_references()
-    render_eeg_quiz()
+    tab_how, tab_refs, tab_quiz = st.tabs(["Cómo funciona", "Referencias EEG", "Quiz"])
+    with tab_how:
+        st.markdown("### Cómo funciona esta plataforma")
+        st.write(
+            "Este laboratorio estudia la señal EEG en tres fases: adquisición, espectro y clasificación clínica. "
+            "Primero convertimos la señal temporal en densidad espectral usando el método de Welch. "
+            "Luego integramos la potencia dentro de las bandas Delta, Theta, Alpha, Beta y Gamma para obtener una descripción cuantitativa del ritmo cerebral. "
+            "Finalmente, el módulo de interpretación asocia la banda dominante con estados como relajación, alerta, somnolencia o sueño profundo."
+        )
+
+        st.markdown('<a id="como-interpretar-eeg"></a>', unsafe_allow_html=True)
+        st.markdown("### Cómo interpretar EEG")
+        st.markdown(
+            "- Potencia Delta alta sugiere sueño profundo o actividad cortical lenta.\n"
+            "- Alpha dominante se asocia a relajación y ojos cerrados.\n"
+            "- Beta elevada indica atención activa o estrés mental.\n"
+            "- Picos rápidos pueden ser artefactos o actividad espigada en epilepsias.\n"
+        )
+
+        st.write(
+            "La opción de hardware en vivo abre un flujo de análisis continuo pensado para dispositivos EEG reales. "
+            "Si no hay un equipo físico conectado, la plataforma mantiene la experiencia con una señal de respaldo sintética y un análisis instantáneo. "
+            "Cuando el hardware real esté disponible, el sistema podrá recibir datos de muestra en tiempo real, calcular la potencia de banda y actualizar las métricas al vuelo."
+        )
+    with tab_refs:
+        render_eeg_references()
+    with tab_quiz:
+        render_eeg_quiz()
 
 st.markdown("---")
-st.markdown("*Fase 3: EEG Neuro Lab - inicio del laboratorio de electroencefalografía clínica educativa en español.*")
+st.markdown("*Fase 3: Laboratorio de EEG - inicio del laboratorio de electroencefalografía clínica educativa en español.*")

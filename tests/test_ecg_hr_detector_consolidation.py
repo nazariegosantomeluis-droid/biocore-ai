@@ -138,7 +138,7 @@ def test_ecg_monitor_real_source_mitbih_shows_correct_hr_not_220():
     at.session_state["_ecg_monitor_mitbih_cache"] = (
         real_like_signal, 250.0, {"source": "MIT-BIH 100 (PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos MIT-BIH")
     at.run(timeout=30)
     assert at.exception == []
@@ -164,7 +164,7 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
     at.session_state["_ecg_monitor_mitbih_cache"] = (
         flat_signal, 250.0, {"source": "MIT-BIH 999 (PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos MIT-BIH")
     at.run(timeout=30)
     assert at.exception == []
@@ -190,7 +190,7 @@ def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     at.session_state["_ecg_monitor_ptbxl_cache"] = (
         real_like_signal, 500.0, {"source": "PTB-XL 00001 (NORM, PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos PTB-XL")
     at.run(timeout=30)
     assert at.exception == []

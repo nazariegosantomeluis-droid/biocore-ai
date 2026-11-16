@@ -245,12 +245,12 @@ def render_metric_explained(title: str, value: Any, unit: str = '', meaning: Opt
 
 
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
-    with st.expander(f"🔬 Discovery Lab — {name}", expanded=False):
+    with st.expander(f"🔬 Laboratorio de descubrimiento — {name}", expanded=False):
         st.write('Interactividad: correlaciones, sensibilidad y exploración de parámetros.')
         if len(signals) < 2:
             st.info('Se requieren al menos 2 señales para explorar correlaciones.')
             return
-        if st.button(f'Run discovery for {name}'):
+        if st.button(f'Ejecutar descubrimiento: {name}'):
             keys = list(signals.keys())
             mat = np.zeros((len(keys), len(keys)))
             for i in range(len(keys)):
@@ -424,7 +424,7 @@ def render_ecg_lab_page() -> None:
     Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
     la firma del experto (antes, texto provisional de Tanda 1)."""
     render_module_header(
-        "ECG Lab", icon="🫀",
+        "Laboratorio de ECG", icon="🫀",
         validation="VALIDATED",
         validation_detail=_ECG_VALIDATION_DETAIL,
     )
@@ -567,7 +567,7 @@ def render_biomarkers_page() -> None:
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
     render_module_header(
-        "Biomarkers Lab", icon="🧬",
+        "Biomarcadores", icon="🧬",
         validation="HEURISTIC",
         validation_detail=_BIOMARKERS_VALIDATION_DETAIL,
     )
@@ -667,15 +667,15 @@ def render_biomarkers_page() -> None:
             
             c4, c5, c6 = st.columns(3)
             lfhf_val = c4.number_input("Ratio LF/HF", value=1.5, step=0.1)
-            hf_val = c5.number_input("Poder HF (ms2, sin efecto)", value=350.0, step=10.0)
+            hf_val = c5.number_input("Potencia HF (ms², sin efecto)", value=350.0, step=10.0)
             hrr_val = c6.number_input("Recuperación de la FC (lpm/min)", value=25.0, step=1.0)
 
         with tab_neuro:
             st.caption(
-                "⚠️ 'Poder HF' arriba y 'Coherencia' abajo ya no alimentan ningún score -- "
+                "⚠️ 'Potencia HF' arriba y 'Coherencia' abajo ya no alimentan ningún score -- "
                 "NeuroCardiac Coupling se retiró por completo (2026-08-19), reemplazado por un PLV "
                 "que necesita señal ECG+EEG cruda, no estos escalares. Ondas Alfa y Theta sí se "
-                "siguen usando (Cognitive Load)."
+                "siguen usando (Carga cognitiva)."
             )
             n1, n2, n3 = st.columns(3)
             alpha_val = n1.number_input("Ondas Alfa", value=15.0, step=1.0)
@@ -686,12 +686,12 @@ def render_biomarkers_page() -> None:
             st.caption(
                 "⚠️ Picos EDA y Conductancia Base ya no alimentan ningún score (Índice de estrés se "
                 "recortó a solo LF/HF, 2026-08-15) -- no hay módulo de señal EDA real en el repo. "
-                "Se dejan visibles sin efecto; HR Surge sí se sigue usando (Cognitive Load)."
+                "Se dejan visibles sin efecto; el aumento cognitivo de la FC sí se sigue usando (Carga cognitiva)."
             )
             e1, e2, e3 = st.columns(3)
             eda_val = e1.number_input("Picos EDA (sin efecto)", value=4, step=1)
             scl_val = e2.number_input("Conductancia Base (sin efecto)", value=3.0, step=0.5)
-            surge_val = e3.number_input("HR Surge Cognitivo", value=5.0, step=1.0)
+            surge_val = e3.number_input("Aumento cognitivo de la FC (lpm)", value=5.0, step=1.0)
 
         # Empaquetamos los datos ingresados manualmente. 'eda_scr_peaks'/
         # 'scl_u_siemens'/'signal_coherence'/'hrv_hf_power'/
@@ -739,7 +739,9 @@ def render_biomarkers_page() -> None:
         + " — pasa el mouse sobre cada métrica (ⓘ) para el detalle exacto."
     )
 
-    col1, col2, col3 = st.columns(3)
+    # Tanda 2 de la fase 1: ≤ 5 paneles al abrir; los índices se agrupan en pestañas (a demanda), sin cambiar cálculos.
+    col1, col2, col3 = st.tabs(["Estrés y carga cognitiva", "Recuperación y resiliencia",
+                                "PLV, disposición y estabilidad autonómica"])
 
     # Fase 1 (idioma, 2026-08-30): solo se traduce la ETIQUETA visible
     # (`label=`) -- las claves de `resultados`/`_BIOMARKER_HELP` ("Stress
@@ -799,19 +801,20 @@ def render_biomarkers_page() -> None:
     # Autonomic Stability: siempre no disponible hoy (0/2 inputs con fuente
     # real, ver 🔴 Fantasmas abajo) -- antes st.markdown en negrita + st.info
     # con el mismo motivo, ahora la misma forma que PLV/Learning Readiness.
-    render_metric_card(
-        "Estabilidad autonómica", None,
-        unavailable_reason=(
-            f"{BADGES.tag(BADGES.GHOST)} Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
-            "existen en el pipeline (ver «Fantasmas» abajo)."
-        ),
-    )
+    with col3:
+        render_metric_card(
+            "Estabilidad autonómica", None,
+            unavailable_reason=(
+                f"{BADGES.tag(BADGES.GHOST)} Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
+                "existen en el pipeline (ver «Fantasmas» abajo)."
+            ),
+        )
 
-    with st.expander("Fantasmas [Sin fuente] — inputs sin fuente de señal real"):
+    with st.expander("Fantasmas [Sin fuente] — entradas sin fuente de señal real"):
         st.markdown(
             "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
             "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
-            "- ✅ **`metabolic_efficiency`** (Physiological Resilience) — **retirado (2026-08-15)**. "
+            "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
             "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
             ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
             "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
@@ -825,7 +828,7 @@ def render_biomarkers_page() -> None:
             "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
             "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
             "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
-            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 inputs tienen "
+            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 entradas tienen "
             "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
             "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
             "(a diferencia de NeuroCardiac→PLV) — la función `calculate_autonomic_stability_score()` "
@@ -857,12 +860,12 @@ def render_emg_page() -> None:
     # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
     # dos partes del lab en la propia cita.
     render_module_header(
-        "EMG Muscle Lab", icon="🦾",
+        "Laboratorio de EMG", icon="🦾",
         validation="HEURISTIC",
         validation_detail=_EMG_VALIDATION_DETAIL,
     )
 
-    source = st.sidebar.radio('Origen EMG', ['Demo','CSV','Live Hardware'])
+    source = st.sidebar.radio('Origen EMG', ['Demo','CSV','Hardware en vivo'])
     pattern = st.sidebar.selectbox('Patrón', ['Isométrica','Rápida','Fatiga'])
     fs = st.sidebar.selectbox('fs (Hz)', [500,1000,2000], index=1)
     duration = st.sidebar.slider('Duración (s)', 5, 60, 15)
@@ -881,7 +884,7 @@ def render_emg_page() -> None:
                     "No se pudo leer el archivo CSV de EMG -- verifica el formato.",
                     exception=e,
                 )
-    elif source == 'Live Hardware':
+    elif source == 'Hardware en vivo':
         st.sidebar.markdown("### Hardware EMG")
         if SensorManager is not None:
             manager = SensorManager()
@@ -946,7 +949,7 @@ def render_emg_page() -> None:
     if signal is None:
         # Solo alcanzable con Origen=CSV y ningún archivo cargado todavía.
         # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
-        render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Live Hardware.")
+        render_empty_state("Carga un archivo CSV de EMG, o cambia el Origen a Demo / Hardware en vivo.")
         _render_emg_save_to_twin(fs, source, None)  # declara "sin señal", no finge guardar
         return
 
@@ -1074,7 +1077,7 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis) -> None:
         # señal analizable que persistir. Sin éxito fingido, sin crash.
         st.info(
             "Sin señal EMG analizable (Origen=CSV sin archivo cargado). No hay nada "
-            "que persistir al gemelo -- carga un CSV o cambia el Origen a Demo / Live Hardware."
+            "que persistir al gemelo -- carga un CSV o cambia el Origen a Demo / Hardware en vivo."
         )
         return
 
@@ -1436,12 +1439,12 @@ def render_ecg_monitor_page() -> None:
     # ("ECG Lab") DENTRO de la pestaña "Monitoreo" del hub que ya lo
     # muestra arriba (render_ecg_lab_page()) -- downgrade a encabezado de
     # sección, no un segundo título de módulo duplicado.
-    render_section_header("Monitoreo")
+    # Tanda 2 de la fase 1: sin el «Monitoreo» repetido (la pestaña ya lo dice): el trazo entra en la primera vista.
     ECGAnalyzer, create_clinical_ecg_figure, load_mitbih_record, get_mitbih_records, ecg_ok = safe_import_ecg_modules()
     src_modules, src_ok = safe_import_src_modules()
 
     source = st.sidebar.radio(
-        'ECG Source',
+        'Origen del ECG',
         [
             'Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)',
             'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo',
@@ -1694,6 +1697,18 @@ def render_ecg_monitor_page() -> None:
 
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
+        # Tanda 2 de la fase 1: el trazo primero (antes empezaba a ~950 px, bajo la FC y «Guardar al gemelo»).
+        if PLOTLY_OK:
+            try:
+                fig = PLOTLY_GO.Figure()
+                fig.add_trace(PLOTLY_GO.Scatter(x=vm, y=signal, name='ECG', mode='lines'))
+                fig.update_layout(template='plotly_dark', height=360, title='ECG — Señal')
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception:
+                st.line_chart(signal)
+        else:
+            st.line_chart(signal)
+
         if hr is None:
             render_no_data(
                 'Frecuencia cardíaca',
@@ -1731,17 +1746,6 @@ def render_ecg_monitor_page() -> None:
                     st.write(f"**Acción clínica recomendada:** {loaded_case.clinical_action}")
                 if loaded_case.mortality_risk:
                     st.write(f"**Riesgo de mortalidad estimado:** {loaded_case.mortality_risk * 100:.0f}%")
-
-        if PLOTLY_OK:
-            try:
-                fig = PLOTLY_GO.Figure()
-                fig.add_trace(PLOTLY_GO.Scatter(x=vm, y=signal, name='ECG', mode='lines'))
-                fig.update_layout(template='plotly_dark', height=360, title='ECG — Señal')
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception:
-                st.line_chart(signal)
-        else:
-            st.line_chart(signal)
 
         st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
         seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
@@ -1940,7 +1944,7 @@ def render_multisensor_page() -> None:
     # "heuristico") y texto actualizado al verbatim de la firma del
     # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
     render_module_header(
-        "Multisensor Fusion Lab", icon="🔗",
+        "Fusión multisensor", icon="🔗",
         validation="HEURISTIC",
         validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
     )
@@ -1976,7 +1980,8 @@ def render_multisensor_page() -> None:
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
         st.write('Interactivo multisensor: seleccione canales para aprender sobre acoplamiento cardiorrespiratorio y oxigenación.')
-        ch = st.multiselect('Canales', list(demo_channels.keys()), default=['ECG','SpO2'])
+        ch = st.multiselect('Canales', list(demo_channels.keys()), default=['ECG','SpO2'],
+                            format_func=lambda c: {'Respiration': 'Respiración'}.get(c, c))
         for c in ch:
             st.line_chart(demo_channels[c])
 
@@ -2138,7 +2143,7 @@ def render_hrv_page() -> None:
     # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
     # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
     render_module_header(
-        "HRV Analysis", icon="📈",
+        "Variabilidad de la frecuencia cardíaca (HRV)", icon="📈",
         validation="VALIDATED",
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
@@ -2146,10 +2151,10 @@ def render_hrv_page() -> None:
     # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
     # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
     # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
-    source = st.sidebar.radio('HRV Source', [rsa_panel.RSA_SOURCE_LABEL, 'Manual RR series'], index=0)
+    source = st.sidebar.radio('Origen de la HRV', [rsa_panel.RSA_SOURCE_LABEL, 'Serie RR manual'], index=0)
     rr_ms = None
     rsa_signals, rsa_params, r_peak_times_s = None, None, None
-    if source == 'Manual RR series':
+    if source == 'Serie RR manual':
         txt = st.text_area('Pega RR intervals en ms separados por comas', '800,820,790,810,805')
         try:
             rr_ms = np.array([float(x.strip()) for x in txt.split(',') if x.strip()])
@@ -2199,42 +2204,45 @@ def render_hrv_page() -> None:
     render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%',
                 meaning='Porcentaje de diferencias NN>50ms — indicador vagal.')
 
-    st.divider()
+    # Tanda 2 de la fase 1: ≤ 5 paneles al abrir. Lo demás, en pestañas (a demanda), sin cambiar ningún cálculo; el
+    # espectro va primero porque es un solo gráfico.
+    tab_spectrum, tab_rsa, tab_nonlinear, tab_learn, tab_save = st.tabs(
+        ["Espectro (LF/HF)", "RSA", "No lineal", "Aprender y explicar", "Guardar al gemelo"])
     # RSA: con la fuente manual no hay respiración simultánea -> declina con motivo.
     if r_peak_times_s is None:
         r_peak_times_s = np.concatenate([[0.0], np.cumsum(rr_ms) / 1000.0])
-    rsa_panel.render_rsa_panel(
-        detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
-        rsa_signals, rsa_params,
-    )
+    with tab_rsa:
+        rsa_panel.render_rsa_panel(
+            detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
+            rsa_signals, rsa_params,
+        )
+    with tab_nonlinear:
+        hrv_nonlinear_panel.render_nonlinear_panel(rr_ms)
+    with tab_save:
+        _render_hrv_save_to_twin(sdnn, mean_nn, source)
 
-    st.divider()
-    hrv_nonlinear_panel.render_nonlinear_panel(rr_ms)
-
-    st.divider()
-    _render_hrv_save_to_twin(sdnn, mean_nn, source)
-
-    lf_power = None
-    hf_power = None
-    try:
-        # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
-        # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
-        # fallaba siempre y el `except` culpaba a scipy.
-        f, pxx = rr_spectrum(rr_ms)
-        lf_power = band_power(f, pxx, LF_BAND_HZ)
-        hf_power = band_power(f, pxx, HF_BAND_HZ)
-        lf_hf = lf_power / hf_power if hf_power > 0 else None
-        st.markdown('### Vista Investigación — Espectro HRV')
-        if PLOTLY_OK:
-            fig = PLOTLY_GO.Figure()
-            fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
-            fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Potencia')
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.line_chart(pxx)
-        st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — LF/HF: {lf_hf if lf_hf is not None else "n/a"}')
-    except ValueError as exc:
-        st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
+    with tab_spectrum:
+        lf_power = None
+        hf_power = None
+        try:
+            # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
+            # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
+            # fallaba siempre y el `except` culpaba a scipy.
+            f, pxx = rr_spectrum(rr_ms)
+            lf_power = band_power(f, pxx, LF_BAND_HZ)
+            hf_power = band_power(f, pxx, HF_BAND_HZ)
+            lf_hf = lf_power / hf_power if hf_power > 0 else None
+            st.markdown('### Vista Investigación — Espectro HRV')
+            if PLOTLY_OK:
+                fig = PLOTLY_GO.Figure()
+                fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
+                fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Potencia')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.line_chart(pxx)
+            st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — LF/HF: {lf_hf if lf_hf is not None else "n/a"}')
+        except ValueError as exc:
+            st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
 
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Autonomic
@@ -2242,28 +2250,29 @@ def render_hrv_page() -> None:
     # Tanda 1 de la fase 1 (2026-11-15, Art. I): el selector «Capa de Exploración Cognitiva» de este lab era un control
     # placebo: «Clínica» e «Investigación» no cambiaban nada (las dos vistas ya se muestran arriba, siempre). Se retiró;
     # las tres secciones que sí dependían de él (educativa, IA y simulación) quedan como expanders, sin perder contenido.
-    with st.expander('📘 ¿Qué afecta la HRV?', expanded=False):
-        st.write('- Un mayor tono vagal eleva la RMSSD y el pNN50.')
-        st.write('- La enfermedad crónica y la edad tienden a bajar el SDNN.')
-        st.line_chart(rr_ms)
-    with st.expander('🤖 Explicación con IA de estos valores', expanded=False):
-        findings = [
-            ('sdnn_ms', f'{sdnn:.1f} ms', 'Desviación estándar de los intervalos NN — variabilidad global.'),
-            ('rmssd_ms', f'{rmssd:.1f} ms', 'Raíz cuadrática media de las diferencias sucesivas — aproximación del tono parasimpático.'),
-            ('pnn50_pct', f'{pnn50:.1f}%', 'Porcentaje de diferencias NN mayores a 50ms — indicador vagal.'),
-        ]
-        if lf_power is not None and hf_power is not None:
-            findings.append((
-                'lf_hf_ratio',
-                f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'n/a',
-                'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
-            ))
-        render_findings_narrator('HRV Analysis', findings)
-    with st.expander('🧪 Simulación de variabilidad', expanded=False):
-        st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (demostración, no un paciente).')
-        var = st.slider('Variabilidad (DE %)', 0.0, 10.0, 3.0)
-        sim_rr = mean_nn + np.random.normal(0, mean_nn * var/100.0, size=len(rr_ms))
-        st.line_chart(sim_rr)
+    with tab_learn:
+        with st.expander('📘 ¿Qué afecta la HRV?', expanded=False):
+            st.write('- Un mayor tono vagal eleva la RMSSD y el pNN50.')
+            st.write('- La enfermedad crónica y la edad tienden a bajar el SDNN.')
+            st.line_chart(rr_ms)
+        with st.expander('🤖 Explicación con IA de estos valores', expanded=False):
+            findings = [
+                ('sdnn_ms', f'{sdnn:.1f} ms', 'Desviación estándar de los intervalos NN — variabilidad global.'),
+                ('rmssd_ms', f'{rmssd:.1f} ms', 'Raíz cuadrática media de las diferencias sucesivas — aproximación del tono parasimpático.'),
+                ('pnn50_pct', f'{pnn50:.1f}%', 'Porcentaje de diferencias NN mayores a 50ms — indicador vagal.'),
+            ]
+            if lf_power is not None and hf_power is not None:
+                findings.append((
+                    'lf_hf_ratio',
+                    f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'n/a',
+                    'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
+                ))
+            render_findings_narrator('HRV Analysis', findings)
+        with st.expander('🧪 Simulación de variabilidad', expanded=False):
+            st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (demostración, no un paciente).')
+            var = st.slider('Variabilidad (DE %)', 0.0, 10.0, 3.0)
+            sim_rr = mean_nn + np.random.normal(0, mean_nn * var/100.0, size=len(rr_ms))
+            st.line_chart(sim_rr)
 
 
 
@@ -2337,7 +2346,7 @@ def render_patient_pipeline_page() -> None:
     # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
     # ninguna inferencia propia que "validar" o "no validar". El concepto
     # de nivel de confianza clínico no aplica a este módulo.
-    render_module_header("Patient Pipeline", icon="👥", validation=None)
+    render_module_header("Flujo de pacientes", icon="👥", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 
     # Fase 3 (paciente único de sesión, 2026-08-30): Patient Pipeline ya NO
@@ -2358,8 +2367,8 @@ def render_patient_pipeline_page() -> None:
     patient_id = get_active_patient_id()
     patient_label = st.text_input(
         'Nombre del paciente', get_active_patient_display_name(), key="patient_pipeline_patient_label",
-        help="Cosmético: renombra al paciente único de esta sesión (el mismo que ven Twin OS/ECG Lab/"
-             "HRV/Respiratory Lab). No crea un paciente nuevo ni cambia de identidad.",
+        help="Cosmético: renombra al paciente único de esta sesión (el mismo que ven Twin OS, el Laboratorio de ECG, "
+             "HRV y el Laboratorio respiratorio). No crea un paciente nuevo ni cambia de identidad.",
     )
     if patient_label != get_active_patient_display_name():
         rename_active_patient(patient_label)
@@ -2440,7 +2449,7 @@ def render_patient_pipeline_page() -> None:
                         snapshot_id=latest_snapshot_id,
                         patient_id=patient_id,
                         category=category,
-                        author="Usuario de Patient Pipeline",  # genérico -- TODO: integración real de usuarios pendiente
+                        author="Usuario del flujo de pacientes",  # genérico -- TODO: integración real de usuarios pendiente
                         notes=notes or None,
                     )
                 st.success('Impresión guardada.')
@@ -2549,30 +2558,33 @@ def render_home_page() -> None:
     nav.link("ajustes", "Ajustes: clave de IA", icon="⚙️")
 
 
-def render_learn_theory_page() -> None:
-    from app.supermodules.academia.pages import render_theory_section
+def _render_learn_topics(url: str) -> None:
+    """Teoría en capas (tanda 2 de la fase 1): los temas de `app/supermodules/learn_theory.py`, cada uno con el
+    componente único `render_theory_topic` (idea a la vista; mecanismo y detalle con su fuente a demanda)."""
+    from app.supermodules.learn_theory import LEARN_TOPICS
+    from app.utils.design_system import render_theory_topic
 
-    render_module_header("Teoría", icon="📖", subtitle="La teoría de la Academia.")
-    render_theory_section(expanded=True)
+    for topic in LEARN_TOPICS[url]:
+        render_theory_topic(topic)
+
+
+def render_learn_theory_page() -> None:
+    render_module_header("Teoría", icon="📖", subtitle="La teoría de la Academia, en capas.")
+    _render_learn_topics("teoria")
 
 
 def render_learn_references_page() -> None:
-    from app.supermodules.eeg_neuro_lab.teaching import render_eeg_references
-    from app.supermodules.respiratory_lab import views as respiratory_views
-
     render_module_header("Referencias de los laboratorios", icon="📚",
                          subtitle="Las tablas clínicas y la información educativa de cada laboratorio, con su fuente.")
-    render_section_header("Respiratorio")
-    respiratory_views.render_clinical_references()
-    respiratory_views.render_education_topics()
-    render_section_header("EEG")
-    render_eeg_references()
+    _render_learn_topics("referencias")
 
 
 def render_learn_ecg3d_page() -> None:
     from app.supermodules.model3d.panels import render_vcg_panel
 
     render_module_header("ECG en 3D", icon="🫀", subtitle="El vectocardiograma: el ECG como un lazo en el espacio.")
+    _render_learn_topics("ecg-3d")
+    render_section_header("Explóralo")
     render_vcg_panel("aprender_vcg")
 
 
@@ -2614,7 +2626,7 @@ def render_practice_simulator_cases_page() -> None:
     render_module_header("Casos clínicos del simulador", icon="🩺",
                          subtitle="Escenarios del gemelo digital (simulados): diagnostica antes de ver la respuesta.")
     twin.init_session()
-    twin.render_clinical_case_mode(st.session_state.twin_shell_organism)
+    twin.render_clinical_case_mode(st.session_state.twin_shell_organism, expanded=True)
 
 
 def _page_specs() -> list:
@@ -2638,7 +2650,7 @@ def _page_specs() -> list:
         ("Explorar", "hrv", "Variabilidad cardíaca (HRV)", "📈", render_hrv_page),
         ("Explorar", "biomarcadores", "Biomarcadores", "🧪", render_biomarkers_page),
         ("Explorar", "calculadoras", "Calculadoras clínicas", "🧮", render_calculators_page),
-        ("Explorar", "pacientes", "Pipeline de pacientes", "👥", render_patient_pipeline_page),
+        ("Explorar", "pacientes", "Flujo de pacientes", "👥", render_patient_pipeline_page),
         ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
         ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_page),
     ]

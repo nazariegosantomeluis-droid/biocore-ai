@@ -178,7 +178,7 @@ def test_hrv_lab_rsa_amplitude_follows_the_slider():
 
 
 def test_hrv_lab_manual_rr_declines_rsa_without_respiration():
-    at = _run_hrv("Manual RR series")
+    at = _run_hrv("Serie RR manual")
     assert at.exception == []
     assert "RSA no disponible: sin señal respiratoria" in " ".join(i.value for i in at.info)
     assert not any("FC latido a latido" in c.proto.spec for c in at.get("plotly_chart"))

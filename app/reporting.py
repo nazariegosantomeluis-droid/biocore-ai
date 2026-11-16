@@ -233,14 +233,14 @@ def export_lab_report(
         '<!doctype html>',
         '<html lang="es">',
         '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-        f'<title>{lab_name} — Report</title>',
+        f'<title>{lab_name} — Informe</title>',
         f'<style>{css}</style>',
         '</head>',
         '<body>',
         '<div class="container">',
         '<div class="header">',
         f'{logo_html}',
-        f'<div><h1 class="title">{lab_name}</h1><div class="sub">Generated: {timestamp}</div>{validation_html}'
+        f'<div><h1 class="title">{lab_name}</h1><div class="sub">Generado: {timestamp}</div>{validation_html}'
         f'<div class="sub educational-notice">{EDUCATIONAL_NOTICE}</div></div>',
         '</div>',
         '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0;">',
@@ -268,7 +268,7 @@ def export_lab_report(
         html_lines.append('</div>')
 
     if findings:
-        html_lines.append('<div class="findings"><h3>Clinical Findings</h3>')
+        html_lines.append('<div class="findings"><h3>Hallazgos clínicos</h3>')
         for k, v in findings.items():
             html_lines.append(f'<div><strong>{k}:</strong> {v}</div>')
         html_lines.append('</div>')
@@ -313,7 +313,7 @@ def export_lab_report(
     # Try to build a PDF with FPDF including images; if not available, return HTML and leave assets in out_dir
     pdf_path = None
     try:
-        from fpdf import FPDF
+        from fpdf import FPDF, XPos, YPos
 
         # Try to embed a TTF font (DejaVu Sans) if available to support Unicode
         try:
@@ -327,7 +327,9 @@ def export_lab_report(
         # variante cursiva ('I'), que nunca se registraba: FPDF lanzaba
         # "Undefined font: dejavuI" en la primera página, el `except` general
         # lo tragaba y NUNCA se generaba el PDF (solo quedaba el HTML).
-        fonts = {'base': 'Arial'}
+        # Tanda 2 de la fase 1: fuente núcleo explícita ('helvetica'); pedir 'Arial' era una sustitución implícita
+        # que fpdf2 declara obsoleta.
+        fonts = {'base': 'helvetica'}
 
         class PDF(FPDF):
             def para(self_inner, h, txt):
@@ -346,20 +348,20 @@ def export_lab_report(
                     except Exception:
                         pass
                 self_inner.set_font(fonts['base'], 'B', 14)
-                self_inner.cell(0, 10, f"{lab_name}", ln=1, align='R')
+                self_inner.cell(0, 10, f"{lab_name}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
                 self_inner.ln(6)  # aire bajo el logo: el título no se le encima
 
             def footer(self_inner):
                 self_inner.set_y(-15)
                 self_inner.set_font(fonts['base'], 'I', 8)
-                self_inner.cell(0, 6, f"Generated: {timestamp}", align='L')
-                self_inner.cell(0, 6, f"Page {self_inner.page_no()}", align='R')
+                self_inner.cell(0, 6, f"Generado: {timestamp}", align='L')
+                self_inner.cell(0, 6, f"Página {self_inner.page_no()}", align='R')
 
         pdf_path = os.path.join(out_dir, f"report_{safe_name}_{timestamp}.pdf")
         pdf = PDF('P', 'mm', 'A4')
         pdf.set_auto_page_break(auto=True, margin=15)
 
-        base_font = 'Arial'
+        base_font = 'helvetica'
         if font_path and os.path.exists(font_path):
             try:
                 # Las 4 variantes que usa el reporte (regular, negrita, cursiva
@@ -368,15 +370,15 @@ def export_lab_report(
                     pdf.add_font('DejaVu', style, font_path)
                 base_font = 'DejaVu'
             except Exception as exc:
-                logger.warning("No se pudo registrar DejaVu en el PDF, uso Arial: %s", exc)
-                base_font = 'Arial'
+                logger.warning("No se pudo registrar DejaVu en el PDF, uso helvetica: %s", exc)
+                base_font = 'helvetica'
         fonts['base'] = base_font
 
         pdf.add_page()
         pdf.set_font(base_font, 'B', 12)
-        pdf.cell(0, 8, f"{lab_name} — Report", ln=1)
+        pdf.cell(0, 8, f"{lab_name} — Informe", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font(base_font, size=9)
-        pdf.cell(0, 6, f"Generated: {timestamp}", ln=1)
+        pdf.cell(0, 6, f"Generado: {timestamp}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         if marker is not None:
             _, v_symbol, v_text = marker
             pdf.para(6, f"{v_symbol} {v_text}")
@@ -384,7 +386,7 @@ def export_lab_report(
         pdf.ln(4)
 
         pdf.set_font(base_font, 'B', 11)
-        pdf.cell(0, 6, 'Metrics', ln=1)
+        pdf.cell(0, 6, 'Métricas', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
         pdf.set_font(base_font, size=10)
         for k, v in metrics.items():
@@ -397,7 +399,7 @@ def export_lab_report(
         if honesty_cards:
             pdf.ln(4)
             pdf.set_font(base_font, 'B', 11)
-            pdf.cell(0, 6, 'Honestidad de procedencia', ln=1)
+            pdf.cell(0, 6, 'Honestidad de procedencia', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(2)
             pdf.set_font(base_font, size=10)
             for card in honesty_cards:
@@ -411,7 +413,7 @@ def export_lab_report(
         if findings:
             pdf.add_page()
             pdf.set_font(base_font, 'B', 12)
-            pdf.cell(0, 6, 'Clinical Findings', ln=1)
+            pdf.cell(0, 6, 'Hallazgos clínicos', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(4)
             pdf.set_font(base_font, size=10)
             for k, v in findings.items():
@@ -434,7 +436,7 @@ def export_lab_report(
         if notes:
             pdf.add_page()
             pdf.set_font(base_font, 'B', 12)
-            pdf.cell(0, 6, 'Notes', ln=1)
+            pdf.cell(0, 6, 'Notas', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(2)
             pdf.set_font(base_font, size=10)
             pdf.para(6, notes)

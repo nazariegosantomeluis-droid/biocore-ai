@@ -99,7 +99,7 @@ def test_respiratory_lab_title_renders_exactly_once():
     at.run(timeout=30)
     h1_titles = [md.value for md in at.main.markdown if "<h1" in md.value]
     assert len(h1_titles) == 1, f"se esperaba un único <h1>, hay {len(h1_titles)}: {h1_titles}"
-    assert "Respiratory Lab" in h1_titles[0]
+    assert "Laboratorio respiratorio" in h1_titles[0]    # tanda 2: título en español
     assert not any(md.value.strip().startswith("# ") for md in at.main.markdown)
 
 
@@ -116,7 +116,7 @@ def test_eeg_neuro_lab_title_renders_exactly_once(eeg_ups):
     at.run(timeout=30)
     h1_titles = [md.value for md in at.main.markdown if "<h1" in md.value]
     assert len(h1_titles) == 1, f"se esperaba un único <h1>, hay {len(h1_titles)}: {h1_titles}"
-    assert "EEG Neuro Lab" in h1_titles[0]
+    assert "Laboratorio de EEG" in h1_titles[0]          # tanda 2: título en español
     assert not any(md.value.strip().startswith("# ") for md in at.main.markdown)
 
 
