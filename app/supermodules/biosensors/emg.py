@@ -16,10 +16,10 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 import streamlit as st
-from streamlit.errors import StreamlitAPIException
 
 from app.supermodules.biosensors import live_service
-from app.supermodules.biosensors.source import MAINS_OPTIONS, BoardSignal, render_board_source, state_line
+from app.supermodules.biosensors.source import (MAINS_OPTIONS, BoardSignal, render_board_source,
+                                                 render_cable_control, rerun, state_line)
 from app.supermodules.biosensors.tutorial import render_sensor_tutorial
 from domain.physiology.state import Provenance
 from hardware.biosensors import EMG
@@ -81,42 +81,27 @@ class EmgLive:
 
 
 # ---------------------------------------------------------------- controles de la placa simulada
-def _rerun(fragment: bool) -> None:
-    if fragment:
-        try:
-            st.rerun(scope='fragment')
-            return
-        except (TypeError, StreamlitAPIException):
-            pass
-    st.rerun()
-
-
 def render_emg_controls(board, container, prefix: str, fragment: bool = False) -> None:
     """Botones (no casillas): así no muestran un estado viejo si la misma placa se movió desde otra vista."""
-    fuerza = f'{board.level * 100:.0f} %' if board.level else 'relajado'
-    container.caption(f"Placa simulada: {fuerza} · electrodo {'despegado' if board.electrode_off else 'pegado'} · "
+    emg = board.model
+    fuerza = f'{emg.level * 100:.0f} %' if emg.level else 'relajado'
+    container.caption(f"Placa simulada: {fuerza} · electrodo {'despegado' if emg.electrode_off else 'pegado'} · "
                       f"cable {'conectado' if board.plugged else 'desconectado'}.")
     for label, level in LEVELS:
         if container.button(label, key=f'{prefix}_lvl{int(level * 100)}'):
-            board.set_level(level)
-            _rerun(fragment)
+            emg.set_level(level)
+            rerun(fragment)
     if container.button('😌 Relajar', key=f'{prefix}_relax'):
-        board.set_level(0.0)
-        _rerun(fragment)
-    if board.electrode_off:
+        emg.set_level(0.0)
+        rerun(fragment)
+    if emg.electrode_off:
         if container.button('🩹 Volver a pegar el electrodo', key=f'{prefix}_stick'):
-            board.set_electrode_off(False)
-            _rerun(fragment)
+            emg.set_electrode_off(False)
+            rerun(fragment)
     elif container.button('✋ Despegar un electrodo', key=f'{prefix}_unstick'):
-        board.set_electrode_off(True)
-        _rerun(fragment)
-    if board.plugged:
-        if container.button('🔌 Desconectar el cable', key=f'{prefix}_unplug'):
-            board.unplug()
-            _rerun(fragment)
-    elif container.button('🔌 Reconectar el cable', key=f'{prefix}_plug'):
-        board.plug()
-        _rerun(fragment)
+        emg.set_electrode_off(True)
+        rerun(fragment)
+    render_cable_control(board, container, prefix, fragment)
 
 
 # ---------------------------------------------------------------- fuente del laboratorio

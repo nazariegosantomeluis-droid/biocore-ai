@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-11-16 — Pulso por luz (MAX30102) y temperatura (DS18B20) en vivo, con tutoriales
+
+**Contexto (Art. I)**:
+- El Multisensor Fusion Lab solo tenía canales demo: no había forma de ver una onda de pulso ni una temperatura medidas.
+- `preprocess_ppg` (`src/signals/ppg/`) calculaba `pulse_rate` contando las muestras por encima del promedio, no los latidos: daba 60·fs latidos por minuto (3029 con una onda de 72 a 100 Hz). No lo usaba ninguna página.
+
+- **Analizador de la onda de pulso** (`src/signals/ppg/analysis.py`, nuevo):
+  - Picos sistólicos con el método de Elgendi et al. 2013, con sus parámetros: pasa-banda de 0.5 a 8 Hz, W1 = 111 ms, W2 = 667 ms, β = 0.02. Se agrega un periodo refractario de 0.3 s, que no está en el artículo.
+  - Frecuencia de pulso (mediana de los intervalos), índice de perfusión (Beurton et al. 2019) y R = (AC/DC rojo) / (AC/DC infrarrojo), latido a latido.
+  - La SpO₂ no se calcula: hace falta una curva calibrada contra mediciones arteriales (Jubran 2015) que este sensor no trae. La pantalla dice «no disponible» con ese motivo.
+  - Comparado con HeartPy en sus tres grabaciones de ejemplo, fuera del repo:
+    - en la limpia, 24 de 24 latidos iguales (58.8 contra 58.9 lpm);
+    - en las dos con movimiento, encontró todos los latidos que HeartPy aceptó;
+    - el aviso «irregular» salta en las dos con movimiento (22 % y 33 % de intervalos fuera) y no en la limpia (0 %).
+  - `preprocess_ppg` cuenta ahora los picos sistólicos: 72 lpm con la misma onda.
+- **Placa de sensores ESP32** (`hardware/biosensors/`):
+  - Catálogo: pulso por luz con MAX30102 y temperatura con DS18B20, cada uno con conexiones, colocación, seguridad, límites, fuentes y qué hacer si algo falla.
+  - Firmware de MicroPython `ppg_max30102.py`:
+    - configura el sensor con los registros de su hoja de datos (modo SpO2, 100 muestras/s, 18 bits, 4096 nA, 7.2 mA por LED) y lee la FIFO por I2C;
+    - si la FIFO se llena, `seq` salta lo que el sensor tiró;
+    - si no encuentra el sensor o hay otro chip en 0x57, lo dice con `BIO:E`.
+  - Firmware `temp_ds18b20.py`: una lectura por segundo a 12 bits, en grados Celsius; si no hay sonda, lo dice.
+  - Placa simulada con un modelo por sensor (`board.model`): EMG igual que antes, PPG con pulso, respiración, movimiento y dedo fuera, y temperatura que se iguala con la piel o con el aire.
+  - Calidad (`quality.py`):
+    - PPG: «sin dedo», «saturada», «sin pulso» e «irregular» (este dice que el PPG no distingue el movimiento de un ritmo irregular).
+    - Temperatura: «arranque» (85 °C exactos, el valor de encendido del sensor) y la tendencia del último minuto.
+- **Multisensor Fusion Lab**: vista nueva «Sensores en vivo» (`app/supermodules/biosensors/live_view.py`), con «Medir» y «Tutorial» para cada sensor.
+  - Pulso (`ppg.py`): onda de pulso con los picos que contó el detector, frecuencia de pulso, índice de perfusión, R y la SpO₂ como «no disponible». Los avisos van antes de los números.
+  - Temperatura (`temperature.py`): la curva de los últimos 10 minutos, la última lectura con su exactitud (±0.5 °C, hoja de datos), la tendencia y si ya se estabilizó. No dice nada de fiebre: la sonda mide piel, no temperatura central (Taylor 2014).
+  - La vista no entra al Health Score. Nada se guarda al gemelo: la frecuencia cardíaca solo entra por la compuerta validada del ECG Lab, y el gemelo no tiene un campo de temperatura.
+- **Arreglos en lo compartido con el EMG y el EEG en vivo**:
+  - Muestras perdidas: la barra lateral sumaba los saltos de `seq` y el contador `perdidas` del HELLO, que ya los incluye; contaba dos veces. Ahora usa solo los saltos de esta conexión (`status()['perdidas']`).
+  - Una sesión abierta sin muestras ahora dice lo que avisa la placa (por ejemplo, «No se encontró ningún DS18B20…») en el mensaje de estado y en el motivo de la reconexión (`hardware/eeg_live/service.py`). Antes solo decía que no llegaban datos.
+  - El control del filtro de la red solo aparece donde se usa (no en el pulso ni en la temperatura). La temperatura tiene su propia configuración del servicio: búfer de 15 min y ventana de 30 s para estimar cuántas muestras llegan por segundo.
+- **Referencias**:
+  - `clinical/ppg_references.py`: Allen 2007, que pasa del banco de preguntas a este archivo, Elgendi 2013, Jubran 2015 y Beurton 2019.
+  - `clinical/temperature_references.py`: Taylor 2014.
+- **Pruebas**: `tests/test_biosensors_ppg_temp.py` (19), con un juego de herramientas compartido (`tests/biosensor_testkit.py`).
+  - Analizador contra ondas con verdad conocida (de 50 a 170 lpm, con una onda diastólica grande), y la regresión de `preprocess_ppg`.
+  - Firmwares corriendo en la computadora contra un MAX30102 a nivel de registros y sondas DS18B20 simuladas, leídos por un pseudo-terminal con pyserial de verdad:
+    - registros de la hoja de datos;
+    - muestras perdidas con la FIFO llena: exactamente las que tiró el sensor;
+    - sensor ausente u otro chip en 0x57;
+    - una lectura de temperatura por segundo.
+  - Placas simuladas, calidad, muestras perdidas sin contar dos veces y el aviso de la placa en el estado.
+  - AppTest de la vista: sin placa no analiza; la práctica mide el pulso y dice que la SpO₂ no está disponible; los dos tutoriales corren su práctica.
+  - Las pruebas del EMG pasan a usar el mismo juego de herramientas (27).
+  - Suite completa: 2040 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet).
+  - Revisión visual con capturas de la medición del pulso (quieto y con movimiento), las conexiones, los límites y la práctica de temperatura.
+
+**Para Luis**:
+1. Nada de esto se probó con un MAX30102 ni un DS18B20 reales. Los módulos del MAX30102 varían de un fabricante a otro.
+2. La frecuencia de pulso no se guarda al gemelo. ¿Merece su propia compuerta o se queda fuera?
+3. Los umbrales son heurísticas: 50 000 cuentas para decir que hay dedo, 20 % de intervalos a más de 25 % de la mediana para «irregular» y 0.1 °C por minuto para «estable». Están en `PpgQualityHeuristics` y en `quality.py`.
+4. Las otras vistas del Multisensor Fusion Lab siguen con sus canales demo y su Health Score, sin cambios.
+
 ## 2026-11-15 — EMG en vivo: placa ESP32 + MyoWare 2.0, con tutorial y práctica
 
 **Contexto (Art. I)**: el origen «Live Hardware» del EMG Muscle Lab era una fachada.

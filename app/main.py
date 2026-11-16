@@ -1977,9 +1977,15 @@ def render_multisensor_page() -> None:
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Perfusion
     # Proxy" (promedio crudo de PPG), desconectado de ese gemelo real.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
+    # «Sensores en vivo» (2026-11-16): pulso por luz y temperatura con la placa ESP32, y sus tutoriales
+    # (`app/supermodules/biosensors/live_view.py`). No usa `demo_channels` ni entra al Health Score.
+    from app.supermodules.biosensors.live_view import VIEW as LIVE_SENSORS_VIEW, render_live_sensors_view
+    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación', LIVE_SENSORS_VIEW])
 
-    if view == 'Clínica':
+    if view == LIVE_SENSORS_VIEW:
+        render_live_sensors_view()
+
+    elif view == 'Clínica':
         st.markdown('### Vista Clínica')
         record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
         indices = record.compute_physiological_indices()

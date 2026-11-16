@@ -277,13 +277,31 @@ class EegLiveService:
                     self._set_state(LiveState.STREAMING, f'{desc.detail}: llegan muestras.')
             else:
                 idle = now - last
+                said = self._device_says(backend)
+                tail = f' La placa dice: «{said}»' if said else ''
                 if idle > cfg.reconnect_after_s:
-                    return f'{desc.detail} no mandó datos en {idle:.0f} s; se cerró la sesión.'
+                    return f'{desc.detail} no mandó datos en {idle:.0f} s; se cerró la sesión.{tail}'
                 if idle > cfg.data_timeout_s and self._state in (LiveState.STREAMING, LiveState.NO_DATA):
                     self._set_state(LiveState.NO_DATA, f'{desc.detail} no manda datos desde hace {idle:.0f} s. '
-                                                       'Revisa que esté encendido, cerca y conectado.')
+                                                       f'Revisa que esté encendido, cerca y conectado.{tail}')
+                elif said and self._state == LiveState.CONNECTING:
+                    self._set_state(LiveState.CONNECTING, f'Sesión abierta con {desc.detail}, pero todavía sin '
+                                                          f'muestras.{tail}')
             self._stop.wait(cfg.poll_s)
         return 'Detenido.'
+
+    @staticmethod
+    def _device_says(backend: Backend) -> str:
+        """El último aviso del equipo (`status()['avisos']`, si lo tiene): por ejemplo, la placa que no encuentra su
+        sensor. Sin esto, la sesión abierta sin muestras solo diría que no llegan datos, no por qué."""
+        status = getattr(backend, 'status', None)
+        if status is None:
+            return ''
+        try:
+            avisos = status().get('avisos') or []
+        except Exception:
+            return ''
+        return str(avisos[-1]) if avisos else ''
 
     def _fail(self, reason: str) -> None:
         if self._stop.is_set():           # ya lo detuvieron: el estado se queda en DETENIDO

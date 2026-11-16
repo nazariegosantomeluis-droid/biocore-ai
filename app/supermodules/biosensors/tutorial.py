@@ -118,7 +118,7 @@ def render_sensor_tutorial(sensor: BioSensor, title: str, prefix: str, intro: st
         st.markdown('**Qué significa cada estado**\n\n' + _table(('Estado', 'Qué pasa'), STATES))
 
     with st.expander('7. Si algo falla'):
-        st.markdown(_table(('Lo que dice la app', 'Qué hacer'), TROUBLESHOOTING))
+        st.markdown(_table(('Lo que dice la app', 'Qué hacer'), list(TROUBLESHOOTING) + list(sensor.troubleshooting)))
 
     with st.expander('8. Qué puedes y qué no puedes concluir'):
         st.markdown(_bullets(sensor.limits))

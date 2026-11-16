@@ -8,10 +8,7 @@ página se recorre con AppTest hasta el guardado al gemelo.
 
 from __future__ import annotations
 
-import importlib.util
-import os
 import sys
-import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -25,30 +22,12 @@ from hardware.biosensors import (EMG, DataBlock, DeviceMessage, Hello, Other, Se
 from hardware.biosensors.quality import EMG_RAIL_MV, emg_quality, prepare, rms_mv
 from hardware.biosensors.sensors import emg_to_mv
 from hardware.ecg_plugplay.ports import PortError, PortInfo
-from hardware.ecg_plugplay.transport import Transport, TransportClosed
 from hardware.eeg_live import BackendError, EegLiveService, LiveConfig, LiveState
 from hardware.eeg_live.devices import SENSOR_REAL, SIMULACION
 from hardware.eeg_live.quality import mains_line_rms
 
-RAIZ = Path(__file__).resolve().parents[1]
+from biosensor_testkit import RAIZ, FastClock, ScriptTransport, firmware_running, wait  # noqa: E402
 QUICK = dict(poll_s=0.01, data_timeout_s=0.5, reconnect_after_s=1.5, retry_s=0.2, rate_window_s=0.5)
-
-
-class FastClock:
-    def __init__(self, speed: float = 10.0) -> None:
-        self.speed, self.t0 = speed, time.monotonic()
-
-    def __call__(self) -> float:
-        return (time.monotonic() - self.t0) * self.speed
-
-
-def wait(predicate, timeout=8.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if predicate():
-            return True
-        time.sleep(0.02)
-    return predicate()
 
 
 def sim_backend(board, **kw):
@@ -84,28 +63,6 @@ def test_emg_counts_to_mv_follow_the_myoware_datasheet():
 
 
 # ================================================================ conexión
-class ScriptTransport(Transport):
-    """Transporte de prueba: entrega las líneas que se le den y registra lo que se le escribe."""
-
-    def __init__(self, lines, closed_after=None):
-        self.lines, self.written, self.reads, self.closed_after = list(lines), [], 0, closed_after
-        self.name = 'COM9'
-
-    def read(self, timeout):
-        self.reads += 1
-        if self.closed_after is not None and self.reads > self.closed_after:
-            raise TransportClosed('COM9 se desconectó')
-        if not self.lines:
-            return b''
-        return (self.lines.pop(0) + '\n').encode()
-
-    def write(self, data):
-        self.written.append(data)
-
-    def close(self):
-        pass
-
-
 PORT = PortInfo('COM9', 'CP2102', vid=0x10C4, pid=0xEA60)
 HELLO = 'BIO:HELLO,sensor=emg,fw=1.0,fs=1000,ch=EMG,unit=adc,bits=12,vref=3.3,gain=200,blk=3,sim=0'
 
@@ -126,7 +83,7 @@ def test_backend_accepts_the_hello_converts_and_counts_lost_samples():
     assert data.shape == (1, 9)
     assert data[0, 3] == pytest.approx(EMG_RAIL_MV, abs=0.01) and data[0, 4] == pytest.approx(-EMG_RAIL_MV, abs=0.01)
     status = backend.status()
-    assert status['perdidas_en_el_cable'] == 4 and status['avisos'] == ['ADC caliente']
+    assert status['perdidas'] == 4 and status['avisos'] == ['ADC caliente']
 
 
 def test_backend_marks_the_simulator_as_simulation():
@@ -135,7 +92,8 @@ def test_backend_marks_the_simulator_as_simulation():
 
 
 @pytest.mark.parametrize('lines,text', [
-    (['BIO:HELLO,sensor=ppg,fs=100,ch=R;IR'], 'es una placa de «ppg», no de EMG'),
+    (['BIO:HELLO,sensor=ppg,fs=100,ch=ROJO;IR'], 'es una placa de Pulso por luz .*, no de EMG'),
+    (['BIO:HELLO,sensor=eda,fs=10,ch=EDA'], 'es una placa de «eda», no de EMG'),
     (['ECG:HELLO,fw=1.0,fs=250', 'ECG:D,0,0,2048'], 'es la placa de ECG de BIOCORE'),
     (['>>> '], 'MicroPython esperando órdenes'),
     (['Traceback (most recent call last):'], 'se detuvo con un error'),
@@ -169,66 +127,20 @@ def test_backend_rejects_a_hello_without_fs_and_reports_a_lost_cable():
 
 
 # ================================================================ firmware de MicroPython
-class Terminal:
-    def __init__(self, fd):
-        self.fd = fd
-
-    def fileno(self):
-        return self.fd
-
-    def read(self, n=1):
-        try:
-            return os.read(self.fd, n).decode('utf-8', 'replace')
-        except OSError:
-            return ''
-
-    def write(self, texto):
-        try:
-            os.write(self.fd, texto.encode())
-        except (BlockingIOError, OSError):
-            pass
-
-
-FAKES = str(RAIZ / 'tests' / 'fakes_micropython')
-
-
 @pytest.mark.skipif(sys.platform.startswith('win'), reason='usa un pseudo-terminal')
 def test_firmware_end_to_end_through_a_real_serial_port():
-    import pty
-    import tty
+    def prepare():
+        import machine
+        machine.ADC.fuente = lambda: 2048 + 400                # +400 cuentas sobre el centro
 
-    sys.path.insert(0, FAKES)
-    for name in ('machine', 'micropython'):
-        sys.modules.pop(name, None)
-    spec = importlib.util.spec_from_file_location('firmware_emg_myoware', EMG.firmware_path)
-    fw = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fw)
-    import machine
-
-    machine.ADC.fuente = lambda: 2048 + 400                    # +400 cuentas sobre el centro
-    master, slave = pty.openpty()
-    tty.setraw(slave)
-    os.set_blocking(master, False)
-    fw.ENTRADA = fw.SALIDA = Terminal(master)
-    fw.DETENER = False
-    hilo = threading.Thread(target=fw.ejecutar, daemon=True)
-    hilo.start()
-    backend = SerialBioBackend(EMG, list_ports=lambda: [PortInfo(os.ttyname(slave), 'CP2102 simulado', vid=0x10C4,
-                                                                 pid=0xEA60)])
-    try:
-        desc = backend.open()
-        got = []
-        assert wait(lambda: got.append(backend.read()) or sum(g.shape[1] for g in got) > 200, 5.0)
-    finally:
-        fw.DETENER = True
-        hilo.join(2.0)
-        backend.close()
-        for fd in (master, slave):
-            os.close(fd)
-        while FAKES in sys.path:
-            sys.path.remove(FAKES)
-        for name in ('machine', 'micropython'):
-            sys.modules.pop(name, None)
+    with firmware_running(EMG.firmware_path, prepare) as (_, port):
+        backend = SerialBioBackend(EMG, list_ports=lambda: [PortInfo(port, 'CP2102 simulado', vid=0x10C4, pid=0xEA60)])
+        try:
+            desc = backend.open()
+            got = []
+            assert wait(lambda: got.append(backend.read()) or sum(g.shape[1] for g in got) > 200, 5.0)
+        finally:
+            backend.close()
     assert desc.provenance == SENSOR_REAL and desc.fs == 1000.0       # el firmware real no se declara simulador
     data = np.concatenate(got, axis=1)
     assert np.allclose(data, (2448 / 4095 * 3.3 - 1.65) / 200 * 1000, atol=1e-6)
@@ -256,10 +168,10 @@ def test_simulated_board_rms_follows_the_contraction_and_flags_a_loose_electrode
 
     collect(0.5)
     rest = collect(2.0)
-    board.set_level(0.8)
+    board.model.set_level(0.8)
     collect(0.5)
     strong = collect(2.0)
-    board.set_electrode_off(True)
+    board.model.set_electrode_off(True)
     loose = collect(2.0)
     assert rms_mv(rest, 1000.0) == pytest.approx(0.0093, rel=0.25)          # 10 µV en la banda de 20-450 Hz
     assert rms_mv(strong, 1000.0) == pytest.approx(0.4, rel=0.25)           # 0.5 mV × 0.8
@@ -461,7 +373,7 @@ def test_real_board_saves_as_sensor_real_and_a_loose_electrode_blocks_it(ups, bo
     with sf() as s:
         activation = get_latest_state(s, pid).muscular.descriptors['activation']
     assert activation.provenance == Provenance.SENSOR_REAL and 'SENSOR_REAL' in activation.source_detail
-    real_board.set_electrode_off(True)
+    real_board.model.set_electrode_off(True)
     time.sleep(1.0)
     _click(at, '🔄 Leer los últimos segundos')
     assert 'No se guarda al gemelo' in _texts(at.warning)
@@ -485,7 +397,7 @@ def test_tutorial_view_renders_and_runs_the_practice(ups, boards):
     at.run(timeout=60)
     assert at.exception == []
     _click(at, '💪 Contraer fuerte (80 %)', where='main')
-    assert practice.board.level == 0.8
+    assert practice.board.model.level == 0.8
 
 
 def test_mains_notch_leaves_no_false_oscillation_at_the_window_edges():

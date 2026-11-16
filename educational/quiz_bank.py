@@ -84,20 +84,18 @@ def balance_positions(bank: List[QuizQuestion], seed_text: str) -> List[QuizQues
 
 # --- Fuentes (leídas del documento original el 2026-11-14) -------------------------------------
 # Las del ECG viven en `clinical/ecg_references.py` (una sola copia; también las usa el analizador de 12
-# derivaciones) y las del EEG en `clinical/eeg_references.py` (también las usa el EEG en vivo).
+# derivaciones), las del EEG en `clinical/eeg_references.py` (también las usa el EEG en vivo) y las de la PPG en
+# `clinical/ppg_references.py` (también las usa el sensor de pulso en vivo).
 from clinical.ecg_references import (  # noqa: E402
     AL_KHATIB_2017, BYRNE_2023, DREW_2010, KLIGFIELD_2007, KUSUMOTO_2018, RAUTAHARJU_2009, SCHULZ_MENGER_2025,
     SOKOLOW_LYON_1949, SURAWICZ_2009, VAN_GELDER_2024, WAGNER_2009,
 )
 from clinical.eeg_references import KANE_2017  # noqa: E402
+from clinical.ppg_references import ALLEN_2007  # noqa: E402
 
 BIGA_ANATOMY = (
     "Biga LM, et al. Anatomy & Physiology, cap. 19, «Conduction system of the heart and the ECG». "
     "Libro de texto abierto, licencia CC BY-SA 4.0"
-)
-ALLEN_2007 = (
-    "Allen J. Photoplethysmography and its application in clinical physiological measurement. "
-    "Physiol Meas 2007;28(3):R1–R39. doi:10.1088/0967-3334/28/3/R01"
 )
 HIRSCH_2021 = (
     "Hirsch LJ, Fong MWK, et al. American Clinical Neurophysiology Society's Standardized Critical Care EEG "

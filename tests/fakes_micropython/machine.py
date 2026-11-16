@@ -56,3 +56,30 @@ class Timer:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(1.0)
+
+
+class I2C:
+    """Bus I2C simulado. `dispositivos`: dirección → objeto con `leer(reg, n) -> bytes` y `escribir(reg, datos)`."""
+
+    dispositivos = {}
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def scan(self):
+        return sorted(I2C.dispositivos)
+
+    def _dispositivo(self, direccion):
+        dispositivo = I2C.dispositivos.get(direccion)
+        if dispositivo is None:
+            raise OSError(19, 'ENODEV')            # lo mismo que lanza MicroPython si nadie responde
+        return dispositivo
+
+    def readfrom_mem(self, direccion, reg, n):
+        return bytes(self._dispositivo(direccion).leer(reg, n))
+
+    def writeto_mem(self, direccion, reg, datos):
+        self._dispositivo(direccion).escribir(reg, bytes(datos))
+
+
+SoftI2C = I2C

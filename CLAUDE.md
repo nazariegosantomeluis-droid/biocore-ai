@@ -18,7 +18,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Digital Twin OS | Digital Twin OS | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
 | Learning Hub | Academia Clínica | `app/supermodules/academia/` (preguntas con fuente en `educational/quiz_bank.py`, que comparten la pestaña 12 Derivaciones y el EEG Neuro Lab) |
 | Clinical Hub | ECG Lab | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`, también en `main.py`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`; trazado de `src/signals/ecg/twelve_lead_synth.py`, lectura por criterios de `src/signals/ecg/twelve_lead_measure.py`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
-| Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py` |
+| Clinical Hub | Multisensor Fusion Lab | `render_multisensor_page()` en `app/main.py`; la vista Sensores en vivo (pulso por luz con MAX30102 y temperatura con DS18B20, con sus tutoriales) en `app/supermodules/biosensors/live_view.py` |
 | Clinical Hub | Respiratory Lab | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
 | Clinical Hub | EEG Neuro Lab | `app/supermodules/eeg_neuro_lab/`: pestaña Clínica (`page_content.py`; su fuente «Hardware EEG en vivo» en `live_source.py`) + pestaña EEG en vivo (tutorial) (`live_tutorial.py`) |
 | Clinical Hub | EMG Muscle Lab | `render_emg_page()` en `app/main.py`; su fuente «Sensor en vivo (ESP32 + MyoWare)» y la vista Sensor en vivo (tutorial) en `app/supermodules/biosensors/emg.py` |
@@ -28,7 +28,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Clinical Hub | Patient Pipeline | `render_patient_pipeline_page()` en `app/main.py` |
 | Laboratorio 3D | Crea tu modelo 3D | `app/supermodules/model3d/` |
 
-- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos). `hardware/biosensors/` (placa de sensores ESP32 con el protocolo `BIO:`: firmware, conexión y simulador; hoy, EMG con MyoWare 2.0; entra al mismo servicio que el EEG en vivo).
+- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos). `hardware/biosensors/` (placa de sensores ESP32 con el protocolo `BIO:`: firmware, conexión y simulador; EMG con MyoWare 2.0, pulso por luz con MAX30102 y temperatura con DS18B20; entra al mismo servicio que el EEG en vivo). La onda de pulso se analiza en `src/signals/ppg/analysis.py` (Elgendi 2013); la SpO₂ no se calcula: falta la curva de calibración.
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
 
 ## El UPS (`domain/physiology/state/`)
@@ -90,7 +90,7 @@ Ya no está «en corrección» y el arco está cerrado (qué quedó validado, ex
 
 ## Heurístico, demo o inexistente hoy
 
-- **Heurístico o demo, declarado así en pantalla:** Biomarkers Lab («modo demostración»), Multisensor Fusion Lab (solo canales demo), activación del EMG (media/máximo de la señal filtrada, no % de contracción máxima), fatiga del EMG con la señal demo, índice de riesgo de Digital Twin OS y sus «explicaciones» (pesos fijos, sin entrenamiento; no son SHAP ni LIME).
+- **Heurístico o demo, declarado así en pantalla:** Biomarkers Lab («modo demostración»), Multisensor Fusion Lab (canales demo, salvo la vista Sensores en vivo), activación del EMG (media/máximo de la señal filtrada, no % de contracción máxima), fatiga del EMG con la señal demo, índice de riesgo de Digital Twin OS y sus «explicaciones» (pesos fijos, sin entrenamiento; no son SHAP ni LIME).
 - **Lo que no existe:** un dominio metabólico en el UPS, `PLAN.md`, `pages_legacy/`, `_archive/`.
 - **`shap` y `lime`** figuran en `requirements.txt` pero ningún archivo los importa.
 

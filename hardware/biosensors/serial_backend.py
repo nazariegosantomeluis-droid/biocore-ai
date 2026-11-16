@@ -6,8 +6,8 @@ servicio que el EEG en vivo: estados, búfer, procedencia y reconexión automát
 - `open()` revisa los puertos USB (primero los chips conocidos; se salta los Bluetooth), manda 'BIO?' y espera el
   handshake del sensor que se pidió. Si en un puerto hay otra cosa, dice qué: la placa de ECG, otra placa de
   sensores, MicroPython esperando órdenes (Thonny abierto) o un programa que se detuvo con un error.
-- `read()` arma líneas, cuenta las muestras que se perdieron en el cable (saltos en `seq`) y convierte a unidades
-  físicas con la función del sensor (`sensors.py`).
+- `read()` arma líneas, cuenta las muestras perdidas (saltos en `seq`: las que la placa se saltó y las del cable) y
+  convierte a unidades físicas con la función del sensor (`sensors.py`). Guarda los avisos `BIO:E` de la placa.
 - La procedencia es SENSOR_REAL salvo que el HELLO diga `sim=1` (el simulador de práctica).
 
 Puertos y errores: los mismos ayudantes que la placa de ECG (`hardware/ecg_plugplay/ports.py`, `transport.py`).
@@ -188,12 +188,17 @@ class SerialBioBackend(Backend):
                 pass
 
     def status(self) -> Dict[str, object]:
-        """Contadores para la interfaz: lo que dice la placa de sí misma y lo que se perdió en el cable."""
+        """Contadores para la interfaz.
+
+        `perdidas` son los saltos de `seq` en esta conexión: ya incluyen las muestras que la placa se saltó por
+        atrasarse y las que se perdieron en el cable. Lo que dice el HELLO (`tarde`, `perdidas`) se cuenta desde que
+        arrancó la placa y llega cada 2 s, así que es informativo y no se suma (sumarlo contaba dos veces lo mismo).
+        """
         hello = self._hello
         return {
             'firmware': hello.firmware if hello else None,
-            'tarde_en_la_placa': int(hello.number('tarde') or 0) if hello else 0,
-            'perdidas_en_la_placa': int(hello.number('perdidas') or 0) if hello else 0,
-            'perdidas_en_el_cable': self.lost_in_transit,
+            'perdidas': self.lost_in_transit,
+            'tarde_desde_el_arranque': int(hello.number('tarde') or 0) if hello else 0,
+            'perdidas_desde_el_arranque': int(hello.number('perdidas') or 0) if hello else 0,
             'avisos': list(self.messages),
         }

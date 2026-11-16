@@ -12,6 +12,7 @@ from typing import Callable, Dict, Optional
 
 import numpy as np
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 
 from app.supermodules.biosensors import live_service
 from hardware.biosensors import BioSensor
@@ -44,9 +45,35 @@ def state_line(snap) -> str:
     return f"{STATE_ICONS.get(snap['state'], '⚪')} **{snap['state'].capitalize()}** — {snap['message']}"
 
 
+def rerun(fragment: bool) -> None:
+    """Redibuja solo el fragmento de la práctica si se puede; si no, la página."""
+    if fragment:
+        try:
+            st.rerun(scope='fragment')
+            return
+        except (TypeError, StreamlitAPIException):
+            pass
+    st.rerun()
+
+
+def render_cable_control(board, container, prefix: str, fragment: bool = False) -> None:
+    """El cable USB de la placa simulada: desconectarlo muestra el estado «sin conexión» y la reconexión sola."""
+    if board.plugged:
+        if container.button('🔌 Desconectar el cable', key=f'{prefix}_unplug'):
+            board.unplug()
+            rerun(fragment)
+    elif container.button('🔌 Reconectar el cable', key=f'{prefix}_plug'):
+        board.plug()
+        rerun(fragment)
+
+
 def render_board_source(sensor: BioSensor, duration_s: float, prefix: str, min_seconds: float,
-                        controls: Optional[Callable] = None, tutorial_hint: str = '') -> Optional[BoardSignal]:
-    """Controles en la barra lateral. Devuelve los últimos `duration_s` (desde `min_seconds`) o None."""
+                        controls: Optional[Callable] = None, tutorial_hint: str = '',
+                        mains_filter: bool = True) -> Optional[BoardSignal]:
+    """Controles en la barra lateral. Devuelve los últimos `duration_s` (desde `min_seconds`) o None.
+
+    `mains_filter=False` quita el control del filtro de la red: el pulso por luz (100 Hz, por debajo de la red) y la
+    temperatura (1 Hz) no lo usan."""
     sb = st.sidebar
     sb.markdown('### Sensor en vivo')
     sb.caption(sensor.connection + (f' {tutorial_hint}' if tutorial_hint else ''))
@@ -58,8 +85,10 @@ def render_board_source(sensor: BioSensor, duration_s: float, prefix: str, min_s
             controls(prac.board, sb, f'{prefix}_sim')
     else:
         service = live_service.get_board_service(sensor.key)
-    mains_hz = MAINS_OPTIONS[sb.radio('Filtro de la red eléctrica', list(MAINS_OPTIONS), key=f'{prefix}_mains',
-                                      help='Quita el zumbido de los aparatos y contactos cercanos (filtro notch).')]
+    mains_hz = None
+    if mains_filter:
+        mains_hz = MAINS_OPTIONS[sb.radio('Filtro de la red eléctrica', list(MAINS_OPTIONS), key=f'{prefix}_mains',
+                                          help='Quita el zumbido de los aparatos y contactos cercanos (filtro notch).')]
     if service.is_running:
         if sb.button('⏹ Soltar el puerto' if not practice else '⏹ Detener la práctica', key=f'{prefix}_stop'):
             service.stop()
@@ -86,10 +115,10 @@ def render_board_source(sensor: BioSensor, duration_s: float, prefix: str, min_s
         return None
     fs = float(snap['fs'])
     status = snap.get('backend_status') or {}
-    lost = int(status.get('perdidas_en_el_cable', 0)) + int(status.get('perdidas_en_la_placa', 0))
+    lost = int(status.get('perdidas', 0))
     if lost:
-        sb.warning(f'Se han perdido {lost} muestras (en el cable o porque la placa se atrasó). El análisis trata la '
-                   'señal como continua.')
+        sb.warning(f'Se han perdido {lost} muestras en esta conexión (porque la placa se atrasó o en el cable). El '
+                   'análisis trata la señal como continua.')
     eff = snap['effective_fs']
     if eff is not None and eff < LOSS_WARNING_FRACTION * fs:
         sb.warning(f'Llegan {eff:.0f} muestras por segundo de {fs:.0f}.')
