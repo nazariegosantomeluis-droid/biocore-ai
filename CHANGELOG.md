@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-11-16 — Contención antes de la prueba con estudiantes
+
+**Contexto (Art. I)**: con la integración ya en `main`, el diagnóstico encontró fachadas clínicas visibles que no podían llegar a la prueba de uso:
+- el Clasificador de ECG del gemelo;
+- indicaciones de tratamiento sin cita;
+- un «riesgo de mortalidad estimado»;
+- un CSV del ECG mal rotulado;
+- un caso que exigía clave de IA;
+- el pulso por luz saturado, que daba una frecuencia.
+
+Rama `contencion-prueba`, desde `main`. Intérprete del PATH, Python 3.13.11 y Streamlit 1.67.0, con `requirements.txt` instalado (`brainflow` 5.24.0, `pylsl` 1.18.7, NumPy 2.4.6, SciPy 1.17.1). En el paso 0, la suite completa dio 2238 pasan, 1 falla (el pulso saturado, el fallo conocido) y 6 omitidas. Con `brainflow` instalado, el otro fallo conocido ya no aparece.
+
+### Parte A — Fachadas visibles
+1. **Clasificador de ECG del gemelo, oculto**: `render_ecg_classifier_panel` ahora solo dice «La lectura automática del ECG del gemelo está en revisión…» (`ECG_CLASSIFIER_IN_REVIEW`).
+   - Antes, de 40 a 131 lpm, decía «Ritmo sinusal normal» con «QRS=0 ms, PR=0 ms, QTc=0 ms — todos dentro de rango», y a 150 y 180 lpm un «QT largo / riesgo» falso.
+   - No se tocó `domain/`: `build_synthetic_ecg_from_ups` y `classify_ecg_signal` siguen ahí, sin llamador en la app. El modo B (ESP32 por `ESP32SignalSource`) se fue con el panel.
+   - Golden: a 40, 75, 150 y 180 lpm no aparece «QRS=0», «PR=0», «QTc=0», «QT largo», «dentro de rango» ni el nombre del panel. La garantía de la tanda 2 (con RR idénticos, asimetría y curtosis son «sin dato») se prueba ahora sobre el clasificador mismo.
+2. **Indicaciones de tratamiento y mortalidad sin cita, retiradas**:
+   - **Casos clínicos del Monitoreo del ECG** (`src/clinical/case_database.py`, se mostraban en «Detalle del caso»): se retiran los campos `clinical_action` y `mortality_risk`. Decían, en inglés:
+     - normal: «No immediate action. Continue routine monitoring.»
+     - fibrilación auricular: «Assess rate control, anticoagulation candidacy…», 15 %
+     - extrasístoles ventriculares: «…Consider beta-blockers.», 5 % o 20 %
+     - taquicardia ventricular: «CRITICAL: …antiarrhythmic or ablation. Unstable→ACLS protocol.», 30 %
+     - bloqueo AV: «Degree II/III: Pacemaker if symptomatic or high-risk.», 0 %, 10 % o 25 %
+     - bloqueo de rama: «…LBBB→assess for LV dysfunction.», 5 % o 15 %
+     - IAMCEST: «CRITICAL: STEMI protocol. Activate cath lab immediately. PCI or thrombolysis.», 40 %
+     - QT largo: «Genetic counseling, beta-blockers, ICD consideration. Avoid QT-prolonging drugs.», 10 %
+   - **Riesgo cardiovascular del gemelo** (`src/ai/patient_analytics.py`): `PatientRiskPredictor` ya no devuelve `recommendations`. Eran «⚠️ Considere consulta cardiólogo urgente», «📋 Monitorizar presión arterial diariamente», «💓 Frecuencia cardíaca elevada - evaluar causa», «😰 HRV baja - posible estrés o fatiga», «📈 Tendencia adversa detectada en últimas mediciones» y «✅ Continuar seguimiento de rutina», todas sobre una suma de pesos fijos.
+   - **La guardia de tratamientos (`TREATMENT`) recorre ahora TODAS las páginas**: el mismo recorrido que la prueba de idioma (21 páginas, cada vista, cada sensor × modo y las demás fuentes de cada laboratorio). Además, golden en el gemelo con un historial de riesgo alto y en un caso clínico del ECG por diagnóstico.
+3. **CSV del Monitoreo del ECG**: «Guardar al gemelo» queda desactivado con el mismo motivo que el EMG (`CSV_SAVE_BLOCKER`, antes `EMG_CSV_SAVE_BLOCKER`: «archivo sin procedencia verificable»).
+   - **Corrección del diagnóstico anterior**: el CSV del ECG NO escribía al gemelo; se comprobó por ejecución. Pero sus metadatos no traían `source`, así que la página lo rotulaba «Fuente: demo» y le decía al estudiante que la FC la había elegido él en un slider.
+   - Ahora se rotula `ECG_CSV_SOURCE_LABEL` («CSV local (archivo cargado)»).
+   - Golden con un archivo de verdad: hay trazo y FC, el botón no se puede pulsar y el UPS queda vacío.
+
+### Parte B — La práctica funciona sin clave
+- **Caso ciego de la Academia**: la misma corrección determinista que el caso del gemelo.
+  - La verdad es el escenario que generó el caso.
+  - La evidencia es `case_evidence` (valores y puntos NEWS2, RCP 2017, y eventos del UPS), con la explicación por escenario declarada pendiente (`CASE_EXPLANATION_PENDING`) y, en la sepsis, la declaración del modelo.
+  - La IA, si hay clave, solo narra a pedido, rotulada «no es la corrección».
+  - Golden sin clave, acierto y error, con el narrador vigilado.
+- **Barrido de las prácticas**: Quiz de la Academia (ya corregía sin clave; la IA es un extra), Caso ciego (exigía clave: corregido), Desafío ECG de 12 derivaciones y Cuestionarios de los laboratorios (no usan IA), Casos clínicos del simulador (corregido en la integración). Lo único que sigue pidiendo clave son los narradores (de hallazgos de los laboratorios, del gemelo y el razonamiento causal), que no son prácticas ni corrigen nada.
+
+### Parte C — Pulso por luz saturado
+- **Causa**: con la señal pegada al tope del ADC (constante), el filtro deja ~1e-9 cuentas de ruido numérico y el detector de Elgendi las contaba como latidos: «irregular», 42 lpm.
+- **Arreglo en el analizador**: `MIN_PULSE_AMPLITUDE_COUNTS = 5` cuentas, rotulado HEURISTIC. Si la onda filtrada no varía al menos eso, no se buscan latidos y no hay frecuencia («sin pulso»). La prueba que fallaba pasa sin cambiar lo que exige (`('saturada', 'sin pulso')`).
+- **Calibración** (medida, documentada en el comentario y en su prueba):
+  - Sin pulso: ≤ 2.5e-9 cuentas con la señal constante, y hasta 2.4 cuentas con ruido de cuantización (σ = 0.5 cuentas, 50 semillas; ninguna da frecuencia).
+  - El pulso más chico probado (índice de perfusión 0.02 % sobre 50 000 cuentas, el umbral de «sin dedo») deja 11.9 cuentas y sigue midiendo 72 lpm.
+  - Límite conocido: un ruido de 1 cuenta o más puede superar el piso. Falta calibrarlo con el sensor real.
+- **Saturada con algo de pulso bajo el tope**: la vista no muestra frecuencia, índice de perfusión ni R («No disponible: la señal está saturada…»), y `ppg_quality` no juzga el ritmo («irregular»).
+
+### Verificación
+- Suite completa en serie: **2253 pasan, 0 fallan, 6 omitidas** (las que usan un pseudo-terminal, que Windows no tiene), 2 avisos; PTB-XL corrió con el catálogo en disco. Base de desarrollo intacta (1/7/53/0 antes y después).
+- Pruebas: `tests/test_contencion_prueba.py` (nueva); la guardia de tratamientos en `tests/test_fase1_t2_pulido.py`. La prueba de la tanda 2 sobre el clasificador del gemelo se adaptó, sin debilitarse: ahora exige que no haya número ni panel y la garantía se prueba sobre el clasificador. En la prueba golden del EMG solo se renombró el bloqueador.
+- Las golden nuevas fallan con el código de `main` (comprobado) y pasan con esta rama.
+
+### Para Luis
+- **Clasificador del gemelo**: volver a mostrarlo es la decisión B o C del diagnóstico de la integración. Ambas tocan `domain/` y la C necesita tu firma de los umbrales del analizador de Miguel.
+- **Sin tocar**:
+  - `ECGAnalyzer.clinical_summary` (con «Activar protocolo STEMI…») y `arrhythmia_types.reversal` siguen en el código, sin llamador visible.
+  - La explicación clínica por escenario de los casos y el texto de seguridad de los tutoriales siguen pendientes de texto con fuente.
+  - El detector del pulso por luz puede dar una frecuencia con ruido de algunas cuentas y dedo puesto (ver el límite del piso).
+
 ## 2026-11-16 — Integración: tanda 2 de la fase 1 + main (Miguel) y contención antes de la prueba con estudiantes
 
 **Contexto (Art. I)**: la tanda 2 de la fase 1 (rama `fase1-tanda2`) y la integración del trabajo de Miguel en `main` (PR #1: hardware en vivo, 12 Derivaciones rehecha, cuestionarios con fuente, Gemini) salieron de la misma base (`e10c8cc`). Se juntaron sin perder reglas de ninguna de las dos, y se contuvo lo que no podía llegar a la prueba con estudiantes: un CSV del EMG se escribía al gemelo como «simulación», el caso clínico del gemelo no se podía jugar sin clave de IA y la prueba de PTB-XL fallaba sin red en vez de decir por qué. Intérprete: el `python` del PATH de Luis (Python 3.13.11, Streamlit 1.67.0). Los commits de Miguel conservan su autoría.
