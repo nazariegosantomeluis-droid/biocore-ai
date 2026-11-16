@@ -104,12 +104,11 @@ def test_axis_recovers_the_angle_of_a_known_vector():
 
 
 def test_axis_is_identical_to_the_twelve_lead_analyzer():
-    from src.signals.ecg.twelve_lead_analyzer import TwelveLeadEcgAnalyzer
+    from src.signals.ecg.twelve_lead_measure import qrs_axis_from_leads
 
-    analyzer = TwelveLeadEcgAnalyzer()
     for theta in np.arange(-179.5, 180.0, 0.5):
         lead_i, lead_ii, avf = _leads(theta)
-        ref = analyzer._determine_qrs_axis(np.array([lead_i]), np.array([avf]), np.array([lead_ii]))
+        ref = qrs_axis_from_leads(np.array([lead_i]), np.array([avf]))
         got = c.qrs_axis(lead_i, avf)
         assert got.axis_degrees == pytest.approx(ref.axis_degrees, abs=1e-12) and got.category == ref.category
 

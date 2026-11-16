@@ -25,13 +25,19 @@ import pandas as pd
 from app.utils.design_system import render_module_header, render_error_state, render_ai_feedback_off_notice
 from app.supermodules.twin_shell.baroreflex_panel import pa_model_label
 from domain.physiology.narrator import (
+    DataOrigin,
     Finding,
     FindingsContext,
     NarratorNotConfiguredError,
     stream_findings_narration,
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
-from app.utils.ai_session import AI_KEY_HINT, ai_client, render_settings_link
+from app.utils.ai_session import AI_KEY_HINT, AI_OFF, ai_client, render_settings_link
+from app.utils.learning_log import log_answer, render_report_box
+from app.supermodules.academia import improvement
+from educational.learning_analytics import new_attempt
+
+BANK = "academia"                   # nombre del banco en la base de la mejora continua
 from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
@@ -198,11 +204,14 @@ def render_quiz_section() -> None:
         level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level")
         if st.button("Iniciar Quiz", key="academia_start_quiz"):
             questions = generate_quiz(topic="ecg_basics", level=level, lesson=lesson)
-            st.session_state["academia_quiz"] = {
-                "lesson_id": lesson, "questions": questions, "responses": {}, "current_q": 0,
-                "answered_current": False, "feedback": None, "feedback_error": None,
-            }
+            st.session_state["academia_quiz"] = _new_quiz(lesson, questions)
             st.rerun()
+        # Mejora continua (2026-11-16): preguntas a la medida de quien responde (modelo de Elo, local).
+        if st.button("🎯 Práctica adaptativa", key="academia_adaptive_quiz"):
+            chosen = improvement.adaptive_questions()
+            st.session_state["academia_quiz"] = _new_quiz(improvement.ADAPTIVE_LESSON, dict(enumerate(chosen)))
+            st.rerun()
+        st.caption(improvement.ADAPTIVE_CAPTION)
 
     with col2:
         quiz_state = st.session_state.get("academia_quiz")
@@ -220,7 +229,9 @@ def render_quiz_section() -> None:
             choice_key = f"academia_quiz_choice_{current}"
 
             if not quiz_state["answered_current"]:
-                selected = st.radio("Opciones", q.choices, index=None, key=choice_key)
+                # 2026-11-14 (Art. I): opciones en el orden de `display_choices()`, que reparte el lugar de la
+                # correcta; sin opción elegida de inicio (tanda 1).
+                selected = st.radio("Opciones", q.display_choices(), index=None, key=choice_key)
 
                 if not narrator_is_configured():
                     render_ai_feedback_off_notice()
@@ -233,6 +244,7 @@ def render_quiz_section() -> None:
                 if st.button("Responder", key=f"academia_quiz_submit_{current}", disabled=selected is None):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
+                    log_answer(BANK, q, selected, quiz_state.setdefault("attempt", new_attempt()))
                     quiz_state["feedback"] = None
                     quiz_state["feedback_error"] = None
                     if narrator_is_configured():
@@ -251,7 +263,8 @@ def render_quiz_section() -> None:
                                 ),
                             ),
                         ]
-                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
+                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings,
+                                                           origin=DataOrigin.SIMULADO)  # pregunta del banco, sin datos de nadie
                         try:
                             quiz_state["feedback"] = "".join(stream_findings_narration(findings_context, client=ai_client()))
                             quiz_state["feedback_error"] = None
@@ -260,7 +273,7 @@ def render_quiz_section() -> None:
                             quiz_state["feedback_error"] = str(exc)
                         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                             quiz_state["feedback"] = None
-                            quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                            quiz_state["feedback_error"] = f"Error llamando al proveedor de IA: {exc}"
                     quiz_state["answered_current"] = True
                     st.rerun()
             else:
@@ -271,10 +284,13 @@ def render_quiz_section() -> None:
                 else:
                     st.error(f"❌ Incorrecto: elegiste **{q.choices[idx]}**; la respuesta correcta es **{q.choices[q.answer]}**")
 
-                # Solo las preguntas que YA traían explicación de origen la
-                # muestran (texto existente del banco, no redactado aquí).
+                # 2026-11-14: cada pregunta del banco trae su explicación y su fuente
+                # (`educational/quiz_bank.py`, leídas del documento original).
                 if q.explanation:
                     st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
+                if q.source:
+                    st.caption(f"Fuente: {q.source}")
+                render_report_box(BANK, [q], key=f"academia_report_{current}")
 
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:
@@ -308,6 +324,14 @@ def render_quiz_section() -> None:
             st.success(f"Quiz finalizado — Puntuación: {res['score']:.1f}%")
             st.write("Respuestas enviadas:")
             st.json(res["responses"])
+
+
+def _new_quiz(lesson_id: str, questions) -> dict:
+    """Estado de un quiz nuevo. `attempt` agrupa sus respuestas para la mejora continua (cada quiz es un intento)."""
+    return {
+        "lesson_id": lesson_id, "questions": questions, "responses": {}, "current_q": 0,
+        "answered_current": False, "feedback": None, "feedback_error": None, "attempt": new_attempt(),
+    }
 
 
 def render_synthetic_case_section() -> None:
@@ -349,13 +373,13 @@ def render_synthetic_case_section() -> None:
             "Es una variación honesta de uno de los 15 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
             "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
-            "(Anthropic), fundamentado en los descriptores y eventos que este caso contiene."
+            "(Anthropic o Gemini), fundamentado en los descriptores y eventos que este caso contiene."
         )
 
         if not narrator_is_configured():
             st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
+                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
+                "simulada de respaldo. " + AI_KEY_HINT
             )
             render_settings_link()
             return
@@ -498,7 +522,8 @@ def render_synthetic_case_section() -> None:
                         ),
                     ),
                 ]
-                findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings)
+                findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings,
+                                                   origin=DataOrigin.SIMULADO)  # caso del banco de casos sintéticos
 
                 try:
                     feedback_text = "".join(stream_findings_narration(findings_context, client=ai_client()))
@@ -509,7 +534,7 @@ def render_synthetic_case_section() -> None:
                     st.session_state["academia_case_feedback_error"] = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state["academia_case_feedback"] = None
-                    st.session_state["academia_case_feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state["academia_case_feedback_error"] = f"Error llamando al proveedor de IA: {exc}"
 
                 st.session_state["academia_case_selected"] = choice
                 st.session_state["academia_case_answered"] = True

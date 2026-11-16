@@ -22,7 +22,8 @@ from typing import Iterator, List, Optional
 
 import anthropic
 
-from .client import DEFAULT_MODEL, NarratorNotConfiguredError, is_configured
+from .client import NarratorNotConfiguredError, is_configured, resolve_model
+from .privacy import DataOrigin, check_provider_allows
 
 __all__ = [
     "Finding",
@@ -46,10 +47,16 @@ class Finding:
 @dataclass(frozen=True)
 class FindingsContext:
     """Contexto completo que se envía al modelo — la única fuente de hechos
-    permitida para esta narración."""
+    permitida para esta narración.
+
+    `origin` (2026-11-16) no va al modelo: lo declara el laboratorio según su
+    fuente de datos, para que un proveedor sin pago no reciba datos de una
+    persona (`privacy.py`). Sin declarar es DESCONOCIDO, que se trata como de
+    una persona."""
 
     lab_name: str
     findings: List[Finding] = field(default_factory=list)
+    origin: DataOrigin = DataOrigin.DESCONOCIDO
 
     def to_payload(self) -> dict:
         return {
@@ -91,7 +98,7 @@ def build_findings_messages(context: FindingsContext) -> List[dict]:
 
 def stream_findings_narration(
     context: FindingsContext,
-    model: str = DEFAULT_MODEL,
+    model: Optional[str] = None,
     max_tokens: int = 4096,
     client: Optional["anthropic.Anthropic"] = None,
 ) -> Iterator[str]:
@@ -108,9 +115,10 @@ def stream_findings_narration(
                 "la API de Anthropic — no hay una narración de respaldo simulada."
             )
         client = anthropic.Anthropic()
+    check_provider_allows(client, context.origin)
 
     with client.messages.stream(
-        model=model,
+        model=resolve_model(client, model),
         max_tokens=max_tokens,
         system=_SYSTEM_PROMPT,
         messages=build_findings_messages(context),

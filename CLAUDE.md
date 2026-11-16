@@ -4,7 +4,7 @@ Guía operativa para cualquier sesión de Claude Code en este repo. Es la refere
 
 ## Qué es
 
-Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **simulado** (declarado como simulación) y varios laboratorios que analizan señal, todos alimentando un estado fisiológico unificado (UPS) donde cada valor declara su procedencia. Un narrador con IA (API de Anthropic, opcional) explica en palabras los datos del UPS.
+Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **simulado** (declarado como simulación) y varios laboratorios que analizan señal, todos alimentando un estado fisiológico unificado (UPS) donde cada valor declara su procedencia. Un narrador con IA (API de Anthropic o nivel gratuito de Gemini, opcional) explica en palabras los datos del UPS.
 
 **Art. I, regla rectora:** nunca presentar como real, medido, validado o inteligente lo que no lo es. Cuando algo no se puede saber, se dice «no disponible» con el motivo; no se rellena con algo plausible. Esto aplica al código, a la UI y a los documentos.
 
@@ -19,27 +19,29 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Aprender | Teoría (Academia) (`teoria`) | `academia.pages.render_theory_section` |
 | Aprender | Referencias de los laboratorios (`referencias`) | referencias e información educativa de Respiratorio (`views`) y EEG (`eeg_neuro_lab/teaching.py`) |
 | Aprender | ECG en 3D (`ecg-3d`) | `model3d.panels.render_vcg_panel` (vectocardiograma) |
-| Practicar | Quiz de la Academia (`quiz`) | `academia.pages.render_quiz_section` |
+| Practicar | Quiz de la Academia (`quiz`) | `academia.pages.render_quiz_section` (preguntas con fuente en `educational/quiz_bank.py`; botón «Práctica adaptativa» con Elo, `academia/improvement.py`) |
 | Practicar | Caso ciego (`caso-ciego`) | `academia.pages.render_synthetic_case_section` |
-| Practicar | Desafío ECG de 12 derivaciones (`desafio-ecg`) | `app/supermodules/ecg_12/quiz.py` |
-| Practicar | Cuestionarios de los laboratorios (`cuestionarios`) | `respiratory_lab.views.render_quiz` + `eeg_neuro_lab.teaching.render_eeg_quiz` |
+| Practicar | Desafío ECG de 12 derivaciones (`desafio-ecg`) | `app/supermodules/ecg_12/quiz.py` (banco `ECG12_QUESTIONS` de `educational/quiz_bank.py`) |
+| Practicar | Cuestionarios de los laboratorios (`cuestionarios`) | `respiratory_lab.views.render_quiz` + `eeg_neuro_lab.teaching.render_eeg_quiz` (banco `EEG_QUESTIONS`) |
 | Practicar | Casos clínicos del simulador (`casos-simulador`) | `twin_shell.pages.render_clinical_case_mode` |
 | Explorar | Gemelo digital (Digital Twin OS) (`gemelo`) | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
-| Explorar | ECG (`ecg`) | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`) |
-| Explorar | Multisensor (`multisensor`) | `render_multisensor_page()` en `app/main.py` |
+| Explorar | ECG (`ecg`) | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`; trazado de `src/signals/ecg/twelve_lead_synth.py`, lectura por criterios de `src/signals/ecg/twelve_lead_measure.py`, vista en `ecg_12/report_view.py`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
+| Explorar | Multisensor (`multisensor`) | `render_multisensor_page()` en `app/main.py`; la vista Sensores en vivo (pulso por luz con MAX30102 y temperatura con DS18B20, con sus tutoriales) en `app/supermodules/biosensors/live_view.py` |
 | Explorar | Respiratorio (`respiratorio`) | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
-| Explorar | EEG (`eeg`) | `app/supermodules/eeg_neuro_lab/` |
-| Explorar | EMG (`emg`) | `render_emg_page()` en `app/main.py` |
+| Explorar | EEG (`eeg`) | `app/supermodules/eeg_neuro_lab/`: pestaña Clínica (`page_content.py`; su fuente «Hardware EEG en vivo» en `live_source.py`) + pestaña EEG en vivo (tutorial) (`live_tutorial.py`) |
+| Explorar | EMG (`emg`) | `render_emg_page()` en `app/main.py`; su fuente «Sensor en vivo (ESP32 + MyoWare)» y la vista Sensor en vivo (tutorial) en `app/supermodules/biosensors/emg.py` |
 | Explorar | Variabilidad cardíaca (HRV) (`hrv`) | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
 | Explorar | Biomarcadores (`biomarcadores`) | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
 | Explorar | Calculadoras clínicas (`calculadoras`) | `app/supermodules/calculators/` + `clinical/calculators.py` |
 | Explorar | Pipeline de pacientes (`pacientes`) | `render_patient_pipeline_page()` en `app/main.py` |
 | Explorar | Crea tu modelo 3D (`modelo-3d`) | `app/supermodules/model3d/` |
-| Ajustes | Ajustes (`ajustes`) | `app/utils/ai_session.py::render_settings_page` (clave de IA solo en `st.session_state`) |
+| Ajustes | Ajustes (`ajustes`) | `app/utils/ai_session.py::render_settings_page` (clave de IA de Anthropic o de Gemini, solo en `st.session_state`) |
 
 - **Sistema de diseño (tanda 1 de la fase 1):** `PALETTE` en `app/utils/design_system.py` es la ÚNICA fuente de color (estado clínico STABLE/WARNING/CRITICAL, NEUTRAL para «sin dato» y texto secundario, PRIMARY para la pestaña activa); `.streamlit/config.toml` la copia y una prueba exige que coincidan; `CONTRAST_PAIRS` lista los pares WCAG que `tests/test_fase1_t1_diseno.py` mide. Ningún hex fuera de `design_system.py` (excepciones: `model3d/`, `reporting.py`, `ecg_trainer.py`). Un solo tema (oscuro). Componentes únicos: etiqueta de procedencia con TEXTO (`BADGES.*` son palabras: «Validado por fuente», «Criterio BIOCORE», «Heurística», «Pendiente de validación», «Simulación», «Sin fuente»; `BADGES.label`/`BADGES.tag`/`badge_html`, color neutro), «sin dato» (`no_data_html`/`render_no_data`: dice qué falta) y la tarjeta de métrica (`render_metric_card`, que absorbió los `st.metric` de Twin OS; lleva `data-label`/`data-value` para las pruebas). El color va siempre con una palabra. Sin botones `type="primary"` (el blanco sobre PRIMARY no llega a AA).
 
-- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio).
+- **Mejora continua de los cuestionarios (integración 2026-11-16):** cada respuesta y cada reporte de una pregunta se guardan en una base local fuera de git (`educational/learning_analytics.py`, vía `app/utils/learning_log.py`). Los paneles «Tu dominio estimado por tema» y «Revisión del banco de preguntas» (`academia/improvement.py::render_continuous_improvement`) existen y tienen pruebas, pero **no se montan en ninguna página**: son «Mi progreso» y «Docente», que la decisión 1 deja fuera hasta que haya identidad (hoy el «ID del estudiante» es texto libre). Montarlos es decisión de Luis.
+
+- **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos). `hardware/biosensors/` (placa de sensores ESP32 con el protocolo `BIO:`: firmware, conexión y simulador; EMG con MyoWare 2.0, pulso por luz con MAX30102 y temperatura con DS18B20; entra al mismo servicio que el EEG en vivo). La onda de pulso se analiza en `src/signals/ppg/analysis.py` (Elgendi 2013); la SpO₂ no se calcula: falta la curva de calibración.
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
 
 ## El UPS (`domain/physiology/state/`)
@@ -53,7 +55,7 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 - **Acoplamientos** (`coupling/`): `VALIDATED_RULES` (en `catalog.py`) tiene **una** regla activa, `AROUSAL_TAQUICARDIA_BAR`: `bar` > 1.8 ⇒ +15 bpm en `heart_rate`, confianza 0.70. Dispara en el snapshot del compositor (donde coexisten `bar` y `heart_rate`). En el EEG Neuro Lab la llamada a `apply_couplings` es un **no-op honesto**: ese snapshot no trae `heart_rate`. `COUPLING_DISABLED_SCENARIOS` (`stress`, `anxiety`, `seizure`) bloquea el acoplamiento donde el escenario ya modela la descarga simpática. No agregues reglas «por simetría»: cada una necesita su firma de experto.
 - **Hemodinámica** (`hemodynamics/`): reimplementación analítica de las ecuaciones RCR de svZeroDSolver (atribución en `THIRD_PARTY_NOTICES.md`); lazo cerrado propio, habilitado en 3 escenarios (`healthy`, `hypertension`, `sepsis`). Solo modela el shock establecido; fuera de esa fase la PA se declina con motivo. `SimulationScenario` tiene 15 escenarios.
 - **Persistencia:** SQLite + SQLAlchemy en `data/biocore_ups.db` (ignorado por git). La ruta sale del global `domain.physiology.state.db.DEFAULT_DB_PATH`, que `make_engine(None)` lee al llamarse; la app comparte un engine vía `app/utils/patient_session.py::get_shared_ups_engine()`.
-- **Narrador** (`domain/physiology/narrator/`): `client.py` (`DEFAULT_MODEL = "claude-opus-5-5"`, **no verificado por ejecución**: sin clave en el entorno no se hizo ninguna llamada real), `context.py`, `prompt.py`, `findings.py`, `causal.py`. Sin clave falla explícito (`NarratorNotConfiguredError`); no hay modo simulado. La clave pegada por la persona vive solo en `st.session_state` (`app/utils/ai_session.py`), nunca en `os.environ`. Toda llamada a un modelo de lenguaje debe pasar por este paquete.
+- **Narrador** (`domain/physiology/narrator/`): `client.py` (`DEFAULT_MODEL = "claude-opus-5-5"`, **no verificado por ejecución**: sin clave en el entorno no se hizo ninguna llamada real), `context.py`, `prompt.py`, `findings.py`, `causal.py`. Sin clave falla explícito (`NarratorNotConfiguredError`); no hay modo simulado. La clave pegada por la persona vive solo en `st.session_state` (`app/utils/ai_session.py`), nunca en `os.environ`. Toda llamada a un modelo de lenguaje debe pasar por este paquete. **Gemini** (2026-11-16): `gemini.py` (REST con `urllib`, mismo uso que el cliente de Anthropic; el modelo se elige al validar la clave; **no verificado por ejecución** contra la API real) y `privacy.py`: un proveedor sin pago (`allows_personal_data = False`) solo recibe datos `SIMULADO` o `BASE_PUBLICA`. Cada laboratorio declara el `origin` de sus hallazgos; el contexto del UPS lo calcula de la procedencia y el `source_detail` de toda la ventana antes/ahora. Lo que no se sabe es `DESCONOCIDO` y se bloquea (`ProviderNotAllowedError`): una ruta nueva que escriba al UPS necesita su marca en `classify_source`.
 - **Cuerpo visual:** el color de cada órgano sale de `organ_visual_state(state)` en `ups_body_visual.py`, que consumen las tarjetas SVG y el cuerpo 3D. Nunca colorees desde `organism.organs[...].status`.
 
 ## Reglas de trabajo
@@ -101,7 +103,7 @@ Ya no está «en corrección» y el arco está cerrado (qué quedó validado, ex
 
 ## Heurístico, demo o inexistente hoy
 
-- **Heurístico o demo, declarado así en pantalla:** Biomarkers Lab («modo demostración»), Multisensor Fusion Lab (solo canales demo), activación del EMG (media/máximo de la señal filtrada, no % de contracción máxima), fatiga del EMG con la señal demo, índice de riesgo de Digital Twin OS y sus «explicaciones» (pesos fijos, sin entrenamiento; no son SHAP ni LIME).
+- **Heurístico o demo, declarado así en pantalla:** Biomarkers Lab («modo demostración»), Multisensor Fusion Lab (canales demo, salvo la vista Sensores en vivo), activación del EMG (media/máximo de la señal filtrada, no % de contracción máxima), fatiga del EMG con la señal demo, índice de riesgo de Digital Twin OS y sus «explicaciones» (pesos fijos, sin entrenamiento; no son SHAP ni LIME).
 - **Lo que no existe:** un dominio metabólico en el UPS, `PLAN.md`, `pages_legacy/`, `_archive/`.
 - **`shap` y `lime`** figuran en `requirements.txt` pero ningún archivo los importa.
 

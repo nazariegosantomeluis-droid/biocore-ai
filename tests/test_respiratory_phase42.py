@@ -135,6 +135,7 @@ def test_the_risk_factor_quiz_asks_what_the_epstein_table_says(temp_ups):
     assert any("Epstein 2009" in i.value and "ALTO RIESGO" in i.value for i in at.info)
     answers = [r for r in at.radio if r.label == "Tu respuesta:"][0]
     assert answers.value is None and not any("✓" in o for o in answers.options)   # tanda 1: sin respuesta regalada
+    assert not any("alto riesgo" in x.value for x in list(at.success) + list(at.error))   # ni acierto ni error sin contestar
     right = "Una persona con obesidad (IMC > 35)"
     answers.set_value(right).run()
     ok = " ".join(s.value for s in at.success)

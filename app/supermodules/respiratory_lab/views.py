@@ -19,6 +19,7 @@ import streamlit as st
 
 from app.utils.design_system import BADGES, render_metric_card
 from clinical.calculators import NEWS2_CITATION, news2_respiratory_rate_score
+from educational.quiz_bank import numeric_choices
 from src.signals.respiration.respiratory_analyzer import DURATION_CRITERION_LABEL
 
 SPO2_PROVENANCE = "Simulación — modelo BIOCORE: Tc valor BIOCORE; r y recuperación, Howarth 2026"
@@ -486,7 +487,9 @@ def render_quiz(analysis=None, key_prefix: str = "") -> None:
         if correct is None:
             st.warning("La frecuencia no está disponible en este registro: no hay pregunta que responder.")
             return
-        choices = sorted({correct, correct + 4, max(1, correct - 4), correct + 9})
+        # Integración 2026-11-16 (Art. I): con `sorted({c, c+4, c-4, c+9})` la correcta quedaba casi siempre segunda;
+        # `numeric_choices` reparte su lugar (determinista por el valor, para que no cambie en cada rerun).
+        choices = numeric_choices(correct, 4, f"fr:{correct}", minimum=1)
         picked = st.radio("Tu respuesta (resp/min):", choices, index=None, key=f"{key_prefix}resp_quiz_fr")
         if picked is None:
             return
@@ -502,7 +505,7 @@ def render_quiz(analysis=None, key_prefix: str = "") -> None:
         if correct is None:
             st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
             return
-        choices = sorted({correct, correct + 1, correct + 2, max(0, correct - 1)})
+        choices = numeric_choices(correct, 1, f"apneas:{correct}", minimum=0)
         picked = st.radio("Tu respuesta:", choices, index=None, key=f"{key_prefix}resp_quiz_apneas")
         if picked is None:
             return
