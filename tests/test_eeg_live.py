@@ -637,7 +637,9 @@ def test_synthetic_source_keeps_its_interpretation(eeg_ups):
     at = _apptest(eeg_ups)
     at.run(timeout=60)
     assert at.exception == []
-    assert [t.label for t in at.tabs] == ['Clínica', 'EEG en vivo (tutorial)']
+    # Tanda 2 de la fase 1: «Cómo funciona», las referencias y el quiz van en pestañas al final de la Clínica.
+    assert [t.label for t in at.tabs] == ['Clínica', 'Cómo funciona', 'Referencias EEG', 'Quiz',
+                                          'EEG en vivo (tutorial)']
     markdown = _texts(at.main.markdown)
     assert 'Clasificación' in markdown and 'no se traduce a un estado' not in markdown
     assert 'Interpretación:' in markdown                 # el generador sí trae su traducción banda → estado

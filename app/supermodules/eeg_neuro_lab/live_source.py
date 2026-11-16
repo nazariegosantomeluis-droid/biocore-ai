@@ -27,6 +27,7 @@ from hardware.eeg_live import (DEVICES, NO_VERIFICABLE, SENSOR_REAL, SIMULACION,
                                EegDevice, LslStreamChoice, assess_channels, backend_unavailable_reason,
                                discover_lsl_streams, prepare)
 from hardware.eeg_live.devices import PARAM_LABELS
+from src.signals.eeg.eeg_analyzer import band_label_es
 
 SOURCE_LABEL = "Hardware EEG en vivo"
 TUTORIAL_TAB = "EEG en vivo (tutorial)"
@@ -92,7 +93,7 @@ def channel_summary(result, interpretation_applies: bool) -> str:
     if interpretation_applies:
         return result.summary
     bp = result.band_power
-    return (f"Banda con más potencia: {result.dominant_band.upper()} (no se traduce a un estado con EEG real). "
+    return (f"Banda con más potencia: {band_label_es(result.dominant_band)} (no se traduce a un estado con EEG real). "
             f"Potencia: Δ={bp['delta']:.2f}, θ={bp['theta']:.2f}, α={bp['alpha']:.2f}, β={bp['beta']:.2f}, "
             f"γ={bp['gamma']:.2f}.")
 

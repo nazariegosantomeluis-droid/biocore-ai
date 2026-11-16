@@ -79,7 +79,7 @@ def test_ecg_lab_title_renders_exactly_once():
     at.run(timeout=30)
     h1_titles = [md.value for md in at.main.markdown if "<h1" in md.value]
     assert len(h1_titles) == 1, f"se esperaba un único <h1>, hay {len(h1_titles)}: {h1_titles}"
-    assert "ECG Lab" in h1_titles[0]
+    assert "Laboratorio de ECG" in h1_titles[0]          # tanda 2: título en español
     # el título propio de ecg_12/page_content.py ya no existe en ningún lado
     assert not any(md.value.strip().startswith("# ") for md in at.main.markdown)
 
@@ -98,14 +98,14 @@ def test_eeg_neuro_lab_title_renders_exactly_once():
     at.run(timeout=30)
     h1_titles = [md.value for md in at.main.markdown if "<h1" in md.value]
     assert len(h1_titles) == 1, f"se esperaba un único <h1>, hay {len(h1_titles)}: {h1_titles}"
-    assert "EEG Neuro Lab" in h1_titles[0]
+    assert "Laboratorio de EEG" in h1_titles[0]          # tanda 2: título en español
     # ningún " # " crudo queda en el ÁREA PRINCIPAL (el st.sidebar.markdown
     # "# EEG Neuro Lab" es un encabezado de sidebar distinto, fuera de
     # alcance de este bug -- se confirma que sigue vivo y sin tocar).
     assert not any(md.value.strip().startswith("# ") for md in at.main.markdown)
     subtitle_hits = [md.value for md in at.main.markdown if "Laboratorio de señales electroencefalográficas" in md.value]
     assert len(subtitle_hits) == 1, "el subtítulo debe sobrevivir, una sola vez (movido al wrapper)"
-    sidebar_titles = [md.value for md in at.sidebar.markdown if md.value.strip() == "# EEG Neuro Lab"]
+    sidebar_titles = [md.value for md in at.sidebar.markdown if md.value.strip() == "# Laboratorio de EEG"]   # tanda 2: en español
     assert len(sidebar_titles) == 1, "el encabezado de sidebar es un elemento distinto -- no se tocó en esta tanda"
 
 

@@ -63,7 +63,7 @@ def _ecg_lab():
 
 def _monitoreo_con_hardware():
     at = _ecg_lab()
-    next(r for r in at.sidebar.radio if r.label == 'ECG Source').set_value('Hardware ESP32 en vivo').run()
+    next(r for r in at.sidebar.radio if r.label == 'Origen del ECG').set_value('Hardware ESP32 en vivo').run()
     return at
 
 

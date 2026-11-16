@@ -57,7 +57,7 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 import streamlit as st
 
@@ -124,6 +124,7 @@ CONTRAST_PAIRS = (
     ("CRITICAL", "BACKGROUND", 4.5), ("CRITICAL", "SECONDARY_BACKGROUND", 4.5),
     ("NEUTRAL", "BACKGROUND", 4.5), ("NEUTRAL", "SECONDARY_BACKGROUND", 4.5),
     ("ON_STATE", "STABLE", 4.5), ("ON_STATE", "WARNING", 4.5), ("ON_STATE", "CRITICAL", 4.5),
+    ("ON_STATE", "PRIMARY", 4.5), ("ON_STATE", "ACCENT_ON_DARK", 4.5),     # botón principal: reposo y cursor encima
     ("PRIMARY", "SECONDARY_BACKGROUND", 3.0), ("SERIES_2", "SECONDARY_BACKGROUND", 3.0),
 )
 
@@ -341,6 +342,41 @@ def render_validation_marker(validation: Optional[str], validation_detail: Optio
             f"color:{PALETTE.TEXT}; opacity:0.92; font-size:0.92rem;'>{symbol}&nbsp;&nbsp;{text}</div>",
             unsafe_allow_html=True,
         )
+
+
+@dataclass(frozen=True)
+class TheoryTopic:
+    """Un tema de teoría en tres capas (tanda 2 de la fase 1). Toda capa es OPCIONAL: una capa sin contenido con
+    fuente se omite, nunca se rellena. `detail` es texto Markdown o una función que dibuja (p. ej. una tabla)."""
+
+    title: str
+    idea: Optional[str] = None                                  # capa 1: la idea en una frase (siempre a la vista)
+    mechanism: Optional[str] = None                             # capa 2: el mecanismo (a demanda)
+    detail: Optional[Union[str, Callable[[], None]]] = None     # capa 3: el detalle (a demanda), con su fuente
+    source: Optional[str] = None                                # cita o etiqueta del detalle
+    image: Optional[str] = None                                 # solo una imagen que ya exista en el repositorio
+
+
+THEORY_NO_SOURCE = "no citada en el repositorio (contenido pendiente de firma)"
+
+
+def render_theory_topic(topic: TheoryTopic) -> None:
+    """El ÚNICO componente de teoría: idea (con su imagen si existe) a la vista; mecanismo y detalle a demanda."""
+    st.markdown(f"#### {topic.title}")
+    if topic.image:
+        st.image(topic.image)
+    if topic.idea:
+        st.markdown(topic.idea)
+    if topic.mechanism:
+        with st.expander("¿Cómo funciona? — mecanismo"):
+            st.markdown(topic.mechanism)
+    if topic.detail:
+        with st.expander("Detalle y fuente"):
+            if callable(topic.detail):
+                topic.detail()
+            else:
+                st.markdown(topic.detail)
+            st.caption(f"Fuente: {topic.source or THEORY_NO_SOURCE}")
 
 
 def render_section_header(title: str) -> None:
@@ -629,6 +665,19 @@ def inject_global_theme() -> None:
                 background: radial-gradient(circle at top left, {PALETTE.PRIMARY}22, transparent 30%),
                             {PALETTE.BACKGROUND};
                 color: {PALETTE.TEXT};
+            }}
+            /* Tanda 2 de la fase 1: botón principal = texto ON_STATE sobre PRIMARY (5.56:1). Streamlit no expone el
+               color del texto del botón en el tema y lo pinta blanco (3.21:1 sobre PRIMARY, no AA). */
+            [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] *,
+            [data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] * {{
+                color: {PALETTE.ON_STATE} !important;
+            }}
+            /* Al pasar el cursor Streamlit oscurece el fondo (#0b5fef: 3.31:1 con texto oscuro). Se usa ACCENT_ON_DARK. */
+            [data-testid="stBaseButton-primary"]:hover, [data-testid="stBaseButton-primary"]:active,
+            [data-testid="stBaseButton-primary"]:focus-visible,
+            [data-testid="stBaseButton-primaryFormSubmit"]:hover, [data-testid="stBaseButton-primaryFormSubmit"]:active {{
+                background-color: {PALETTE.ACCENT_ON_DARK} !important;
+                border-color: {PALETTE.ACCENT_ON_DARK} !important;
             }}
         </style>
         """,

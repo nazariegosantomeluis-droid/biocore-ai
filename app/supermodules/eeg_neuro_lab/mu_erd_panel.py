@@ -36,7 +36,7 @@ except ImportError as e:
     erd_detector = None
     erd_detector_import_error = e
 
-MOTOR_IMAGERY_LABEL = "Motor Imagery (ERD)"
+MOTOR_IMAGERY_LABEL = "Imaginación motora (ERD)"
 
 # Límites del slider "Momento del evento": al menos 2s de reposo antes, y
 # todo el evento (`total_span_s`) más medio segundo de reposo antes del

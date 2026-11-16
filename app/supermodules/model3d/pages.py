@@ -206,7 +206,7 @@ def render_imaging_tab() -> None:
         for col, (title, img) in zip(cols, _slice_previews(vol, preview)):
             col.image(img, caption=title, width="stretch")
 
-    if st.button("Reconstruir en 3D", key="m3d_build", icon=":material/view_in_ar:"):
+    if st.button("Reconstruir en 3D", key="m3d_build", type="primary", icon=":material/view_in_ar:"):
         if selection is None:
             st.warning("Elige qué reconstruir.")
             return
@@ -386,8 +386,8 @@ def render_reference_anatomy_tab() -> None:
 # ─────────────────────────────────────────────────────────────────────────
 
 def render_eeg_tab() -> None:
-    st.markdown("La potencia de cada banda del EEG, medida canal por canal con el mismo analizador de EEG "
-                "Neuro Lab, dibujada sobre una cabeza de plantilla con el sistema 10-20.")
+    st.markdown("La potencia de cada banda del EEG, medida canal por canal con el mismo analizador del "
+                "Laboratorio de EEG, dibujada sobre una cabeza de plantilla con el sistema 10-20.")
     source = st.segmented_control("Fuente del EEG", ["ref", "upload"],
                                   format_func={"ref": "EEG real de ejemplo", "upload": "Subir mi EEG (CSV)"}.get,
                                   default="ref", key="m3d_eeg_source") or "ref"

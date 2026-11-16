@@ -22,8 +22,8 @@ MODES = ('Medir', 'Tutorial')
 def render_live_sensors_view() -> None:
     st.markdown('### Sensores en vivo')
     st.caption('Una placa ESP32 por USB con un sensor de pulso por luz o de temperatura, o una placa simulada para '
-               'practicar. Esta vista no entra al Health Score de las otras vistas. El EMG en vivo está en el EMG '
-               'Muscle Lab, el EEG en vivo en el EEG Neuro Lab y la placa de ECG en el ECG Lab.')
+               'practicar. El EMG en vivo está en el Laboratorio de EMG, el EEG en vivo en el Laboratorio de EEG y '
+               'la placa de ECG en el Laboratorio de ECG.')
     choice = st.radio('Sensor', list(SENSORS), horizontal=True, key='msl_live_sensor')
     mode = st.radio('Qué quieres hacer', MODES, horizontal=True, key='msl_live_mode')
     measure, tutorial = SENSORS[choice]

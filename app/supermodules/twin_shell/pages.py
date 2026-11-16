@@ -34,7 +34,8 @@ from app.engines import (
     SimulationScenario,
     PredictionEngine,
 )
-from clinical.calculators import PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
+from clinical.calculators import NEWS2_CITATION, PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
+from clinical.ecg_analyzer import pattern_label_es
 from app.engines.digital_twin_organism import NEWS2_POINTS_COLOR, NO_DATA, NO_DATA_COLOR, NOT_MODELED
 from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
 from app.utils.design_system import (
@@ -519,7 +520,7 @@ def render_neuro_cardiac_composer() -> None:
 
     st.markdown("#### 🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)")
     st.caption(
-        "Une la última medición **neurológica** guardada (el BAR, Ratio Beta/Alfa del EEG Lab, "
+        "Une la última medición **neurológica** guardada (el BAR, Ratio Beta/Alfa del Laboratorio de EEG, "
         "una medida de activación cortical) con la última **frecuencia cardíaca medida** guardada "
         "(ECG/HRV/este panel) en un mismo momento, y evalúa la regla validada arousal→↑FC "
         "(`AROUSAL_TAQUICARDIA_BAR`: si el BAR pasa de 1.8, la FC sube +15 lpm; Guyton 14ª ed. "
@@ -584,7 +585,7 @@ def render_scenario_and_interventions(organism: DigitalTwinOrganism) -> None:
         sep_col1, sep_col2 = st.columns([3, 2])
         sepsis_horizon = sep_col1.selectbox(
             "Horizonte", list(sepsis_trajectory.HORIZON_PHASES),
-            format_func=lambda h: f"{h} — {sepsis_trajectory.phase_of(h)}",
+            format_func=lambda h: f"{'ahora' if h == 'now' else h} — {sepsis_trajectory.phase_of(h)}",
             key="twin_shell_sepsis_horizon", label_visibility="collapsed",
         )
         if sep_col2.button("Aplicar punto", key="twin_shell_sepsis_apply", use_container_width=True):
@@ -1128,6 +1129,35 @@ def _clinical_neighbors(scenario: SimulationScenario) -> FrozenSet[SimulationSce
     return frozenset(neighbors)
 
 
+# Corrección determinista del caso clínico (2026-11-16, Art. I). Solo evidencia con criterio citado que el caso trae:
+# el valor medido y sus puntos NEWS2 (RCP 2017, `clinical.calculators`) y los eventos del UPS (sus descripciones ya
+# nombran la banda NEWS2). No se redacta una explicación clínica por escenario: el repositorio no la tiene con fuente.
+CASE_EVIDENCE_ROWS = (
+    ("heart_rate", "news2_pulse_points", "Pulso", "lpm"),
+    ("respiratory_rate", "news2_respiratory_rate_points", "Frecuencia respiratoria", "resp/min"),
+    ("spo2", "news2_spo2_scale1_points", "SpO₂ (escala 1)", "%"),
+)
+CASE_EXPLANATION_PENDING = (
+    "La explicación clínica de cada escenario (por qué estos datos apuntan a ese diagnóstico y no a los otros) está "
+    "pendiente de un texto con fuente firmado; aquí solo se muestra lo que el caso trae con su criterio."
+)
+
+
+def case_evidence(state, events) -> list:
+    """Líneas de evidencia del caso con su criterio citado (puntos NEWS2 y eventos del UPS); nunca un texto nuevo."""
+    descriptors = {d.name: d for domain in state.all_domains().values() for d in domain.descriptors.values()}
+    lines = []
+    for value_key, points_key, label, unit in CASE_EVIDENCE_ROWS:
+        value = descriptors.get(value_key)
+        if value is None:
+            continue
+        points = descriptors.get(points_key)
+        lines.append(f"{label}: {value.value:.0f} {unit}"
+                     + (f" → {points.value:.0f} puntos NEWS2" if points is not None else ""))
+    lines.extend(e.description for e in events)
+    return lines or ["El caso no trae valores con un criterio citado con qué compararlos."]
+
+
 def _diagnostic_options(hidden: SimulationScenario, n_options: int = 4) -> list:
     """La opción correcta + `n_options - 1` distractores -- curados por
     similitud clínica (Trabajo 1, 2026-08-06, agrupación con firma del
@@ -1347,7 +1377,7 @@ def _build_pa_findings(state, references_pa: list, scenario_value: str) -> list:
     return pa_findings
 
 
-def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
+def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = False) -> None:
     """Modo Caso Clínico Interactivo v1 (2026-07-12) — diagnóstico por
     opción múltiple. Convierte al estudiante de espectador en clínico,
     reutilizando TODO lo existente: los 15 escenarios reales
@@ -1379,20 +1409,15 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
     viene de `get_latest_state`/`get_events`, que nunca exponen el
     escenario que los generó (no es un campo del UPS)."""
 
-    with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=False):
+    with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=expanded):
+        # Contención (2026-11-16, Art. I): antes, sin clave de IA el caso no se podía jugar. La corrección no necesita
+        # IA: la respuesta correcta es el escenario que este código cargó y la explicación es la evidencia del caso con
+        # su criterio citado (`case_evidence`). La IA, si hay clave, solo añade una narración opcional y rotulada.
         st.caption(
-            "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo "
-            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic o Gemini), fundamentado "
-            "únicamente en los descriptores y eventos que el UPS realmente persistió."
+            "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo entre 4 opciones; la "
+            "corrección dice cuál era el escenario y qué mostró el caso con su criterio citado. Con una clave de IA "
+            "puedes pedir además una narración (opcional; no es la corrección)."
         )
-
-        if not narrator_is_configured():
-            st.warning(
-                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
-                "simulada de respaldo. " + AI_KEY_HINT
-            )
-            render_settings_link()
-            return
 
         if st.button("🆕 Nuevo caso clínico", key="clinical_case_new"):
             session_factory = get_active_session_factory()
@@ -1499,8 +1524,39 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 key=f"clinical_case_radio_{patient_id}",
             )
             if st.button("✅ Confirmar diagnóstico", key=f"clinical_case_confirm_{patient_id}", disabled=choice is None):
-                hidden = st.session_state.clinical_case_hidden_scenario
+                st.session_state.clinical_case_selected = choice
+                st.session_state.clinical_case_answered = True
+                st.rerun()
+        else:
+            selected = st.session_state.clinical_case_selected
+            hidden = st.session_state.clinical_case_hidden_scenario
+            correct = selected == hidden
 
+            # Corrección determinista: la verdad es el escenario que este código cargó; no depende de ninguna IA.
+            if correct:
+                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
+            else:
+                st.error(
+                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
+                    f"{RICH_SCENARIO_LABELS[hidden]}"
+                )
+            st.markdown("**Qué mostró el caso, con su criterio citado:**")
+            for line in case_evidence(state, events):
+                st.markdown(f"- {line}")
+            st.caption(f"Criterio: {NEWS2_CITATION}. {CASE_EXPLANATION_PENDING}")
+            if hidden == SimulationScenario.SEPSIS:
+                with st.expander("Cómo está construido este caso (sepsis)"):
+                    render_sepsis_model_declaration()
+
+            st.markdown("**Narración con IA (opcional; no es la corrección):**")
+            if not narrator_is_configured():
+                st.caption(AI_OFF + " La corrección de arriba no la necesita. " + AI_KEY_HINT)
+                render_settings_link()
+            elif st.session_state.clinical_case_feedback:
+                st.markdown(st.session_state.clinical_case_feedback)
+            elif st.session_state.clinical_case_feedback_error:
+                st.error(st.session_state.clinical_case_feedback_error)
+            elif st.button("🤖 Pedir la narración con IA", key=f"clinical_case_narrate_{patient_id}"):
                 with session_factory() as session:
                     context = build_context(session, patient_id)
 
@@ -1520,7 +1576,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                 ] + _build_pa_findings(state, case_references, hidden.value) + [
                     Finding(
                         name="Diagnóstico elegido por el estudiante",
-                        value=RICH_SCENARIO_LABELS[choice],
+                        value=RICH_SCENARIO_LABELS[selected],
                         meaning="Evalúalo contra los datos anteriores — no lo repitas como si fuera un campo técnico.",
                     ),
                     Finding(
@@ -1548,27 +1604,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                     st.session_state.clinical_case_feedback = None
                     st.session_state.clinical_case_feedback_error = f"Error llamando al proveedor de IA: {exc}"
 
-                st.session_state.clinical_case_selected = choice
-                st.session_state.clinical_case_answered = True
                 st.rerun()
-        else:
-            selected = st.session_state.clinical_case_selected
-            hidden = st.session_state.clinical_case_hidden_scenario
-            correct = selected == hidden
-
-            if correct:
-                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
-            else:
-                st.error(
-                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
-                    f"{RICH_SCENARIO_LABELS[hidden]}"
-                )
-
-            st.markdown("**Feedback del narrador (fundamentado en el UPS):**")
-            if st.session_state.clinical_case_feedback:
-                st.markdown(st.session_state.clinical_case_feedback)
-            elif st.session_state.clinical_case_feedback_error:
-                st.error(st.session_state.clinical_case_feedback_error)
 
             if st.button("➡️ Otro caso", key="clinical_case_next"):
                 for k in [
@@ -1735,11 +1771,11 @@ def render_ml_risk_panel(organism: DigitalTwinOrganism) -> None:
             return
 
         include_age = st.checkbox(
-            "Incluir edad ingresada en Biomarkers Lab (dato real ingresado por el usuario, no del UPS)",
+            "Incluir edad ingresada en Biomarcadores (dato real ingresado por el usuario, no del UPS)",
             value=False,
             key="twin_shell_risk_include_age",
             help="El UPS no modela demografía — esta edad viene del campo 'Edad' de Clinical Hub → "
-                 "Biomarkers Lab. Si no visitaste esa página todavía, no hay edad que incluir (el "
+                 "Biomarcadores. Si no visitaste esa página todavía, no hay edad que incluir (el "
                  "checkbox simplemente no aporta nada, sin romperse). Se omite por defecto para no "
                  "mezclar fuentes sin que lo pidas.",
         )
@@ -1976,7 +2012,7 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 <div style='text-align:center; padding:14px; border-radius:12px;
                             border:1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03);'>
                     <div style='font-size:11px; letter-spacing:1px; color:{PALETTE.NEUTRAL};'>CLASIFICACIÓN (DERIVADO)</div>
-                    <div style='font-size:19px; font-weight:700; color:{PALETTE.TEXT};'>{result.pattern}</div>
+                    <div style='font-size:19px; font-weight:700; color:{PALETTE.TEXT};'>{pattern_label_es(result.pattern)}</div>
                     <div style='font-size:13px; color:{PALETTE.NEUTRAL};'>{criterion}</div>
                 </div>
                 """,
@@ -2017,6 +2053,10 @@ def render_ecg_classifier_panel(organism: DigitalTwinOrganism) -> None:
                 st.bar_chart(importance_df, use_container_width=True)
         else:
             st.caption(result.explainability_note or "Explicabilidad no disponible.")
+        # Tanda 2 de la fase 1 (Art. I): con RR casi idénticos, asimetría y curtosis no se calculan; se dice, no se
+        # muestra un número poco fiable.
+        for label, reason in result.unavailable_features.items():
+            st.markdown(no_data_html(label, reason), unsafe_allow_html=True)
 
 
 # Etiquetas en español de las 5 claves de `system_risks` (prediction_engine.py); las claves no se tocan.
@@ -2118,11 +2158,16 @@ def main() -> None:
     # de un estilo ad-hoc.
     render_module_header("Digital Twin OS", icon="🧬", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
 
+    # Tanda 2 de la fase 1 (primera vista): al abrir, el Cuerpo Digital y el caso clínico; sliders, barorreflejo y
+    # paneles avanzados, plegados. Solo cambió el orden: los sliders siguen ANTES porque alimentan al organismo.
     render_sensor_controls(organism)
+    render_clinical_case_mode(organism, expanded=True)
+    render_synced_digital_twin_body(organism)
     render_ambient_header(organism)
     render_organ_grid(organism)
     render_couplings(organism)
-    render_neuro_cardiac_composer()
+    with st.expander("🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)"):
+        render_neuro_cardiac_composer()
     st.divider()
     render_organ_panel(organism)
     st.divider()
@@ -2130,10 +2175,9 @@ def main() -> None:
     st.markdown("### 🧭 Herramientas avanzadas")
     render_scenario_and_interventions(organism)
     render_ups_scenario_simulator(organism)
-    render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
-    render_synced_digital_twin_body(organism)
+    with st.expander("🔁 Barorreflejo: el lazo cerrado por dentro"):
+        render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
     render_clinical_narrator(organism)
-    render_clinical_case_mode(organism)
     render_causal_reasoning(organism)
     render_ml_risk_panel(organism)
     render_ecg_classifier_panel(organism)

@@ -60,9 +60,9 @@ def _select_pattern(at, label):
 def test_motor_imagery_pattern_is_selectable_and_renders_without_exception(eeg_ups):
     at = _run_eeg_lab(eeg_ups)
     options = next(s for s in at.sidebar.selectbox if s.label == "Patrón EEG").options
-    assert "Motor Imagery (ERD)" in options
+    assert "Imaginación motora (ERD)" in options
 
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
     assert at.exception == [], f"excepción en el render: {at.exception}"
 
 
@@ -75,7 +75,7 @@ def test_motor_imagery_reveals_its_two_honest_controls(eeg_ups):
     assert "Profundidad del ERD (%)" not in sidebar_labels_before
     assert "Momento del evento (s)" not in sidebar_labels_before
 
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
     sidebar_labels_after = [s.label for s in at.sidebar.slider]
     assert "Profundidad del ERD (%)" in sidebar_labels_after
     assert "Momento del evento (s)" in sidebar_labels_after
@@ -90,7 +90,7 @@ def test_erd_section_appears_only_when_motor_imagery_is_selected(eeg_ups):
         "el panel de ERD no debe aparecer para un patrón que no es motor_imagery"
     )
 
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
     markdown_text = " ".join(md.value for md in at.main.markdown)
     assert "Desincronización de banda Mu" in markdown_text
     assert at.exception == []
@@ -111,7 +111,7 @@ def test_erd_percent_responds_to_the_depth_slider_not_a_disconnected_number(eeg_
     empíricamente: la señal quedaba generada con la profundidad VIEJA en
     el segundo run, dando una falsa alarma de "no responde")."""
     at = _run_eeg_lab(eeg_ups)
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
 
     depth_slider = next(s for s in at.sidebar.slider if s.label == "Profundidad del ERD (%)")
     depth_slider.set_value(20)
@@ -140,7 +140,7 @@ def test_curve_renders_without_exception_for_several_event_times(eeg_ups):
     inspección de datos en AppTest) debe construirse sin excepción en todo
     el rango del slider, incluidos los extremos."""
     at = _run_eeg_lab(eeg_ups)
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
     bounds_slider = next(s for s in at.sidebar.slider if s.label == "Momento del evento (s)")
     values = (bounds_slider.min, (bounds_slider.min + bounds_slider.max) / 2, bounds_slider.max)
 
@@ -160,7 +160,7 @@ def test_scope_note_appears_verbatim_and_not_truncated(eeg_ups):
     debe aparecer en la UI COMPLETA -- ni truncada, ni parafraseada, ni
     relegada a un tooltip que nadie abre."""
     at = _run_eeg_lab(eeg_ups)
-    at = _select_pattern(at, "Motor Imagery (ERD)")
+    at = _select_pattern(at, "Imaginación motora (ERD)")
     assert at.exception == []
 
     warning_text = " ".join(w.value for w in at.main.warning)
@@ -204,7 +204,7 @@ def test_declines_honestly_instead_of_fabricating_a_curve(eeg_ups):
 
     with patch.object(erd_detector_module, "detect_mu_erd", _fake_detect_mu_erd):
         at = _run_eeg_lab(eeg_ups)
-        at = _select_pattern(at, "Motor Imagery (ERD)")
+        at = _select_pattern(at, "Imaginación motora (ERD)")
         assert at.exception == []
 
         info_text = " ".join(i.value for i in at.main.info)
@@ -281,7 +281,7 @@ def test_one_mu_power_computation_per_render(eeg_ups):
     with patch.object(erd_detector_module, "_mu_power", _counting_mu_power):
         at = _run_eeg_lab(eeg_ups)
         calls.clear()
-        at = _select_pattern(at, "Motor Imagery (ERD)")
+        at = _select_pattern(at, "Imaginación motora (ERD)")
         assert at.exception == []
     assert len(calls) == 1, f"la cadena de potencia mu corrió {len(calls)} veces en un render"
 
@@ -333,7 +333,7 @@ def test_other_patterns_and_dar_tbr_chi_are_unaffected(eeg_ups):
     assert "Desincronización de banda Mu" not in markdown_text
     assert "DAR (Delta" in markdown_text or "TBR (Theta" in markdown_text
 
-    for label in ("Beta (activo)", "Seizure (espigas)", "Artifact (parpadeo)"):
+    for label in ("Beta (activo)", "Crisis (espigas)", "Artefacto (parpadeo)"):
         at = _select_pattern(at, label)
         assert at.exception == [], f"excepción con patrón {label}: {at.exception}"
         markdown_text = " ".join(md.value for md in at.main.markdown)

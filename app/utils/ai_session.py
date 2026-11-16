@@ -174,12 +174,12 @@ def render_settings_page() -> None:
         st.info("IA apagada: no hay clave en esta sesión ni en el servidor.")
     provider = st.radio("Proveedor de IA", PROVIDERS, key=_PROVIDER, horizontal=True)
     if provider == GEMINI:
-        st.text_input("Pega tu API key de Gemini (Google AI Studio)", type="password", key=_INPUT,
+        st.text_input("Pega tu clave de API de Gemini (Google AI Studio)", type="password", key=_INPUT,
                       placeholder="AIza...")
         st.info(GEMINI_NOTE)
     else:
-        st.text_input("Pega tu API key de Anthropic", type="password", key=_INPUT, placeholder="sk-ant-...")
-    st.button("Guardar mi clave", key="biocore_ai_save", on_click=_save_key)
+        st.text_input("Pega tu clave de API de Anthropic", type="password", key=_INPUT, placeholder="sk-ant-...")
+    st.button("Guardar mi clave", key="biocore_ai_save", on_click=_save_key, type="primary")
     if st.session_state.get(_ERROR):
         st.error(st.session_state[_ERROR])
     st.caption(

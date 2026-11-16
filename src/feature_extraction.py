@@ -21,6 +21,8 @@ Nonlinear:
     Kurtosis : Distribution tail behavior
 """
 
+import warnings
+
 import numpy as np
 from scipy.signal import welch
 from scipy.integrate import trapezoid
@@ -84,6 +86,21 @@ def compute_psd(
     )
     
     return frequencies, power_spectrum
+
+
+UNRELIABLE_MOMENT_REASON = (
+    "los intervalos RR son casi idénticos: la asimetría y la curtosis no son calculables de forma fiable"
+)
+
+
+def _moment_or_nan(fn, values):
+    """Asimetría/curtosis de SciPy, o NaN si SciPy declara pérdida de precisión (datos casi idénticos)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", RuntimeWarning)
+        value = fn(values)
+    if any("Precision loss" in str(w.message) for w in caught):
+        return float("nan")
+    return value
 
 
 def extract_features(
@@ -196,11 +213,13 @@ def extract_features(
     # Skewness: Asymmetry of RR interval distribution
     # Positive skew: right tail (longer intervals)
     # Negative skew: left tail (shorter intervals)
-    features['Skewness'] = skew(rr_intervals)
-    
     # Kurtosis: Tail behavior of RR interval distribution
     # Positive kurtosis: heavier tails (more extreme values)
     # Negative kurtosis: lighter tails (fewer extremes)
-    features['Kurtosis'] = kurtosis(rr_intervals)
+    # Tanda 2 de la fase 1 (2026-11-15, Art. I): con RR casi idénticos (ritmo sintético perfectamente regular) SciPy
+    # avisa «Precision loss ... Results may be unreliable»: el número que devuelve es ruido numérico. En ese caso la
+    # métrica es NaN (no calculable) y no un número poco fiable; la pantalla la muestra como «sin dato».
+    features['Skewness'] = _moment_or_nan(skew, rr_intervals)
+    features['Kurtosis'] = _moment_or_nan(kurtosis, rr_intervals)
     
     return features

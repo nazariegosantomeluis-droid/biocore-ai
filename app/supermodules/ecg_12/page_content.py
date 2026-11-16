@@ -224,7 +224,7 @@ with col1:
             "Hipertrofia ventricular izquierda (LVH)",
             "💓 Fibrilación Auricular - Ritmo irregularmente irregular",
             "💓 Flutter Auricular - Ondas flutter regulares",
-            "⚡ Síndrome WPW - Vía accesoria (PR corto, delta wave)",
+            "⚡ Síndrome WPW - Vía accesoria (PR corto, onda delta)",
             "⚠️ Síndrome QT largo - QT prolongado, riesgo de torsadas",
         ],
     )
@@ -241,7 +241,7 @@ with col1:
         "Hipertrofia ventricular izquierda (LVH)": "lvh",
         "💓 Fibrilación Auricular - Ritmo irregularmente irregular": "af",
         "💓 Flutter Auricular - Ondas flutter regulares": "flutter",
-        "⚡ Síndrome WPW - Vía accesoria (PR corto, delta wave)": "wpw",
+        "⚡ Síndrome WPW - Vía accesoria (PR corto, onda delta)": "wpw",
         "⚠️ Síndrome QT largo - QT prolongado, riesgo de torsadas": "long_qt",
     }
 
@@ -313,7 +313,7 @@ with col1:
         apply_filter = st.checkbox(
             "Aplicar filtro banda (0.5-40 Hz)",
             value=True,
-            help="Activa un filtro bandpass para limpiar el ECG antes de mostrar el 12-lead.",
+            help="Activa un filtro pasa banda para limpiar el ECG antes de mostrar las 12 derivaciones.",
         )
 
         uploaded_ecg = None
@@ -338,7 +338,7 @@ with col1:
             "V1-V6 (precordiales, septal → lateral)"
         )
 
-    if st.button("🔄 Generar ECG de 12 derivaciones", use_container_width=True):
+    if st.button("🔄 Generar ECG de 12 derivaciones", type="primary", use_container_width=True):
         st.session_state.generate_ecg = True
 
 # Generate and display ECG
@@ -530,4 +530,4 @@ with col2:
     """)
 
 st.markdown("---")
-st.markdown("*Sistema de Educación Electrocardiográfica Profesional | 12-Lead ECG Educational Lab*")
+st.markdown("*Sistema de Educación Electrocardiográfica Profesional | Laboratorio educativo de ECG de 12 derivaciones*")

@@ -46,7 +46,7 @@ ORIGIN_TABLE = [
     ('Avisos de calidad', 'Umbrales de ingeniería (`EmgQualityHeuristics`)', 'Heurísticos, sin criterio clínico citado'),
 ]
 INTRO = (
-    'Con un MyoWare 2.0 y una ESP32 puedes ver tu propio EMG de superficie en el EMG Muscle Lab: la señal, su RMS y su '
+    'Con un MyoWare 2.0 y una ESP32 puedes ver tu propio EMG de superficie en el Laboratorio de EMG: la señal, su RMS y su '
     'frecuencia mediana. Sigue los pasos en orden; al final puedes practicar todo el flujo con una placa simulada.'
 )
 PRACTICE_INTRO = (

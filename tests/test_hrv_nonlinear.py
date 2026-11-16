@@ -232,6 +232,6 @@ def test_hrv_lab_declines_visibly_when_the_recording_is_too_short():
 
 
 def test_hrv_lab_manual_series_declines_with_reason():
-    at = _run_hrv("Manual RR series")
+    at = _run_hrv("Serie RR manual")
     assert at.exception == []
     assert "se requieren ≥50 latidos; hay 5" in " ".join(m.value for m in at.markdown)

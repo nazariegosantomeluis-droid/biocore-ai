@@ -191,7 +191,7 @@ class BiocoreAnalyzer:
         peaks = np.asarray(analyzer.detect_r_peaks_tkeo(signal), dtype=int)
         if len(peaks) >= 2:
             out['bpm'] = float(60.0 * self.fs / np.mean(np.diff(peaks)))
-            out['labels']['bpm'] = 'Detector TKEO de BIOCORE (ECG Lab)'
+            out['labels']['bpm'] = 'Detector TKEO de BIOCORE (Laboratorio de ECG)'
         else:
             out['bpm'] = None
             out['notes'].append(f'BPM no disponible: el detector TKEO encontró {len(peaks)} pico(s) R en '

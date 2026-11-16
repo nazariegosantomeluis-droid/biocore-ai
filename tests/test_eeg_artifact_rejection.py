@@ -98,7 +98,7 @@ def test_preprocess_eeg_now_has_a_live_caller_inside_analyze(clean_beta_signal):
 
 def test_generate_blink_artifact_is_public_and_matches_the_modeled_pulse():
     """Wrapper público (Parte D) -- expone EXACTAMENTE la señal que ya
-    alimenta el patrón 'Artifact (parpadeo)' del EEG Lab, sin depender de
+    alimenta el patrón 'Artefacto (parpadeo)' del EEG Lab, sin depender de
     `_blink_artifacts()` (privado) de otra clase."""
     gen = EegSignalGenerator(sampling_rate=_FS)
     blink = gen.generate_blink_artifact(duration=5.0, rate=0.5)
@@ -293,7 +293,7 @@ def test_named_config_constants_are_documented_not_magic():
 
 def test_eeg_lab_renders_with_artifact_pattern_selected_no_crash():
     """AppTest hasta el final del render (barandilla de ejecución): con el
-    patrón 'Artifact (parpadeo)' del EEG Lab seleccionado, la página no
+    patrón 'Artefacto (parpadeo)' del EEG Lab seleccionado, la página no
     crashea -- degrada honestamente si el rechazo deja señal insuficiente,
     en vez de un `AttributeError`/`KeyError` sobre `None`/`{}`."""
     # `page_content.py` es un script de nivel de módulo (patrón
@@ -310,8 +310,8 @@ def test_eeg_lab_renders_with_artifact_pattern_selected_no_crash():
     at.run(timeout=30)
     assert at.exception == [], f"excepción en el render inicial: {at.exception}"
 
-    # Cambiar el patrón a "Artifact (parpadeo)" si el selector existe.
+    # Cambiar el patrón a "Artefacto (parpadeo)" si el selector existe.
     pattern_radio = next((r for r in at.radio if "atrón" in (r.label or "")), None)
-    if pattern_radio is not None and "Artifact (parpadeo)" in pattern_radio.options:
-        pattern_radio.set_value("Artifact (parpadeo)").run(timeout=30)
+    if pattern_radio is not None and "Artefacto (parpadeo)" in pattern_radio.options:
+        pattern_radio.set_value("Artefacto (parpadeo)").run(timeout=30)
         assert at.exception == [], f"excepción con patrón Artifact: {at.exception}"

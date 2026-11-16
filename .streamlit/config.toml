@@ -19,3 +19,5 @@ font = "sans-serif"
 # Código en línea (`así`): el verde por defecto de Streamlit medía 4.42:1 sobre su fondo (no AA) y además es un
 # color de estado. Se usa TEXT (con ACCENT_ON_DARK, dentro de un caption atenuado, medía 4.14:1).
 codeTextColor = "#e0e7ff"
+# Enlaces: ACCENT_ON_DARK. Con el valor por defecto (PRIMARY) un enlace sobre el panel quedaría en 4.44:1 (tanda 2).
+linkColor = "#8ecae6"

@@ -45,15 +45,15 @@ def qrs_axis_from_net(lead_i_net: float, avf_net: float) -> QrsAxis:
 
     if -30 <= axis_deg <= 90:
         category = "Normal"
-        description = f"Normal axis: {axis_deg:.0f}°"
+        description = f"Eje normal: {axis_deg:.0f}°"
     elif -90 <= axis_deg < -30:
         category = "LAD"
-        description = f"Left Axis Deviation: {axis_deg:.0f}°"
+        description = f"Desviación del eje a la izquierda: {axis_deg:.0f}°"
     elif axis_deg > 90:
         category = "RAD"
-        description = f"Right Axis Deviation: {axis_deg:.0f}°"
+        description = f"Desviación del eje a la derecha: {axis_deg:.0f}°"
     else:  # -180 a -90: antes salía "LAD", pero no es desviación izquierda
         category = "Extreme"
-        description = f"Extreme axis deviation (indeterminate axis): {axis_deg:.0f}°"
+        description = f"Desviación extrema del eje (eje indeterminado): {axis_deg:.0f}°"
 
     return QrsAxis(axis_degrees=axis_deg, category=category, description=description)

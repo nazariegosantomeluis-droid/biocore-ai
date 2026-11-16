@@ -171,3 +171,47 @@ def test_emg_lab_snapshot_round_trips(ups, monkeypatch):
     assert latest.muscular.get("activation") is not None
     assert latest.muscular.get("median_frequency") is not None
     assert "fatigue_index" not in latest.muscular.descriptors
+
+
+# --- Contención (2026-11-16, Art. I): un CSV CARGADO no escribe al UPS -----------------------------------------------
+
+def test_a_loaded_emg_csv_is_analyzed_but_never_written_to_the_twin(ups):
+    """Golden: con un archivo de verdad cargado hay análisis, pero «Guardar al gemelo» está desactivado con el motivo
+    («archivo sin procedencia verificable») y el UPS queda vacío. Antes se escribía como SIMULACION."""
+    sf, pid = ups
+    csv_bytes = "\n".join(f"{v:.6f}" for v in _FIXED_EMG).encode()
+
+    def _script(csv_bytes):
+        import io
+
+        import streamlit as st
+
+        import app.main as m
+
+        original = st.file_uploader
+        st.file_uploader = lambda *a, **k: io.BytesIO(csv_bytes)       # un archivo cargado (AppTest no sube archivos)
+        try:
+            m.render_emg_page()
+        finally:
+            st.file_uploader = original
+
+    at = AppTest.from_function(_script, args=(csv_bytes,))
+    at.session_state[_SF_KEY] = sf
+    at.session_state[_PID_KEY] = pid
+    at.run(timeout=30)
+    next(r for r in at.radio if r.label == "Origen EMG").set_value("CSV").run(timeout=30)
+    assert at.exception == [], at.exception
+
+    from app.main import EMG_CSV_SAVE_BLOCKER
+
+    assert not any("sin señal emg analizable" in i.value.lower() for i in at.info)    # sí hay señal analizada
+    button = _find_save_button(at)
+    assert button.disabled
+    assert any(EMG_CSV_SAVE_BLOCKER in w.value for w in at.warning)
+    assert "archivo sin procedencia verificable" in EMG_CSV_SAVE_BLOCKER
+    from streamlit.testing.v1.errors import AppTestError
+
+    with pytest.raises(AppTestError, match="disabled"):              # como en el navegador: no se puede pulsar
+        button.click().run(timeout=30)
+    with sf() as s:
+        assert get_latest_state(s, pid) is None

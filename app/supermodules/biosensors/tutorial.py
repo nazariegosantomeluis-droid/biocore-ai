@@ -31,7 +31,7 @@ TROUBLESHOOTING = [
     ('«…hay MicroPython esperando órdenes («>>>»)…»', 'El firmware no está corriendo: guarda el archivo como '
                                                       '`main.py` en la placa, cierra Thonny y presiona EN.'),
     ('«…se detuvo con un error…»', 'Abre la placa en Thonny para leer el error.'),
-    ('«…es la placa de ECG de BIOCORE…»', 'Esa placa tiene el firmware del ECG: úsala en el ECG Lab, o cárgale el '
+    ('«…es la placa de ECG de BIOCORE…»', 'Esa placa tiene el firmware del ECG: úsala en el Laboratorio de ECG, o cárgale el '
                                           'firmware de este sensor.'),
     ('«…es una placa de …, no de …»', 'Tiene el firmware de otro sensor: cárgale el de este.'),
     ('«…no respondió como una placa de … de BIOCORE…»', 'Es otra placa u otro programa: vuelve a cargar el firmware.'),

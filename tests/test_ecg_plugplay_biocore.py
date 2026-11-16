@@ -44,7 +44,7 @@ def _ordenadas(latido):
 def test_bpm_y_ondas_en_vivo(hr):
     r = _primer_resultado_valido(BiocoreAnalyzer(fs=250.0), hr)
     assert r.bpm is not None and abs(r.bpm - hr) < 0.06 * hr     # el simulador mete 3 % de variabilidad RR
-    assert r.labels['bpm'] == 'Detector TKEO de BIOCORE (ECG Lab)'
+    assert r.labels['bpm'] == 'Detector TKEO de BIOCORE (Laboratorio de ECG)'
     assert r.labels['waves'] == BiocoreAnalyzer.WAVES_LABEL and 'no validada' in r.labels['waves']
     latidos = list(r.waves.values())
     assert len(latidos) >= int(4.0 * hr / 60.0) - 2               # menos los cortados por los bordes

@@ -201,7 +201,8 @@ def render_quiz_section() -> None:
 
     with col1:
         lesson = st.selectbox("Lección", LESSON_CATEGORIES, key="academia_lesson")
-        level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level")
+        level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level",
+                         format_func={"basic": "Básico", "intermediate": "Intermedio", "advanced": "Avanzado"}.get)
         if st.button("Iniciar Quiz", key="academia_start_quiz"):
             questions = generate_quiz(topic="ecg_basics", level=level, lesson=lesson)
             st.session_state["academia_quiz"] = _new_quiz(lesson, questions)

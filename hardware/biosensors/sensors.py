@@ -119,7 +119,7 @@ EMG = BioSensor(
         'Presiona el botón EN de la ESP32. Desde ese momento la placa se presenta sola cada 2 s.',
     ),
     app_steps=(
-        'En el EMG Muscle Lab, en la barra lateral, elige el origen **«Sensor en vivo (ESP32 + MyoWare)»** y la placa '
+        'En el Laboratorio de EMG, en la barra lateral, elige el origen **«Sensor en vivo (ESP32 + MyoWare)»** y la placa '
         '**«Placa real (ESP32 por USB)»**.',
         'Pulsa **«▶ Buscar la placa»**: la app revisa los puertos USB sola. Cuando diga «Transmitiendo» verás la '
         'insignia PROCEDENCIA: SENSOR_REAL.',
@@ -177,7 +177,7 @@ PPG = BioSensor(
         'sensor, lo dice (la app lo muestra como «La placa dice: …»).',
     ),
     app_steps=(
-        'En el Multisensor Fusion Lab, elige la vista **«Sensores en vivo»** y el sensor **«Pulso por luz '
+        'En el laboratorio Multisensor, elige la vista **«Sensores en vivo»** y el sensor **«Pulso por luz '
         '(MAX30102)»**; en la barra lateral, la placa **«Placa real (ESP32 por USB)»**.',
         'Pulsa **«▶ Buscar la placa»**: la app revisa los puertos USB sola. Cuando diga «Transmitiendo» verás la '
         'insignia PROCEDENCIA: SENSOR_REAL.',
@@ -245,7 +245,7 @@ TEMP = BioSensor(
         'encuentra la sonda, lo dice (la app lo muestra como «La placa dice: …»).',
     ),
     app_steps=(
-        'En el Multisensor Fusion Lab, elige la vista **«Sensores en vivo»** y el sensor **«Temperatura (DS18B20)»**; '
+        'En el laboratorio Multisensor, elige la vista **«Sensores en vivo»** y el sensor **«Temperatura (DS18B20)»**; '
         'en la barra lateral, la placa **«Placa real (ESP32 por USB)»**.',
         'Pulsa **«▶ Buscar la placa»**. Cuando diga «Transmitiendo» verás la insignia PROCEDENCIA: SENSOR_REAL.',
         'Coloca la sonda y espera. Pulsa **«🔄 Leer los últimos segundos»** de vez en cuando para ver la curva.',

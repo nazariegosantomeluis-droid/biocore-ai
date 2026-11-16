@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-11-16 — Integración: tanda 2 de la fase 1 + main (Miguel) y contención antes de la prueba con estudiantes
+
+**Contexto (Art. I)**: la tanda 2 de la fase 1 (rama `fase1-tanda2`) y la integración del trabajo de Miguel en `main` (PR #1: hardware en vivo, 12 Derivaciones rehecha, cuestionarios con fuente, Gemini) salieron de la misma base (`e10c8cc`). Se juntaron sin perder reglas de ninguna de las dos, y se contuvo lo que no podía llegar a la prueba con estudiantes: un CSV del EMG se escribía al gemelo como «simulación», el caso clínico del gemelo no se podía jugar sin clave de IA y la prueba de PTB-XL fallaba sin red en vez de decir por qué. Intérprete: el `python` del PATH de Luis (Python 3.13.11, Streamlit 1.67.0). Los commits de Miguel conservan su autoría.
+
+### Parte A — Integración
+- Merge de `origin/main` en `fase1-tanda2`: 9 archivos en conflicto.
+  - **12 Derivaciones**: se toma la de Miguel (trazado con verdad conocida, lectura por criterios citados, sin «recomendaciones»), con el botón principal de la tanda 2. `TwelveLeadEcgAnalyzer` se retira; la fórmula del eje se queda con sus descripciones en español.
+  - **EEG**: la estructura plegada de la tanda 2, más la lógica de EEG real de Miguel (sin «Clasificación» con EEG real, hallazgos filtrados). El párrafo viejo «sin equipo, señal de respaldo sintética» se reemplaza por el de Miguel («no se usa una señal de respaldo»).
+  - **Ajustes**: el selector Anthropic/Gemini de Miguel, con «clave de API» y el botón principal.
+  - **HRV**: las pestañas de la tanda 2, con el origen del narrador de Miguel.
+- **Reglas de la tanda 2 en las páginas de Miguel**:
+  - Nombres de laboratorio en español en los tutoriales, la vista en vivo y los mensajes de la placa («ECG Lab», «EMG Muscle Lab», «EEG Neuro Lab», «Multisensor Fusion Lab»).
+  - La banda dominante con EEG real, en español (antes «ALPHA»).
+  - El tema «Bandas del EEG» de Aprender sale ahora de la tabla del glosario IFCN 2017 que puso Miguel, con su cita. Los rangos sin fuente ya no existen en el repositorio.
+  - Se retiró la mención al «Health Score» en la vista Sensores en vivo (ya no existe).
+- **Barrido de inglés y «bpm»**: recorre también la vista Sensores en vivo (cada sensor × cada modo) y las demás fuentes de cada laboratorio sin red ni puerto (CSV, casos clínicos, EEG y EMG en vivo sin placa, serie RR manual). Los títulos de obras citadas y los nombres propios en su idioma original se exceptúan uno por uno, por texto exacto: guía de SparkFun, Rautaharju 2009, *Heart Rhythm*, Tatum, «Lab Streaming Layer».
+- **Primera vista** (paneles al abrir): ECG 4, EEG 5, HRV 5, Biomarcadores 5, EMG 3, Multisensor 3. Los tutoriales (7 a 10 paneles) son listas de pasos y no son la primera vista de ninguna página.
+- Los paneles «Tu dominio estimado por tema» y «Revisión del banco de preguntas» siguen sin montarse (decisión 1).
+
+### Parte B — Contención
+1. **EMG con CSV**: un archivo cargado ya no escribe al gemelo; antes iba como `SIMULACION` sin serlo. «Guardar al gemelo» queda desactivado con el motivo «archivo sin procedencia verificable». Golden test con un archivo de verdad: hay análisis, el botón no se puede pulsar y el UPS queda vacío.
+2. **12 Derivaciones sin indicaciones de tratamiento**: la versión de Miguel ya no recomienda nada. Una guardia recorre los 13 escenarios y falla si vuelve una indicación. El barrido del resto del repositorio se reporta, sin tocar (ver «Para Luis»).
+3. **Caso clínico del gemelo sin clave de IA**: la corrección es determinista.
+   - La verdad es el escenario que el código cargó.
+   - La explicación es la evidencia del caso con su criterio citado: el valor y sus puntos NEWS2 (RCP 2017) y los eventos del UPS. En la sepsis, además, la declaración del modelo.
+   - La explicación clínica por escenario se declara pendiente de un texto con fuente.
+   - La IA, si hay clave, solo añade una narración opcional, a pedido y rotulada «no es la corrección». Golden tests sin clave, con el narrador vigilado.
+4. **PTB-XL**: sin red (y sin el catálogo ya descargado), la prueba se marca «omitida: requiere red a PhysioNet» con la causa; con red corre igual. Se comprobó por ejecución con el catálogo escondido y la red cortada.
+5. **Tutoriales de hardware** y 6. **Gemini**: solo reporte (entrega de esta integración); no se escribió texto de seguridad nuevo.
+
+### Parte C — Diagnóstico (solo lectura): el gemelo y el generador viejo de 12 derivaciones
+- El generador viejo (`TwelveLeadEcgGenerator`) solo alimenta el panel «Clasificador de ECG» del gemelo (`domain/physiology/ml/ecg_signal_source.py`): la derivación II a partir del `heart_rate` del estado actual. **Nada de ese trazado se escribe al UPS**; la clasificación, la explicación por pesos fijos y la asimetría/curtosis solo se muestran.
+- Lo que muestra hoy (medido de 40 a 180 lpm):
+  - «Ritmo sinusal normal» con «QRS=0 ms, PR=0 ms, QTc=0 ms — todos dentro de rango».
+  - A 150 y 180 lpm, «QT largo / riesgo» (QTc 582 y 540 ms). La sepsis llega a 150 lpm.
+  - Leído por el analizador con criterios citados de Miguel, el trazado «normal» del generador viejo cumple bloqueo de rama izquierda, bloqueo AV de 1.er grado y HVI a 40 lpm, y trastorno de conducción y HVI con QTc de 614 ms a 75 lpm. El generador nuevo da ritmo sinusal, QRS 88–90 ms y QTc 408–419 ms.
+- Con el generador nuevo y el MISMO clasificador, empeora: a 40 lpm «extrasístoles ventriculares» y a 60 lpm «fibrilación auricular» (el detector de picos R de umbral fijo cuenta ondas T). El defecto es el par generador viejo + clasificador de una derivación, no solo el generador. Opciones en la entrega; ninguna tocada.
+
+- **Casos clínicos del ECG reproducibles** (encontrado al correr la suite): los 61 casos se armaban con `np.random` global sin semilla, así que «el mismo caso» cambiaba entre ejecuciones y `test_ups_derived_contract.py` dependía del orden de la suite (con otro estado aleatorio, el detector declinaba y no se guardaba nada). `get_case_database()` usa ahora una semilla fija y devuelve el estado global como estaba. Prueba: los casos son idénticos sin importar el estado previo.
+
+### Verificación
+- Suite completa en serie: 2234 pasan, 2 fallan, 9 se omiten, 54 avisos (antes de la integración, la rama: 1945 pasan). Los 2 fallos vienen de `main` con el intérprete del PATH (falta `brainflow`; PPG saturado → «irregular», ver «Para Luis»). Las 9 omitidas son de entorno: pseudo-terminal en Windows, `brainflow` y `pylsl` ausentes. PTB-XL corrió (catálogo en disco) y sin red queda omitida con su motivo. Base de desarrollo intacta (1 paciente, 7 snapshots, 53 valores, 0 eventos antes y después).
+- Pruebas nuevas: `tests/test_integracion_contencion.py` (guardia de tratamiento en 12 Derivaciones, caso clínico sin IA, evidencia citada) y la golden del CSV en `test_emg_lab_save_to_twin.py`.
+- Adaptadas sin aflojar: el barrido de idioma (más cobertura y excepciones por título exacto); `test_ecg_live_app.py` («Origen del ECG»); `test_eeg_live.py` (pestañas «Cómo funciona», «Referencias EEG», «Quiz»); `test_ecg_plugplay_biocore.py` («Laboratorio de ECG»); la prueba de PTB-XL (omitida con motivo sin red).
+
+### Para Luis
+1. **Indicaciones de tratamiento sin cita que siguen visibles** (no son de 12 Derivaciones; solo se reportan):
+   - «Acción clínica recomendada» de los casos clínicos del Monitoreo del ECG (`src/clinical/case_database.py`, en inglés: betabloqueadores, ACLS, PCI o trombólisis, marcapasos, DAI), junto a un «Riesgo de mortalidad estimado».
+   - Las «Recomendaciones» del riesgo cardiovascular del gemelo (`src/ai/patient_analytics.py`: «Considere consulta cardiólogo urgente», «Monitorizar presión arterial diariamente»).
+   - No visibles: `ECGAnalyzer.clinical_summary` (sin uso) y `arrhythmia_types.reversal` (atropina, adenosina, cardioversión; ninguna pantalla lo muestra).
+   - Con cita, se quedan: CPAP (Epstein 2009) e «IAMCEST con bloqueo de rama» (ESC 2023).
+2. **Explicación clínica por escenario** del caso clínico: hace falta un texto con fuente para cada uno de los 15 escenarios.
+3. **«Caso ciego» de la Academia**: sigue pidiendo clave de IA (mismo patrón que tenía el gemelo).
+4. **El CSV del Monitoreo del ECG** («CSV local») sí se guarda al gemelo, como lo hacía el del EMG.
+5. **Dos pruebas de `main` fallan con el intérprete del PATH**:
+   - EEG en vivo: falta `brainflow`.
+   - PPG: una señal saturada sale «irregular» y con 42 lpm en vez de «sin pulso», porque el detector encuentra picos en ruido numérico. Es una fachada posible en pantalla; hace falta un piso de amplitud.
+6. **Tutoriales**: ninguno advierte contraindicaciones (marcapasos u otros implantes). PPG y temperatura no piden la computadora con batería; el EEG solo habla de la batería del equipo. Texto a firmar.
+
 ## 2026-11-16 — Integración de la rama `ecg-plugplay` (Miguel) sobre la fase 1, tanda 1
 
 **Contexto**: `ecg-plugplay` (8 commits de José Miguel Fausto Tapia, 2026-11-13 a 2026-11-16: ECG Plug & Play, cuestionarios con fuente, 12 Derivaciones rehecha, EEG/EMG/pulso/temperatura en vivo, Gemini con candado de privacidad, mejora continua de los cuestionarios) salió de `0eae8b7`, antes de la tanda 1 de la fase 1 (`e10c8cc`: navegación por intención, clave de IA en Ajustes, cuestionarios fuera de los laboratorios, paleta única, insignias con palabras). Merge sin fast-forward; los commits de Miguel conservan su autoría. 31 bloques de conflicto en 11 archivos, más choques que git no marca.
@@ -148,6 +207,37 @@
 2. La frecuencia de pulso no se guarda al gemelo. ¿Merece su propia compuerta o se queda fuera?
 3. Los umbrales son heurísticas: 50 000 cuentas para decir que hay dedo, 20 % de intervalos a más de 25 % de la mediana para «irregular» y 0.1 °C por minuto para «estable». Están en `PpgQualityHeuristics` y en `quality.py`.
 4. Las otras vistas del Multisensor Fusion Lab siguen con sus canales demo y su Health Score, sin cambios.
+
+## 2026-11-15 — Fase 1 de la propuesta, tanda 2: primera vista, teoría en capas y pulido (preparación para la prueba con estudiantes)
+
+**Contexto (Art. I)**: antes de la prueba de uso con estudiantes de medicina quedaban inglés y «bpm» a la vista (también en textos que generan `clinical/ecg_analyzer.py` y `src/`), una asimetría y una curtosis que SciPy declaraba «poco fiables» mostradas como números, la suite con 180 avisos, la teoría de Aprender como bloques largos sin capas, y pantallas cuya primera vista no mostraba lo importante (el trazo del ECG a ~950 px, el recuadro de estado del Respiratorio ocupando un teléfono entero). Intérprete: el `python` del PATH de Luis (Python 3.13.11, Streamlit 1.67.0). Sin contenido médico nuevo.
+
+### Parte A — Pulido del sistema de diseño y de la suite
+- **Botón principal**: vuelve `type="primary"` (ECG-12 «Generar», Laboratorio 3D «Reconstruir», Ajustes «Guardar mi clave»). Streamlit no expone el color del texto del botón y lo pinta blanco (3.21:1 sobre PRIMARY); el CSS de `inject_global_theme` lo fija en ON_STATE: **5.56:1 medido renderizado**; con el cursor encima Streamlit oscurecía el fondo a #0b5fef (3.31:1 medido), así que el estado hover/activo usa ACCENT_ON_DARK (**9.98:1 medido**). Pares nuevos en `CONTRAST_PAIRS`.
+- **PRIMARY nunca es texto sobre el panel** (4.44:1): prueba que lo vigila en el código y `linkColor` = ACCENT_ON_DARK en `config.toml`.
+- **Inglés y «bpm» visibles** (decisión 7 de la tanda 1, completada): títulos de los laboratorios, fuente de ECG/HRV/EMG, opciones del EEG, clasificador de ECG de Twin OS (`PATTERN_LABELS_ES`: el patrón interno no cambia), informe del ECG de 12 derivaciones (eje, ritmo, diagnóstico, significancia y recomendaciones traducidos tal cual; la lógica que leía «tachycardia»/«INFARCTION» se adaptó), hallazgos y bandas del EEG (`FINDING_LABELS_ES`, `band_label_es`), interpretación del monitor ECG, texto educativo del ECG-12, exportes PDF/HTML («Informe», «Generado», «Métricas», «Hallazgos clínicos», «Notas»), modo manual de Biomarcadores. Prueba nueva: recorre las 21 páginas (y las vistas de cada laboratorio) con AppTest y falla si aparece «bpm» o un término de la lista en cualquier texto visible, incluidas gráficas y tablas.
+- **Asimetría y curtosis** (`src/feature_extraction.py`): SÍ llegaban a pantalla (Twin OS → Clasificador de ECG → explicación por contribución). Con RR casi idénticos (ritmo sintético de la sepsis, FC fija) SciPy avisa «Results may be unreliable»: ahora son NaN y el panel muestra el «sin dato» único («los intervalos RR son casi idénticos…»), en vez de un número que la propia librería declara poco fiable.
+- **Avisos de la suite**: fpdf sin `ln=` (ahora `new_x`/`new_y`) y con fuente núcleo explícita (`helvetica`) en `app/reporting.py` y `src/rural_health/offline_support.py`; la prueba del PDF sigue verificando la honestidad. La prueba que provoca a propósito una señal de 10 muestras filtra en ESA prueba el aviso de SciPy, con su motivo. **180 → 54 avisos**; los restantes son de terceros y no se tocaron (ver la entrega).
+
+### Parte B — Teoría en capas (Aprender)
+- Componente único `TheoryTopic` + `render_theory_topic` (`design_system.py`): (1) la idea en una frase, (2) el mecanismo, (3) el detalle con su fuente; 2 y 3 a demanda. Una capa sin contenido con fuente se omite, nunca se rellena.
+- `app/supermodules/learn_theory.py`: 8 temas (12 derivaciones; NEWS2 de FR y SpO₂; cómo se mide la respiración; patrones respiratorios; clasificación de la apnea por esfuerzo; apnea obstructiva y guía AASM; bandas del EEG; ECG en 3D). Cada capa es texto que YA existía con su cita o etiqueta; una prueba lo comprueba línea por línea contra el archivo de origen. 11 capas omitidas por falta de contenido con fuente quedan en `PENDING_LAYERS` para la firma de Luis (entre ellas: la fuente de los rangos de las bandas del EEG, que el repositorio no tiene: se declara «no citada», no se inventa). No hay imágenes en el repositorio para estos temas.
+
+### Parte C — Primera vista (solo orden y plegado; ningún cálculo cambió)
+- **ECG**: el trazo pasa arriba de la FC y de «Guardar al gemelo»; fuera el encabezado «Monitoreo» repetido (lo dice la pestaña). Primer trazo: 924 → 448 px (1280) y 1088 → 569 px (390).
+- **Respiratorio**: el recuadro «Estado del módulo» queda plegado en un resumen de una línea; el detalle, intacto, a demanda.
+- **Gemelo digital**: al abrir, el caso clínico (abierto) y el Cuerpo Digital (la prueba de las tarjetas del organismo distingue ahora las del Cuerpo Digital, que leen el UPS); sliders, barorreflejo y acoplamiento neuro-cardíaco, plegados.
+- **HRV, EEG y Biomarcadores**: ≤ 5 paneles al abrir (25 → 5, 11 → 5, 10 → 5); el resto en pestañas o expanders. La medición del diagnóstico contaba también el contenido de expanders cerrados (Streamlit 1.67 lo deja con tamaño en el DOM); se reporta además la cuenta corregida, igual para antes y después.
+
+### Verificación
+- Suite completa en serie con el intérprete de Luis: **1944 passed**, 1 deseleccionada (la guardia de `domain/`, que falla mientras `domain/` tenga cambios sin commitear), 0 fallos, **54 avisos** (antes 1899 passed y 180 avisos). Base de desarrollo intacta (1 paciente / 7 snapshots / 53 valores / 0 eventos antes y después. Un rastreador de textos corrido FUERA de pytest había creado 6 pacientes vacíos durante la tanda; se borraron solo esos 6, con respaldo `data/biocore_ups.backup-20261116-fase1-t2-antes-de-limpiar.db`).
+- Pruebas nuevas: `test_fase1_t2_pulido.py`, `test_fase1_t2_teoria.py`, `test_fase1_t2_primera_vista.py`. Adaptadas sin aflojar: etiquetas traducidas (títulos de los labs, fuentes, patrones de EEG, eje del QRS) y la prueba del botón principal (ahora exige el texto ON_STATE y el hover, en vez de prohibir el botón).
+- Capturas y mediciones antes/después fuera del repo.
+
+### Pendiente / fuera de alcance
+- Teoría: las 11 capas de `PENDING_LAYERS` esperan contenido con fuente firmado por Luis.
+- «Digital Twin OS»/«Twin OS» se conservan como nombre propio; «engagement» (índice de Pope 1995) y siglas como LAD/RCA/LCx, ACVPU y NEWS2 no se tradujeron: decisión de terminología para Luis.
+- El caso clínico interactivo de Twin OS no funciona sin clave de IA (el feedback lo da el narrador); `ECGAnalyzer.clinical_summary`, `create_clinical_summary` y `visualization/ecg_clinical_plot.py` siguen en inglés pero ninguna pantalla los usa.
 
 ## 2026-11-15 — Fase 1 de la propuesta, tanda 1: contención, sistema de diseño mínimo y navegación por intención
 

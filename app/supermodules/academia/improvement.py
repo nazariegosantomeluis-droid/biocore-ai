@@ -19,7 +19,7 @@ from educational import learning_analytics as LA
 from educational.quiz_bank import ACADEMIA_QUESTIONS
 
 BANK = "academia"
-BANK_LABELS = {"academia": "Academia", "ecg12": "12 Derivaciones", "eeg": "EEG Neuro Lab"}
+BANK_LABELS = {"academia": "Academia", "ecg12": "12 Derivaciones", "eeg": "Laboratorio de EEG"}
 ADAPTIVE_N = 5
 ADAPTIVE_LESSON = "Práctica adaptativa"
 ADAPTIVE_CAPTION = (

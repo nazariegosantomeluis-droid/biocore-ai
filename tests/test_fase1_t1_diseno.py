@@ -42,6 +42,7 @@ def test_config_toml_is_a_copy_of_the_palette_and_there_is_one_theme():
     assert theme["secondaryBackgroundColor"].lower() == PALETTE.SECONDARY_BACKGROUND
     assert theme["textColor"].lower() == PALETTE.TEXT
     assert theme["codeTextColor"].lower() == PALETTE.TEXT      # el verde por defecto no llegaba a AA (medido renderizado)
+    assert theme["linkColor"].lower() == PALETTE.ACCENT_ON_DARK            # un enlace nunca en PRIMARY (tanda 2)
     assert theme["font"] == "sans-serif"                                   # la de Streamlit, sin servicio externo
     assert not any(k in theme for k in ("light", "dark"))                  # un solo tema
 
@@ -64,10 +65,17 @@ def test_the_heuristic_risk_predictor_does_not_carry_its_own_colors():
     assert not re.search(r"#[0-9a-fA-F]{6}", src)
 
 
-def test_no_primary_buttons_because_white_on_primary_would_fail_aa():
-    assert contrast_ratio("#ffffff", PALETTE.PRIMARY) < 4.5                # la razón de la regla
-    for path in APP.rglob("*.py"):
-        assert 'type="primary"' not in path.read_text(encoding="utf-8"), path
+def test_primary_buttons_paint_on_state_text_never_white():
+    """Tanda 2: el botón principal volvió con texto ON_STATE sobre PRIMARY (5.56:1; medido renderizado) y, al pasar el
+    cursor, sobre ACCENT_ON_DARK (9.98:1). El blanco que pone Streamlit (3.21:1) queda anulado por el CSS global."""
+    import inspect
+
+    assert contrast_ratio("#ffffff", PALETTE.PRIMARY) < 4.5                # por qué no se deja el blanco
+    assert contrast_ratio(PALETTE.ON_STATE, PALETTE.PRIMARY) >= 4.5
+    assert contrast_ratio(PALETTE.ON_STATE, PALETTE.ACCENT_ON_DARK) >= 4.5
+    css = inspect.getsource(DS.inject_global_theme)
+    assert 'stBaseButton-primary' in css and "color: {PALETTE.ON_STATE} !important" in css
+    assert ":hover" in css and "background-color: {PALETTE.ACCENT_ON_DARK} !important" in css
 
 
 def test_provenance_badges_are_text_never_a_colored_circle():

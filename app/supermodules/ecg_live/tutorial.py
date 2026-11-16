@@ -42,7 +42,7 @@ INTRO = (
 )
 
 ORIGIN_TABLE = [
-    ('Frecuencia cardiaca', 'Detector TKEO de BIOCORE, el mismo del resto del ECG Lab',
+    ('Frecuencia cardiaca', 'Detector TKEO de BIOCORE, el mismo del resto del Laboratorio de ECG',
      'Validado contra registros MIT-BIH; con la señal de esta placa no se ha validado'),
     ('Ondas Q, R y S (práctica)', 'Delineador de QRS de BIOCORE (`delineate_qrs`, Sub-Fase 2.5)',
      'Especificación validada; su uso en vivo está en revisión clínica'),

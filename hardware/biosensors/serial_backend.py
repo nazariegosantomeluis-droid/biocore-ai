@@ -49,7 +49,7 @@ def open_serial_transport(port: PortInfo) -> Transport:
 def explain_probe(port: str, seen: set, sensor: BioSensor, timeout_s: float) -> str:
     """Por qué un puerto no resultó ser la placa del sensor pedido."""
     if 'ecg' in seen:
-        return f'{port} es la placa de ECG de BIOCORE: úsala en el ECG Lab.'
+        return f'{port} es la placa de ECG de BIOCORE: úsala en el Laboratorio de ECG.'
     if 'repl' in seen or 'banner' in seen:
         return (f'En {port} hay MicroPython esperando órdenes («>>>»): el firmware no está corriendo. Guarda el '
                 'archivo como main.py en la placa, cierra Thonny y presiona EN.')

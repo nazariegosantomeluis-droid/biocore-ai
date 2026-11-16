@@ -138,7 +138,7 @@ def test_ecg_monitor_real_source_mitbih_shows_correct_hr_not_220():
     at.session_state["_ecg_monitor_mitbih_cache"] = (
         real_like_signal, 250.0, {"source": "MIT-BIH 100 (PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos MIT-BIH")
     at.run(timeout=30)
     assert at.exception == []
@@ -164,7 +164,7 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
     at.session_state["_ecg_monitor_mitbih_cache"] = (
         flat_signal, 250.0, {"source": "MIT-BIH 999 (PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos MIT-BIH")
     at.run(timeout=30)
     assert at.exception == []
@@ -176,7 +176,16 @@ def test_ecg_monitor_real_source_declines_honestly_when_unmeasurable():
 
 def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     """PTB-XL pasa por el mismo camino que MIT-BIH (misma rama `else`
-    retirada) -- confirmado con su propia caché de sesión."""
+    retirada) -- confirmado con su propia caché de sesión.
+
+    Integración 2026-11-16 (Art. I): la página baja el catálogo de PTB-XL de PhysioNet ANTES de leer la caché. Sin red
+    la prueba no puede decir nada: se marca omitida con su motivo, nunca aprobada en silencio. Con red corre igual."""
+    from clinical.ptbxl_metadata import load_ptbxl_database
+
+    try:
+        load_ptbxl_database()
+    except Exception as exc:                       # PtbxlUnavailableError u otro fallo de red/descarga
+        pytest.skip(f"omitida: requiere red a PhysioNet ({type(exc).__name__}: {exc})")
     gen = DynamicECGGenerator(fs=500.0)
     known_hr = 88.0
     real_like_signal = gen.generate(duration=20, hr=known_hr)
@@ -190,7 +199,7 @@ def test_ecg_monitor_ptbxl_source_also_consolidated_on_tkeo():
     at.session_state["_ecg_monitor_ptbxl_cache"] = (
         real_like_signal, 500.0, {"source": "PTB-XL 00001 (NORM, PhysioNet)"},
     )
-    radio = next(r for r in at.sidebar.radio if r.label == "ECG Source")
+    radio = next(r for r in at.sidebar.radio if r.label == "Origen del ECG")
     radio.set_value("Base de datos PTB-XL")
     at.run(timeout=30)
     assert at.exception == []
