@@ -34,7 +34,7 @@ from app.engines import (
     SimulationScenario,
     PredictionEngine,
 )
-from clinical.calculators import PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
+from clinical.calculators import NEWS2_CITATION, PRQ_REFERENCE, PRQ_REST_REFERENCE_TEXT
 from clinical.ecg_analyzer import pattern_label_es
 from app.engines.digital_twin_organism import NEWS2_POINTS_COLOR, NO_DATA, NO_DATA_COLOR, NOT_MODELED
 from app.engines.simulation_engine import ARRHYTHMIA_SCENARIO_TYPE, SimulationEngine
@@ -1129,6 +1129,35 @@ def _clinical_neighbors(scenario: SimulationScenario) -> FrozenSet[SimulationSce
     return frozenset(neighbors)
 
 
+# Corrección determinista del caso clínico (2026-11-16, Art. I). Solo evidencia con criterio citado que el caso trae:
+# el valor medido y sus puntos NEWS2 (RCP 2017, `clinical.calculators`) y los eventos del UPS (sus descripciones ya
+# nombran la banda NEWS2). No se redacta una explicación clínica por escenario: el repositorio no la tiene con fuente.
+CASE_EVIDENCE_ROWS = (
+    ("heart_rate", "news2_pulse_points", "Pulso", "lpm"),
+    ("respiratory_rate", "news2_respiratory_rate_points", "Frecuencia respiratoria", "resp/min"),
+    ("spo2", "news2_spo2_scale1_points", "SpO₂ (escala 1)", "%"),
+)
+CASE_EXPLANATION_PENDING = (
+    "La explicación clínica de cada escenario (por qué estos datos apuntan a ese diagnóstico y no a los otros) está "
+    "pendiente de un texto con fuente firmado; aquí solo se muestra lo que el caso trae con su criterio."
+)
+
+
+def case_evidence(state, events) -> list:
+    """Líneas de evidencia del caso con su criterio citado (puntos NEWS2 y eventos del UPS); nunca un texto nuevo."""
+    descriptors = {d.name: d for domain in state.all_domains().values() for d in domain.descriptors.values()}
+    lines = []
+    for value_key, points_key, label, unit in CASE_EVIDENCE_ROWS:
+        value = descriptors.get(value_key)
+        if value is None:
+            continue
+        points = descriptors.get(points_key)
+        lines.append(f"{label}: {value.value:.0f} {unit}"
+                     + (f" → {points.value:.0f} puntos NEWS2" if points is not None else ""))
+    lines.extend(e.description for e in events)
+    return lines or ["El caso no trae valores con un criterio citado con qué compararlos."]
+
+
 def _diagnostic_options(hidden: SimulationScenario, n_options: int = 4) -> list:
     """La opción correcta + `n_options - 1` distractores -- curados por
     similitud clínica (Trabajo 1, 2026-08-06, agrupación con firma del
@@ -1381,19 +1410,14 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
     escenario que los generó (no es un campo del UPS)."""
 
     with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=expanded):
+        # Contención (2026-11-16, Art. I): antes, sin clave de IA el caso no se podía jugar. La corrección no necesita
+        # IA: la respuesta correcta es el escenario que este código cargó y la explicación es la evidencia del caso con
+        # su criterio citado (`case_evidence`). La IA, si hay clave, solo añade una narración opcional y rotulada.
         st.caption(
-            "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo "
-            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic o Gemini), fundamentado "
-            "únicamente en los descriptores y eventos que el UPS realmente persistió."
+            "Se carga uno de los 15 escenarios reales sin revelar cuál. Diagnostica eligiendo entre 4 opciones; la "
+            "corrección dice cuál era el escenario y qué mostró el caso con su criterio citado. Con una clave de IA "
+            "puedes pedir además una narración (opcional; no es la corrección)."
         )
-
-        if not narrator_is_configured():
-            st.warning(
-                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
-                "simulada de respaldo. " + AI_KEY_HINT
-            )
-            render_settings_link()
-            return
 
         if st.button("🆕 Nuevo caso clínico", key="clinical_case_new"):
             session_factory = get_active_session_factory()
@@ -1500,8 +1524,39 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
                 key=f"clinical_case_radio_{patient_id}",
             )
             if st.button("✅ Confirmar diagnóstico", key=f"clinical_case_confirm_{patient_id}", disabled=choice is None):
-                hidden = st.session_state.clinical_case_hidden_scenario
+                st.session_state.clinical_case_selected = choice
+                st.session_state.clinical_case_answered = True
+                st.rerun()
+        else:
+            selected = st.session_state.clinical_case_selected
+            hidden = st.session_state.clinical_case_hidden_scenario
+            correct = selected == hidden
 
+            # Corrección determinista: la verdad es el escenario que este código cargó; no depende de ninguna IA.
+            if correct:
+                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
+            else:
+                st.error(
+                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
+                    f"{RICH_SCENARIO_LABELS[hidden]}"
+                )
+            st.markdown("**Qué mostró el caso, con su criterio citado:**")
+            for line in case_evidence(state, events):
+                st.markdown(f"- {line}")
+            st.caption(f"Criterio: {NEWS2_CITATION}. {CASE_EXPLANATION_PENDING}")
+            if hidden == SimulationScenario.SEPSIS:
+                with st.expander("Cómo está construido este caso (sepsis)"):
+                    render_sepsis_model_declaration()
+
+            st.markdown("**Narración con IA (opcional; no es la corrección):**")
+            if not narrator_is_configured():
+                st.caption(AI_OFF + " La corrección de arriba no la necesita. " + AI_KEY_HINT)
+                render_settings_link()
+            elif st.session_state.clinical_case_feedback:
+                st.markdown(st.session_state.clinical_case_feedback)
+            elif st.session_state.clinical_case_feedback_error:
+                st.error(st.session_state.clinical_case_feedback_error)
+            elif st.button("🤖 Pedir la narración con IA", key=f"clinical_case_narrate_{patient_id}"):
                 with session_factory() as session:
                     context = build_context(session, patient_id)
 
@@ -1521,7 +1576,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
                 ] + _build_pa_findings(state, case_references, hidden.value) + [
                     Finding(
                         name="Diagnóstico elegido por el estudiante",
-                        value=RICH_SCENARIO_LABELS[choice],
+                        value=RICH_SCENARIO_LABELS[selected],
                         meaning="Evalúalo contra los datos anteriores — no lo repitas como si fuera un campo técnico.",
                     ),
                     Finding(
@@ -1549,27 +1604,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism, expanded: bool = Fa
                     st.session_state.clinical_case_feedback = None
                     st.session_state.clinical_case_feedback_error = f"Error llamando al proveedor de IA: {exc}"
 
-                st.session_state.clinical_case_selected = choice
-                st.session_state.clinical_case_answered = True
                 st.rerun()
-        else:
-            selected = st.session_state.clinical_case_selected
-            hidden = st.session_state.clinical_case_hidden_scenario
-            correct = selected == hidden
-
-            if correct:
-                st.success(f"✅ ¡Correcto! El caso era: {RICH_SCENARIO_LABELS[hidden]}")
-            else:
-                st.error(
-                    f"❌ Elegiste {RICH_SCENARIO_LABELS[selected]} — el caso real era "
-                    f"{RICH_SCENARIO_LABELS[hidden]}"
-                )
-
-            st.markdown("**Feedback del narrador (fundamentado en el UPS):**")
-            if st.session_state.clinical_case_feedback:
-                st.markdown(st.session_state.clinical_case_feedback)
-            elif st.session_state.clinical_case_feedback_error:
-                st.error(st.session_state.clinical_case_feedback_error)
 
             if st.button("➡️ Otro caso", key="clinical_case_next"):
                 for k in [
