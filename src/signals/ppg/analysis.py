@@ -33,6 +33,13 @@ REFRACTORY_S = 0.3                # agregado (no está en el artículo): 200 lat
 INTERVAL_RANGE_S = (0.3, 2.0)     # intervalos plausibles: de 200 a 30 latidos por minuto
 MIN_INTERVALS = 3                 # menos intervalos que estos: no se informa la frecuencia
 IRREGULAR_DEVIATION = 0.25        # un intervalo «fuera» se aleja más de 25 % de la mediana (heurística)
+# HEURISTIC (2026-11-16, Art. I): piso de amplitud de la onda filtrada, en cuentas del ADC. Por debajo no hay un pulso
+# que el sensor resuelva y no se buscan latidos. Sin él, una señal pegada al tope del ADC (constante) dejaba ~1e-9
+# cuentas de ruido numérico del filtro y el detector las contaba como latidos (42 lpm «irregular»). Calibración
+# medida: sin pulso, ≤ 2.5e-9 cuentas con la señal constante y hasta 2.4 con ruido de cuantización (σ = 0.5 cuentas,
+# 50 semillas); el pulso más chico probado (índice de perfusión 0.02 % sobre 50 000 cuentas, el umbral de «sin dedo»)
+# deja 11.9. Límite conocido: ruido de 1 cuenta o más puede pasar el piso. Pendiente de calibrar con el sensor real.
+MIN_PULSE_AMPLITUDE_COUNTS = 5.0
 
 
 def bandpass(x: np.ndarray, fs: float, band=BAND_HZ) -> np.ndarray:
@@ -109,7 +116,10 @@ def analyze_ppg(red: np.ndarray, ir: np.ndarray, fs: float) -> PpgAnalysis:
     red = np.asarray(red, dtype=float)
     ir = np.asarray(ir, dtype=float)
     wave_ir, wave_red = pulse_wave(ir, fs), pulse_wave(red, fs)
-    peaks = systolic_peaks(wave_ir, fs)
+    if wave_ir.size == 0 or np.ptp(wave_ir) < MIN_PULSE_AMPLITUDE_COUNTS:
+        peaks = np.array([], dtype=int)                  # sin amplitud que el sensor resuelva: no hay latidos
+    else:
+        peaks = systolic_peaks(wave_ir, fs)
     all_intervals = np.diff(peaks) / fs
     ok = (all_intervals >= INTERVAL_RANGE_S[0]) & (all_intervals <= INTERVAL_RANGE_S[1])
     intervals = all_intervals[ok]

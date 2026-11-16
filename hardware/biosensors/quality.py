@@ -122,6 +122,8 @@ def ppg_quality(analysis: 'PpgAnalysis', heuristics: PpgQualityHeuristics = PpgQ
         issues.append('saturada')
     if analysis.pulse_rate_bpm is None:
         issues.append('sin pulso')
+    elif 'saturada' in issues:
+        pass                                        # saturada: no se juzga el ritmo (2026-11-16, Art. I)
     elif analysis.irregular_fraction is not None and analysis.irregular_fraction > heuristics.irregular_fraction:
         issues.append('irregular')
     return tuple(issues)
