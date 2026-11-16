@@ -1183,7 +1183,19 @@ def get_case_database():
     era la única función de ese archivo con un import vivo real (aquí mismo,
     en `render_ecg_monitor_page()`)."""
     from src.clinical.case_database import build_complete_case_database
-    return build_complete_case_database()
+
+    # 2026-11-16 (Art. I): antes los 61 casos dependían del estado de `np.random` global en el momento de construirlos,
+    # así que «el mismo caso» cambiaba de una ejecución a otra (y una prueba dependía del orden). Semilla fija y se
+    # devuelve el estado global como estaba: el resto de la app no nota la diferencia.
+    previous = np.random.get_state()
+    np.random.seed(CASE_DATABASE_SEED)
+    try:
+        return build_complete_case_database()
+    finally:
+        np.random.set_state(previous)
+
+
+CASE_DATABASE_SEED = 0
 
 
 def _ecg_get_ptbxl_records() -> list:

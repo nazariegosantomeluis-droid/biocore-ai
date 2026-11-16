@@ -141,3 +141,23 @@ def test_case_evidence_uses_only_cited_criteria():
                                       cardiovascular=DomainState(domain="cardiovascular"),
                                       respiratory=DomainState(domain="respiratory"))
     assert case_evidence(empty, []) == ["El caso no trae valores con un criterio citado con qué compararlos."]
+
+
+# ------------------------------------------------------------------- casos clínicos del ECG, reproducibles
+def test_the_61_ecg_cases_are_the_same_whatever_random_state_came_before():
+    """Antes dependían de `np.random` global al construirse: «el mismo caso» cambiaba entre ejecuciones y una prueba
+    dependía del orden de la suite. Ahora salen de una semilla fija y el estado global se devuelve intacto."""
+    import numpy as np
+
+    from app.main import get_case_database
+
+    signals = []
+    for seed in (1, 999):
+        np.random.seed(seed)
+        get_case_database.clear()
+        before = np.random.get_state()[1].copy()
+        db = get_case_database()
+        assert np.array_equal(np.random.get_state()[1], before)             # el estado global queda como estaba
+        signals.append({cid: c.ecg_signal for cid, c in db.cases.items()})
+    assert signals[0].keys() == signals[1].keys()
+    assert all(np.array_equal(signals[0][k], signals[1][k]) for k in signals[0])
