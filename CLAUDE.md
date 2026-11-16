@@ -23,13 +23,13 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 | Practicar | Caso ciego (`caso-ciego`) | `academia.pages.render_synthetic_case_section` |
 | Practicar | Desafío ECG de 12 derivaciones (`desafio-ecg`) | `app/supermodules/ecg_12/quiz.py` (banco `ECG12_QUESTIONS` de `educational/quiz_bank.py`) |
 | Practicar | Cuestionarios de los laboratorios (`cuestionarios`) | `respiratory_lab.views.render_quiz` + `eeg_neuro_lab.teaching.render_eeg_quiz` (banco `EEG_QUESTIONS`) |
-| Practicar | Casos clínicos del simulador (`casos-simulador`) | `twin_shell.pages.render_clinical_case_mode` |
+| Practicar | Casos clínicos del simulador (`casos-simulador`) | `twin_shell.pages.render_clinical_case_mode` (funciona sin clave de IA: corrección determinista con `case_evidence`; la narración con IA es opcional y rotulada) |
 | Explorar | Gemelo digital (Digital Twin OS) (`gemelo`) | `app/supermodules/twin_shell/` (`pages.py`, `ups_body_visual.py`, `ups_body_3d.py`) |
 | Explorar | ECG (`ecg`) | `render_ecg_lab_page()` en `app/main.py`: pestaña Monitoreo (`render_ecg_monitor_page()`; su fuente «Hardware ESP32 en vivo» en `app/supermodules/ecg_live/monitor_source.py`) + pestaña 12 Derivaciones (`app/supermodules/ecg_12/`; trazado de `src/signals/ecg/twelve_lead_synth.py`, lectura por criterios de `src/signals/ecg/twelve_lead_measure.py`, vista en `ecg_12/report_view.py`) + pestaña Placa en vivo (tutorial) (`app/supermodules/ecg_live/tutorial.py`) |
 | Explorar | Multisensor (`multisensor`) | `render_multisensor_page()` en `app/main.py`; la vista Sensores en vivo (pulso por luz con MAX30102 y temperatura con DS18B20, con sus tutoriales) en `app/supermodules/biosensors/live_view.py` |
 | Explorar | Respiratorio (`respiratorio`) | `app/supermodules/respiratory_lab/` (detector reparado, **sin insignia de validado**; ver abajo) |
 | Explorar | EEG (`eeg`) | `app/supermodules/eeg_neuro_lab/`: pestaña Clínica (`page_content.py`; su fuente «Hardware EEG en vivo» en `live_source.py`) + pestaña EEG en vivo (tutorial) (`live_tutorial.py`) |
-| Explorar | EMG (`emg`) | `render_emg_page()` en `app/main.py`; su fuente «Sensor en vivo (ESP32 + MyoWare)» y la vista Sensor en vivo (tutorial) en `app/supermodules/biosensors/emg.py` |
+| Explorar | EMG (`emg`) | `render_emg_page()` en `app/main.py`; su fuente «Sensor en vivo (ESP32 + MyoWare)» y la vista Sensor en vivo (tutorial) en `app/supermodules/biosensors/emg.py`; un CSV cargado NO escribe al gemelo (`EMG_CSV_SAVE_BLOCKER`: archivo sin procedencia verificable) |
 | Explorar | Variabilidad cardíaca (HRV) (`hrv`) | `render_hrv_page()` en `app/main.py` (+ `app/supermodules/hrv_nonlinear_panel.py`, `rsa_panel.py`) |
 | Explorar | Biomarcadores (`biomarcadores`) | `render_biomarkers_page()` en `app/main.py` (+ `app/supermodules/biomarkers.py`) |
 | Explorar | Calculadoras clínicas (`calculadoras`) | `app/supermodules/calculators/` + `clinical/calculators.py` |
@@ -43,8 +43,8 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 
 - **Capas de código:** `src/signals/` (procesamiento por modalidad), `clinical/` (analizador de ECG, calculadoras, metadatos PTB-XL), `domain/physiology/` (UPS, escenarios, hemodinámica, acoplamientos, narrador, ML heurístico), `visualization/`, `app/engines/` (organismo simulado y motor de escenarios), `src/imaging/` (TC/RM → malla), `src/ml/` (mapa de cohortes, exploratorio), `hardware/ecg_plugplay/` (adquisición de la placa ECG ESP32 + AD8232 y su firmware; `hardware/esp32_stream.py` es el lector viejo, que sigue usando Twin OS), `hardware/eeg_live/` (EEG en vivo: OpenBCI, Muse y Unicorn por BrainFlow, cualquier programa por LSL y un simulador de práctica; SENSOR_REAL solo mientras un equipo real manda datos). `hardware/biosensors/` (placa de sensores ESP32 con el protocolo `BIO:`: firmware, conexión y simulador; EMG con MyoWare 2.0, pulso por luz con MAX30102 y temperatura con DS18B20; entra al mismo servicio que el EEG en vivo). La onda de pulso se analiza en `src/signals/ppg/analysis.py` (Elgendi 2013); la SpO₂ no se calcula: falta la curva de calibración.
 - `biomedical/` (el `BiomedicalReasoningEngine`) **no lo importa la app**; solo `example_reasoning_engine.py`. No construyas sobre él.
-- **Teoría en capas (tanda 2 de la fase 1):** `TheoryTopic` + `render_theory_topic` (`design_system.py`) es el único componente de teoría: (1) la idea en una frase, (2) el mecanismo y (3) el detalle con su fuente, estas dos a demanda. Los temas viven en `app/supermodules/learn_theory.py` y SOLO usan texto que ya existe en el repositorio con su cita o etiqueta (`ORIGINS`; `tests/test_fase1_t2_teoria.py` lo verifica línea por línea). Capa sin contenido con fuente: se omite y queda en `PENDING_LAYERS` para la firma de Luis.
-- **Idioma (tanda 2):** ningún «bpm» ni inglés visible; `tests/test_fase1_t2_pulido.py` recorre las 21 páginas con AppTest. Los valores internos no se traducen: se muestran con su etiqueta (`clinical.ecg_analyzer.pattern_label_es`, `eeg_analyzer.FINDING_LABELS_ES`/`band_label_es`, `format_func`). «Digital Twin OS»/«Twin OS» se conserva como nombre propio.
+- **Teoría en capas (tanda 2 de la fase 1):** `TheoryTopic` + `render_theory_topic` (`design_system.py`) es el único componente de teoría: (1) la idea en una frase, (2) el mecanismo y (3) el detalle con su fuente, estas dos a demanda. Los temas viven en `app/supermodules/learn_theory.py` y SOLO usan texto que ya existe en el repositorio con su cita o etiqueta (`ORIGINS`; `tests/test_fase1_t2_teoria.py` lo verifica línea por línea). Capa sin contenido con fuente: se omite y queda en `PENDING_LAYERS` para la firma de Luis. «Bandas del EEG» sale de la tabla del glosario IFCN 2017 (Kane 2017) de `eeg_neuro_lab/teaching.py`.
+- **Idioma (tanda 2):** ningún «bpm» ni inglés visible; `tests/test_fase1_t2_pulido.py` recorre las 21 páginas con AppTest. Los valores internos no se traducen: se muestran con su etiqueta (`clinical.ecg_analyzer.pattern_label_es`, `eeg_analyzer.FINDING_LABELS_ES`/`band_label_es`, `format_func`). «Digital Twin OS»/«Twin OS» se conserva como nombre propio. El recorrido incluye las vistas de cada laboratorio, cada sensor × modo de «Sensores en vivo» y las demás fuentes sin red ni puerto (`SOURCES`); los títulos de obras citadas y los nombres propios en su idioma se exceptúan uno por uno, por texto exacto (`CITED_TITLES_AND_PROPER_NAMES`).
 
 ## El UPS (`domain/physiology/state/`)
 
@@ -77,12 +77,13 @@ Plataforma educativa de fisiología en Python + Streamlit. Un gemelo digital **s
 
 ```bash
 python                                 # el de Luis: el del PATH (Python 3.13.11, Streamlit 1.67.0); el .venv tiene Streamlit 1.66.1
-pytest tests/ -q                       # suite completa; varios minutos
+pytest tests/ -q                       # suite completa; varios minutos (PTB-XL sin red: «omitida: requiere red a PhysioNet»)
 pytest tests/test_containment_facades_tanda1.py -q    # contención de fachadas (AppTest)
 streamlit run app/main.py
 ```
 
 - **Aislamiento de la base:** `tests/conftest.py` tiene un fixture `autouse` de sesión que redirige `domain.physiology.state.db.DEFAULT_DB_PATH` a un archivo temporal. La suite no debe escribir en `data/biocore_ups.db`; compruébalo contando pacientes antes y después.
+- **Fallos conocidos con el intérprete de Luis (2026-11-16, vienen de `main`):** `test_eeg_live.py::test_live_source_without_connection_analyzes_nothing` (falta `brainflow`, que `requirements.txt` pide) y `test_biosensors_ppg_temp.py::test_quality_flags_irregular_intervals_missing_finger_and_saturation` (con NumPy 2.5.1/SciPy 1.17.1 una señal saturada sale «irregular»: el detector de pulso encuentra picos en ruido numérico de 1e-10). Pendientes de Luis.
 - **Guardia de `domain/`:** `tests/test_ups_body_3d_paridad.py::test_ups_builder_schema_and_engine_untouched` corre `git diff --stat HEAD -- domain/` y exige salida vacía. Falla mientras haya cambios de `domain/` sin commitear; no es un fallo del código.
 - **Recetas de AppTest** (`streamlit.testing.v1`):
   - Un supermódulo: `AppTest.from_function(script)` con `m.run()`, e inyectar `twin_shell_ups_session_factory` y `twin_shell_ups_patient_id` en `session_state` para que escriba en una base temporal.
