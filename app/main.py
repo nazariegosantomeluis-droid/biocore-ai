@@ -1046,6 +1046,9 @@ def render_emg_page() -> None:
     _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
 
+EMG_CSV_SAVE_BLOCKER = "archivo sin procedencia verificable (un CSV cargado no dice de quién ni de qué equipo viene)"
+
+
 def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> None:
     """Capa 5A dominio muscular, Tanda 3 (2026-09-10): el EMG Lab escribe al
     UPS por PRIMERA VEZ -- el "Paso 4" del playbook neuro, el mismo botón
@@ -1075,7 +1078,8 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> N
     Procedencia (2026-11-14): `SENSOR_REAL` solo con la placa real
     transmitiendo en este momento y sin avisos de calidad
     (`app/supermodules/biosensors/emg.py`: `twin_provenance`, `save_blocker`);
-    la demo, el CSV y la placa simulada van como `SIMULACION`.
+    la demo y la placa simulada van como `SIMULACION`; un CSV cargado no se escribe (2026-11-16: archivo sin
+    procedencia verificable, `EMG_CSV_SAVE_BLOCKER`).
     """
     st.markdown("---")
     st.markdown("#### 🔗 Guardar estado al gemelo")
@@ -1088,6 +1092,13 @@ def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> N
             "Sin señal EMG analizable (CSV sin archivo cargado, o placa en vivo sin transmitir). No hay nada "
             "que persistir al gemelo -- carga un CSV, conecta la placa en vivo o cambia el Origen a Demo."
         )
+        return
+
+    if source == 'CSV':
+        # Contención antes de la prueba con estudiantes (2026-11-16, Art. I): un CSV cargado se escribía al gemelo
+        # como SIMULACION, pero no es una simulación: no se sabe de quién ni de qué equipo viene.
+        st.button("💾 Guardar estado al gemelo", key="emg_lab_save_to_ups", disabled=True, help=EMG_CSV_SAVE_BLOCKER)
+        st.warning(f"⛔ No se guarda al gemelo: {EMG_CSV_SAVE_BLOCKER}.")
         return
 
     from app.supermodules.biosensors import emg as emg_live
