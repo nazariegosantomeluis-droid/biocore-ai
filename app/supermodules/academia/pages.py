@@ -25,13 +25,14 @@ import pandas as pd
 from app.utils.design_system import render_module_header, render_error_state, render_ai_feedback_off_notice
 from app.supermodules.twin_shell.baroreflex_panel import pa_model_label
 from domain.physiology.narrator import (
+    DataOrigin,
     Finding,
     FindingsContext,
     NarratorNotConfiguredError,
     stream_findings_narration,
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
-from app.utils.ai_session import AI_KEY_HINT, ai_client
+from app.utils.ai_session import AI_KEY_HINT, AI_OFF, ai_client
 from app.utils.ai_session import ai_configured as narrator_is_configured
 from domain.physiology.scenarios.case_bank import generate_case
 from domain.physiology.state import (
@@ -249,7 +250,8 @@ def render_lessons_quizzes_tab() -> None:
                                 ),
                             ),
                         ]
-                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings)
+                        findings_context = FindingsContext(lab_name=f"Quiz — {quiz_state['lesson_id']}", findings=findings,
+                                                           origin=DataOrigin.SIMULADO)  # pregunta del banco, sin datos de nadie
                         try:
                             quiz_state["feedback"] = "".join(stream_findings_narration(findings_context, client=ai_client()))
                             quiz_state["feedback_error"] = None
@@ -258,7 +260,7 @@ def render_lessons_quizzes_tab() -> None:
                             quiz_state["feedback_error"] = str(exc)
                         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                             quiz_state["feedback"] = None
-                            quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                            quiz_state["feedback_error"] = f"Error llamando al proveedor de IA: {exc}"
                     quiz_state["answered_current"] = True
                     st.rerun()
             else:
@@ -352,13 +354,13 @@ def render_synthetic_case_section() -> None:
             "Es una variación honesta de uno de los 15 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
             "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
-            "(Anthropic), fundamentado en los descriptores y eventos que este caso contiene."
+            "(Anthropic o Gemini), fundamentado en los descriptores y eventos que este caso contiene."
         )
 
         if not narrator_is_configured():
             st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el feedback fundamentado requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo. " + AI_KEY_HINT
+                AI_OFF + " El feedback fundamentado requiere un modelo de lenguaje real, sin narración "
+                "simulada de respaldo. " + AI_KEY_HINT
             )
             return
 
@@ -499,7 +501,8 @@ def render_synthetic_case_section() -> None:
                         ),
                     ),
                 ]
-                findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings)
+                findings_context = FindingsContext(lab_name="Caso Clínico Sintético", findings=findings,
+                                                   origin=DataOrigin.SIMULADO)  # caso del banco de casos sintéticos
 
                 try:
                     feedback_text = "".join(stream_findings_narration(findings_context, client=ai_client()))
@@ -510,7 +513,7 @@ def render_synthetic_case_section() -> None:
                     st.session_state["academia_case_feedback_error"] = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state["academia_case_feedback"] = None
-                    st.session_state["academia_case_feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state["academia_case_feedback_error"] = f"Error llamando al proveedor de IA: {exc}"
 
                 st.session_state["academia_case_selected"] = choice
                 st.session_state["academia_case_answered"] = True

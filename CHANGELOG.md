@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-11-16 — Gemini (nivel gratuito) como segundo proveedor del narrador, con candado de privacidad
+
+**Contexto**: el narrador solo funcionaba con una clave de pago de Anthropic. Se pidió usar una API gratuita; se eligió Gemini. Sus términos para el nivel gratuito (versión del 18 de diciembre de 2025) dicen que Google usa lo que se le manda para mejorar sus productos, que personas pueden leerlo, y piden no mandar información sensible, confidencial o personal. Mandarle la señal de un sensor en vivo, un archivo cargado o una entrada manual de paciente iría contra eso.
+
+- **Proveedor Gemini** (`domain/physiology/narrator/gemini.py`, nuevo):
+  - API REST con la biblioteca estándar (`urllib`), sin dependencias nuevas. La clave va en la cabecera `x-goog-api-key`, no en la URL.
+  - `GeminiClient` se usa igual que el cliente de Anthropic (`client.messages.stream(...)` con `.text_stream`): `stream_narration`, `stream_findings_narration` y `stream_causal_narration` no cambian su forma de llamar.
+  - Respuesta en streaming (SSE). Las partes de razonamiento no se muestran. Si Google corta la respuesta (límite de longitud, filtros), se dice al final. Los errores (clave inválida, sin permiso, modelo no disponible, cuota agotada, sin red) se explican en español.
+  - Google cambia seguido los modelos gratuitos: al validar la clave se listan los que esa clave puede usar y se elige uno «flash».
+  - **No verificado por ejecución contra la API real**: aquí no hay clave de Google ni salida a sus servidores. Las pruebas usan un transporte simulado con el formato de la API.
+- **Candado de privacidad** (`privacy.py`, nuevo): un proveedor sin pago solo recibe datos **simulados** por BIOCORE o de **bases públicas** anonimizadas (MIT-BIH, PTB-XL).
+  - Datos de una persona (un sensor en vivo, una entrada manual de paciente, un juicio clínico con nombre) se bloquean antes de llamar, con el motivo.
+  - Lo que no se sabe de dónde viene (un CSV, una serie RR escrita a mano, un flujo LSL, una ruta nueva) también se bloquea.
+  - Cada laboratorio declara de dónde vienen sus hallazgos: EMG, Monitoreo del ECG, HRV, Multisensor, Patient Pipeline, Academia y el caso clínico del Twin OS.
+  - El contexto del UPS (narrador y razonamiento causal del Twin OS) lo calcula de la procedencia y el `source_detail` de **toda la ventana antes/ahora**, porque el «antes» también va al modelo.
+  - Con Anthropic nada cambia.
+- **Panel de la clave** (`app/utils/ai_session.py`): se elige el proveedor. Con Gemini, la app explica qué dicen sus términos y qué datos sí recibe. La barra lateral dice qué proveedor está activo.
+- **Textos**: los avisos de «IA apagada» y de fallas ya no nombran solo a Anthropic. Una petición bloqueada se muestra como aviso, no como error.
+- `NarratorNotConfiguredError` pasa a `errors.py`, con `ProviderNotAllowedError` como subclase: todo llamador que ya atendía la primera muestra el motivo del bloqueo.
+- **Pruebas**: `tests/test_narrator_gemini.py` (44).
+  - Formato de la petición y del streaming.
+  - Errores y validación de la clave con paginado.
+  - El origen de cada ruta que escribe al UPS (31 casos).
+  - Ninguna petición sale con datos de una persona o desconocidos.
+  - Un «antes» de un sensor real en la ventana basta para bloquear.
+  - Anthropic igual que antes.
+  - AppTest del panel de la clave y del narrador de un laboratorio.
+  - Suite completa: 2084 pasan, 6 se saltan y 1 falla, la misma de siempre (PTB-XL necesita red hacia PhysioNet). La guardia de `domain/` cuenta entre las que pasan: falla mientras los cambios de `domain/` no estén commiteados.
+
+**Para Luis**:
+1. Nada de esto se probó contra la API real de Gemini: hace falta una clave de Google AI Studio.
+2. La lista de marcas de `classify_source` es una lista de lo conocido como simulado. Si una ruta nueva escribe al UPS sin marca, Gemini la bloquea hasta que se agregue su marca.
+
 ## 2026-11-16 — Pulso por luz (MAX30102) y temperatura (DS18B20) en vivo, con tutoriales
 
 **Contexto (Art. I)**:

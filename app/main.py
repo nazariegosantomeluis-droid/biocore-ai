@@ -31,7 +31,9 @@ if ROOT_DIR not in sys.path:
 from app.utils.env_loader import load_dotenv_file
 load_dotenv_file(Path(ROOT_DIR) / ".env")
 
-from app.utils.ai_session import AI_KEY_HINT, ai_client, ai_configured, render_entry_gate, render_sidebar_status
+from app.utils.ai_session import (AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_entry_gate,
+                                  render_sidebar_status)
+from domain.physiology.narrator.privacy import DataOrigin
 
 from app.supermodules import (
     generate_demo_bp_signal,
@@ -299,8 +301,33 @@ def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
             st.write(f'Interpretación rápida: mayor correlación observada entre **{k1}** y **{k2}** ({mat[strongest]:.2f}).')
 
 
-def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]) -> None:
-    """Narrador clínico real (Anthropic, streaming) para hallazgos calculados en
+def _emg_data_origin(source: str, live) -> 'DataOrigin':
+    """De dónde vienen los datos del EMG Muscle Lab, para el narrador (`privacy.py`)."""
+    if source == 'Demo':
+        return DataOrigin.SIMULADO
+    if live is None:                                  # CSV, o la fuente en vivo sin señal
+        return DataOrigin.DESCONOCIDO
+    return DataOrigin.PERSONA if live.provenance == 'SENSOR_REAL' else DataOrigin.SIMULADO
+
+
+_ECG_SOURCE_ORIGIN = {
+    'Demo (sintético)': 'simulado', 'Caso clínico (61 disponibles)': 'simulado',
+    'Base de datos MIT-BIH': 'base_publica', 'Base de datos PTB-XL': 'base_publica',
+}
+
+
+def _ecg_data_origin(source: str, metadata: dict) -> 'DataOrigin':
+    """De dónde vienen los datos del Monitoreo del ECG Lab, para el narrador (`privacy.py`). Los 61 casos clínicos
+    son sintéticos; MIT-BIH y PTB-XL son bases públicas anonimizadas; un CSV no se sabe de quién es."""
+    if source == 'Hardware ESP32 en vivo':
+        label = str((metadata or {}).get('source', ''))
+        return DataOrigin.PERSONA if 'SENSOR_REAL' in label else (
+            DataOrigin.SIMULADO if 'SIMULACIÓN' in label else DataOrigin.DESCONOCIDO)
+    return DataOrigin(_ECG_SOURCE_ORIGIN.get(source, 'desconocido'))
+
+
+def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]], origin=None) -> None:
+    """Narrador clínico real (Anthropic o Gemini, streaming) para hallazgos calculados en
     laboratorios que no persisten en el UPS (EMG/HRV/Multisensor/ECG Monitor no
     tienen dominio en el Unified Physiological State — solo cardiovascular y
     respiratorio están modelados). Ver domain/physiology/narrator/findings.py.
@@ -310,38 +337,44 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
     anclada a una métrica exacta del contexto — pero sin comparación temporal
     (estas señales ad-hoc no tienen historial persistido).
 
-    `findings`: lista de tuplas (nombre_metrica, valor, significado)."""
+    `findings`: lista de tuplas (nombre_metrica, valor, significado). `origin`
+    (2026-11-16): de dónde vienen los datos (`DataOrigin`); sin declarar es
+    DESCONOCIDO, y el nivel gratuito de Gemini no lo recibe."""
     from domain.physiology.narrator import (
+        DataOrigin,
         Finding,
         FindingsContext,
+        GeminiError,
         NarratorNotConfiguredError,
+        ProviderNotAllowedError,
         stream_findings_narration,
     )
 
     if not ai_configured():
         st.warning(
-            "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
-            "Anthropic con streaming — no existe una narración simulada de respaldo. " + AI_KEY_HINT
+            AI_OFF + " Este narrador llama a un modelo de lenguaje real con streaming — no existe una "
+            "narración simulada de respaldo. " + AI_KEY_HINT
         )
         return
 
     st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
     if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
-        context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings])
+        context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings],
+                                  origin=origin or DataOrigin.DESCONOCIDO)
         try:
             st.write_stream(stream_findings_narration(context, client=ai_client()))
+        except ProviderNotAllowedError as exc:
+            st.warning(str(exc))
         except NarratorNotConfiguredError as exc:
             render_error_state(str(exc))
+        except GeminiError as exc:
+            render_error_state(str(exc), exception=exc)
         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
             # Fase 2.3 Tanda 3 (2026-08-29): compartido por EMG/ECG Monitor/
             # Multisensor/HRV (pestaña "IA") -- una sola migración cubre los
             # 4. Antes exponía `{exc}` crudo (puede incluir detalle interno
             # de la respuesta HTTP de la API).
-            render_error_state(
-                "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                "(red o cuota). Intenta de nuevo en unos segundos.",
-                exception=exc,
-            )
+            render_error_state(AI_CALL_FAILED, exception=exc)
 
 
 def render_view_selector(view_id: str = None, views: Optional[List[str]] = None) -> str:
@@ -1081,7 +1114,7 @@ def render_emg_page() -> None:
              'La señal demo y la placa simulada tienen un espectro fijo: el índice sería una constante, no una medición.'),
             ('signal_source', live.label if live is not None else source,
              'Origen de la señal: demo sintética, CSV cargado, o placa en vivo (real o simulada).'),
-        ])
+        ], origin=_emg_data_origin(source, live))
 
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
@@ -1885,7 +1918,7 @@ def render_ecg_monitor_page() -> None:
                     ', '.join(active_flags) if active_flags else 'ninguno',
                     'Hallazgos marcados por el analizador de umbrales (taquicardia/bradicardia/ST/heurístico simple de posible fibrilación auricular — no un diagnóstico).',
                 ))
-                render_findings_narrator('ECG Monitor', findings)
+                render_findings_narrator('ECG Monitor', findings, origin=_ecg_data_origin(source, metadata))
             else:
                 st.info('El analizador de ECG (`interpret_ecg`) no está disponible en este entorno — no hay hallazgos reales que narrar.')
         except Exception as e:
@@ -2058,7 +2091,7 @@ def render_multisensor_page() -> None:
             ('health_score', f"{health['overall']:.1f}/100", 'Índice agregado de estado fisiológico, combinando ECG, PPG, SpO2 y respiración.'),
             ('heart_rate_bpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG.'),
             ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO2.'),
-        ])
+        ], origin=DataOrigin.SIMULADO)  # canales demo
 
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
@@ -2329,7 +2362,8 @@ def render_hrv_page() -> None:
                 f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'n/a',
                 'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
             ))
-        render_findings_narrator('HRV Analysis', findings)
+        render_findings_narrator('HRV Analysis', findings, origin=(
+            DataOrigin.SIMULADO if source == rsa_panel.RSA_SOURCE_LABEL else DataOrigin.DESCONOCIDO))
     elif view == 'Simulación':
         st.markdown('### Vista Simulación')
         st.write('Ajusta variabilidad y observa efectos en índices (sterile demo).')
@@ -2565,7 +2599,8 @@ def render_patient_pipeline_page() -> None:
             else:
                 st.caption("Sin ninguna impresión clínica humana guardada todavía para este estado.")
 
-            render_findings_narrator('Patient Pipeline', findings)
+            # Entrada manual de un paciente y juicios clínicos con el nombre de quien los emitió.
+            render_findings_narrator('Patient Pipeline', findings, origin=DataOrigin.PERSONA)
 
 # Consolidación, Tanda 2 (2026-07-13): render_simulation_lab_page() (Simulation
 # Hub) se eliminó — cáscara confirmada por la auditoría de valor: sliders sin

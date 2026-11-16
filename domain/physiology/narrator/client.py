@@ -6,6 +6,11 @@ respaldo que devuelva texto preescrito.
 API key: solo desde la variable de entorno `ANTHROPIC_API_KEY`, nunca
 hardcodeada ni pasada desde la UI. Si no está configurada, se falla de
 forma explícita en vez de fabricar una narración.
+
+2026-11-16: `client` también puede ser un `GeminiClient` (`gemini.py`, nivel
+gratuito de Google) con la misma interfaz. Sin `model`, se usa el del cliente
+(`default_model`) o `DEFAULT_MODEL`; y antes de llamar se revisa que el
+proveedor pueda recibir esos datos (`privacy.check_provider_allows`).
 """
 
 from __future__ import annotations
@@ -16,23 +21,26 @@ from typing import Iterator, Optional
 import anthropic
 
 from .context import NarrativeContext
+from .errors import NarratorNotConfiguredError
+from .privacy import check_provider_allows
 from .prompt import DepthLevel, build_request
 
 DEFAULT_MODEL = "claude-opus-5-5"
-
-
-class NarratorNotConfiguredError(RuntimeError):
-    """ANTHROPIC_API_KEY no está definida en el entorno."""
 
 
 def is_configured() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def resolve_model(client, model: Optional[str]) -> str:
+    """El modelo pedido, o el del cliente (Gemini elige el suyo al validar la clave), o el de Anthropic."""
+    return model or getattr(client, "default_model", None) or DEFAULT_MODEL
+
+
 def stream_narration(
     context: NarrativeContext,
     depth: DepthLevel,
-    model: str = DEFAULT_MODEL,
+    model: Optional[str] = None,
     max_tokens: int = 4096,
     client: Optional["anthropic.Anthropic"] = None,
 ) -> Iterator[str]:
@@ -57,11 +65,12 @@ def stream_narration(
                 "a la API de Anthropic — no hay una narración de respaldo simulada."
             )
         client = anthropic.Anthropic()
+    check_provider_allows(client, context.origin)
 
     system_prompt, messages = build_request(context, depth)
 
     with client.messages.stream(
-        model=model,
+        model=resolve_model(client, model),
         max_tokens=max_tokens,
         system=system_prompt,
         messages=messages,
