@@ -276,11 +276,14 @@ def test_metric_explanations_only_accept_a_signed_topic():
 def test_bibliography_lists_every_signed_key_and_the_repo_citations_with_links():
     from app.supermodules.bibliography import SIGNED, SIGNED_KEYS, repo_references
 
+    # Teoría citada 2 (2026-11-17): + las 7 referencias de EMG y HRV.
     assert set(SIGNED_KEYS) == {"K2007", "W2009", "RCP2017", "B2012", "E2009", "IFCN2017", "MCM", "CS2023",
-                                "AR2025", "KORS1990", "VZ2014"}
-    doc = Path("docs/contenido/teoria_citada.md").read_text(encoding="utf-8")
+                                "AR2025", "KORS1990", "VZ2014",
+                                "DL1997", "DL2010", "V2018", "H2000", "SG2017", "B2013", "TF1996"}
+    doc = (Path("docs/contenido/teoria_citada.md").read_text(encoding="utf-8")
+           + Path("docs/contenido/teoria_citada_2.md").read_text(encoding="utf-8"))
     for key in SIGNED_KEYS:
-        assert f"**[{key}]**" in doc                                       # las mismas claves que el documento
+        assert f"**[{key}]**" in doc                                       # las mismas claves que los documentos
     assert "Chapa-Rodriguez A" in next(r.text for r in SIGNED if r.key == "CS2023")    # metadatos completados
     at = _open("bibliografia")
     text = " ".join(m.value for m in at.markdown)

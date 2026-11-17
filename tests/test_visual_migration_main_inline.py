@@ -151,7 +151,7 @@ def test_emg_hrv_biomarkers_show_their_signed_validation_marker():
 
     for script, expected_color, fragment in (
         (_script_emg, PALETTE.NEUTRAL, "Activación RMS fisiológica"),
-        (_script_hrv, PALETTE.STABLE, "Task Force"),
+        (_script_hrv, PALETTE.STABLE, "[SG2017]"),  # residuos del PR #8: antes «Task Force»
         (_script_biomarkers, PALETTE.NEUTRAL, "Índices compuestos"),
     ):
         at = AppTest.from_function(script)

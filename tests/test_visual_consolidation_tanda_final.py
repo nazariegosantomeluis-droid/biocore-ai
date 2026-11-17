@@ -37,9 +37,9 @@ VALIDATED_SIGNATURES = {
         "Cálculo de AHI y estratificación de severidad conformes a los manuales de puntuación de la "
         "American Academy of Sleep Medicine (AASM)."
     ),
+    # Residuos del PR #8 (2026-11-17): la firma atribuía las métricas a la Task Force ([TF1996]); ahora a [SG2017].
     "HRV Analysis": (
-        "Métricas de dominio temporal (SDNN, RMSSD) calculadas bajo los estándares de la Task Force "
-        "de la European Society of Cardiology (ESC/NASPE)."
+        "Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017]."
     ),
 }
 
@@ -48,9 +48,10 @@ HEURISTIC_SIGNATURES = {
         # Tanda 1 de la fase 1 (decisión 8): el Health Score se retiró; la firma describe lo que queda.
         "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto."
     ),
+    # Residuos del PR #8 (2026-11-17, Art. I): solo los índices que la página calcula (el de estrés ya no se muestra).
     "Biomarkers Lab": (
-        "Índices compuestos (Estrés, Carga Cognitiva) derivados analíticamente de literatura base sin "
-        "calibración de dispositivo médico."
+        "Índices compuestos (Carga cognitiva, Índice de recuperación y Resiliencia fisiológica) derivados "
+        "analíticamente, sin calibración de dispositivo médico."
     ),
     "EMG Muscle Lab": (
         "Activación RMS fisiológica; el índice de fatiga muscular (fatigue_index) opera bajo umbrales "

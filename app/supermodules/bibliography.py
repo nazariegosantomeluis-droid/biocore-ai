@@ -1,7 +1,8 @@
 """Bibliografía (Aprender → Bibliografía; pulido profesional, 2026-11-16).
 
 Dos partes:
-1. `SIGNED`: las referencias de `docs/contenido/teoria_citada.md` (firmado por Luis el 2026-11-16), con su clave. Cada
+1. `SIGNED`: las referencias de `docs/contenido/teoria_citada.md` (firmado por Luis el 2026-11-16) y de
+   `docs/contenido/teoria_citada_2.md` (EMG y HRV, firmado el 2026-11-17), con su clave. Cada
    bloque de teoría cita su clave ([K2007], [MCM]...) y enlaza aquí. Los metadatos de StatPearls y de Kors 1990 se
    completaron con el registro de PubMed (decisión adicional 3 de la hoja de firma).
 2. `REPO`: las que la plataforma ya citaba en su código (una sola copia de cada cita en su módulo), en formato uniforme:
@@ -89,6 +90,41 @@ SIGNED: Tuple[Reference, ...] = (
               "neural networks. En: *Electrocardiology 2014 – Proceedings of the 41st International Congress on "
               "Electrocardiology*; 2014:61–64.",
               (("PDF", "https://www.measurement.sk/ICE2014/proceedings/061.pdf"),)),
+    # ── Teoría citada 2 (docs/contenido/teoria_citada_2.md, EMG y HRV, firmada el 2026-11-17) ──
+    Reference("DL1997", ARTICLES,
+              "De Luca CJ. The use of surface electromyography in biomechanics. *J Appl Biomech*. 1997;13(2):135–163.",
+              (("PDF", "https://people.stfx.ca/smackenz/Courses/HK474/Readings/THE%20USE%20OF%20SURFACE%20ELECTROMYOGRAPHY.pdf"),)),
+    Reference("DL2010", ARTICLES,
+              "De Luca CJ, Gilmore LD, Kuznetsov M, Roy SH. Filtering the surface EMG signal: movement artifact and "
+              "baseline noise contamination. *J Biomech*. 2010;43(8):1573–1579.",
+              (("doi:10.1016/j.jbiomech.2010.01.027", "https://doi.org/10.1016/j.jbiomech.2010.01.027"),
+               ("PDF", "https://www.bu.edu/nmrc/files/2010/06/103.pdf"))),
+    Reference("V2018", ARTICLES,
+              "Vigotsky AD, Halperin I, Lehman GJ, Trajano GS, Vieira TM. Interpreting signal amplitudes in surface "
+              "electromyography studies in sport and rehabilitation sciences. *Front Physiol*. 2018;8:985.",
+              (("doi:10.3389/fphys.2017.00985", "https://doi.org/10.3389/fphys.2017.00985"),
+               ("PDF", "https://iris.polito.it/retrieve/handle/11583/2697782/183144/Vigotsky_et_al_2018-FP.pdf"))),
+    Reference("H2000", ARTICLES,
+              "Hermens HJ, Freriks B, Disselhorst-Klug C, Rau G. Development of recommendations for SEMG sensors and "
+              "sensor placement procedures. *J Electromyogr Kinesiol*. 2000;10(5):361–374.",
+              (("doi:10.1016/S1050-6411(00)00027-4", "https://doi.org/10.1016/S1050-6411(00)00027-4"),)),
+    Reference("SG2017", ARTICLES,
+              "Shaffer F, Ginsberg JP. An overview of heart rate variability metrics and norms. *Front Public Health*. "
+              "2017;5:258.",
+              (("doi:10.3389/fpubh.2017.00258", "https://doi.org/10.3389/fpubh.2017.00258"),
+               ("Artículo", "https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2017.00258"))),
+    Reference("B2013", ARTICLES,
+              "Billman GE. The LF/HF ratio does not accurately measure cardiac sympatho-vagal balance. *Front Physiol*. "
+              "2013;4:26.",
+              (("doi:10.3389/fphys.2013.00026", "https://doi.org/10.3389/fphys.2013.00026"),
+               ("PDF", "https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2013.00026/pdf"))),
+    Reference("TF1996", GUIDES,
+              "Task Force of the European Society of Cardiology and the North American Society of Pacing and "
+              "Electrophysiology (Camm AJ, Malik M, Bigger JT, et al.). Heart rate variability: standards of "
+              "measurement, physiological interpretation and clinical use. *Circulation*. 1996;93(5):1043–1065.",
+              (("doi:10.1161/01.CIR.93.5.1043", "https://doi.org/10.1161/01.CIR.93.5.1043"),),
+              note="Es el estándar fundacional de la HRV. No se leyó su texto completo, así que no se le atribuye "
+                   "ninguna afirmación directamente: las definiciones vienen de [SG2017], que se basa en él."),
 )
 
 SIGNED_KEYS = tuple(r.key for r in SIGNED)

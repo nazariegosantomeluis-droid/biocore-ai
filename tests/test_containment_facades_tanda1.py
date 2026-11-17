@@ -107,6 +107,17 @@ def test_respiratory_quiz_no_longer_derives_answers_from_the_analyzer(temp_ups):
 
 # --- Parte B: la "entropía" que no lo era ------------------------------------
 
+SIGNED_SAMPEN_LINE = ("**Entropía muestral:** se diseñó como una medida menos sesgada y más fiable de la regularidad y "
+                      "la complejidad de la señal.")
+
+
+def test_the_sampen_exemption_is_the_signed_line_and_nothing_else():
+    from app.supermodules.learn_theory import SIGNED_HRV_B6
+
+    doc = Path("docs/contenido/teoria_citada_2.md").read_text(encoding="utf-8")
+    assert SIGNED_SAMPEN_LINE in doc and SIGNED_SAMPEN_LINE in SIGNED_HRV_B6.detail
+
+
 def test_entropy_complexity_button_is_gone_from_every_page(temp_ups):
     import ast as _ast
 
@@ -124,6 +135,10 @@ def test_entropy_complexity_button_is_gone_from_every_page(temp_ups):
         at.run()
         assert at.exception == [], f"{page}: {at.exception}"
         text = _all_text(at)
+        # Teoría citada 2 (2026-11-17): la línea firmada de B6 describe la entropía muestral REAL (la SampEn que ya
+        # calcula HRV Analysis). Se quita por su texto EXACTO, que debe estar tal cual en el documento firmado;
+        # cualquier otra «Entropía» sigue fallando.
+        text = text.replace(SIGNED_SAMPEN_LINE, "")
         # Solo la palabra en español: la cita en inglés de SampEn (Richman & Moorman 2000, "approximate
         # entropy and sample entropy") es la entropía REAL de HRV Analysis y debe seguir.
         assert not re.search(r"entrop[ií]a", text, re.I), f"{page}: aparece 'Entropía'"
