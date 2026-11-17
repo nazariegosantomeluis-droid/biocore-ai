@@ -1481,6 +1481,65 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
         )
 
 
+ARRHYTHMIA_CLASS_NAMES = {
+    "N": "N (normal o de conducción)",
+    "S": "S (ectópico supraventricular)",
+    "V": "V (ectópico ventricular)",
+    "F": "F (fusión)",
+    "Q": "Q (no clasificable)",
+}
+
+
+def _fmt_metric(value) -> str:
+    return "no disponible" if value is None else f"{value:.3f}"
+
+
+def render_arrhythmia_model_card(results_path=None) -> None:
+    """Tarjeta del modelo (2026-11-17, Art. I): toda cifra se LEE de results.json, ninguna se escribe aquí."""
+    from domain.physiology.ml.arrhythmia_evaluation import RESULTS_PATH, load_results
+
+    path = Path(results_path) if results_path else RESULTS_PATH
+    st.markdown('#### Tarjeta del modelo: clasificador de latidos')
+    st.warning('Uso educativo. No apto para diagnóstico ni para decisiones clínicas. '
+               'Este clasificador no se usa en ninguna otra pantalla: se muestra como evidencia de cuánto acierta.')
+    data = load_results(path)
+    if data is None:
+        render_no_data('las métricas del clasificador', f'no se encontró {path.as_posix()}')
+        return
+    ev, ds = data['evaluacion_entre_pacientes'], data['datos']
+    if data['estado'] == 'en evaluacion':
+        low = ', '.join(data['clases_con_sensibilidad_baja'])
+        st.caption(f"{BADGES.tag(BADGES.PENDING)} En evaluación: sensibilidad menor que "
+                   f"{data['umbral_sensibilidad_baja']:.2f} en la(s) clase(s) {low} "
+                   f"({data['umbral_sensibilidad_baja_origen']}).")
+    st.markdown(f"**Cómo se midió.** Modelo `{data['modelo']['version']}` ({data['fecha']}): "
+                f"{data['modelo']['codigo']}. Separación {ds['separacion']} [{ds['cita_separacion']}]. "
+                f"Entrenamiento: registros {', '.join(map(str, ds['registros_entrenamiento']))}. "
+                f"Evaluación: registros {', '.join(map(str, ds['registros_evaluacion']))}.")
+    st.dataframe([
+        {'Clase AAMI': ARRHYTHMIA_CLASS_NAMES[c], 'Latidos en evaluación': str(m['latidos']),
+         'Sensibilidad': _fmt_metric(m['sensibilidad']),
+         'Valor predictivo positivo': _fmt_metric(m['valor_predictivo_positivo']),
+         'F1': _fmt_metric(m['f1'])}
+        for c, m in ev['por_clase'].items()
+    ], hide_index=True, width='stretch')
+    st.markdown(f"F1 macro: **{_fmt_metric(ev['f1_macro'])}** ({ev['f1_macro_definicion']}). "
+                f"Exactitud global: **{_fmt_metric(ev['exactitud'])}**. {ev['exactitud_advertencia']}")
+    st.markdown(f"Calibración: puntaje de Brier **{_fmt_metric(ev['brier'])}** ({ev['brier_definicion']}).")
+    leak = data['fuga_por_latido']
+    st.caption(f"Fuga de datos: con el protocolo original de la clase ({leak['descripcion']}), "
+               f"{leak['registros_en_entrenamiento_y_prueba']} de {leak['registros_totales']} registros quedan a la vez "
+               f"en entrenamiento y prueba; ahí la exactitud sale {_fmt_metric(leak['exactitud'])} y el F1 macro "
+               f"{_fmt_metric(leak['f1_macro'])}. Esas cifras están infladas y no se usan.")
+    for png, caption in (('confusion_matrix.png', 'Matriz de confusión en los registros de evaluación'),
+                         ('reliability_curve.png', 'Curva de confiabilidad en los registros de evaluación')):
+        if (path.parent / png).exists():
+            st.image(str(path.parent / png), caption=caption)
+        else:
+            render_no_data(caption.lower(), f'no se encontró {png}')
+    st.caption(f"Informe completo y cómo reproducirlo: {path.parent.as_posix()}/MODEL_CARD.md")
+
+
 def render_ecg_monitor_page() -> None:
     # Fase 2.3 Tanda 3 (2026-08-29): antes repetía el título del módulo
     # ("ECG Lab") DENTRO de la pestaña "Monitoreo" del hub que ya lo
@@ -1769,6 +1828,8 @@ def render_ecg_monitor_page() -> None:
         corr_ecg_resp = float(np.corrcoef(signal[:len_min], resp_demo[:len_min])[0, 1]) if len_min > 1 else 0.0
         corr_ecg_spo2 = float(np.corrcoef(signal[:len_min], spo2_demo[:len_min])[0, 1]) if len_min > 1 else 0.0
         st.write(f'ECG ↔ Respiración: {corr_ecg_resp:.2f} — ECG ↔ SpO₂: {corr_ecg_spo2:.2f}')
+        st.divider()
+        render_arrhythmia_model_card()
 
     # Cierre del pulido (2026-11-16, Art. I): el material sin fuente («[Sin fuente]») ya no se monta. «Simular» se fue con
     # él: sus 4 controles (FC, PR, QRS, QT) no movían nada (nadie leía su valor), solo acompañaban ese texto. El código

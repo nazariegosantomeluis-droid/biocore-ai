@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-11-17 — Tarjeta del modelo: evaluación honesta del clasificador de arritmias (Art. I)
+
+**Contexto (Art. I: ninguna cifra sin decir cómo se calculó).** Rama `luis/ml-hoy`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, lightgbm 4.6.0, scikit-learn 1.9.0, NumPy 2.4.6, wfdb 4.3.1.
+
+**Inventario.** El «clasificador LightGBM» es `biomedical/arrhythmia_classifier.py`, no `domain/physiology/ml/`. Lo que había:
+- 8 rasgos de amplitud del segmento, sin RR.
+- RandomForest siempre; XGBoost y LightGBM solo si están instalados.
+- Ningún modelo entrenado, ninguna métrica guardada y ninguna pantalla que lo use.
+
+**Fuga de datos, con evidencia.** `ArrhythmiaClassifier.train` separa entrenamiento y prueba con `train_test_split` **por latido**. Medido con ese mismo protocolo sobre MIT-BIH (DS1 y DS2 juntos):
+- Los 44 de 44 registros quedan a la vez en entrenamiento y en prueba.
+- La exactitud sale 0.944 y el F1 macro 0.531.
+- Entre pacientes (entrenamiento DS1, evaluación DS2; de Chazal 2004) bajan a 0.843 y 0.299.
+- La sensibilidad de S cae de 0.424 a 0.007.
+
+**Qué se hizo:**
+1. `domain/physiology/ml/arrhythmia_evaluation.py`. Usa los rasgos de la clase y `LGBMClassifier` con sus parámetros por defecto. Añade `deterministic=True`: sin él, dos corridas iguales dieron sensibilidad de N de 0.9047 y de 0.9003. Entrena con DS1 y evalúa con DS2:
+   - clases AAMI N, S, V, F y Q;
+   - matriz de confusión;
+   - sensibilidad, valor predictivo positivo y F1 por clase;
+   - F1 macro;
+   - exactitud, con la advertencia de desbalance: un modelo que siempre dijera N tendría 0.890, más que este;
+   - Brier multicategoría y curva de confiabilidad.
+   
+   Predice con un `DataFrame` que tiene los mismos nombres de columna que el ajuste, sin el aviso «X does not have valid feature names». Escribe `docs/validation/arrhythmia_classifier/results.json` (fecha, versión `lgbm-8rasgos-ds1-v1`, registros, SHA-256 del modelo) y dos PNG. El modelo se guarda fuera de git, en `biocore_cache`. No había modelo anterior que conservar.
+2. Listas DS1 y DS2 verificadas en texto completo de PMC: Farag 2023, PMC9919183, tabla 2. Coinciden con García 2017 y Zou 2022. La tabla del artículo de de Chazal no se leyó (es de pago).
+3. `MODEL_CARD.md`: uso educativo, no apto para diagnóstico; datos, separación, métricas, calibración, limitaciones y cómo reproducir.
+4. ECG → Monitoreo → «Cómo se calcula»: panel «Tarjeta del modelo» (`render_arrhythmia_model_card`, `app/main.py`).
+   - **Lee** `results.json`; ninguna cifra está escrita en el código.
+   - El modelo se rotula «En evaluación»: S, V, F y Q tienen sensibilidad menor que 0.80, umbral que es Criterio BIOCORE sin cita.
+   - Sin el archivo, el panel dice «Sin dato» y explica el motivo.
+5. Pruebas en `tests/test_arrhythmia_model_card.py`:
+   - golden test: el panel muestra exactamente las cifras de `results.json`;
+   - los registros de evaluación no están entre los de entrenamiento;
+   - métricas y Brier en un caso conocido;
+   - predicción sin aviso de nombres de columna;
+   - el panel funciona sin `results.json`.
+
+**Pendiente:**
+- `lightgbm` no está en `requirements.txt` ni en THIRD_PARTY_NOTICES con su licencia.
+- RandomForest y XGBoost no se evaluaron.
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
