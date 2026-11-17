@@ -1,5 +1,6 @@
 # BIOCORE AI
 
+
 **Un laboratorio digital de fisiología humana para enseñar medicina, construido sobre una regla: nunca finge lo que no sabe.**
 
 BIOCORE AI es una plataforma educativa de fisiología humana para estudiantes de medicina y ciencias de la salud. En lugar de enseñar con texto estático, enseña con un **gemelo digital reactivo**: un organismo virtual **simulado** (la plataforma lo declara así en pantalla) cuyo estado fisiológico se altera con escenarios clínicos y se explica con fundamento, junto a laboratorios que analizan señales reales.
