@@ -97,3 +97,40 @@ def test_un_comentario_sobre_biocore_no_se_atribuye_a_la_fuente():
 
 def test_la_base_por_defecto_esta_aislada_en_la_suite():
     assert "conocimiento_suite" in str(kb.DEFAULT_DB_PATH)
+
+
+# ── Sinónimos (2026-11-17) ──────────────────────────────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("consulta,tema", [
+    ("electromiografía", "A1"),                              # la teoría dice «EMG»
+    ("variabilidad de la frecuencia cardiaca", "B1"),        # la teoría dice «HRV»; no debe ganar el tema 2 (FC)
+    ("¿qué mide la variabilidad cardíaca?", "B1"),
+    ("frecuencia cardiaca normal", "2"),                     # sin «variabilidad», sigue siendo el tema 2
+    ("CVM con dolor", "A6"),                                 # la teoría dice «contracción voluntaria isométrica máxima»
+    ("saturación de oxígeno NEWS2", "6"),                    # la teoría dice «SpO₂»
+    ("tono vagal", "B2"),                                    # la teoría dice «parasimpático»
+    ("infarto en la descendente anterior", "5"),
+    ("diafonía", "A8"),
+])
+def test_los_sinonimos_encuentran_lo_que_la_teoria_escribe_de_otro_modo(base, consulta, tema):
+    assert kb.buscar(consulta, db_path=base)[0]["tema_id"] == tema
+
+
+def test_ningun_termino_esta_en_dos_grupos_de_sinonimos():
+    vistos = {}
+    for i, grupo in enumerate(kb.SINONIMOS):
+        for termino in grupo:
+            clave = kb._normalizar(termino)
+            assert vistos.setdefault(clave, i) == i, f"«{termino}» está en dos grupos"
+
+
+def test_cada_grupo_de_sinonimos_nombra_algo_que_esta_en_la_teoria_firmada(base):
+    import sqlite3
+    filas = sqlite3.connect(base).execute("SELECT texto || ' ' || tema_titulo || ' ' || subtema FROM fragmentos")
+    texto = " " + kb._normalizar(" ".join(t for (t,) in filas)) + " "     # lo mismo que indexa la búsqueda
+    for grupo in kb.SINONIMOS:
+        assert any(f" {kb._normalizar(t)} " in texto for t in grupo), grupo
+
+
+def test_los_sinonimos_no_inventan_respuestas(base):
+    assert kb.buscar("tratamiento de la diabetes", db_path=base) == []
+    assert kb.contexto_para_ia("hipotiroidismo", db_path=base) is None

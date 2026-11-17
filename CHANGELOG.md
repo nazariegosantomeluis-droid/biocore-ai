@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-17 — Sinónimos en la búsqueda de la base de conocimiento
+
+**Contexto**: la búsqueda no tenía sinónimos, así que «electromiografía» no encontraba nada porque la teoría firmada dice «EMG». Los sinónimos solo amplían la búsqueda: no cambian lo que la base contiene ni lo que la IA puede citar.
+
+1. **`knowledge_base.SINONIMOS`**: 22 grupos, sobre todo sigla ↔ nombre completo. Por ejemplo: EMG ↔ electromiografía; HRV ↔ VFC ↔ variabilidad de la frecuencia cardiaca; FC ↔ frecuencia cardiaca ↔ lpm; contracción voluntaria (isométrica) máxima ↔ MVC ↔ CVM; SpO₂ ↔ SpO2 ↔ saturación de oxígeno; diafonía ↔ crosstalk; parasimpático ↔ vagal ↔ vago; DA ↔ descendente anterior; LF ↔ baja frecuencia.
+2. **Gana el término más largo** (`_analizar`): en «variabilidad de la frecuencia cardiaca» se reconoce la frase entera (grupo HRV) y «frecuencia cardiaca» no cuenta aparte. Antes de este ajuste la consulta traía primero el tema 2, de frecuencia cardiaca. Las palabras sueltas conservan su prefijo; los sinónimos van exactos (una sigla corta como «DA» con prefijo hallaría «daño») y las de varias palabras, como frase. Sin acentos, igual que el índice.
+3. **Pruebas** (`tests/test_knowledge_base.py`, +12): 9 consultas llegan a su tema (electromiografía → A1; variabilidad de la frecuencia cardiaca → B1; frecuencia cardiaca normal → 2; CVM con dolor → A6; saturación de oxígeno → 6; tono vagal → B2…); ningún término está en dos grupos; cada grupo nombra algo que está en la teoría firmada (la prueba sacó un grupo IAMCEST/STEMI que no aparece en ella); y los sinónimos no inventan respuestas («tratamiento de la diabetes» sigue sin fragmentos). Verificado aquí: 36 pasan entre la base y el tutor.
+
 ## 2026-11-17 — Banco de preguntas EMG y HRV, versión 2: arreglos de la revisión de `base-conocimiento-ia`
 
 **Contexto (Art. I)**: la revisión externa de la rama (suite: 2328 pasan, 8 omitidas, 0 fallos en Linux con Python 3.13.18) pidió que cada pregunta del banco se sostenga en una línea firmada de `teoria_citada_2.md` y que salga de la hoja todo lo que no está firmado. Solo cambia el documento: nada entra a la app.

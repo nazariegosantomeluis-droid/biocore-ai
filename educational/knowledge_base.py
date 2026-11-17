@@ -24,6 +24,7 @@ import hashlib
 import re
 import sqlite3
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -331,10 +332,75 @@ fue ha hay la las le les lo los mas me mi muy ni no o para pero por porque que s
 tiene un una uno unos unas y ya yo qué cómo cuál cuándo dónde por qué es son está están ser""".split())
 
 
+# Sinónimos para BUSCAR (2026-11-17): cada grupo reúne formas de nombrar lo mismo, sobre todo una sigla y su nombre
+# completo, para que «electromiografía» encuentre los fragmentos que dicen «EMG». Solo amplían la búsqueda: no son
+# afirmaciones y no cambian lo que la base contiene ni lo que la IA puede citar. Un término nuevo se agrega a su grupo
+# (o a un grupo nuevo) y `tests/test_knowledge_base.py` exige que ningún término esté en dos grupos.
+SINONIMOS: Sequence[Sequence[str]] = (
+    ("EMG", "electromiografía", "electromiograma", "electromiográfica", "electromiográfico"),
+    ("HRV", "VFC", "variabilidad de la frecuencia cardiaca", "variabilidad de la frecuencia cardíaca",
+     "variabilidad cardiaca", "variabilidad cardíaca"),
+    ("ECG", "EKG", "electrocardiograma", "electrocardiografía", "electrocardiográfico"),
+    ("EEG", "electroencefalograma", "electroencefalografía", "electroencefalográfico"),
+    ("FC", "frecuencia cardiaca", "frecuencia cardíaca", "latidos por minuto", "lpm"),
+    ("FR", "frecuencia respiratoria", "respiraciones por minuto"),
+    ("arritmia sinusal respiratoria", "RSA", "ASR"),
+    ("diafonía", "crosstalk", "cross-talk"),
+    ("contracción voluntaria máxima", "contracción voluntaria isométrica máxima", "contracción máxima", "MVC", "MVIC",
+     "CVM", "CVIM"),
+    ("SpO₂", "SpO2", "saturación de oxígeno", "pulsioximetría", "oximetría de pulso"),
+    ("RMS", "raíz cuadrática media", "valor eficaz"),
+    ("vectorcardiograma", "VCG", "ECG en 3D"),
+    ("DA", "descendente anterior"),
+    ("CD", "coronaria derecha"),
+    ("Cx", "circunfleja"),
+    ("LF", "baja frecuencia"),
+    ("HF", "alta frecuencia"),
+    ("VLF", "muy baja frecuencia"),
+    ("ULF", "ultra baja frecuencia"),
+    ("NN", "RR", "intervalo entre latidos", "intervalos entre latidos"),
+    ("parasimpático", "parasimpática", "vagal", "vago"),
+    ("Cheyne-Stokes", "Cheyne Stokes"),
+)
+
+
+def _normalizar(texto: str) -> str:
+    """Minúsculas, sin acentos y con un espacio entre palabras: para encontrar un término dentro de la consulta."""
+    sin_acentos = "".join(c for c in unicodedata.normalize("NFKD", texto.lower()) if not unicodedata.combining(c))
+    return " ".join(re.findall(r"\w+", sin_acentos))
+
+
+def _analizar(consulta: str):
+    """Separa la consulta en (grupos de sinónimos que nombra, palabras sueltas que quedan).
+
+    Gana el término más largo: en «variabilidad de la frecuencia cardiaca» se reconoce la frase entera (grupo de HRV),
+    y «frecuencia cardiaca» ya no cuenta aparte; sus palabras tampoco se buscan sueltas.
+    """
+    resto = f" {_normalizar(consulta)} "
+    terminos = sorted(((_normalizar(t), g) for g in SINONIMOS for t in g), key=lambda x: -len(x[0]))
+    grupos: List[Sequence[str]] = []
+    for termino, grupo in terminos:
+        if f" {termino} " in resto:
+            resto = resto.replace(f" {termino} ", " ")
+            if grupo not in grupos:
+                grupos.append(grupo)
+    palabras = [p for p in resto.split() if p not in _VACIAS and len(p) > 1]
+    return grupos, palabras
+
+
+def _sinonimos_de(consulta: str) -> List[str]:
+    """Los términos con los que se amplía la consulta (todas las formas de los grupos que nombra)."""
+    return [t for grupo in _analizar(consulta)[0] for t in grupo]
+
+
 def _consulta_fts(consulta: str) -> str:
-    palabras = [p for p in re.findall(r"\w+", consulta.lower()) if p not in _VACIAS and len(p) > 1]
-    # Cada palabra entre comillas (FTS5 no interpreta nada dentro) y con prefijo: «normaliz» halla «normalizada».
-    return " OR ".join(f'"{p}"*' for p in dict.fromkeys(palabras))
+    grupos, palabras = _analizar(consulta)
+    # Las palabras sueltas, entre comillas (FTS5 no interpreta nada dentro) y con prefijo: «normaliz» halla
+    # «normalizada». Los sinónimos, exactos y sin prefijo (una sigla corta como «DA» con prefijo hallaría «daño»);
+    # los de varias palabras, como frase.
+    partes = [f'"{p}"*' for p in dict.fromkeys(palabras)]
+    partes += [f'"{t.replace(chr(34), "")}"' for t in dict.fromkeys(t for g in grupos for t in g)]
+    return " OR ".join(partes)
 
 
 def buscar(consulta: str, limite: int = 5, db_path: Optional[Path] = None,
