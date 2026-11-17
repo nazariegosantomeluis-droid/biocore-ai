@@ -63,7 +63,7 @@ from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
-from app.utils.patient_banner import render_active_patient_banner
+from app.utils.patient_banner import active_source_label, read_active_vitals, render_active_patient_banner
 from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -1379,6 +1379,50 @@ def _measure_ecg_heart_rate_tkeo(signal: np.ndarray, fs: float, ECGAnalyzerCls) 
 
 ECG_CSV_SOURCE_LABEL = "CSV local (archivo cargado)"
 
+# Fuente «Paciente activo» del Monitoreo (integración, 2026-11-17): el trazo se GENERA a la FC que el UPS ya tiene del
+# paciente activo, para que el banner y el ECG digan el mismo número. El UPS guarda la FC, no la onda: la onda es una
+# vista determinista de ese valor (`DynamicECGGenerator`, sin ruido: la misma FC da siempre el mismo trazo).
+ECG_PATIENT_SOURCE = 'Paciente activo (simulación a su FC)'
+ECG_PATIENT_SOURCE_LABEL = 'simulación a la FC del paciente activo (UPS)'
+ECG_SOURCE_KEY = 'ecg_monitor_source'
+# Rango en que la FC del generador está validada con el detector TKEO (error < 0.2 lpm; ver el comentario de la demo).
+ECG_GENERATOR_VALIDATED_HR = (40, 200)
+# Un escenario de arritmia NO se dibuja desde la FC sola: un ritmo sinusal regular sería una onda falsa (Art. I).
+# Marcas (en minúsculas) con que el gemelo rotula su fuente activa cuando aplica una arritmia
+# (`twin_shell.pages`: «arritmia …» o «escenario del simulador 🫀 Fibrilación auricular …», `RICH_SCENARIO_LABELS`).
+ECG_RHYTHM_NOT_MODELED_MARKS = ('arrhythmia', 'arritmia', 'fibrilación auricular', 'flutter auricular',
+                                'taquicardia supraventricular', 'bradicardia sinusal')
+
+
+def _ecg_from_active_patient():
+    """(señal, fs, metadatos) del paciente activo, o `None` tras decir en pantalla por qué no hay trazo. Nunca inventa
+    una FC: sin FC en el UPS, sin paciente, con un escenario de arritmia o fuera del rango validado, es «sin dato»."""
+    vitals = read_active_vitals()
+    if vitals.patient_id is None:
+        render_no_data('Paciente activo', 'todavía no hay paciente: abre el Gemelo digital o guarda un estado desde un '
+                                          'laboratorio para crearlo')
+        return None
+    hr = vitals.values['hr']
+    if hr is None:
+        render_no_data('Frecuencia cardíaca del paciente activo',
+                       'el UPS aún no tiene FC de este paciente: aplica un escenario o guarda un estado en el Gemelo digital')
+        return None
+    origin = f"{hr.source_detail or ''} {active_source_label()}".lower()
+    if any(mark in origin for mark in ECG_RHYTHM_NOT_MODELED_MARKS):
+        render_no_data('Trazo del paciente activo',
+                       'ritmo no modelado: la FC sola no describe un escenario de arritmia y un ritmo sinusal regular '
+                       'sería una onda falsa. Usa un caso clínico para ver un ritmo con su trazo')
+        return None
+    lo, hi = ECG_GENERATOR_VALIDATED_HR
+    if not lo <= hr.value <= hi:
+        render_no_data('Trazo del paciente activo',
+                       f'la FC del paciente ({hr.value:.0f} lpm) está fuera del rango en que el generador está validado '
+                       f'({lo}–{hi} lpm)')
+        return None
+    signal = DynamicECGGenerator(fs=ECG_DEMO_FS).generate(duration=20, hr=float(hr.value))
+    return signal, ECG_DEMO_FS, {'source': ECG_PATIENT_SOURCE_LABEL, 'patient_id': vitals.patient_id,
+                                  'hr_ups': float(hr.value)}
+
 
 def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGAnalyzerCls) -> None:
     """Tercer y último lab de la integración estrecha (2026-08-24, Capa
@@ -1421,6 +1465,11 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
     if source_label == ECG_CSV_SOURCE_LABEL:
         st.button("💾 Guardar estado al gemelo", key="ecg_lab_save_to_ups", disabled=True, help=CSV_SAVE_BLOCKER)
         st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
+        return
+
+    if source_label == ECG_PATIENT_SOURCE_LABEL:
+        st.info("Esta señal se generó a partir de la FC que el UPS ya tiene de este paciente: guardarla no añadiría "
+                "ningún dato (sería escribir el mismo valor otra vez).")
         return
 
     if 'demo' in source_label.lower():
@@ -1501,13 +1550,18 @@ def render_ecg_monitor_page() -> None:
     ECGAnalyzer, create_clinical_ecg_figure, load_mitbih_record, get_mitbih_records, ecg_ok = safe_import_ecg_modules()
     src_modules, src_ok = safe_import_src_modules()
 
+    # Integración: con un paciente que ya tiene FC en el UPS el Monitoreo abre en SU trazo (banner y ECG, el mismo
+    # número); sin él, abre en la demo como siempre. Streamlit olvida la clave al salir de la página.
+    if ECG_SOURCE_KEY not in st.session_state:
+        st.session_state[ECG_SOURCE_KEY] = (
+            ECG_PATIENT_SOURCE if read_active_vitals().values['hr'] is not None else 'Demo (sintético)')
     source = st.sidebar.radio(
         'Origen del ECG',
         [
             'Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)',
-            'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo',
+            'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo', ECG_PATIENT_SOURCE,
         ],
-        index=0,
+        key=ECG_SOURCE_KEY,
     )
     signal = None
     fs = 250
@@ -1639,6 +1693,12 @@ def render_ecg_monitor_page() -> None:
                 signal, fs, metadata = cached_ptbxl
             else:
                 st.sidebar.info('Selecciona un registro y pulsa "Cargar" — se descarga en vivo desde PhysioNet.')
+
+    elif source == ECG_PATIENT_SOURCE:
+        generated = _ecg_from_active_patient()
+        if generated is None:
+            return
+        signal, fs, metadata = generated
 
     elif source == 'Hardware ESP32 en vivo':
         # ECG Plug & Play (2026-11-13, ver CHANGELOG; Art. I): reemplaza a la rama de
