@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-17 — Banco de preguntas EMG y HRV, versión 2: arreglos de la revisión de `base-conocimiento-ia`
+
+**Contexto (Art. I)**: la revisión externa de la rama (suite: 2328 pasan, 8 omitidas, 0 fallos en Linux con Python 3.13.18) pidió que cada pregunta del banco se sostenga en una línea firmada de `teoria_citada_2.md` y que salga de la hoja todo lo que no está firmado. Solo cambia el documento: nada entra a la app.
+
+1. **`docs/contenido/banco_preguntas_emg_hrv.md`**, versión 2: quedan **26 preguntas**, cada una con su línea firmada citada textual («t2:N», copiada del documento firmado, no reescrita) y una casilla «Firma de Luis». Al final hay una hoja de firma de 26 filas con la columna «Firma de Luis» vacía.
+2. **Corregidas (5):**
+   - **E2:** se cambió el distractor «Mayor riesgo de lesión», que iba contra A9.
+   - **H2:** ahora pregunta qué medida está más influida por el parasimpático **que la SDNN**, como dice t2:111.
+   - **H8:** se retiró el distractor con una cifra de SDNN (B9).
+   - **C5:** la viñeta dice «razón LF/HF (interpretación discutida)» con [B2013] (B3).
+   - **C6.1:** se retiró de la explicación la frase de Laborde 2017 y se cambió el distractor de la razón LF/HF.
+3. **Fuera de la hoja (10):** E11, E12, H9, H10, H11, H12, C1.2, C4.2, C5.1 y C6.2 pasan a un apéndice con la afirmación que habría que firmar primero en la teoría. H10 y C4.2 dependen además de ampliar B7 (D2); H12 y C4.2, de aceptar Laborde 2017 (D1).
+4. **Decisiones** D1–D5. Desaparecen las marcas [F]/[N]: en la hoja solo queda lo que tiene línea firmada.
+5. **Uso:** las claves se resolverán contra `app/supermodules/bibliography.py` (las de EMG y HRV llegan con la rama `teoria-emg-hrv`); no se crea `clinical/hrv_references.py`. Solo entran a la app, como `EMG_QUESTIONS` y `HRV_QUESTIONS`, las preguntas que Luis marque «firmo». Cada respuesta se registrará con `session_learning` (`emg` o `hrv`).
+
+**Sincronización:** `main` no cambió desde `e3fc423` (ya incluido en esta rama). Cuando `teoria-emg-hrv` entre a `main`, hay que volver a fusionar `main` aquí: chocarán `CHANGELOG.md` y `CLAUDE.md` (conteo de páginas), y se conservan ambas entradas.
 ## 2026-11-17 — Calibración de la confianza sobre `session_learning` (Uncertainty Lab, primera pieza)
 
 **Contexto (Art. I)**: el estudiante dice qué tan seguro está antes de ver el resultado y BIOCORE compara esa confianza con su acierto. Se construye sobre el contrato `app/utils/session_learning.py` (sin modificarlo): solo en la sesión, sin base de datos.
