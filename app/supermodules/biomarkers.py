@@ -64,10 +64,14 @@ class BiocoreEngine:
         return round(100 - norm if invert else norm, 2)
 
     def calculate_stress_index(self, hrv_lf_hf_ratio: float) -> float:
-        """Recortado (2026-08-15) a su único componente real y citado --
-        Task Force ESC/NASPE 1996. Los componentes EDA (picos SCR,
-        conductancia tónica) se retiraron: no hay módulo de señal EDA en el
-        repo, eran constantes de preset sin sensor detrás -- ver CHANGELOG.md."""
+        """Recortado (2026-08-15) a su único componente real: la razón LF/HF
+        (interpretación discutida) [B2013], con 0.5-5.0 como límites de la
+        escala del índice (Criterio BIOCORE), no valores de referencia. No se
+        muestra desde la Teoría citada 2 (B3): leerla como estrés es leerla
+        como equilibrio simpático-vagal, que [B2013] refuta. Los componentes
+        EDA (picos SCR, conductancia tónica) se retiraron: no hay módulo de
+        señal EDA en el repo, eran constantes de preset sin sensor detrás --
+        ver CHANGELOG.md."""
         hrv_score = self._normalize(hrv_lf_hf_ratio, 0.5, 5.0)
         return round(np.clip(hrv_score, 0, 100), 2)
 

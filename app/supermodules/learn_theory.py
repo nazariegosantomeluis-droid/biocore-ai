@@ -284,6 +284,202 @@ EEG_BANDS = TheoryTopic(
     source=KANE_2017,
 )
 
+# ── Teoría citada 2 (docs/contenido/teoria_citada_2.md, firmada el 2026-11-17): EMG A1–A9 y HRV B1–B9. Cada línea está,
+# tal cual, en ese documento. Lo que el documento lista como «sin fuente verificada» (ECG en los músculos del tronco,
+# dimensiones SENIAM; postura, fármacos y ejercicio en la HRV; cifras de referencia) no se escribe. ──
+SIGNED_DOC_2 = "docs/contenido/teoria_citada_2.md"
+
+SIGNED_EMG_A1 = TheoryTopic(
+    title="Qué es el EMG de superficie",
+    idea="El EMG de superficie registra, desde la piel, la suma de los potenciales de acción de las unidades motoras que "
+         "están activas bajo el electrodo [DL1997].",
+    mechanism="Lo que se detecta depende del volumen que \"ve\" el electrodo: ese volumen determina cuántos potenciales "
+              "de unidad motora componen la señal y con qué peso [DL1997].",
+    detail="La amplitud del EMG de superficie indica la **excitación** del músculo, no su fuerza [V2018].",
+    source="[DL1997] · [V2018]",
+)
+SIGNED_EMG_A2 = TheoryTopic(
+    title="Unidad motora y reclutamiento",
+    idea="El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que "
+         "las ya activas disparen más rápido [DL1997].",
+    mechanism="Cada unidad motora reclutada aporta un \"cuanto\" de fuerza. Cuando la fuerza sigue subiendo, la "
+              "frecuencia de disparo de esa unidad aumenta, pero su contribución de fuerza llega a saturarse, mientras "
+              "que cada potencial sigue sumando energía a la señal. Por eso la amplitud del EMG puede crecer más rápido "
+              "que la fuerza [DL1997].",
+    detail="Con la amplitud del EMG de superficie no se puede distinguir cuánto se debe al reclutamiento y cuánto a la "
+           "frecuencia de disparo [V2018].",
+    source="[DL1997] · [V2018]",
+)
+SIGNED_EMG_A3 = TheoryTopic(
+    title="Colocación de los electrodos",
+    idea="Dónde se pone el electrodo cambia la señal; por eso la colocación se estandariza [DL1997][H2000].",
+    mechanism="Recomendación clásica: en la línea media del vientre muscular, entre la unión miotendinosa y la zona de "
+              "inervación más cercana, con las superficies de detección orientadas perpendicularmente a las fibras "
+              "[DL1997].",
+    detail="- El proyecto europeo SENIAM elaboró un procedimiento general y recomendaciones de colocación detalladas "
+           "para 27 músculos [H2000].\n"
+           "- Cuanto menor es la distancia entre electrodos, menor es el volumen de captación [V2018].\n"
+           "- Para comparar registros, los electrodos deben ir en el mismo sitio de la piel respecto al músculo "
+           "[V2018].",
+    source="[DL1997] · [H2000] · [V2018]",
+)
+SIGNED_EMG_A4 = TheoryTopic(
+    title="Filtrado del EMG",
+    idea="El EMG de superficie se filtra para quitar los artefactos sin perder la señal útil [DL2010].",
+    mechanism="- **Pasa-altas de 20 Hz** (Butterworth, 12 dB/octava) para uso general: el artefacto de movimiento "
+              "concentra su energía en frecuencias bajas y cae rápidamente por encima de 20 Hz; la energía del EMG por "
+              "debajo de 20 Hz es poca e inestable.\n"
+              "- **Pasa-bajas entre 400 y 450 Hz:** el espectro del EMG captado con sensores comunes va de 0 a unos "
+              "400 Hz.",
+    detail="Un corte de 10 Hz puede dejar demasiado ruido de movimiento [DL2010]. (El filtro de 20–450 Hz de BIOCORE "
+           "coincide con esta recomendación.)",
+    source="[DL2010]",
+)
+SIGNED_EMG_A5 = TheoryTopic(
+    title="Amplitud: RMS y valor rectificado",
+    idea="Para medir la amplitud de una contracción voluntaria se recomienda el valor RMS [DL1997].",
+    mechanism="El RMS representa la potencia de la señal y tiene un significado físico claro; el valor medio "
+              "rectificado mide el área bajo la señal y no tiene un significado físico específico [DL1997].",
+    source="[DL1997]",
+)
+SIGNED_EMG_A6 = TheoryTopic(
+    title="Normalización (% de la contracción máxima)",
+    idea="La amplitud en microvoltios no se puede comparar entre personas, músculos o sesiones; por eso suele "
+         "normalizarse, por ejemplo a la contracción voluntaria isométrica máxima [V2018].",
+    mechanism="Si la persona no alcanza su máximo real durante la prueba de referencia (por dolor, por ejemplo), los "
+              "valores normalizados quedan inflados [V2018].",
+    detail="Incluso normalizada, la amplitud no permite deducir la fuerza del músculo [V2018]. Normalizar por encima de "
+           "80 % de la contracción máxima no es fiable [DL1997].",
+    source="[V2018] · [DL1997]",
+)
+SIGNED_EMG_A7 = TheoryTopic(
+    title="Fatiga y frecuencia mediana",
+    idea="Durante una contracción sostenida, el espectro del EMG se \"comprime\" hacia frecuencias más bajas, y la "
+         "frecuencia mediana es el índice preferido para seguir ese cambio [DL1997].",
+    mechanism="Con el tiempo de contracción, los potenciales de acción duran más; alrededor de 65 % de ese aumento se "
+              "explica por la caída de la velocidad de conducción de las fibras. En contracciones isométricas de fuerza "
+              "constante por encima de 30 % de la máxima, el cambio espectral se debe sobre todo a la acumulación de "
+              "ácido láctico [DL1997].",
+    detail="(En BIOCORE, el índice de fatiga está \"no disponible\" con la señal demo, porque su espectro es plano: el "
+           "criterio sigue siendo válido con una señal real.)",
+    source="[DL1997]",
+)
+SIGNED_EMG_A8 = TheoryTopic(
+    title="Artefactos y contaminación del EMG",
+    idea="Factores distintos del esfuerzo muscular modifican la señal [V2018].",
+    detail="- **Diafonía (crosstalk):** hasta 17 % de la actividad eléctrica de músculos vecinos puede detectarse en el "
+           "electrodo [DL1997].\n"
+           "- **Tejido subcutáneo** y diferencias anatómicas cambian la amplitud [V2018].\n"
+           "- **Artefacto de movimiento:** de baja frecuencia, es la razón del corte de 20 Hz [DL2010].",
+    source="[V2018] · [DL1997] · [DL2010]",
+)
+SIGNED_EMG_A9 = TheoryTopic(
+    title="Qué no se puede concluir con un EMG de superficie",
+    idea="El EMG de superficie es útil para entender el sistema neuromuscular, pero su aplicabilidad práctica es "
+         "limitada [V2018].",
+    detail="- **No** permite deducir la fuerza muscular.\n"
+           "- **No** predice la hipertrofia ni la adaptación a largo plazo.\n"
+           "- **No** distingue reclutamiento de frecuencia de disparo.\n"
+           "- **Sí** permite, con cautela, decir si un músculo está \"encendido\" o \"apagado\" en intervalos de más de "
+           "unos 200 ms, y hacer comparaciones dentro de la misma persona y el mismo músculo si se controlan las "
+           "condiciones.",
+    source="[V2018]",
+)
+
+SIGNED_HRV_B1 = TheoryTopic(
+    title="Qué es la HRV",
+    idea="La HRV es la variación del tiempo entre latidos consecutivos [SG2017].",
+    mechanism="Se calcula sobre intervalos NN (\"normal a normal\"): intervalos entre latidos sinusales de los que se han "
+              "retirado los artefactos [SG2017].",
+    source="[SG2017]",
+)
+SIGNED_HRV_B2 = TheoryTopic(
+    title="Dominio del tiempo: SDNN, RMSSD y pNN50",
+    idea="Las medidas del dominio del tiempo resumen cuánto varían los intervalos NN [SG2017].",
+    mechanism="- **SDNN:** desviación estándar de los intervalos NN, en ms.\n"
+              "- **RMSSD:** está más influida por el sistema nervioso parasimpático que la SDNN.\n"
+              "- **pNN50:** se correlaciona estrechamente con la actividad parasimpática.",
+    source="[SG2017]",
+)
+# «¿Qué significa…?» de cada valor: la línea firmada de B2 que le corresponde (mismo documento, misma fuente).
+SIGNED_HRV_SDNN = TheoryTopic(title="SDNN", idea=SIGNED_HRV_B2.idea,
+                              mechanism="- **SDNN:** desviación estándar de los intervalos NN, en ms.", source="[SG2017]")
+SIGNED_HRV_RMSSD = TheoryTopic(title="RMSSD", idea=SIGNED_HRV_B2.idea,
+                               mechanism="- **RMSSD:** está más influida por el sistema nervioso parasimpático que la "
+                                         "SDNN.", source="[SG2017]")
+SIGNED_HRV_PNN50 = TheoryTopic(title="pNN50", idea=SIGNED_HRV_B2.idea,
+                               mechanism="- **pNN50:** se correlaciona estrechamente con la actividad parasimpática.",
+                               source="[SG2017]")
+LF_HF_DISCUSSED = (
+    "**La razón LF/HF es discutida:** la potencia LF no es un índice del impulso simpático cardiaco, sino una mezcla de "
+    "influencias simpáticas, parasimpáticas y otras no identificadas; por eso la razón LF/HF no mide con exactitud el "
+    "\"equilibrio simpático-vagal\" [B2013][SG2017]."
+)
+# Decisión de Luis (B3): donde se muestre la razón, este rótulo y la cita [B2013]; nunca «balance simpático-vagal».
+LF_HF_LABEL = "razón LF/HF (interpretación discutida)"
+SIGNED_HRV_B3 = TheoryTopic(
+    title="Dominio de la frecuencia: bandas y la razón LF/HF",
+    idea="El análisis espectral reparte la variabilidad en bandas de frecuencia [SG2017].",
+    detail="| Banda | Rango |\n"
+           "|---|---|\n"
+           "| ULF | ≤ 0.003 Hz |\n"
+           "| VLF | 0.0033–0.04 Hz |\n"
+           "| LF | 0.04–0.15 Hz |\n"
+           "| HF (\"banda respiratoria\") | 0.15–0.40 Hz |\n\n"
+           "- La banda HF está influida por la respiración entre 9 y 24 respiraciones por minuto [SG2017].\n"
+           "- " + LF_HF_DISCUSSED,
+    source="[SG2017] · [B2013]",
+)
+SIGNED_HRV_B4 = TheoryTopic(
+    title="Duración del registro",
+    idea="Los valores de HRV dependen de la duración del registro [SG2017].",
+    detail="Los valores de registros cortos y ultracortos no son intercambiables con los de 24 horas, y no es apropiado "
+           "comparar métricas como la SDNN calculadas sobre periodos de distinta duración [SG2017].",
+    source="[SG2017]",
+)
+SIGNED_HRV_B5 = TheoryTopic(
+    title="Arritmia sinusal respiratoria",
+    idea="La arritmia sinusal respiratoria es la aceleración y desaceleración del corazón con la respiración, mediada "
+         "por el nervio vago [SG2017].",
+    detail="Por eso la frecuencia respiratoria cambia la banda en la que aparece esa variabilidad (ver B3) [SG2017].",
+    source="[SG2017]",
+)
+SIGNED_HRV_B6 = TheoryTopic(
+    title="Medidas no lineales",
+    idea="Las medidas no lineales cuantifican lo impredecible y lo complejo de la serie de intervalos [SG2017].",
+    detail="- **Gráfico de Poincaré (SD1 y SD2):** mide la impredecibilidad de la serie RR.\n"
+           "- **Entropía muestral:** se diseñó como una medida menos sesgada y más fiable de la regularidad y la "
+           "complejidad de la señal.\n"
+           "- **DFA α1:** la pendiente que describe las fluctuaciones breves.",
+    source="[SG2017]",
+)
+SIGNED_HRV_B7 = TheoryTopic(
+    title="Qué modifica la HRV",
+    detail="La duración del registro, la edad y el sexo influyen en los valores basales; las medidas del dominio del "
+           "tiempo disminuyen con la edad [SG2017]. La respiración modifica la banda HF (ver B3 y B5) [SG2017].",
+    source="[SG2017]",
+)
+SIGNED_HRV_B8 = TheoryTopic(
+    title="Calidad de la serie: artefactos y latidos ectópicos",
+    idea="Los artefactos distorsionan de forma importante tanto las medidas del tiempo como las de la frecuencia "
+         "[SG2017].",
+    detail="Editar los latidos ectópicos y las arritmias es difícil; se puede elegir un tramo sin artefactos, editar los "
+           "intervalos afectados o interpolar los latidos perdidos [SG2017].",
+    source="[SG2017]",
+)
+SIGNED_HRV_B9 = TheoryTopic(
+    title="Valores de referencia",
+    idea="No hay un único \"valor normal\": los valores de referencia dependen de la duración del registro, la edad y el "
+         "sexo, y los de registros cortos no sirven para comparar con los de 24 horas [SG2017].",
+    source="[SG2017]",
+)
+
+EMG_TOPICS = [SIGNED_EMG_A1, SIGNED_EMG_A2, SIGNED_EMG_A3, SIGNED_EMG_A4, SIGNED_EMG_A5, SIGNED_EMG_A6, SIGNED_EMG_A7,
+              SIGNED_EMG_A8, SIGNED_EMG_A9]
+HRV_TOPICS = [SIGNED_HRV_B1, SIGNED_HRV_B2, SIGNED_HRV_B3, SIGNED_HRV_B4, SIGNED_HRV_B5, SIGNED_HRV_B6, SIGNED_HRV_B7,
+              SIGNED_HRV_B8, SIGNED_HRV_B9]
+
+
 # El tema del VCG lo sustituye el firmado (`SIGNED_VCG`, tema 9). Las asas P/QRS/T y el ángulo QRS-T (Oehler 2014, ahora
 # con su referencia completa) siguen en el panel del VCG, debajo, en la misma página.
 
@@ -293,13 +489,20 @@ ORIGINS: Dict[str, Tuple[str, ...]] = {
     APNEA_BY_EFFORT.title: (RESP_VIEWS,), OSA_GUIDELINE.title: (RESP_VIEWS,), EEG_BANDS.title: (EEG_TEACHING, SIGNED_DOC),
     **{t.title: (SIGNED_DOC,) for t in (SIGNED_ECG_PAPER, SIGNED_HEART_RATE, SIGNED_WAVES, SIGNED_TWELVE_LEADS,
                                        SIGNED_ISCHEMIA, SIGNED_NEWS2, SIGNED_CHEYNE_STOKES, SIGNED_BIOT, SIGNED_VCG)},
+    **{t.title: (SIGNED_DOC_2,) for t in EMG_TOPICS + HRV_TOPICS + [SIGNED_HRV_SDNN, SIGNED_HRV_RMSSD, SIGNED_HRV_PNN50]},
 }
 
 LEARN_TOPICS = {
     "teoria": [SIGNED_ECG_PAPER, SIGNED_HEART_RATE, SIGNED_WAVES, SIGNED_TWELVE_LEADS, SIGNED_ISCHEMIA, SIGNED_NEWS2],
     "referencias": [NEWS2_RESP, HOW_MEASURED, PATTERNS, SIGNED_CHEYNE_STOKES, SIGNED_BIOT, APNEA_BY_EFFORT,
-                    OSA_GUIDELINE, EEG_BANDS],
+                    OSA_GUIDELINE, EEG_BANDS] + EMG_TOPICS + HRV_TOPICS,
     "ecg-3d": [SIGNED_VCG],
+}
+
+# Encabezado de sección que va antes de un tema en su página de Aprender (teoría citada 2).
+SECTION_BEFORE: Dict[str, str] = {
+    SIGNED_EMG_A1.title: "EMG de superficie",
+    SIGNED_HRV_B1.title: "Variabilidad de la frecuencia cardiaca (HRV)",
 }
 
 # Capas omitidas por falta de contenido con fuente (para la firma de Luis): (tema, capa, qué haría falta).
@@ -313,4 +516,9 @@ PENDING_LAYERS: List[Tuple[str, str, str]] = [
                                   "simulación, sin fisiopatología ni origen anatómico (no hay fuente abierta verificada)"),
     (OSA_GUIDELINE.title, "idea", "una frase con fuente que resuma la apnea obstructiva del sueño"),
     (EEG_BANDS.title, "mecanismo", "origen de los ritmos (tálamo-corteza), con cita"),
+    # Teoría citada 2: el documento firmado no trae esta capa para estos temas.
+    *[(t.title, "mecanismo", "teoria_citada_2.md no trae mecanismo para este tema")
+      for t in (SIGNED_EMG_A8, SIGNED_EMG_A9, SIGNED_HRV_B3, SIGNED_HRV_B4, SIGNED_HRV_B5, SIGNED_HRV_B6, SIGNED_HRV_B7,
+                SIGNED_HRV_B8, SIGNED_HRV_B9)],
+    (SIGNED_HRV_B7.title, "idea", "teoria_citada_2.md no trae idea para este tema (solo el detalle)"),
 ]

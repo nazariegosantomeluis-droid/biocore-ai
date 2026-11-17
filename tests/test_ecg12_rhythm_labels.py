@@ -87,14 +87,14 @@ def test_the_three_labels_no_longer_collapse_to_the_same_rate():
 def test_the_hr_slider_is_disabled_when_the_label_fixes_the_rate():
     at, _ = _generate("Taquicardia sinusal")
     assert next(s for s in at.slider if "Frecuencia" in s.label).disabled
-    at, _ = _generate("STEMI Anterior")
+    at, _ = _generate("elevación del ST en V1–V4")
     assert not next(s for s in at.slider if "Frecuencia" in s.label).disabled
 
 
 # --- Métrica = FC generada, en TODAS las condiciones (WPW y QT largo mostraban el slider y trazaban otra) --
 
 @pytest.mark.parametrize("label_part", [
-    "Normal -", "Taquicardia sinusal", "Bradicardia", "STEMI Anterior", "derecha (RBBB)", "izquierda (LBBB)",
+    "Normal -", "Taquicardia sinusal", "Bradicardia", "elevación del ST en V1–V4", "derecha (RBBB)", "izquierda (LBBB)",
     "(LVH)", "Fibrilación", "Flutter", "WPW", "QT largo",
 ])
 def test_the_metric_is_the_rate_the_trace_really_has(label_part):

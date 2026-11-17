@@ -175,7 +175,7 @@
 ## Bibliografía
 
 - **[DL1997]** De Luca CJ. The use of surface electromyography in biomechanics. *J Appl Biomech*. 1997;13(2):135–163. [PDF](https://people.stfx.ca/smackenz/Courses/HK474/Readings/THE%20USE%20OF%20SURFACE%20ELECTROMYOGRAPHY.pdf)
-- **[DL2010]** De Luca CJ, Gilmore LD, Kuznetsov M, Roy SH. Filtering the surface EMG signal: movement artifact and baseline noise contamination. *J Biomech*. 2010;43:1573–1579. doi:10.1016/j.jbiomech.2010.01.027. [PDF](https://www.bu.edu/nmrc/files/2010/06/103.pdf)
+- **[DL2010]** De Luca CJ, Gilmore LD, Kuznetsov M, Roy SH. Filtering the surface EMG signal: movement artifact and baseline noise contamination. *J Biomech*. 2010;43(8):1573–1579. doi:10.1016/j.jbiomech.2010.01.027. [PDF](https://www.bu.edu/nmrc/files/2010/06/103.pdf)
 - **[V2018]** Vigotsky AD, Halperin I, Lehman GJ, Trajano GS, Vieira TM. Interpreting signal amplitudes in surface electromyography studies in sport and rehabilitation sciences. *Front Physiol*. 2018;8:985. doi:10.3389/fphys.2017.00985. [PDF](https://iris.polito.it/retrieve/handle/11583/2697782/183144/Vigotsky_et_al_2018-FP.pdf)
 - **[H2000]** Hermens HJ, Freriks B, Disselhorst-Klug C, Rau G. Development of recommendations for SEMG sensors and sensor placement procedures. *J Electromyogr Kinesiol*. 2000;10(5):361–374. doi:10.1016/S1050-6411(00)00027-4.
 - **[SG2017]** Shaffer F, Ginsberg JP. An overview of heart rate variability metrics and norms. *Front Public Health*. 2017;5:258. doi:10.3389/fpubh.2017.00258. [Artículo](https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2017.00258)
