@@ -220,7 +220,7 @@ def test_the_page_no_longer_calls_a_normal_ecg_lbbb():
 
 def test_the_page_finds_what_each_scenario_names():
     at = _page()
-    for part, title in (("STEMI Anterior", "Elevación del ST en el punto J"), ("izquierda (LBBB)", "Bloqueo de rama izquierda"),
+    for part, title in (("elevación del ST en V1–V4", "Elevación del ST en el punto J"), ("izquierda (LBBB)", "Bloqueo de rama izquierda"),
                         ("WPW", "Preexcitación ventricular"), ("QT largo", "QTc prolongado")):
         _select(at, part)
         summary = next(m.value for m in at.markdown if "Hallazgos automáticos" in m.value)
@@ -230,7 +230,7 @@ def test_the_page_finds_what_each_scenario_names():
 
 
 def test_the_st_slider_moves_the_stemi_criterion():
-    at = _select(_page(), "STEMI Inferior")
+    at = _select(_page(), "elevación del ST en II, III y aVF")
     assert "Elevación del ST" in next(m.value for m in at.markdown if "Hallazgos automáticos" in m.value)
     next(s for s in at.slider if s.key == "ecglab_12_st_slider").set_value(0.05)
     next(b for b in at.button if "Generar ECG" in b.label).click()

@@ -421,6 +421,12 @@ def render_theory_topic(topic: TheoryTopic, inside_expander: bool = False) -> No
                 from app.utils import navigation as nav
 
                 nav.link("bibliografia", "Referencias completas en Bibliografía", icon="📚")
+    elif topic.source and re.search(r"\[[A-Z0-9]+\]", topic.source):
+        # Teoría citada 2: un tema firmado sin capa de detalle también lleva su clave y el enlace a la Bibliografía.
+        from app.utils import navigation as nav
+
+        st.caption(f"Fuente: {topic.source}")
+        nav.link("bibliografia", "Referencias completas en Bibliografía", icon="📚")
 
 
 def render_section_header(title: str) -> None:
