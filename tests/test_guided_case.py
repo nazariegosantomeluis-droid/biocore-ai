@@ -1,4 +1,6 @@
-"""Caso guiado de ECG (2026-11-17, Art. I): contenido firmado, resultados medidos, desafío por reglas, nada sin firma."""
+"""Caso guiado de ECG (2026-11-17, Art. I): contenido firmado, resultados medidos, desafío por reglas, nada sin firma.
+
+Firmado por Luis el 2026-11-17 (`docs/contenido/caso_guiado_ecg.md`, sección 8) y montado en Practicar (`caso-guiado`)."""
 import re
 from pathlib import Path
 
@@ -35,6 +37,18 @@ def test_cada_linea_citada_esta_en_la_teoria_firmada():
         assert fragmento in T1[n - 1], n
 
 
+def test_cada_t1_del_documento_existe_literal_en_teoria_citada():
+    """La sección 2 copia cada línea citada; tiene que ser IDÉNTICA a esa línea de `teoria_citada.md`, y toda cita
+    «t1:N» del documento (y del código) tiene que estar en esa lista."""
+    copiadas = dict((int(n), texto) for n, texto in re.findall(r"(?m)^- \*\*t1:(\d+):\*\* (.*)$", DOC))
+    assert copiadas and set(g.SIGNED_LINES) <= set(copiadas)
+    for n, texto in copiadas.items():
+        assert T1[n - 1] == texto, n
+    citadas = {int(n) for n in re.findall(r"t1:(\d+)", DOC)}
+    citadas |= {p.linea for p in g.PRUEBAS} | {d.linea for d in g.DECISIONES if d.linea}
+    assert citadas <= set(copiadas), citadas - set(copiadas)
+
+
 def test_las_premisas_del_caso_salen_de_la_medicion(data):
     assert data.mm("III") > data.mm("II") > 0 and data.mm("aVF") > 0         # elevación en II, III y aVF; III > II
     assert data.mm("I") < 0 and data.mm("aVL") < 0                            # sin elevación en I y aVL
@@ -42,16 +56,31 @@ def test_las_premisas_del_caso_salen_de_la_medicion(data):
     assert g.PRUEBA["v3r_v4r"].resultado(data) is None                        # sin derivaciones derechas
 
 
-def test_lo_que_ve_el_estudiante_esta_en_el_documento_para_firma():
-    for texto in ([d.pregunta for d in g.DECISIONES] + [o for d in g.DECISIONES for o in d.opciones]
-                  + [p.nombre for p in g.PRUEBAS] + [m for p in g.PRUEBAS for m in p.motivos]
-                  + [d.explicacion for d in g.DECISIONES] + [p.no_disponible for p in g.PRUEBAS if p.no_disponible]):
+def test_lo_que_ve_el_estudiante_esta_en_el_documento_firmado(data):
+    """Preguntas, opciones, motivos, explicaciones, resultados, desafíos, evidencias y textos de la pantalla."""
+    from app.supermodules.academia.guided_case_view import INTRO
+
+    textos = _textos_al_estudiante(data)
+    textos += [c.evidencia for c in g.competencias(g.Estado())]
+    textos += [INTRO, "Simulación: trazado construido por el simulador de 12 derivaciones; las pruebas muestran lo que "
+                      "mide el analizador de BIOCORE sobre él."]
+    for texto in filter(None, textos):        # "" = prueba sin texto de «no disponible»
         assert texto in DOC, texto
 
 
-def test_el_caso_no_se_muestra_sin_firma(tmp_path):
-    assert DOC.splitlines()[2].startswith("**Estado:** BORRADOR")
-    assert not g.case_signed()
+def test_ningun_texto_sin_linea_firmada_onda_delta_fuera(data):
+    """La hoja de revisión sustituyó «Buscar una onda delta» (sin línea firmada) por distractores del tema 3."""
+    for texto in _textos_al_estudiante(data):
+        assert "onda delta" not in texto
+
+
+def test_el_documento_esta_firmado_y_el_borrador_no_se_mostraria(tmp_path):
+    assert DOC.splitlines()[2].startswith("**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome")
+    assert "## 8. Firma" in DOC and "— Luis Nazariego Santome, 17/11/2026" in DOC
+    assert g.case_signed()
+    borrador = tmp_path / "borrador.md"
+    borrador.write_text("# Caso\n\n**Estado:** BORRADOR, sin firmar\n", encoding="utf-8")
+    assert not g.case_signed(borrador)
     firmado = tmp_path / "caso.md"
     firmado.write_text("# Caso\n\n**Estado:** FIRMADO por Luis Nazariego Santome\n", encoding="utf-8")
     assert g.case_signed(firmado)
@@ -123,13 +152,11 @@ def test_opciones_y_motivos_desconocidos_se_rechazan(data):
         g.pedir_prueba(g.Estado(), data, "st_ii_iii", "porque sí")
 
 
-def test_la_pantalla_firmada_lleva_el_caso_y_registra_la_confianza(monkeypatch):
+def test_la_pantalla_firmada_lleva_el_caso_y_registra_la_confianza():
     pytest.importorskip("streamlit")
     from streamlit.testing.v1 import AppTest
 
     def _script():
-        import educational.guided_case as gc
-        gc.case_signed = lambda doc=None: True       # la prueba simula la firma; el documento real sigue en BORRADOR
         from app.supermodules.academia.guided_case_view import render_guided_case
         render_guided_case()
 
@@ -144,12 +171,17 @@ def test_la_pantalla_firmada_lleva_el_caso_y_registra_la_confianza(monkeypatch):
     log = at.session_state["session_learning_log"]
     assert log[-1]["source"] == "caso_guiado" and log[-1]["concept"] == "derivaciones_e_isquemia"
     assert log[-1]["confidence"] == 75 and log[-1]["correct"] is True
+    assert log[-1]["item_id"] == "caso_guiado:st_ii_iii_avf:grupo"
     assert any("Correcto" in s.value for s in at.success)
+    at.run()                                                                   # otra pasada: no se registra dos veces
+    assert len(at.session_state["session_learning_log"]) == 1
 
 
-def test_sin_firma_la_pantalla_solo_dice_que_falta_la_firma():
+def test_sin_firma_la_pantalla_solo_dice_que_falta_la_firma(monkeypatch):
     pytest.importorskip("streamlit")
     from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(g, "case_signed", lambda doc=None: False)   # AppTest corre en este proceso; se restaura solo
 
     def _script():
         from app.supermodules.academia.guided_case_view import render_guided_case
@@ -159,3 +191,22 @@ def test_sin_firma_la_pantalla_solo_dice_que_falta_la_firma():
     at.run()
     assert at.exception == [] and any("pendiente de firma" in i.value for i in at.info)
     assert not at.radio
+
+
+def test_el_caso_aparece_en_su_pagina_de_practicar():
+    """Montado donde dice la firma: Practicar, `caso-guiado`, después de `desafio-ecg`; con el documento FIRMADO la
+    página muestra el caso (no el aviso de firma pendiente)."""
+    pytest.importorskip("streamlit")
+    from streamlit.testing.v1 import AppTest
+    import app.main as m
+
+    urls = [url for section, url, *_ in m._page_specs() if section == "Practicar"]
+    assert urls.index("caso-guiado") == urls.index("desafio-ecg") + 1
+
+    at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=180)
+    at.session_state["biocore_start_page"] = "caso-guiado"
+    at.run()
+    assert at.exception == []
+    assert not any("pendiente de firma" in i.value for i in at.info)
+    assert any(r.key == "guided_grupo_1" for r in at.radio)
+    assert any("Simulación" in c.value for c in at.caption)

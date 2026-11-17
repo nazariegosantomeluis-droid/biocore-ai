@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-17 — Caso guiado de ECG firmado y montado en Practicar; base de conocimiento en main (Art. I)
+
+**Contexto**: Luis firmó el caso guiado de ECG («firmo todo» sobre la hoja de revisión). La rama `caso-guiado-ecg` necesitaba la calibración de la confianza de `base-conocimiento-ia`, que no estaba en main; se fusionó primero y el caso entró encima (solo su commit `be329a3`: los otros 8 de la rama ya estaban en `base-conocimiento-ia`).
+
+1. **Firma** (`docs/contenido/caso_guiado_ecg.md`): estado «FIRMADO 2026-11-17», la firma con la lista explícita de IDs (sección 8) y cada texto con su ID. Los números t1:N se comprobaron contra `teoria_citada.md` de main y no se movieron; la sección 2 copia literal cada línea citada (también t1:29 y t1:49–52, que nombran los distractores).
+2. **Correcciones de la hoja, aplicadas tal cual** en el documento y en `educational/guided_case.py` (Art. I: ningún texto agrega nada a su línea firmada):
+   - Descendente anterior con el grupo completo de t1:78 («V1–V4, I, aVL y a menudo aVR» → «oclusión proximal») en P4.m1 y DS5; el resultado de P4 y el desafío DS5 muestran también I, aVL y aVR medidos.
+   - «Acompañar la oclusión de la circunfleja» (t1:82) en P2.m1, DS3 y DS4.
+   - Ventrículo derecho en el sentido de t1:83 (hallazgo → qué sugiere), sin «haría falta» ni «ni descartar»: D4.o1, D4.e, P5.nd y C6.
+   - C2 y C4 sin «es lo que»/«solo»; la lógica de C4 se alineó con su texto: cuenta como prematura la primera conclusión «sugiere coronaria derecha» sin haber comparado II con III (antes también penalizaba la circunfleja después de revisar I y aVL).
+   - «Buscar una onda delta» (sin línea firmada) → «Medir el intervalo QT» (t1:51) y «Medir el intervalo PR» (t1:49). Ningún texto quedó en QUITAR.
+3. **Montado** donde dice la firma: Practicar, «Caso guiado de ECG» (`caso-guiado`), después de `desafio-ecg`. `_page_specs()` declara 26 páginas (24 de main + «Pregunta a BIOCORE» + el caso).
+4. **Registro**: sin cambios de código; cada decisión, una vez por intento, con `log_session_answer(..., "caso_guiado", "derivaciones_e_isquemia", correcto, confianza)` vía `confidence.record_answer`, y el panel de `educational/confidence_calibration.py` en el resumen.
+5. **Pruebas** (`tests/test_guided_case.py`): cada texto que ve el estudiante (también desafíos, evidencias, resultados y la introducción) está en el documento firmado; cada t1:N existe literal en `teoria_citada.md`; el caso aparece en su página con el documento FIRMADO; el registro no se duplica al volver a dibujar. Se corrigió una fuga entre pruebas: la prueba de la pantalla firmada reasignaba `case_signed` en el módulo importado y la siguiente veía el caso «firmado»; ahora la firma se simula con `monkeypatch`.
+
 ## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
 
 - **`src/signals/ecg/rsa.py`.**

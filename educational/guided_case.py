@@ -13,7 +13,8 @@ Art. I:
 - Los resultados de las pruebas salen de la MEDICIÓN del analizador de BIOCORE sobre ese trazado
   (`twelve_lead_measure.analyze_twelve_lead`), no de un texto escrito a mano.
 - Todo texto de enseñanza cita su línea del tema 5 firmado de `docs/contenido/teoria_citada.md` («t1:N»), con la
-  clave [W2009]. El caso solo se muestra si `docs/contenido/caso_guiado_ecg.md` está FIRMADO (`case_signed()`).
+  clave [W2009]. El caso solo se muestra si `docs/contenido/caso_guiado_ecg.md` está FIRMADO (`case_signed()`;
+  firmado por Luis el 2026-11-17, con las correcciones de la hoja de revisión aplicadas).
 - Las derivaciones se nombran por su nombre (II, III, aVF…), no por pared: decisión de Luis en el tema 5 (t1:70).
 
 No depende de Streamlit.
@@ -112,29 +113,34 @@ def _res_v1_v3(d: CaseData) -> str:
     return texto + (": no hay descenso." if all(d.mm(v) >= 0 for v in ("V1", "V2", "V3")) else ".")
 
 
+DA_LEADS = ("V1", "V2", "V3", "V4", "I", "aVL", "aVR")     # el grupo completo de t1:78
+
+
 def _res_v1_v4(d: CaseData) -> str:
-    texto = _valores(d, ("V1", "V2", "V3", "V4"))
-    return texto + (": no hay elevación." if all(d.mm(v) <= 0 for v in ("V1", "V2", "V3", "V4")) else ".")
+    texto = _valores(d, DA_LEADS)
+    return texto + (": no hay elevación." if all(d.mm(v) <= 0 for v in DA_LEADS) else ".")
 
 
 PRUEBAS: Tuple[Prueba, ...] = (
     Prueba("st_ii_iii", "Medir el ST en II, III y aVF",
            ("Comparar II con III: una elevación mayor en III que en II sugiere coronaria derecha",
-            "Calcular la frecuencia cardiaca", "Buscar una onda delta"), 81, _res_ii_iii),
+            "Calcular la frecuencia cardiaca", "Medir el intervalo QT"), 81, _res_ii_iii),
     Prueba("st_i_avl", "Revisar el ST en I y aVL",
-           ("Ver si hay elevación en I y aVL, que junto con cambios en II, III y aVF puede acompañar a la circunfleja",
+           ("Ver si hay elevación en I y aVL, que junto con cambios en II, III y aVF puede acompañar la oclusión de "
+            "la circunfleja",
             "Medir el intervalo PR", "Calcular el eje del QRS"), 82, _res_i_avl),
     Prueba("st_v1_v3", "Revisar el ST en V1–V3",
            ("Buscar descenso del ST en V1–V3, el patrón llamado «posterior»",
-            "Medir la duración del QRS", "Buscar una onda delta"), 84, _res_v1_v3),
+            "Medir la duración del QRS", "Medir el intervalo PR"), 84, _res_v1_v3),
     Prueba("st_v1_v4", "Revisar el ST en V1–V4",
-           ("Descartar la elevación en V1–V4 que orienta a la descendente anterior",
+           ("Descartar la elevación del ST en V1–V4, I, aVL y a menudo aVR, que sugiere oclusión proximal de la "
+            "descendente anterior",
             "Calcular la frecuencia cardiaca", "Medir el intervalo QT"), 78, _res_v1_v4),
     Prueba("v3r_v4r", "Pedir V3R y V4R (derivaciones derechas)",
            ("Buscar afectación del ventrículo derecho, que orienta a oclusión proximal de la coronaria derecha",
             "Mejorar la calidad del trazado", "Calcular el eje del QRS"), 83, lambda d: None,
            no_disponible="No disponible: este registro no tiene derivaciones derechas; el simulador solo genera las 12 "
-                         "estándar. Con lo que hay no se puede saber si el ventrículo derecho está afectado."),
+                         "estándar. Con este registro no se puede buscar la elevación del ST en V3R y V4R."),
 )
 PRUEBA = {p.id: p for p in PRUEBAS}
 
@@ -168,11 +174,12 @@ DECISIONES: Tuple[Decision, ...] = (
               "Sigue sin poder distinguirse entre coronaria derecha y circunfleja"),
              "Una elevación mayor en III que en II sugiere coronaria derecha [W2009]. «Sugiere» no es «demuestra».", 81),
     Decision("limite", "Antes de cerrar: ¿puedes afirmar que el ventrículo derecho está afectado?",
-             ("No: haría falta ver V3R y V4R, y este registro no las tiene",
+             ("No: la elevación del ST en V3R y V4R sugiere afectación del ventrículo derecho, y este registro no "
+              "tiene esas derivaciones",
               "Sí, porque hay elevación en II, III y aVF", "Sí, porque III es mayor que II",
               "No, porque la coronaria derecha no se relaciona con el ventrículo derecho"),
-             "La afectación del ventrículo derecho se ve como elevación del ST en V3R y V4R [W2009]. Sin esas "
-             "derivaciones, no se puede afirmar ni descartar.", 83),
+             "Una elevación del ST en V3R y V4R (derivaciones derechas) sugiere afectación del ventrículo derecho "
+             "[W2009]. Este registro no tiene esas derivaciones.", 83),
 )
 DECISION = {d.id: d for d in DECISIONES}
 
@@ -239,14 +246,14 @@ def desafio(estado: Estado, data: CaseData) -> str:
     elif r == d.opciones[1]:            # circunfleja
         if "st_i_avl" in pidio:
             texto = (f"Pediste I y aVL y tienen descenso ({_valores(data, ('I', 'aVL'))}), no elevación. La elevación "
-                     "en I y aVL junto con cambios en II, III y aVF es la que puede acompañar a la circunfleja "
-                     "[W2009]. ¿Qué dato apoya tu respuesta?")
+                     "en I y aVL junto con cambios en II, III y aVF es la que puede acompañar la oclusión de la "
+                     "circunfleja [W2009]. ¿Qué dato apoya tu respuesta?")
         else:
             texto = ("¿Qué dato apoya la circunfleja? La elevación en I y aVL junto con cambios en II, III y aVF puede "
-                     "acompañarla [W2009], y no la has revisado.")
+                     "acompañar la oclusión de la circunfleja [W2009], y todavía no revisaste I y aVL.")
     elif r == d.opciones[2]:            # descendente anterior
-        texto = (f"La elevación en V1–V4 orienta a la descendente anterior [W2009], y en este trazado miden "
-                 f"{_valores(data, ('V1', 'V2', 'V3', 'V4'))}. ¿Qué dato apoya tu respuesta?")
+        texto = (f"La elevación del ST en V1–V4, I, aVL y a menudo aVR sugiere oclusión proximal de la descendente "
+                 f"anterior [W2009], y en este trazado miden {_valores(data, DA_LEADS)}. ¿Qué dato apoya tu respuesta?")
     else:                               # sigue sin distinguirse
         if "st_ii_iii" in pidio:
             texto = (f"Mediste III ({data.mm('III'):+.1f} mm) mayor que II ({data.mm('II'):+.1f} mm), y una elevación "
@@ -278,22 +285,23 @@ def competencias(estado: Estado) -> List[Competencia]:
                     "Con elevación en II, III y aVF, la coronaria derecha y la circunfleja son posibles [W2009]."),
         Competencia("Pide la prueba que distingue las hipótesis",
                     None if not pidio and fin is None else "st_ii_iii" in pidio,
-                    "Comparar II con III es lo que orienta entre coronaria derecha y circunfleja [W2009]."),
+                    "Una elevación mayor en III que en II sugiere coronaria derecha [W2009]."),
         Competencia("Justifica cada prueba que pide",
                     None if not pidio else len(justificadas) == len(pidio),
                     f"{len(justificadas)} de {len(pidio)} pruebas pedidas con el motivo que las sostiene." if pidio
                     else "Cada prueba pedida, con el motivo que la sostiene."),
         Competencia("Evita concluir antes de tener el dato",
                     None if estado.primera_final is None else
-                    not (estado.primera_final in DECISION["hipotesis_final"].opciones[:3]
+                    not (estado.primera_final == DECISION["hipotesis_final"].correcta
                          and "st_ii_iii" not in estado.pruebas_antes_de_concluir),
-                    "Una arteria concreta solo se sostiene después de comparar II con III."),
+                    "Sugerir coronaria derecha se sostiene después de comparar II con III [W2009]."),
         Competencia("Actualiza la hipótesis con la nueva evidencia",
                     None if fin is None else fin == DECISION["hipotesis_final"].correcta,
                     "De «coronaria derecha o circunfleja» a «sugiere coronaria derecha» al ver III mayor que II."),
         Competencia("Reconoce la información que falta",
                     None if lim is None and "v3r_v4r" not in pidio else
                     (lim == DECISION["limite"].correcta) if lim is not None else True,
-                    "Sin V3R y V4R no se puede afirmar ni descartar la afectación del ventrículo derecho [W2009]."),
+                    "La elevación del ST en V3R y V4R sugiere afectación del ventrículo derecho [W2009], y este "
+                    "registro no tiene esas derivaciones."),
     ]
     return out

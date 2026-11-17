@@ -2794,6 +2794,15 @@ def render_practice_ecg_challenge_page() -> None:
     render_calibration_panel()
 
 
+def render_practice_guided_case_page() -> None:
+    """Caso guiado de ECG (firmado por Luis el 2026-11-17, `docs/contenido/caso_guiado_ecg.md`). El panel de
+    calibración va dentro del resumen del caso (`guided_case_view._summary`)."""
+    from app.supermodules.academia.guided_case_view import render_guided_case
+
+    render_module_header("Caso guiado de ECG", icon="🧭")
+    render_guided_case()
+
+
 def render_practice_lab_quizzes_page() -> None:
     from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz
     from app.supermodules.respiratory_lab import views as respiratory_views
@@ -2842,6 +2851,7 @@ def _page_specs() -> list:
         ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
         ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
         ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
+        ("Practicar", "caso-guiado", "Caso guiado de ECG", "🧭", render_practice_guided_case_page),
         ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
         ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
         ("Practicar", "what-if", "¿Qué pasa si…?", "🔀", render_practice_what_if_page),
