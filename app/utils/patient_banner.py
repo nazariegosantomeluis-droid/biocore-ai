@@ -23,6 +23,7 @@ from typing import Optional
 import streamlit as st
 
 from app.utils.design_system import PALETTE
+from app.utils.evidence_passport import render_evidence_passport
 from app.utils.patient_session import _PATIENT_ID_KEY, get_active_session_factory
 from domain.physiology.state import Provenance, get_latest_state
 from domain.physiology.state.schema import PhysiologicalDescriptor
@@ -104,6 +105,16 @@ def active_source_label() -> str:
     return SLIDERS_SOURCE if "twin_shell_organism" in st.session_state else NO_SOURCE
 
 
+# Campo del registro de evidencia de cada valor del banner (`app/utils/evidence_registry.py`).
+PASSPORT_FIELDS = {"hr": "banner.fc", "rr": "banner.fr", "spo2": "banner.spo2"}
+
+
+def _passport_value(descriptor: Optional[PhysiologicalDescriptor]) -> Optional[str]:
+    if descriptor is None:
+        return None
+    return f"{descriptor.value:.0f} {UNIT_ES.get(descriptor.unit, descriptor.unit)}"
+
+
 def provenance_label(descriptor: PhysiologicalDescriptor) -> str:
     return PROVENANCE_ES.get(descriptor.provenance, descriptor.provenance.value)
 
@@ -133,5 +144,13 @@ def render_active_patient_banner() -> None:
             f"Fuente activa: {html.escape(active_source_label())}<br>{parts}",
             unsafe_allow_html=True,
         )
+        # Pasaporte de evidencia (2026-11-17): un botón por valor; el tipo de dato sale de la procedencia guardada.
+        cols = st.columns(len(VITALS) + 1)
+        for col, (key, _label, _domain, _name) in zip(cols, VITALS):
+            with col:
+                render_evidence_passport(PASSPORT_FIELDS[key], _passport_value(vitals.values[key]),
+                                         procedencia=getattr(vitals.values[key], "provenance", None))
+        with cols[-1]:
+            render_evidence_passport("banner.fuente_activa", active_source_label())
         st.caption("Último estado guardado en el UPS de esta sesión; un laboratorio lo actualiza con «Guardar estado "
                    "al gemelo». Valores simulados no son mediciones de un paciente.")
