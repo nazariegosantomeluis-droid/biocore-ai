@@ -32,7 +32,10 @@
    - Conectado en el Quiz de la Academia (`academia/pages.py`) y en el Desafío ECG-12 (`ecg_12/quiz.py`). El selector va DESPUÉS de las opciones de respuesta, así `at.radio[0]` sigue siendo la respuesta en las pruebas existentes. El panel se monta en las páginas `quiz` y `desafio-ecg`.
 4. **Pruebas**: `tests/test_confidence_calibration.py` (7). Verificado aquí: 6 pasan (Wilson contra su valor de referencia, veredictos, agrupaciones y mapeo contra el vocabulario del contrato, leído sin importar Streamlit). **Falta correr** la prueba AppTest del Desafío ECG-12 y la suite completa en el intérprete de Luis.
 
-**Pendiente:** revisión del mapeo de conceptos por Luis; pedir la confianza también en los cuestionarios de Respiratorio (concepto `respiracion_y_apnea`); el EEG no tiene concepto en el vocabulario.
+5. **Respiratorio** (`respiratory_lab/views.py::render_quiz`): las 5 preguntas (3 conceptuales y 2 sobre la señal simulada) son del concepto `respiracion_y_apnea`. Aquí la respuesta se corrige al elegirla, sin botón «Verificar», así que la confianza se pide ANTES de las opciones (`CONFIDENCE_FIRST_HINT`) y se guarda al responder: cambiarla después, ya con el resultado a la vista, no cuenta (`confidence.record_answer`, un registro por `mark`). Las preguntas de la señal se identifican por su valor correcto (`respiratorio:fr:<n>`, `respiratorio:apneas:<n>`), así que una señal nueva es una pregunta nueva. El panel se monta también en la página `cuestionarios`. El EEG no tiene concepto en el vocabulario y no se registra.
+6. **Pruebas:** `test_respiratorio_guarda_la_confianza_que_habia_al_responder` (AppTest; **falta correrla** en el intérprete de Luis). La lógica de registro se verificó aquí con un sustituto mínimo de Streamlit fuera del repositorio: un registro por respuesta, la confianza que había al responder y nada de las preguntas sin concepto.
+
+**Pendiente:** revisión del mapeo de conceptos por Luis; el EEG no tiene concepto en el vocabulario.
 
 ## 2026-11-17 — Base de conocimiento de la IA: solo lo firmado, todo con cita
 

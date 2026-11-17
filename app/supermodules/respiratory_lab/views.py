@@ -469,6 +469,26 @@ CONCEPT_QUIZ = {
 SIGNAL_QUIZ = ("Frecuencia de esta señal", "Contar las apneas de esta señal")
 
 
+# Calibración de la confianza (2026-11-17; `app/utils/confidence.py`). Aquí la respuesta se corrige al elegirla, así que
+# la confianza se pide ANTES de las opciones y se guarda al responder: cambiarla después no cuenta. Todo el cuestionario
+# es del concepto `respiracion_y_apnea` del contrato `session_learning`.
+QUIZ_CONCEPT = "respiracion_y_apnea"
+QUIZ_BANK = "respiratorio"
+
+
+def _confidence_first(key: str):
+    from app.utils.confidence import CONFIDENCE_FIRST_HINT, render_confidence_input
+
+    st.caption(CONFIDENCE_FIRST_HINT)
+    return render_confidence_input(key=key)
+
+
+def _record(item: str, correct: bool, confidence, label: str) -> None:
+    from app.utils.confidence import record_answer
+
+    record_answer(f"{QUIZ_BANK}:{item}", QUIZ_CONCEPT, correct, confidence, mark=(QUIZ_BANK, item), label=label)
+
+
 def render_quiz(analysis=None, key_prefix: str = "") -> None:
     """Cuestionario del laboratorio. Con `analysis` (la señal actual) incluye las dos preguntas cuya respuesta sale de un
     valor con golden test (FR y conteo de apneas); sin él (p. ej. desde Practicar) solo las tres conceptuales."""
@@ -490,9 +510,12 @@ def render_quiz(analysis=None, key_prefix: str = "") -> None:
         # Integración 2026-11-16 (Art. I): con `sorted({c, c+4, c-4, c+9})` la correcta quedaba casi siempre segunda;
         # `numeric_choices` reparte su lugar (determinista por el valor, para que no cambie en cada rerun).
         choices = numeric_choices(correct, 4, f"fr:{correct}", minimum=1)
+        confidence = _confidence_first(f"{key_prefix}resp_quiz_fr_confidence")
         picked = st.radio("Tu respuesta (resp/min):", choices, index=None, key=f"{key_prefix}resp_quiz_fr")
         if picked is None:
             return
+        _record(f"fr:{correct}", picked == correct, confidence,
+                f"Frecuencia de la señal simulada (respuesta: {correct}/min)")
         if picked == correct:
             st.success(f"✅ Correcto: {analysis.respiratory_rate:.1f}/min medida entre inspiraciones; {fr_band_text(analysis)}.")
         else:
@@ -506,9 +529,12 @@ def render_quiz(analysis=None, key_prefix: str = "") -> None:
             st.warning("Este registro no tiene señal respiratoria evaluable: no hay pregunta que responder.")
             return
         choices = numeric_choices(correct, 1, f"apneas:{correct}", minimum=0)
+        confidence = _confidence_first(f"{key_prefix}resp_quiz_apneas_confidence")
         picked = st.radio("Tu respuesta:", choices, index=None, key=f"{key_prefix}resp_quiz_apneas")
         if picked is None:
             return
+        _record(f"apneas:{correct}", picked == correct, confidence,
+                f"Apneas de la señal simulada (respuesta: {correct})")
         if picked == correct:
             st.success(f"✅ Correcto: {correct} apnea(s) de ≥ 10 s en {analysis.record_duration_s:.0f} s de registro.")
         else:
@@ -518,9 +544,11 @@ def render_quiz(analysis=None, key_prefix: str = "") -> None:
 
     item = CONCEPT_QUIZ[quiz_type]
     st.info(item["question"])
+    confidence = _confidence_first(f"{key_prefix}resp_quiz_{quiz_type}_confidence")
     answer = st.radio("Tu respuesta:", item["options"], index=None, key=f"{key_prefix}resp_quiz_{quiz_type}")
     if answer is None:
         return
+    _record(f"concepto:{quiz_type}", answer == item["options"][item["correct"]], confidence, quiz_type)
     if answer == item["options"][item["correct"]]:
         st.success(item["ok"])
     else:

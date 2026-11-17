@@ -81,3 +81,30 @@ def test_el_desafio_ecg_registra_la_confianza_y_el_panel_la_compara():
     assert "Con 1 respuesta" in textos and q.prompt in textos   # el error con más confianza muestra su enunciado
     at.button(key="practicar_ecglab_12_quiz_verify").click().run()
     assert len(at.session_state["session_learning_log"]) == 1   # verificar dos veces no duplica
+
+
+def test_respiratorio_guarda_la_confianza_que_habia_al_responder():
+    """Aquí la respuesta se corrige al elegirla: la confianza va antes, y cambiarla después no cuenta."""
+    pytest.importorskip("streamlit")
+    from streamlit.testing.v1 import AppTest
+
+    from app.supermodules.respiratory_lab import views
+
+    at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=60)
+    at.session_state["biocore_start_page"] = "cuestionarios"
+    at.run()
+    tipo = "Diferenciación Apnea"
+    next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value(tipo).run()
+    confianza = at.radio(key=f"practicar_resp_quiz_{tipo}_confidence")
+    assert confianza.value is None
+    confianza.set_value(75).run()
+    item = views.CONCEPT_QUIZ[tipo]
+    mala = next(o for i, o in enumerate(item["options"]) if i != item["correct"])
+    at.radio(key=f"practicar_resp_quiz_{tipo}").set_value(mala).run()
+    assert at.exception == []
+    log = at.session_state["session_learning_log"]
+    assert len(log) == 1 and log[0]["concept"] == "respiracion_y_apnea" and log[0]["confidence"] == 75
+    assert log[0]["correct"] is False
+    at.radio(key=f"practicar_resp_quiz_{tipo}_confidence").set_value(25).run()   # ya con el resultado a la vista
+    assert [r["confidence"] for r in at.session_state["session_learning_log"]] == [75]
+    assert tipo in " ".join(m.value for m in at.main.markdown)                    # el error muestra su pregunta

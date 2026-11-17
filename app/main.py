@@ -2589,12 +2589,14 @@ def render_practice_ecg_challenge_page() -> None:
 def render_practice_lab_quizzes_page() -> None:
     from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz
     from app.supermodules.respiratory_lab import views as respiratory_views
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Cuestionarios de los laboratorios", icon="❓")
     render_section_header("Respiratorio")
     respiratory_views.render_quiz(None, key_prefix="practicar_")
     render_section_header("EEG")
     render_eeg_quiz(expanded=True)
+    render_calibration_panel()   # 2026-11-17: el EEG no tiene concepto en el vocabulario de `session_learning`
 
 
 def render_practice_simulator_cases_page() -> None:
