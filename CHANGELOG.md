@@ -41,6 +41,11 @@
 **Pendiente:**
 - `lightgbm` no está en `requirements.txt` ni en THIRD_PARTY_NOTICES con su licencia.
 - RandomForest y XGBoost no se evaluaron.
+- La propia clase (`biomedical/`, fuera del alcance de esta tanda) sigue emitiendo el aviso «X does not have valid feature names» en `tests/test_arrhythmia_classifier_new.py`. La ruta de evaluación nueva no lo emite.
+
+**Suite**, en serie con el intérprete del PATH, sobre la rama commiteada: **2303 passed, 8 skipped, 0 failed** (24 min). Las omitidas son de entorno: pseudo-terminal en Windows y la base de desarrollo, que no existe en el worktree.
+
+La primera corrida dio 4 fallos en `test_ecg_hr_detector_consolidation.py`. Su guardia del «220 lpm» fijo busca la cadena «220» en el markdown de la página, y el panel listaba el registro 220 de MIT-BIH. Se corrigió: el panel da cuántos registros hay y remite a `MODEL_CARD.md` para la lista.
 
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
