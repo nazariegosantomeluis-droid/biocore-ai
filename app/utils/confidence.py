@@ -40,14 +40,14 @@ def render_confidence_input(key: str) -> Optional[int]:
 
 
 def record_answer(item_id: str, concept: str, correct: bool, confidence: Optional[int], mark: tuple,
-                  label: Optional[str] = None) -> None:
+                  label: Optional[str] = None, source: str = "quiz") -> None:
     """Registra una respuesta en la sesión UNA sola vez por `mark`: la confianza que cuenta es la que había al
     responder; cambiarla después, ya con el resultado a la vista, no la modifica. `label` = el texto que el panel
     muestra en «errores con más confianza»."""
     recorded = st.session_state.setdefault(_RECORDED, set())
     if mark in recorded:
         return
-    log_session_answer(item_id, "quiz", concept, correct, confidence)
+    log_session_answer(item_id, source, concept, correct, confidence)
     recorded.add(mark)
     if label:
         st.session_state.setdefault(_LABELS, {})[item_id] = label
