@@ -115,12 +115,18 @@ st.sidebar.markdown("### ⚙️ Parámetros Respiratorios")
 # Respiratory parameters
 col1, col2 = st.sidebar.columns(2)
 
+# Integración (2026-11-17): la FR y la SpO₂ basal EMPIEZAN en las del paciente activo del UPS (si las tiene y caben en
+# el rango del control); sin paciente, el laboratorio se ve como siempre. Ver `patient_start_value`.
+from app.utils.patient_banner import patient_start_value
+_rr_start, _rr_note = patient_start_value("rr", 6, 40, 15, "FR")
+_spo2_start, _spo2_note = patient_start_value("spo2", 90, 100, 98, "SpO₂ basal")
+
 with col1:
     rr = st.number_input(
         "Frecuencia Respiratoria (resp/min)",
         min_value=6,
         max_value=40,
-        value=15,
+        value=int(_rr_start),
         step=1,
         help="12–20 resp/min puntúa 0 en NEWS2 (RCP 2017)"
     )
@@ -138,6 +144,8 @@ with col2:
 # Un ValueError por parámetros imposibles se muestra JUNTO al control afectado (sin st.stop(): las demás pestañas
 # se siguen dibujando). Cada ranura se rellena más abajo si la validación falla.
 slot_rr = st.sidebar.empty()
+if _rr_note:
+    st.sidebar.caption(_rr_note)
 
 col3, col4 = st.sidebar.columns(2)
 
@@ -181,7 +189,7 @@ with col5:
         "SpO2 Basal (%)",
         min_value=90,
         max_value=100,
-        value=98,
+        value=int(_spo2_start),
         step=1,
         help="SpO₂ basal que simula el modelo BIOCORE"
     )
@@ -195,6 +203,9 @@ with col6:
         step=1,
         help="Piso de la SpO₂ durante un evento (nunca baja de aquí)"
     )
+
+if _spo2_note:
+    st.sidebar.caption(_spo2_note)
 
 circulation_delay = st.sidebar.number_input(
     "Retardo circulatorio Tc (s) — Valor BIOCORE",

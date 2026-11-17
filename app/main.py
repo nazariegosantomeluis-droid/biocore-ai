@@ -63,6 +63,10 @@ from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
+from app.utils.patient_banner import (
+    active_source_label, patient_start_value, read_active_vitals, render_active_patient_banner,
+)
+from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
     get_active_patient_display_name,
     get_active_patient_id,
@@ -340,16 +344,20 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
 # CHANGELOG.md; `tests/test_pulido_profesional.py` comprueba que ninguna función se perdió.
 
 def render_twin_shell_page() -> None:
+    get_active_patient_id()          # el gemelo SIEMPRE tiene paciente (su `init_session` lo crea): que el banner ya lo vea
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.twin_shell.pages import run as run_twin_shell
     run_twin_shell()
 
 
 def render_model3d_page() -> None:
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.model3d.pages import run as run_model3d
     run_model3d()
 
 
 def render_calculators_page() -> None:
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.calculators.pages import run as run_calculators
     run_calculators()
 
@@ -467,6 +475,7 @@ def render_ecg_lab_page() -> None:
     contra 25 registros de la cohorte MIT-BIH, ver CHANGELOG.md). Tanda
     Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
     la firma del experto (antes, texto provisional de Tanda 1)."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Laboratorio de ECG", icon="🫀",
         validation="VALIDATED",
@@ -492,6 +501,7 @@ def render_eeg_neuro_lab_page() -> None:
     inline, que dependía de 'biomedical.eeg' (módulo inexistente) y no tenía
     visualización de bandas de potencia. El supermódulo real (pages_legacy/
     8_🧠_EEG-Neuro-Lab.py, vía src/signals/eeg) sí la tiene."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.eeg_neuro_lab.pages import run as run_eeg_neuro_lab
     run_eeg_neuro_lab()
 
@@ -503,6 +513,7 @@ def render_respiratory_lab_page() -> None:
     src/signals/respiration) tiene 7 patrones seleccionables, análisis real de apnea/AHI,
     canales de tórax/abdomen/SpO2, tablas de referencia clínica y un quiz — nada de la
     versión inline era único, confirmado por auditoría antes de reemplazar."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.respiratory_lab.pages import run as run_respiratory_lab
     run_respiratory_lab()
 
@@ -654,6 +665,7 @@ def render_biomarkers_page() -> None:
     # el de estrés ya no se muestra). Texto verbatim -- coherente con el badge
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Biomarcadores", icon="🧬",
         validation="HEURISTIC",
@@ -940,6 +952,7 @@ def render_emg_page() -> None:
     # sobre umbrales sintéticos fijos (no calibrados) -- `validation=
     # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
     # dos partes del lab en la propia cita.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Laboratorio de EMG", icon="🦾",
         validation="HEURISTIC",
@@ -1402,6 +1415,50 @@ def _measure_ecg_heart_rate_tkeo(signal: np.ndarray, fs: float, ECGAnalyzerCls) 
 
 ECG_CSV_SOURCE_LABEL = "CSV local (archivo cargado)"
 
+# Fuente «Paciente activo» del Monitoreo (integración, 2026-11-17): el trazo se GENERA a la FC que el UPS ya tiene del
+# paciente activo, para que el banner y el ECG digan el mismo número. El UPS guarda la FC, no la onda: la onda es una
+# vista determinista de ese valor (`DynamicECGGenerator`, sin ruido: la misma FC da siempre el mismo trazo).
+ECG_PATIENT_SOURCE = 'Paciente activo (simulación a su FC)'
+ECG_PATIENT_SOURCE_LABEL = 'simulación a la FC del paciente activo (UPS)'
+ECG_SOURCE_KEY = 'ecg_monitor_source'
+# Rango en que la FC del generador está validada con el detector TKEO (error < 0.2 lpm; ver el comentario de la demo).
+ECG_GENERATOR_VALIDATED_HR = (40, 200)
+# Un escenario de arritmia NO se dibuja desde la FC sola: un ritmo sinusal regular sería una onda falsa (Art. I).
+# Marcas (en minúsculas) con que el gemelo rotula su fuente activa cuando aplica una arritmia
+# (`twin_shell.pages`: «arritmia …» o «escenario del simulador 🫀 Fibrilación auricular …», `RICH_SCENARIO_LABELS`).
+ECG_RHYTHM_NOT_MODELED_MARKS = ('arrhythmia', 'arritmia', 'fibrilación auricular', 'flutter auricular',
+                                'taquicardia supraventricular', 'bradicardia sinusal')
+
+
+def _ecg_from_active_patient():
+    """(señal, fs, metadatos) del paciente activo, o `None` tras decir en pantalla por qué no hay trazo. Nunca inventa
+    una FC: sin FC en el UPS, sin paciente, con un escenario de arritmia o fuera del rango validado, es «sin dato»."""
+    vitals = read_active_vitals()
+    if vitals.patient_id is None:
+        render_no_data('Paciente activo', 'todavía no hay paciente: abre el Gemelo digital o guarda un estado desde un '
+                                          'laboratorio para crearlo')
+        return None
+    hr = vitals.values['hr']
+    if hr is None:
+        render_no_data('Frecuencia cardíaca del paciente activo',
+                       'el UPS aún no tiene FC de este paciente: aplica un escenario o guarda un estado en el Gemelo digital')
+        return None
+    origin = f"{hr.source_detail or ''} {active_source_label()}".lower()
+    if any(mark in origin for mark in ECG_RHYTHM_NOT_MODELED_MARKS):
+        render_no_data('Trazo del paciente activo',
+                       'ritmo no modelado: la FC sola no describe un escenario de arritmia y un ritmo sinusal regular '
+                       'sería una onda falsa. Usa un caso clínico para ver un ritmo con su trazo')
+        return None
+    lo, hi = ECG_GENERATOR_VALIDATED_HR
+    if not lo <= hr.value <= hi:
+        render_no_data('Trazo del paciente activo',
+                       f'la FC del paciente ({hr.value:.0f} lpm) está fuera del rango en que el generador está validado '
+                       f'({lo}–{hi} lpm)')
+        return None
+    signal = DynamicECGGenerator(fs=ECG_DEMO_FS).generate(duration=20, hr=float(hr.value))
+    return signal, ECG_DEMO_FS, {'source': ECG_PATIENT_SOURCE_LABEL, 'patient_id': vitals.patient_id,
+                                  'hr_ups': float(hr.value)}
+
 
 def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGAnalyzerCls) -> None:
     """Tercer y último lab de la integración estrecha (2026-08-24, Capa
@@ -1444,6 +1501,11 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
     if source_label == ECG_CSV_SOURCE_LABEL:
         st.button("💾 Guardar estado al gemelo", key="ecg_lab_save_to_ups", disabled=True, help=CSV_SAVE_BLOCKER)
         st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
+        return
+
+    if source_label == ECG_PATIENT_SOURCE_LABEL:
+        st.info("Esta señal se generó a partir de la FC que el UPS ya tiene de este paciente: guardarla no añadiría "
+                "ningún dato (sería escribir el mismo valor otra vez).")
         return
 
     if 'demo' in source_label.lower():
@@ -1586,13 +1648,18 @@ def render_ecg_monitor_page() -> None:
     ECGAnalyzer, create_clinical_ecg_figure, load_mitbih_record, get_mitbih_records, ecg_ok = safe_import_ecg_modules()
     src_modules, src_ok = safe_import_src_modules()
 
+    # Integración: con un paciente que ya tiene FC en el UPS el Monitoreo abre en SU trazo (banner y ECG, el mismo
+    # número); sin él, abre en la demo como siempre. Streamlit olvida la clave al salir de la página.
+    if ECG_SOURCE_KEY not in st.session_state:
+        st.session_state[ECG_SOURCE_KEY] = (
+            ECG_PATIENT_SOURCE if read_active_vitals().values['hr'] is not None else 'Demo (sintético)')
     source = st.sidebar.radio(
         'Origen del ECG',
         [
             'Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)',
-            'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo',
+            'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo', ECG_PATIENT_SOURCE,
         ],
-        index=0,
+        key=ECG_SOURCE_KEY,
     )
     signal = None
     fs = 250
@@ -1725,6 +1792,12 @@ def render_ecg_monitor_page() -> None:
             else:
                 st.sidebar.info('Selecciona un registro y pulsa "Cargar" — se descarga en vivo desde PhysioNet.')
 
+    elif source == ECG_PATIENT_SOURCE:
+        generated = _ecg_from_active_patient()
+        if generated is None:
+            return
+        signal, fs, metadata = generated
+
     elif source == 'Hardware ESP32 en vivo':
         # ECG Plug & Play (2026-11-13, ver CHANGELOG; Art. I): reemplaza a la rama de
         # ESP32SignalSource, que tras desconectar el cable seguía diciendo SENSOR_REAL sobre un
@@ -1791,6 +1864,7 @@ def render_ecg_monitor_page() -> None:
     else:
         # La explicación es el tema 2 firmado (docs/contenido/teoria_citada.md); las capas genéricas se retiraron.
         render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm', topic=SIGNED_HEART_RATE)
+        st.caption(news2_reading_note(pulse=hr))     # integración: la FC siempre con sus puntos NEWS2 (misma tabla del gemelo)
     st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs:g} Hz")
 
     st.divider()
@@ -2008,6 +2082,7 @@ def render_multisensor_page() -> None:
     # Tanda Final (2026-09-22): tier renombrado a "HEURISTIC" (antes
     # "heuristico") y texto actualizado al verbatim de la firma del
     # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Fusión multisensor", icon="🔗",
         validation="HEURISTIC",
@@ -2058,6 +2133,7 @@ def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecor
     render_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
                        provenance=BADGES.HEURISTIC)
     render_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC)
+    st.caption(news2_reading_note(pulse=indices['heart_rate'], spo2=indices['spo2_mean']))   # integración: puntos NEWS2
 
     # ── 2. Plegados ──
     with st.expander(LAB_SECTION_HOW, expanded=False):
@@ -2202,12 +2278,13 @@ def render_hrv_page() -> None:
     # según [SG2017] (B2/B3 de teoria_citada_2.md), `validation="VALIDATED"`.
     # Residuos del PR #8 (2026-11-17): antes se atribuían a la Task Force
     # ESC/NASPE 1996 ([TF1996]), a la que no se le atribuye ninguna afirmación.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Variabilidad de la frecuencia cardíaca (HRV)", icon="📈",
         validation="VALIDATED",
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
-    st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas tiempo-frecuencia y explanation clínica.')
+    st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas de tiempo y frecuencia.')
     # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
     # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
     # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
@@ -2225,14 +2302,24 @@ def render_hrv_page() -> None:
         if ECGAnalyzer is None:
             render_error_state('Motor ECGAnalyzer (detector TKEO) no disponible en este entorno -- sin RR que derivar.')
             return
+        # Integración (2026-11-17): FC base y FR EMPIEZAN en las del paciente activo del UPS (si caben en el control).
+        # La amplitud RSA no: el `hrv` del UPS no dice qué índice es, y ajustar la serie para «dar» ese número sería
+        # inventar la relación entre ambos.
+        hr_start, hr_note = patient_start_value('hr', 40, 140, 72, 'FC base')
+        rr_start, rr_note = patient_start_value('rr', 6, 30, 15, 'Frecuencia respiratoria')
         rsa_params = RsaParams(
-            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, 72)),
+            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, int(hr_start))),
             rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
                 help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
-            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
+            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, int(rr_start),
                 help='La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones '
                      'por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.')),
         )
+        for note in (hr_note, rr_note):
+            if note:
+                st.sidebar.caption(note)
+        if hr_note or rr_note:
+            st.sidebar.caption('La amplitud RSA no sale del paciente: el UPS guarda «hrv» sin decir qué índice es.')
         # 240 s (~290 latidos a 72 lpm): SampEn y DFA α1 necesitan ≥200 latidos; con 120 s
         # (~144) la fuente por defecto declinaría ambas.
         n = st.sidebar.slider('Duración (seg)', 30, 300, 240)
@@ -2423,6 +2510,7 @@ def render_patient_pipeline_page() -> None:
     # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
     # ninguna inferencia propia que "validar" o "no validar". El concepto
     # de nivel de confianza clínico no aplica a este módulo.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header("Flujo de pacientes", icon="👥", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 
@@ -2722,6 +2810,12 @@ def render_practice_what_if_page() -> None:
     render_what_if_page()
 
 
+def render_practice_detective_page() -> None:
+    from app.supermodules.detective.pages import render_detective_page
+
+    render_detective_page()
+
+
 def _page_specs() -> list:
     """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
     return [
@@ -2736,6 +2830,7 @@ def _page_specs() -> list:
         ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
         ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
         ("Practicar", "what-if", "¿Qué pasa si…?", "🔀", render_practice_what_if_page),
+        ("Practicar", "detective", "Detective fisiológico", "🔎", render_practice_detective_page),
         ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
         ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
         ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),

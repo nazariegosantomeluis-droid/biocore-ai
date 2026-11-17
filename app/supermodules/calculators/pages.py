@@ -38,6 +38,7 @@ from app.utils.design_system import (
     render_module_header,
     resolve_metric_card,
 )
+from app.utils.patient_banner import CALC_LOAD_PATIENT_KEY, read_active_vitals
 from clinical import calculators as calc
 
 # Tanda 2C (2026-10-24): traída del aporte SIN su capa de arte (láminas
@@ -157,6 +158,53 @@ def _apply_twin_vitals() -> None:
     st.session_state["calc_twin_applied"] = dict(vitals)
 
 
+def _apply_patient_vitals() -> None:
+    """«Calcular en Calculadoras» (I3): carga en los campos la FC, FR y SpO₂ que el UPS tiene del paciente activo. Lo que
+    el UPS no tiene NO se toca (el campo conserva lo que ya tenía; el panel de puntos dice «sin dato»)."""
+    vitals = read_active_vitals()
+    for name, keys in _TWIN_TARGETS.items():
+        descriptor = vitals.values.get(name)
+        if descriptor is None:
+            continue
+        for key in keys:
+            lo, hi, _step, _fmt, _default = _FIELDS[key]
+            st.session_state[key] = float(min(hi, max(lo, round(descriptor.value))))
+
+
+def _render_patient_news2_points() -> None:
+    """Puntos NEWS2 de pulso, FR y SpO₂ (escala 1) del paciente activo, calculados con `news2_partial`: la MISMA función
+    que usa el gemelo para su NEWS2 parcial, sobre los valores que el UPS tiene del paciente. Nunca un total: faltan
+    presión, temperatura, consciencia y oxígeno suplementario."""
+    vitals = read_active_vitals()
+    with st.container(border=True, key="calc_patient_news2"):
+        st.markdown("#### 🧍 Puntos NEWS2 del paciente activo")
+        if vitals.patient_id is None:
+            st.caption("Sin paciente activo: abre el Gemelo digital para crearlo y vuelve aquí.")
+            return
+        raw = {key: (d.value if d is not None else None) for key, d in vitals.values.items()}
+        partial = calc.news2_partial(pulse=raw["hr"], respiratory_rate=raw["rr"], spo2=raw["spo2"])
+        rows = (
+            ("Pulso", "hr", "FC", "lpm"),
+            ("Frecuencia respiratoria", "rr", "FR", "resp/min"),
+            ("SpO₂ (escala 1)", "spo2", "SpO₂", "%"),
+        )
+        for column, (component, key, short, unit) in zip(st.columns(len(rows)), rows):
+            with column:
+                descriptor = vitals.values[key]
+                points = partial.components.get(component)
+                render_metric_card(
+                    f"{component} NEWS2",
+                    None if points is None else f"{points} {'punto' if points == 1 else 'puntos'} ({short} {descriptor.value:.0f} {unit})",
+                    provenance=BADGES.CLINICAL,
+                    unavailable_reason=f"el paciente activo no tiene {short} en el UPS",
+                )
+        st.caption(
+            f"Paciente `{vitals.short_id}`: valores del UPS (no son mediciones de un paciente si su procedencia es "
+            f"Simulación). Cada componente con su tabla ({calc.NEWS2_CITATION}). No hay total: faltan "
+            f"{', '.join(calc.NEWS2_PARAMETERS_NOT_MODELED)}."
+        )
+
+
 def _render_twin_banner() -> None:
     vitals = _twin_vitals()
     with st.container(border=True):
@@ -231,6 +279,7 @@ def _render_ecg_tab() -> None:
         rate = calc.hr_from_rr_ms(_num("Intervalo RR (ms)", "calc_hrp_rr"))
     _card("hr_paper", "Frecuencia cardiaca", f"{rate:.0f} lpm",
           classification=calc.classify_heart_rate(rate), citation=calc.ECG_PAPER_CITATION)
+    st.caption(calc.news2_reading_note(pulse=rate))     # integración: la FC siempre con sus puntos NEWS2
 
     st.markdown("---")
     st.markdown("#### Eje eléctrico del QRS (DI y aVF)")
@@ -554,6 +603,9 @@ def run() -> None:
                  "una clasificación es la lectura de un número, no un diagnóstico.",
         validation=None,
     )
+    if st.session_state.pop(CALC_LOAD_PATIENT_KEY, False):
+        _apply_patient_vitals()
+    _render_patient_news2_points()
     _render_twin_banner()
     # Íconos Material (incluidos en Streamlit, sin internet) en vez de emoji.
     tabs = st.tabs(CALC_TABS)
