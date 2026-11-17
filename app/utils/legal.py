@@ -8,7 +8,7 @@ Art. I:
 - Lo que hoy es cierto va tal como lo entregó Luis. Las frases que describían algo que BIOCORE no hace (simulaciones
   «validadas», cuentas institucionales, «Capa Docente», servidores cifrados, estimación de oxigenación por sensor, que
   nada se transfiere a terceros aunque la IA reciba datos) llevan una redacción fiel a lo que existe, marcada en el
-  documento como AJUSTE pendiente de la firma de Luis; el original queda allí para cuando esas funciones existan.
+  documento como AJUSTE, firmado por Luis el 2026-11-17; el original queda allí para cuando esas funciones existan.
 - Los datos que nadie ha dado (entidad legal, domicilio, correos, universidad, consumo del kit) NO se inventan: se
   muestran como «[pendiente: …]» hasta que se llenen en `LEGAL_DATA`.
 - La casilla obligatoria no detecta que el texto se haya leído hasta el final (Streamlit no lo informa) y no lo afirma:
@@ -63,8 +63,7 @@ def fill(template: str) -> str:
 
 # ── Términos y condiciones (versión de la app) ──────────────────────────────────────────────────────────────────────
 FOOTER_NOTICE = "BIOCORE AI NO ES UN DISPOSITIVO MÉDICO: uso exclusivamente educativo."
-IN_REVIEW_NOTICE = ("Documento en revisión: hay cláusulas pendientes de firma y datos de la entidad legal por completar "
-                    "(se muestran como «[pendiente: …]»).")
+IN_REVIEW_NOTICE = ("Faltan datos de la entidad legal por completar: se muestran como «[pendiente: …]» hasta que se den.")
 
 TERMS_TITLE = "Términos y condiciones de uso de BIOCORE AI"
 TERMS: Tuple[Tuple[str, str, str], ...] = (

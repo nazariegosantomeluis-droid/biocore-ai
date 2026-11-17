@@ -1,6 +1,6 @@
 # Textos legales de BIOCORE AI
 
-**Estado:** textos entregados por Luis el 17 de noviembre de 2026. Lo que la app muestra «tal como se entregó» no cambia. Las cláusulas marcadas **AJUSTE (pendiente de firma)** describían algo que BIOCORE no hace hoy y llevan una redacción fiel a lo que existe (Art. I); su original queda en la sección 4 para cuando esas funciones existan. Ninguno de estos textos es asesoría legal: conviene que los revise un abogado antes de usarlos en contratos.
+**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los AJUSTES del Art. I tal como están en la sección 3. Queda abierta la decisión D1 y faltan los datos de la sección 1. Los textos originales quedan en la sección 4 para cuando las funciones que describen existan. Ninguno de estos textos es asesoría legal: conviene que los revise un abogado antes de usarlos en contratos.
 **Uso:** `app/utils/legal.py` es la única fuente de los textos en la app. `tests/test_legal.py` exige que cada texto de ese módulo esté literal en este documento, que ningún dato faltante se invente y que el aviso de entrada bloquee la página hasta marcar la casilla.
 
 ---
@@ -29,27 +29,27 @@ Aviso del pie de página:
 
 > BIOCORE AI NO ES UN DISPOSITIVO MÉDICO: uso exclusivamente educativo.
 
-Aviso de revisión (arriba de las dos páginas):
+Aviso de datos pendientes (arriba de las dos páginas):
 
-> Documento en revisión: hay cláusulas pendientes de firma y datos de la entidad legal por completar (se muestran como «[pendiente: …]»).
+> Faltan datos de la entidad legal por completar: se muestran como «[pendiente: …]» hasta que se den.
 
 **TC1 · 1. Naturaleza y propósito del servicio (uso exclusivamente educativo)** · tal como se entregó
 
 > BIOCORE AI es una plataforma digital y ecosistema de hardware diseñado estrictamente como un laboratorio virtual de simulación fisiológica para la enseñanza en ciencias de la salud. BIOCORE AI NO ES UN DISPOSITIVO MÉDICO, no cuenta con Registro Sanitario ante COFEPRIS y no está diseñado, destinado ni autorizado para el diagnóstico, tratamiento, mitigación, cura o prevención de ninguna enfermedad o condición médica en seres humanos.
 
-**TC2 · 2. Exclusión de responsabilidad médica** · **AJUSTE (pendiente de firma)**
+**TC2 · 2. Exclusión de responsabilidad médica** · **AJUSTE (firmado 2026-11-17)**
 
 > Las señales obtenidas a través de los sensores (ECG, EMG, pulso, temperatura), así como los cálculos, métricas (incluida la saturación de oxígeno, que hoy solo proviene del modelo simulado: la plataforma no la calcula a partir del sensor de pulso) y escenarios clínicos generados por el motor hemodinámico o el gemelo digital, son para fines exclusivamente pedagógicos y de práctica deliberada. Ningún dato arrojado por BIOCORE AI sustituye el juicio clínico de un profesional de la salud. El usuario libera a {entidad_legal} y a la institución educativa de cualquier responsabilidad derivada de la interpretación personal de estos datos fuera del entorno académico.
 
-**TC3 · 3. Principio de transparencia de datos (Artículo I)** · **AJUSTE (pendiente de firma)**
+**TC3 · 3. Principio de transparencia de datos (Artículo I)** · **AJUSTE (firmado 2026-11-17)**
 
 > BIOCORE AI opera bajo el principio de estricta procedencia de datos. La plataforma declara visualmente el origen de cada valor que muestra, distinguiendo si fue: a) Medido físicamente por los sensores. b) Simulado a través del motor hemodinámico o del gemelo digital. c) Tomado de una referencia bibliográfica o guía clínica. d) Calculado a partir de otros valores, con su criterio rotulado (con fuente, criterio propio de BIOCORE o heurística). El usuario acepta que la plataforma no inferirá ni inventará diagnósticos, mostrando «sin dato» o «no disponible» cuando carezca de la información.
 
-**TC4 · 4. Propiedad intelectual y restricciones de uso** · **AJUSTE (pendiente de firma)**
+**TC4 · 4. Propiedad intelectual y restricciones de uso** · **AJUSTE (firmado 2026-11-17)**
 
 > Todo el software, código fuente, algoritmos del motor hemodinámico, interfaces y diseño del hardware son propiedad exclusiva de {entidad_legal}, salvo los componentes de terceros (bibliotecas, ecuaciones y métodos publicados, bases de datos y módulos comerciales como el AD8232 o el MyoWare), que conservan su autoría y su licencia y se listan en THIRD_PARTY_NOTICES.md. Al acceder a BIOCORE AI mediante una licencia institucional, el usuario y la universidad aceptan que está estrictamente prohibido: a) Realizar ingeniería inversa, desensamblar o descompilar las placas, sensores (AD8232, MyoWare, etc.) o el software. b) Utilizar la plataforma o el hardware para fines comerciales, ensayos clínicos formales o fuera del dominio institucional autorizado.
 
-**TC5 · 5. Cuentas institucionales** · **AJUSTE (pendiente de firma)**
+**TC5 · 5. Cuentas institucionales** · **AJUSTE (firmado 2026-11-17)**
 
 > Hoy BIOCORE AI no tiene cuentas de usuario ni inicio de sesión. Cuando existan, el acceso se otorgará exclusivamente a estudiantes y profesores activos bajo el dominio autorizado de {universidad} ({dominio}), y la institución será responsable de revocar el acceso a usuarios que dejen de formar parte de su comunidad académica.
 
@@ -59,15 +59,15 @@ Aviso de revisión (arriba de las dos páginas):
 
 > De conformidad con lo establecido en la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP), {entidad_legal}, con domicilio en {domicilio}, pone a su disposición el presente Aviso de Privacidad.
 
-**AP1 · 1. Datos personales recabados** · **AJUSTE (pendiente de firma)**
+**AP1 · 1. Datos personales recabados** · **AJUSTE (firmado 2026-11-17)**
 
 > Hoy BIOCORE AI no tiene cuentas: no recaba nombre, correo institucional, matrícula ni rol. El único dato que puede identificarle es el «ID del estudiante» que usted escribe en la Academia (texto libre), que se guarda con sus respuestas en una base local de la computadora donde corre la plataforma. Datos personales sensibles (biométricos y fisiológicos): las señales de electrocardiograma (ECG), electromiograma (EMG), fotopletismografía (PPG), pulso y temperatura corporal obtenidas con el hardware del sistema, y el EEG si se conecta un equipo externo. Las señales se procesan durante la sesión; si usted pulsa «Guardar al gemelo», se guardan los valores calculados (no la señal completa) en una base local, con su procedencia.
 
-**AP2 · 2. Finalidad del tratamiento de datos** · **AJUSTE (pendiente de firma)**
+**AP2 · 2. Finalidad del tratamiento de datos** · **AJUSTE (firmado 2026-11-17)**
 
 > Los datos personales sensibles recabados se utilizarán única y exclusivamente para: permitir al usuario visualizar su propio estado fisiológico dentro del gemelo digital con fines de aprendizaje práctico, y procesar escenarios de simulación clínica dentro de la plataforma. Hoy no existe una Capa Docente ni calificación con datos fisiológicos. Cuando exista, los datos fisiológicos del grupo se presentarán al profesor de forma disociada y anonimizada, a menos que el estudiante otorgue su consentimiento explícito para vincular su nombre a sus registros clínicos para fines de calificación.
 
-**AP3 · 3. Transferencia de datos** · **AJUSTE (pendiente de firma)**
+**AP3 · 3. Transferencia de datos** · **AJUSTE (firmado 2026-11-17)**
 
 > Sus datos personales y sensibles no serán transferidos a terceros comerciales, aseguradoras, instituciones médicas ni entidades externas ajenas a {universidad}. Hoy se guardan solo en la computadora donde corre BIOCORE AI: no hay servidores de BIOCORE AI. Excepción: si usted pega una clave de IA en Ajustes y usa la narración con IA o «Pregunta a BIOCORE», el texto de su pregunta y los datos del contexto se envían al proveedor que eligió (Anthropic o Google). Con el nivel gratuito de Gemini nunca se envían datos de personas: solo datos simulados o de bases públicas.
 
@@ -75,13 +75,13 @@ Aviso de revisión (arriba de las dos páginas):
 
 > Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse (Derechos ARCO) al tratamiento de sus datos. Para ejercer estos derechos o revocar su consentimiento, deberá enviar un correo a {correo_privacidad}, donde se le indicará el procedimiento.
 
-**AP5 · 5. Consentimiento expreso para datos sensibles** · **AJUSTE (pendiente de firma)**
+**AP5 · 5. Consentimiento expreso para datos sensibles** · **AJUSTE (firmado 2026-11-17)**
 
 > Hoy no hay registro de cuentas. Cuando exista, al marcar la casilla «He leído y acepto el Aviso de Privacidad» al crear su cuenta, usted otorgará su consentimiento expreso y por escrito (mediante firma electrónica o validación de clic) para el tratamiento de sus datos personales sensibles bajo los términos aquí expuestos. Mientras tanto, este aviso está en Ajustes y al pie de cada página.
 
 ### Aviso clínico y educativo de entrada (casilla obligatoria)
 
-**CW1 · Texto** · **AJUSTE (pendiente de firma)**: «simulaciones matemáticas validadas» → rotuladas, con la PA de la sepsis en revisión clínica.
+**CW1 · Texto** · **AJUSTE (firmado 2026-11-17)**: «simulaciones matemáticas validadas» → rotuladas, con la PA de la sepsis en revisión clínica.
 
 > Estás ingresando al gemelo digital de BIOCORE AI. Te recordamos que la información, métricas y retroalimentación clínica generada en esta sesión no constituyen un diagnóstico médico. Las variaciones en las señales (como caídas de presión en escenarios de sepsis o alteraciones de ritmo) son simulaciones matemáticas —rotuladas como tales; algunas, como la presión arterial en la sepsis, están en revisión clínica— o registros adquiridos con fines de práctica en un entorno seguro. Si estás midiendo tus propias señales en tiempo real y notas alguna anomalía que te preocupe, acude a un profesional de la salud cualificado.
 
@@ -121,7 +121,7 @@ Título:
 
 Dónde se muestra cada una: ECG (placa en vivo) PS1 y PS2; EMG PS1 y PS2; pulso (PPG) PS3; temperatura PS2; EEG en vivo PS4.
 
-## 3. Ajustes propuestos (Art. I), para firma
+## 3. Ajustes del Art. I (firmados el 2026-11-17)
 
 | ID | Decía (original) | Dice ahora (propuesta) | Por qué |
 |---|---|---|---|
@@ -135,7 +135,7 @@ Dónde se muestra cada una: ECG (placa en vivo) PS1 y PS2; EMG PS1 y PS2; pulso 
 | AP5 | «Al marcar la casilla "He leído y acepto el Aviso de Privacidad" al momento de crear mi cuenta…» | «Hoy no hay registro de cuentas. Cuando exista, … Mientras tanto, este aviso está en Ajustes y al pie de cada página.» | No hay pantalla de registro. **Decisión pendiente:** si se quiere pedir el consentimiento antes de medir las propias señales con un sensor, hay que diseñarlo (hoy no existe). |
 | CW1 | «son simulaciones matemáticas validadas o registros adquiridos» | «son simulaciones matemáticas —rotuladas como tales; algunas, como la presión arterial en la sepsis, están en revisión clínica— o registros adquiridos» | La PA de la sepsis depende de la capacitancia venosa 2× (Criterio BIOCORE, sin cita) y está en revisión clínica (gemelo y Detective). |
 
-Además, la app agrega dos textos que no son legales: el aviso de revisión arriba de Términos y Aviso de privacidad, y la ayuda «Marca la casilla para ingresar.» bajo la casilla.
+Además, la app agrega dos textos que no son legales: el aviso de datos pendientes arriba de Términos y Aviso de privacidad, y la ayuda «Marca la casilla para ingresar.» bajo la casilla.
 
 ## 4. Textos tal como se entregaron (17 de noviembre de 2026)
 
@@ -216,20 +216,22 @@ AVISO CLÍNICO Y EDUCATIVO. Estás ingresando al gemelo digital de BIOCORE AI. T
 
 ## 5. Hoja de firma
 
+> Firmo todo. — Luis Nazariego Santome, 17/11/2026
+
 | ID | Texto | Decisión de Luis |
 |---|---|---|
-| TC1 | Naturaleza y propósito (tal como se entregó) | ☐ firmo ☐ corregir |
-| TC2 | Exclusión de responsabilidad (AJUSTE: SpO₂ solo del modelo) | ☐ firmo ☐ corregir |
-| TC3 | Transparencia (AJUSTE: cuarta procedencia, «cada valor que muestra») | ☐ firmo ☐ corregir |
-| TC4 | Propiedad intelectual (AJUSTE: excepción de terceros) | ☐ firmo ☐ corregir |
-| TC5 | Cuentas institucionales (AJUSTE: hoy no hay cuentas) | ☐ firmo ☐ corregir |
-| AP0 | Preámbulo LFPDPPP (tal como se entregó) | ☐ firmo ☐ corregir |
-| AP1 | Datos recabados (AJUSTE: lo que se guarda hoy) | ☐ firmo ☐ corregir |
-| AP2 | Finalidad (AJUSTE: hoy no hay Capa Docente) | ☐ firmo ☐ corregir |
-| AP3 | Transferencia (AJUSTE: sin servidores; excepción de la IA) | ☐ firmo ☐ corregir |
-| AP4 | Derechos ARCO (tal como se entregó) | ☐ firmo ☐ corregir |
-| AP5 | Consentimiento (AJUSTE: hoy no hay registro) | ☐ firmo ☐ corregir |
-| CW1 | Aviso de entrada (AJUSTE: simulaciones rotuladas, PA de sepsis en revisión) | ☐ firmo ☐ corregir |
-| CW2–CW3 | Casilla y botón (tal como se entregó) | ☐ firmo ☐ corregir |
-| PS1–PS4 | Precauciones del manual (tal como se entregó) | ☐ firmo ☐ corregir |
-| D1 | ¿Consentimiento antes de medir las propias señales con un sensor? (hoy no existe) | ☐ diseñarlo ☐ todavía no |
+| TC1 | Naturaleza y propósito (tal como se entregó) | ☑ firmado (17-11-2026) |
+| TC2 | Exclusión de responsabilidad (AJUSTE: SpO₂ solo del modelo) | ☑ firmado (17-11-2026) |
+| TC3 | Transparencia (AJUSTE: cuarta procedencia, «cada valor que muestra») | ☑ firmado (17-11-2026) |
+| TC4 | Propiedad intelectual (AJUSTE: excepción de terceros) | ☑ firmado (17-11-2026) |
+| TC5 | Cuentas institucionales (AJUSTE: hoy no hay cuentas) | ☑ firmado (17-11-2026) |
+| AP0 | Preámbulo LFPDPPP (tal como se entregó) | ☑ firmado (17-11-2026) |
+| AP1 | Datos recabados (AJUSTE: lo que se guarda hoy) | ☑ firmado (17-11-2026) |
+| AP2 | Finalidad (AJUSTE: hoy no hay Capa Docente) | ☑ firmado (17-11-2026) |
+| AP3 | Transferencia (AJUSTE: sin servidores; excepción de la IA) | ☑ firmado (17-11-2026) |
+| AP4 | Derechos ARCO (tal como se entregó) | ☑ firmado (17-11-2026) |
+| AP5 | Consentimiento (AJUSTE: hoy no hay registro) | ☑ firmado (17-11-2026) |
+| CW1 | Aviso de entrada (AJUSTE: simulaciones rotuladas, PA de sepsis en revisión) | ☑ firmado (17-11-2026) |
+| CW2–CW3 | Casilla y botón (tal como se entregó) | ☑ firmado (17-11-2026) |
+| PS1–PS4 | Precauciones del manual (tal como se entregó) | ☑ firmado (17-11-2026) |
+| D1 | ¿Consentimiento antes de medir las propias señales con un sensor? (hoy no existe) | ☐ diseñarlo ☐ todavía no (abierta: «Firmo todo» no la decide) |
