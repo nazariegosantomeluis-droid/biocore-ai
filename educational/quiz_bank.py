@@ -521,7 +521,7 @@ EEG_QUESTIONS: List[QuizQuestion] = balance_positions([
 ], "eeg")
 
 
-# --- EMG y HRV (2026-11-17): E1–E10 y H1–H8, FIRMADOS por Luis el 2026-11-17 («Firmo todo») -------------------
+# --- EMG y HRV (2026-11-17): E1–E10 y H1–H8, FIRMADOS por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -------------------
 # Redacción exacta de la hoja de firma v2 (`docs/contenido/hoja_firma_banco_emg_hrv_v2.md`): E1 tal cual, E2–E10 y
 # H1–H8 con su corrección. Cada explicación es una subcadena literal de la línea «t2:N» de
 # `docs/contenido/teoria_citada_2.md` que la sostiene (E1 conserva la explicación de la v2, firmada «tal cual»; H4 se
@@ -723,7 +723,7 @@ HRV_QUESTIONS: List[QuizQuestion] = balance_positions([
 ], 'hrv')
 
 
-# --- Concepto de cada pregunta (2026-11-17): FIRMADO por Luis el 2026-11-17 («Firmo todo») -----------------------
+# --- Concepto de cada pregunta (2026-11-17): FIRMADO por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -----------------------
 # Vocabulario: `CONCEPTS` de `app/utils/session_learning.py` (el contrato de Luis; no se inventan otros). Lo usa la
 # calibración de la confianza (`educational/confidence_calibration.py`). Una pregunta que no encaja en ningún
 # concepto del vocabulario NO está aquí y su respuesta no entra al registro de la sesión: quedan fuera 9 preguntas

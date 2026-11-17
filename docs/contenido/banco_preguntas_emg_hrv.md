@@ -4,7 +4,11 @@
 
 **Firma de Luis (textual):**
 
-> «Firmo todo.» — Luis Nazariego Santome, 17-11-2026.
+> «Firmo, el 17 de noviembre de 2026, Luis Nazariego Santome:
+> (1) E1–E10 y H1–H8 del banco de EMG y HRV tal como quedan en la hoja de firma v2 del 17-11-2026 (E1 tal cual; E2–E10 y H1–H8 con su corrección). Firmables hoy: E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, H1, H2, H3, H4, H5, H6, H7, H8. En H4, la explicación termina en «…y otras no identificadas» (literal de t2:128).
+> (2) CONCEPT_BY_PROMPT tal como está propuesto, más: «onda T normal» → ritmo_y_conduccion (igual que el QTc); la pericarditis queda fuera hoy; E1–E10 → emg; H1–H8 → hrv.
+> (3) El criterio de privacidad P1–P3 de «Pregunta a BIOCORE».
+> No firmo hoy: las [N] del apéndice, H10–H12, C1.2 ni los casos C1–C6.»
 
 **Lo que abarca la firma (IDs firmados):** E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, H1, H2, H3, H4, H5, H6, H7, H8. Nada más: los casos clínicos (Parte 3), el apéndice y las decisiones quedan para **después de hoy** y no entran a la app.
 **Uso:** solo las preguntas que Luis marque «firmo» entran a la app, en `educational/quiz_bank.py` como `EMG_QUESTIONS` y `HRV_QUESTIONS`, con la convención de los bancos de ECG-12 y EEG (opción correcta primero, `answer=0`, explicación, fuente y categoría). Sus claves se resuelven contra `app/supermodules/bibliography.py`; las de EMG y HRV llegan con la rama `teoria-emg-hrv`. Una prueba exigirá que toda clave exista en la Bibliografía y que ninguna pregunta sin firmar esté en el banco. Cada respuesta se registra con `log_session_answer` de `app/utils/session_learning.py`: concepto `emg` para E1–E10 y C1–C3, `hrv` para H1–H8 y C4–C6.
