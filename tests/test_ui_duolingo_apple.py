@@ -92,7 +92,7 @@ def test_home_is_the_dashboard_with_monitoring_organs_and_three_doors():
     at = _open("inicio")
     text = " ".join(m.value for m in at.main.markdown)
     assert "Monitoreo del paciente activo" in text and "Equivócate aquí." in text
-    assert all(f"### {door}" in text for door in ("Aprender", "Practicar", "Laboratorios"))
+    assert all(f"### {door}" in text for door in ("Aprender", "Practicar", "Explorar"))
     assert at.main.get("button_group"), "el selector de órganos (st.pills)"
 
 

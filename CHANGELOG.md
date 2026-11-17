@@ -14,7 +14,7 @@
    - La prueba de «PRIMARY nunca como texto» sigue por regla de marca, con una excepción: el «Correcto» del quiz.
 2. **Tipografía**: Figtree en títulos y Noto Sans en texto, en WOFF2, servidas en local (`[[theme.fontFaces]]`). La prueba exige que cada archivo exista bajo `app/static/`.
 3. **Nombres** (manual, p. 7):
-   - la sección «Clinical Hub» pasa a «Laboratorios»;
+   - la sección conserva su nombre, «Explorar», por decisión de José Miguel;
    - en el menú: Gemelo digital, Fusión de sensores, Respiración, Variabilidad cardiaca, Pacientes y Taller 3D;
    - sin «AI» ni «OS» en el título de la pestaña ni en «Acerca de».
 4. **Logo e íconos**:

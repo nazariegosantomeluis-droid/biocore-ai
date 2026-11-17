@@ -1,4 +1,4 @@
-"""Comparar pacientes (Laboratorios), con la estructura del comparador de Apple (2026-11-17).
+"""Comparar pacientes (Explorar), con la estructura del comparador de Apple (2026-11-17).
 
 Hasta tres columnas, cada una un estado guardado del UPS: pacientes distintos o el mismo paciente en distintos
 momentos. Las filas van por sistema (los dominios del UPS) y cada celda trae el valor con su procedencia, o «Sin dato».
@@ -75,7 +75,7 @@ def render_compare_page() -> None:
     from app.utils.design_system import render_empty_state
     from app.utils.patient_banner import peek_active_patient_id
 
-    st.markdown("<span class='bc-eyebrow'>Laboratorios</span><div class='bc-hero'>Comparar pacientes</div>",
+    st.markdown("<span class='bc-eyebrow'>Explorar</span><div class='bc-hero'>Comparar pacientes</div>",
                 unsafe_allow_html=True)
     st.caption("Hasta tres estados guardados en el UPS: pacientes distintos o el mismo paciente en distintos momentos. "
                "Cada valor lleva su procedencia.")

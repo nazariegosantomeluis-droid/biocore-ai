@@ -45,7 +45,7 @@ def _links(block):
 
 def test_the_menu_is_the_five_intentions_and_nothing_without_identity():
     sections = [s for s, *_ in _specs()]
-    assert list(dict.fromkeys(sections)) == ["", "Aprender", "Practicar", "Laboratorios", "Ajustes"]
+    assert list(dict.fromkeys(sections)) == ["", "Aprender", "Practicar", "Explorar", "Ajustes"]
     titles = " ".join(t for _, _, t, _, _ in _specs())
     assert "progreso" not in titles.lower() and "docente" not in titles.lower()
     urls = [u for _, u, *_ in _specs()]
@@ -63,7 +63,7 @@ def test_each_section_holds_what_the_signed_decision_lists():
     # 2026-11-17: «Tu aprendizaje en esta sesión» (solo la sesión del navegador; no es «Mi progreso»).
     assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "cuestionarios", "casos-simulador",
                                        "mi-sesion"]
-    assert by_section["Laboratorios"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
+    assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
                                           "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
     assert by_section["Ajustes"] == ["ajustes"] and by_section[""] == ["inicio"]
 
@@ -93,7 +93,7 @@ def test_home_has_three_doors_with_one_line_each_and_no_key_gate():
     # Rediseño del 2026-11-17: las tres puertas son las tarjetas Aprender, Practicar y Laboratorios del tablero.
     assert {"teoria", "cuestionarios", "gemelo"} <= {p for p, _ in links}
     text = " ".join(m.value for m in at.main.markdown)
-    for word in ("Aprender", "Practicar", "Laboratorios"):
+    for word in ("Aprender", "Practicar", "Explorar"):
         assert f"### " in text and word in text
     assert not at.text_input, "la clave de IA ya no es la primera pantalla"
     assert ("ajustes", "Ajustes: clave de IA") in links

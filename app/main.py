@@ -2617,7 +2617,7 @@ def render_practice_session_learning_page() -> None:
     render_session_learning_page()
 
 
-CLINICAL_HUB = "Laboratorios"   # manual de marca v1.1, p. 7: «Clinical Hub» → «Laboratorios» (antes «Explorar»)
+CLINICAL_HUB = "Explorar"   # la sección conserva su nombre (decisión de José Miguel, 2026-11-17); títulos del manual, p. 7
 
 
 def _page_specs() -> list:

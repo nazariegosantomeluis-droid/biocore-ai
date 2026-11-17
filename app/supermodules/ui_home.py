@@ -3,7 +3,7 @@
 Arriba, el logo, el lema y la franja de monitoreo del paciente activo con una vista previa de la tira; al bajar, el
 logo y el monitoreo suben y se quedan arriba en pequeño (CSS de `inject_global_theme`). Debajo, el selector de órganos;
 al centro, el gemelo (lo que el UPS tiene de ese órgano, con su sello) y la ruta del órgano; a la derecha, las tres
-puertas de la decisión 2 como tarjetas (Aprender, Practicar y Laboratorios).
+puertas de la decisión 2 como tarjetas (Aprender, Practicar y Explorar).
 
 Art. I: la franja muestra el ÚLTIMO estado guardado en el UPS, no una señal en vivo; la vista previa es la tira del kit
 (registro real MIT-BIH 100) con su rótulo de procedencia, no la señal del paciente. Cada valor lleva su sello (manual
@@ -281,7 +281,7 @@ def _render_labs_card() -> None:
 
     pid = peek_active_patient_id()
     with st.container(key="bc_card_clinical"):
-        st.markdown("### Laboratorios")
+        st.markdown("### Explorar")
         st.markdown("**Expediente**")
         if pid is None:
             st.caption("Sin paciente activo.")
