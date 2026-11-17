@@ -41,6 +41,8 @@ from app.utils.design_system import (
     BADGES, PALETTE, no_data_html, render_error_state, render_metric_card, render_module_header,
 )
 from app.supermodules.twin_shell.baroreflex_panel import pa_model_label, render_baroreflex_panel
+from app.utils import navigation as nav
+from app.utils.patient_banner import CALC_LOAD_PATIENT_KEY
 from app.utils.patient_session import (
     get_active_patient_id,
     get_active_session_factory,
@@ -194,6 +196,43 @@ def render_ambient_header(organism: DigitalTwinOrganism) -> None:
 
     for alert in organism.global_state.get("alerts", []):
         st.warning(alert)
+
+
+# I3 (integración 2026-11-17): «Abrir en…». Los tres destinos comparten el MISMO paciente activo (`get_active_patient_id`).
+# (etiqueta, url_path de la página, clave del botón)
+OPEN_IN_TARGETS = (
+    ("Ver ECG", "ecg", "twin_shell_open_in_ecg"),
+    ("Ver HRV", "hrv", "twin_shell_open_in_hrv"),
+    ("Calcular en Calculadoras", "calculadoras", "twin_shell_open_in_calculators"),
+)
+
+
+def render_open_in_labs(organism: DigitalTwinOrganism) -> None:
+    """Tres botones para llevar al paciente del gemelo a otro laboratorio. Antes de cambiar de página se GUARDA el
+    estado actual del organismo en el UPS del paciente activo (`persist_current_state`, procedencia Simulación, con el
+    escenario o los sliders que mandan en `source_detail`): el banner y Calculadoras leen el UPS, y un escenario
+    aplicado vive solo en memoria hasta que alguien lo guarda. Sin este guardado, el destino diría «sin dato»."""
+    st.markdown("**Abrir a este paciente en…**")
+    columns = st.columns(len(OPEN_IN_TARGETS))
+    for column, (label, url_path, key) in zip(columns, OPEN_IN_TARGETS):
+        with column:
+            if not st.button(label, key=key, width="stretch"):
+                continue
+            target = nav.page(url_path)
+            if target is None:
+                st.warning(f"«{label}» abre una página del menú; aquí no hay menú: búscala en el menú lateral.")
+                continue
+            source = st.session_state.get(INPUT_SOURCE_KEY) or "sliders de Twin OS"
+            with get_active_session_factory()() as session:
+                persist_current_state(
+                    session, organism, get_active_patient_id(),
+                    source_detail=f"twin_visual:abrir_en_{url_path} ({source})",
+                )
+            if url_path == "calculadoras":
+                st.session_state[CALC_LOAD_PATIENT_KEY] = True
+            st.switch_page(target)
+    st.caption("Antes de abrir, el estado actual se guarda en la historia del paciente (simulación); el destino lo lee "
+               "del UPS, así que ves al mismo paciente.")
 
 
 def _card_lines(organism: DigitalTwinOrganism, organ_id: str) -> tuple:
@@ -1971,6 +2010,7 @@ def main() -> None:
     render_clinical_case_mode(organism, expanded=True)
     render_synced_digital_twin_body(organism)
     render_ambient_header(organism)
+    render_open_in_labs(organism)
     render_organ_grid(organism)
     render_couplings(organism)
     with st.expander("🔗 Evaluar acoplamiento neuro-cardíaco (BAR → FC)"):
