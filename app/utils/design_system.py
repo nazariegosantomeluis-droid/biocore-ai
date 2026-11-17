@@ -91,8 +91,12 @@ class PALETTE:
     # repite PRIMARY/BACKGROUND/SECONDARY_BACKGROUND/TEXT (Streamlit no puede leer Python) y una prueba exige que
     # coincidan; ningún otro archivo declara un color de estado ni un gris de «sin dato». Ratios WCAG por par en
     # `CONTRAST_PAIRS` (abajo), verificados por `tests/test_fase1_t1_diseno.py`.
-    PRIMARY = "#4f8ef7"           # primaryColor: pestaña activa, foco, controles. 5.56:1 sobre BACKGROUND (AA texto)
-    ACCENT_ON_DARK = "#8ecae6"    # títulos de módulo y primera serie de gráficas
+    # Kit de marca v1.1 (docs/marca, tokens Monitor; 2026-11-17): Núcleo para lo que se toca, Trazo como único color vivo.
+    PRIMARY = "#099fbd"           # token `nucleo`: botones, pestaña activa, controles. 5.70:1 sobre BACKGROUND
+    ACCENT_ON_DARK = "#22d3ee"    # token `trazo`/`enlace`: enlaces, foco y primera serie de gráficas. 9.88:1
+    TINTA_TITULO = "#f1f5ff"      # token `tinta-titulo`: títulos de módulo. 16.36:1
+    TINTA_2 = "#b6c2e2"           # token `tinta-2`: texto secundario. 10.03:1
+    PANEL = "#111d36"             # token `fondo-panel`
     BACKGROUND = "#0f172a"
     SECONDARY_BACKGROUND = "#1a2a4a"
     TEXT = "#e0e7ff"
@@ -102,7 +106,8 @@ class PALETTE:
     STABLE = "#39d98a"
     WARNING = "#ffc542"
     CRITICAL = "#ff6464"          # antes #ff4d4d: 4.92:1 sobre SECONDARY_BACKGROUND (AA); lejos del tejido arterial atenuado
-    NEUTRAL = "#94a3b8"           # «sin dato», heurístico, texto secundario. Antes #64748b (3.75:1, no AA)
+    NEUTRAL = "#94a3c8"           # token `tinta-3` (rótulos): «sin dato», heurístico. El `estado-neutral` del kit
+                                  # (#64748b) da 3.75:1 como texto, no AA; tinta-3 da 7.08:1
     ON_STATE = "#0f172a"          # texto SOBRE un relleno de estado (STABLE/WARNING/CRITICAL): nunca blanco
 
     # Gráficas (no son texto: contraste >= 3:1 de objeto gráfico)
@@ -110,7 +115,7 @@ class PALETTE:
     # Acento de marca (2026-11-17, PROVISIONAL): el cian del trazo, único color vivo de cada vista según el manual de marca
     # v1.1. El kit todavía no está en el repositorio; el valor sale de `visualization/art/tokens.py` (TRACE, rama
     # respaldo-mezcla-20261021) y se reemplaza por el token `trazo` del kit en cuanto llegue. Texto encima: ON_STATE.
-    TRAZO = "#22d3ee"
+    TRAZO = "#22d3ee"             # token `trazo` del kit v1.1 (confirmado; antes provisional)
     SERIES_2 = "#c4b5fd"
 
     # Diagramas de cableado y marcas de ondas de los tutoriales de hardware (integración 2026-11-16): colores
@@ -147,6 +152,8 @@ CONTRAST_PAIRS = (
     ("ON_STATE", "PRIMARY", 4.5), ("ON_STATE", "ACCENT_ON_DARK", 4.5),     # botón principal: reposo y cursor encima
     ("PRIMARY", "SECONDARY_BACKGROUND", 3.0), ("SERIES_2", "SECONDARY_BACKGROUND", 3.0),
     ("TRAZO", "BACKGROUND", 4.5), ("TRAZO", "SECONDARY_BACKGROUND", 4.5), ("ON_STATE", "TRAZO", 4.5),
+    ("TINTA_TITULO", "BACKGROUND", 4.5), ("TINTA_TITULO", "SECONDARY_BACKGROUND", 4.5),
+    ("TINTA_2", "BACKGROUND", 4.5), ("TINTA_2", "SECONDARY_BACKGROUND", 4.5), ("TEXT", "PANEL", 4.5),
     # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
     # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
     ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
@@ -344,7 +351,7 @@ def render_module_header(
     tirar la página completa."""
     header_text = f"{icon} {title}".strip()
     st.markdown(
-        f"<h1 style='color:{PALETTE.ACCENT_ON_DARK}; margin-bottom:0;'>{header_text}</h1>",
+        f"<h1 style='color:{PALETTE.TINTA_TITULO}; margin-bottom:0;'>{header_text}</h1>",
         unsafe_allow_html=True,
     )
     if subtitle:
@@ -757,6 +764,47 @@ def inject_global_theme() -> None:
             .bc-dots span {{ width: 10px; height: 10px; border-radius: 999px; background: {PALETTE.GRID}; }}
             .bc-dots span.on {{ background: {PALETTE.TRAZO}; width: 26px; }}
             .bc-value {{ font-size: 1.6rem; font-weight: 700; color: {PALETTE.TEXT}; font-variant-numeric: tabular-nums; }}
+            /* Kit de marca v1.1: Figtree en títulos y valores (cifras tabulares), Noto Sans en el texto (config.toml). */
+            .bc-hero, .bc-value, .bc-mini b {{ font-family: Figtree, "Noto Sans", sans-serif; font-variant-numeric: tabular-nums; }}
+            .bc-lema {{ display: inline-block; border: 1px solid {PALETTE.TRAZO}; border-radius: 999px; padding: 6px 18px;
+                background: {PALETTE.PANEL}; color: {PALETTE.TINTA_TITULO}; font-family: Figtree, sans-serif;
+                font-weight: 600; font-size: 1.15rem; margin: 6px 0 8px 0; }}
+            .bc-logo img {{ height: 64px; width: auto; }}
+            .bc-seal {{ display: inline-flex; align-items: center; gap: 6px; color: {PALETTE.TINTA_2}; font-size: 0.9rem; }}
+            .bc-seal img {{ height: 20px; width: auto; }}
+            .bc-illus {{ float: right; width: 72px; height: 72px; margin: 0 0 8px 12px; }}
+            .bc-preview {{ border: 1px solid {PALETTE.GRID}; border-radius: 14px; overflow: hidden; background: #0b1426; }}
+            .bc-preview img {{ display: block; width: 100%; height: auto; }}
+            /* Menú lateral en píldoras, con los íconos dibujados del kit (sin librería genérica de íconos). */
+            [data-testid="stSidebarNav"] a {{ border: 1px solid {PALETTE.GRID}; border-radius: 999px !important;
+                margin: 3px 6px; padding-left: 12px; }}
+            [data-testid="stSidebarNav"] a[aria-current="page"] {{ border-color: {PALETTE.TRAZO}; background: {PALETTE.PANEL}; }}
+            [data-testid="stSidebarNav"] a::before {{ content: ""; flex: 0 0 20px; width: 20px; height: 20px; margin-right: 8px;
+                background-repeat: no-repeat; background-position: center; background-size: contain; }}
+            [data-testid="stSidebarNav"] a[href$="/gemelo"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-gemelo-digital-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/temas"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-academia-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/teoria"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-academia-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/ecg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-ecg-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/multisensor"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-fusion-de-sensores-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/respiratorio"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-respiracion-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/eeg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-eeg-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/emg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-emg-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/hrv"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-variabilidad-cardiaca-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/biomarcadores"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-biomarcadores-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/calculadoras"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-calculadoras-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/pacientes"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-pacientes-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a[href$="/comparar"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-pacientes-monitor.svg"); }}
+            /* Al bajar, el logo y el monitoreo suben y se quedan arriba en pequeño (animación ligada al scroll, solo CSS). */
+            [data-testid="stMain"] {{ scroll-timeline: --bcmain block; }}
+            .st-key-bc_sticky {{ position: fixed; top: 0.7rem; left: 50%; transform: translateX(-50%); z-index: 1000;
+                display: flex; align-items: center; gap: 14px; background: {PALETTE.PANEL}; border: 1px solid {PALETTE.GRID};
+                border-radius: 999px; padding: 4px 16px; width: auto !important; max-width: 92vw; }}
+            .bc-mini {{ display: flex; align-items: center; gap: 14px; color: {PALETTE.TEXT}; font-size: 0.9rem; white-space: nowrap; }}
+            .bc-mini img {{ height: 22px; width: auto; }}
+            @supports (animation-timeline: scroll()) {{
+                .st-key-bc_sticky {{ animation: bc-reveal linear both; animation-timeline: --bcmain; animation-range: 160px 320px; }}
+            }}
+            @keyframes bc-reveal {{ from {{ opacity: 0; visibility: hidden; }} to {{ opacity: 1; visibility: visible; }} }}
             @media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}
             /* Al pasar el cursor Streamlit oscurece el fondo (#0b5fef: 3.31:1 con texto oscuro). Se usa ACCENT_ON_DARK. */
             [data-testid="stBaseButton-primary"]:hover, [data-testid="stBaseButton-primary"]:active,

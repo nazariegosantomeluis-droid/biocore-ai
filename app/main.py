@@ -154,8 +154,8 @@ PLOTLY_GO, _, PLOTLY_OK = safe_import_plotly()
 st.set_page_config(
     # Fase 1 (idioma, 2026-08-30): título de la pestaña del navegador --
     # única cadena de este bloque que no es una clave reservada de Streamlit.
-    page_title="BIOCORE AI — Plataforma Integrada",
-    page_icon="🧬",
+    page_title="Biocore · Laboratorio digital de fisiología",      # manual de marca v1.1, p. 7: sin «AI» en público
+    page_icon=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "favicon-48.png"),
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -166,7 +166,7 @@ st.set_page_config(
         # VALOR de "About" sí es nuestro y se traduce.
         "Get Help": "https://github.com",
         "Report a bug": "https://github.com/issues",
-        "About": "BIOCORE AI — Sistema Operativo de Inteligencia Biomédica",
+        "About": "Biocore · Laboratorio digital de fisiología. Cada dato declara su procedencia.",
     },
 )
 
@@ -2617,38 +2617,39 @@ def render_practice_session_learning_page() -> None:
     render_session_learning_page()
 
 
-CLINICAL_HUB = "Clinical Hub"   # nombre propio de la sección (antes «Explorar»; rediseño del 2026-11-17)
+CLINICAL_HUB = "Laboratorios"   # manual de marca v1.1, p. 7: «Clinical Hub» → «Laboratorios» (antes «Explorar»)
 
 
 def _page_specs() -> list:
-    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado). Íconos Material, sin
-    emoji (rediseño Duolingo + Apple, 2026-11-17)."""
+    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado). Sin ícono en `st.Page`
+    (manual de marca v1.1: sin emoji ni librerías genéricas de íconos); los íconos dibujados del kit los pone el CSS de
+    `inject_global_theme` en el menú. Títulos con los nombres de la página 7 del manual."""
     return [
-        ("", "inicio", "Inicio", ":material/home:", render_home_page),
-        ("Aprender", "temas", "Temas", ":material/menu_book:", render_learn_topics_page),
-        ("Aprender", "teoria", "Teoría (Academia)", ":material/school:", render_learn_theory_page),
-        ("Aprender", "referencias", "Referencias de los laboratorios", ":material/library_books:", render_learn_references_page),
-        ("Aprender", "ecg-3d", "ECG en 3D", ":material/view_in_ar:", render_learn_ecg3d_page),
-        ("Aprender", "bibliografia", "Bibliografía", ":material/bookmarks:", render_learn_bibliography_page),
-        ("Practicar", "quiz", "Quiz de la Academia", ":material/quiz:", render_practice_quiz_page),
-        ("Practicar", "caso-ciego", "Caso ciego", ":material/visibility_off:", render_practice_blind_case_page),
-        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", ":material/ecg:", render_practice_ecg_challenge_page),
-        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", ":material/checklist:", render_practice_lab_quizzes_page),
-        ("Practicar", "casos-simulador", "Casos clínicos del simulador", ":material/stethoscope:", render_practice_simulator_cases_page),
-        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", ":material/insights:", render_practice_session_learning_page),
-        (CLINICAL_HUB, "gemelo", "Gemelo digital (Digital Twin OS)", ":material/body_system:", render_twin_shell_page),
-        (CLINICAL_HUB, "ecg", "ECG", ":material/monitor_heart:", render_ecg_lab_page),
-        (CLINICAL_HUB, "multisensor", "Multisensor", ":material/sensors:", render_multisensor_page),
-        (CLINICAL_HUB, "respiratorio", "Respiratorio", ":material/pulmonology:", render_respiratory_lab_page),
-        (CLINICAL_HUB, "eeg", "EEG", ":material/neurology:", render_eeg_neuro_lab_page),
-        (CLINICAL_HUB, "emg", "EMG", ":material/exercise:", render_emg_page),
-        (CLINICAL_HUB, "hrv", "Variabilidad cardíaca (HRV)", ":material/timeline:", render_hrv_page),
-        (CLINICAL_HUB, "biomarcadores", "Biomarcadores", ":material/science:", render_biomarkers_page),
-        (CLINICAL_HUB, "calculadoras", "Calculadoras clínicas", ":material/calculate:", render_calculators_page),
-        (CLINICAL_HUB, "pacientes", "Flujo de pacientes", ":material/folder_shared:", render_patient_pipeline_page),
-        (CLINICAL_HUB, "comparar", "Comparar pacientes", ":material/compare_arrows:", render_compare_patients_page),
-        (CLINICAL_HUB, "modelo-3d", "Crea tu modelo 3D", ":material/deployed_code:", render_model3d_page),
-        ("Ajustes", "ajustes", "Ajustes", ":material/settings:", render_settings_page),
+        ("", "inicio", "Inicio", None, render_home_page),
+        ("Aprender", "temas", "Temas", None, render_learn_topics_page),
+        ("Aprender", "teoria", "Teoría (Academia)", None, render_learn_theory_page),
+        ("Aprender", "referencias", "Referencias de los laboratorios", None, render_learn_references_page),
+        ("Aprender", "ecg-3d", "ECG en 3D", None, render_learn_ecg3d_page),
+        ("Aprender", "bibliografia", "Bibliografía", None, render_learn_bibliography_page),
+        ("Practicar", "quiz", "Quiz de la Academia", None, render_practice_quiz_page),
+        ("Practicar", "caso-ciego", "Caso ciego", None, render_practice_blind_case_page),
+        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", None, render_practice_ecg_challenge_page),
+        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", None, render_practice_lab_quizzes_page),
+        ("Practicar", "casos-simulador", "Casos clínicos del simulador", None, render_practice_simulator_cases_page),
+        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", None, render_practice_session_learning_page),
+        (CLINICAL_HUB, "gemelo", "Gemelo digital", None, render_twin_shell_page),
+        (CLINICAL_HUB, "ecg", "ECG", None, render_ecg_lab_page),
+        (CLINICAL_HUB, "multisensor", "Fusión de sensores", None, render_multisensor_page),
+        (CLINICAL_HUB, "respiratorio", "Respiración", None, render_respiratory_lab_page),
+        (CLINICAL_HUB, "eeg", "EEG", None, render_eeg_neuro_lab_page),
+        (CLINICAL_HUB, "emg", "EMG", None, render_emg_page),
+        (CLINICAL_HUB, "hrv", "Variabilidad cardiaca", None, render_hrv_page),
+        (CLINICAL_HUB, "biomarcadores", "Biomarcadores", None, render_biomarkers_page),
+        (CLINICAL_HUB, "calculadoras", "Calculadoras clínicas", None, render_calculators_page),
+        (CLINICAL_HUB, "pacientes", "Pacientes", None, render_patient_pipeline_page),
+        (CLINICAL_HUB, "comparar", "Comparar pacientes", None, render_compare_patients_page),
+        (CLINICAL_HUB, "modelo-3d", "Taller 3D", None, render_model3d_page),
+        ("Ajustes", "ajustes", "Ajustes", None, render_settings_page),
     ]
 
 
@@ -2662,6 +2663,9 @@ def main() -> None:
         pages[url], sections[url] = page, section or "Inicio"
         menu.setdefault(section, []).append(page)
     nav.register(pages, sections)
+    st.logo(os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-logotipo-color-monitor-512px.png"),
+            icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-isotipo-color-monitor-256px.png"),
+            size="large")
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()
     with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo
