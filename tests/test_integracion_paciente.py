@@ -193,3 +193,41 @@ def test_read_active_vitals_sin_paciente(monkeypatch):
     vitals = read_active_vitals()
     assert vitals.patient_id is None and vitals.short_id is None
     assert vitals.values == {"hr": None, "rr": None, "spo2": None}
+
+
+# ── Un solo criterio visible: toda FC/FR/SpO₂ con sus puntos NEWS2 (misma tabla que el gemelo) ──
+
+def test_news2_reading_note_usa_la_tabla_del_gemelo():
+    from clinical.calculators import news2_partial, news2_reading_note
+    assert news2_reading_note(pulse=95) == "NEWS2 (RCP 2017): Pulso 1 punto"            # 91-110 → 1
+    assert news2_reading_note(pulse=111) == "NEWS2 (RCP 2017): Pulso 2 puntos"          # 111-130 → 2
+    assert news2_reading_note(pulse=131) == "NEWS2 (RCP 2017): Pulso 3 puntos"          # ≥ 131 → 3
+    assert news2_reading_note(pulse=75) == "NEWS2 (RCP 2017): Pulso 0 puntos"
+    assert news2_reading_note(pulse=95, respiratory_rate=22, spo2=94) == (
+        "NEWS2 (RCP 2017): Pulso 1 punto · Frecuencia respiratoria 2 puntos · SpO₂ (escala 1) 1 punto")
+    assert news2_reading_note() is None and news2_reading_note(pulse=float("nan")) is None
+    for hr in range(30, 200):                       # nunca difiere del NEWS2 parcial que usa el gemelo
+        points = news2_partial(pulse=float(hr)).components["Pulso"]
+        assert f"Pulso {points} punto" in news2_reading_note(pulse=float(hr))
+
+
+def test_el_banner_muestra_los_puntos_news2_de_cada_valor():
+    patient_id = _patient_with({"ecg": {"heart_rate": 95.0}, "respiratory": {"respiratory_rate": 22.0, "spo2": 94.0}})
+    banner = _banner_texts(_open("emg", **{PATIENT_KEY: patient_id}))[0]
+    assert "FC <b>95</b> lpm" in banner and "NEWS2 1 punto" in banner
+    assert "NEWS2 2 puntos" in banner                       # FR 22
+    assert banner.count("NEWS2") == 3, banner               # pulso, FR y SpO₂ (94 → 1 punto)
+
+
+def test_sin_dato_no_lleva_puntos_news2():
+    patient_id = _patient_with({"ecg": {"heart_rate": 95.0}})
+    banner = _banner_texts(_open("emg", **{PATIENT_KEY: patient_id}))[0]
+    assert banner.count("NEWS2") == 1, banner               # solo el pulso; FR y SpO₂ dicen «Sin dato»
+
+
+@pytest.mark.parametrize("url", ["calculadoras", "ecg", "multisensor"])
+def test_las_pantallas_que_muestran_una_lectura_traen_sus_puntos_news2(url):
+    at = _open(url)
+    notes = [c.value for c in at.caption if c.value.startswith("NEWS2 (RCP 2017): ")]
+    assert notes, f"{url}: la lectura no trae sus puntos NEWS2"
+    assert all("Pulso" in n for n in notes)

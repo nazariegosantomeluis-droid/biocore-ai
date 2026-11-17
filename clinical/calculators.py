@@ -574,6 +574,22 @@ def news2_partial(*, pulse: Optional[float] = None, respiratory_rate: Optional[f
     return News2Partial(components, tuple(missing) + NEWS2_PARAMETERS_NOT_MODELED)
 
 
+def news2_points_text(points: int) -> str:
+    """«1 punto» / «2 puntos» / «0 puntos»: la misma redacción en todas las pantallas."""
+    return f"{points} punto" if points == 1 else f"{points} puntos"
+
+
+def news2_reading_note(*, pulse: Optional[float] = None, respiratory_rate: Optional[float] = None,
+                       spo2: Optional[float] = None) -> Optional[str]:
+    """Los puntos NEWS2 (RCP 2017) de la lectura que una pantalla muestra, calculados con `news2_partial` (la MISMA
+    función y las MISMAS tablas del gemelo y de Calculadoras). Para que una FC, una FR o una SpO₂ nunca aparezcan sin
+    sus puntos, venga la pantalla de donde venga. Una sola lectura por llamada; `None` si no hay ninguna válida. Es un
+    COMPONENTE, nunca un total NEWS2, y no cambia la clasificación que la pantalla ya muestre con su propio criterio."""
+    partial = news2_partial(pulse=pulse, respiratory_rate=respiratory_rate, spo2=spo2)
+    notes = [f"{name} {news2_points_text(points)}" for name, points in partial.components.items()]
+    return ("NEWS2 (RCP 2017): " + " · ".join(notes)) if notes else None
+
+
 # Cociente pulso-respiración (PRQ = FC / FR). Fuente verificada con texto completo (2026-11-13):
 # Scholkmann F, Wolf U. The Pulse-Respiration Quotient: A Powerful but Untapped Parameter for Modern Studies About
 # Human Physiology and Pathophysiology. Front Physiol 2019;10:371. doi:10.3389/fphys.2019.00371 (PMC6465339).
