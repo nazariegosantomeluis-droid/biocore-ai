@@ -44,6 +44,8 @@ CITED_TITLES_AND_PROPER_NAMES = (
     "Artifact and recording concepts in EEG",                     # Tatum 2011, J Clin Neurophysiol
     "Lab Streaming Layer",                                        # nombre propio del protocolo LSL
     "*Heart Rhythm*",                                             # revista de [K2007] en la Bibliografía (pulido)
+    # [B2013] en la Bibliografía: el título del artículo refuta el «balance» que la guardia de LF/HF busca.
+    "The LF/HF ratio does not accurately measure cardiac sympatho-vagal balance",
 )
 
 # Pulido profesional (2026-11-16): frases del documento FIRMADO (`docs/contenido/teoria_citada.md`) que el patrón amplio
@@ -51,7 +53,21 @@ CITED_TITLES_AND_PROPER_NAMES = (
 # sigan estando, tal cual, en el documento firmado; cualquier otra aparición sigue fallando.
 SIGNED_NON_TREATMENT = (
     "la recomendación es una frecuencia de corte superior de al menos 150 Hz",   # tema 1 [K2007]: filtro del equipo
+    "Recomendación clásica: en la línea media del vientre muscular",             # A3 [DL1997]: dónde va el electrodo
+    "recomendaciones de colocación detalladas para 27 músculos",                 # A3 [H2000]: SENIAM
+    "coincide con esta recomendación",                                           # A4 [DL2010]: el filtro de 20-450 Hz
 )
+
+
+# Teoría citada 2 (B3, decisión de Luis, 2026-11-17): donde aparezca la razón LF/HF va rotulada «(interpretación
+# discutida)» con [B2013], o es el texto firmado que explica por qué es discutida; nunca se lee como balance o dominancia.
+LF_HF_OK = ("(interpretación discutida)", "La razón LF/HF es discutida", "no mide con exactitud",
+            "#### Dominio de la frecuencia: bandas y la razón LF/HF")          # el título firmado de B3
+LF_HF_CLAIM = re.compile(r"balance|dominancia|proxy", re.IGNORECASE)
+
+
+def lf_hf_offenders(texts):
+    return sorted({t[:160] for t in texts if "LF/HF" in t and (LF_HF_CLAIM.search(t) or not any(k in t for k in LF_HF_OK))})
 
 
 def _without_citations(text):
@@ -61,7 +77,8 @@ def _without_citations(text):
 
 
 def test_every_signed_exemption_is_literally_in_the_signed_document():
-    doc = Path("docs/contenido/teoria_citada.md").read_text(encoding="utf-8")
+    doc = (Path("docs/contenido/teoria_citada.md").read_text(encoding="utf-8")
+           + Path("docs/contenido/teoria_citada_2.md").read_text(encoding="utf-8"))
     for phrase in SIGNED_NON_TREATMENT:
         assert phrase in doc and TREATMENT.search(phrase), phrase       # firmada, y de verdad la atrapaba el patrón
 
@@ -147,6 +164,7 @@ def test_no_bpm_and_no_listed_english_term_reaches_the_student(url):
     assert treatments == [], treatments
     # Cierre del pulido (2026-11-16): el material rotulado «[Sin fuente]» ya no se monta en ninguna página.
     assert not [t[:120] for t in texts if "[Sin fuente]" in t], url
+    assert lf_hf_offenders(texts) == [], (url, lf_hf_offenders(texts))
 
 
 # Integración con main: las fuentes de cada laboratorio que no son la de inicio (sin red ni puerto: MIT-BIH/PTB-XL
@@ -176,6 +194,14 @@ def test_no_bpm_and_no_listed_english_term_in_the_other_sources(url, label, opti
     treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
     assert treatments == [], treatments
     assert not [t[:120] for t in texts if "[Sin fuente]" in t], (url, option)      # cierre del pulido
+    assert lf_hf_offenders(texts) == [], (url, option, lf_hf_offenders(texts))      # teoría citada 2, B3
+
+
+def test_the_lf_hf_guard_would_catch_what_it_was_written_for():
+    for old in ("LF/HF: 1.50", "Razón de potencia espectral (LF/HF) — proxy de balance simpático/vagal.",
+                "Espectro (LF/HF)", "LF/HF Ratio (Aut. Balance)"):
+        assert lf_hf_offenders([old]), old
+    assert not lf_hf_offenders(["LF: 1 — HF: 2 — razón LF/HF (interpretación discutida) [B2013]: 0.50"])
 
 
 def test_the_citation_exemption_removes_only_the_exact_title():
