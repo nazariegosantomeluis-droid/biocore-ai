@@ -2513,24 +2513,12 @@ def render_patient_pipeline_page() -> None:
 # ==================== NAVEGACIÓN POR INTENCIÓN (fase 1, tanda 1) ====================
 
 def render_home_page() -> None:
-    """Inicio (decisión 2): tres puertas, cada una con una línea que dice qué hace. La clave de IA ya no es la
-    primera pantalla: vive en Ajustes."""
-    render_module_header(
-        "BIOCORE AI", icon="🧬",
-        subtitle="Plataforma educativa de fisiología. El gemelo digital es una simulación y se declara como tal.",
-    )
-    doors = (
-        ("teoria", "📖", "Aprender", "Teoría, referencias de los laboratorios y el ECG en 3D: entender antes de medir."),
-        ("cuestionarios", "✍️", "Practicar", "Cuestionarios y casos clínicos: respondes tú y solo entonces se corrige."),
-        ("gemelo", "🔬", "Explorar", "El gemelo digital (simulado) y los laboratorios de señales: cambia algo y mira qué pasa."),
-    )
-    for col, (url, icon, title, line) in zip(st.columns(3), doors):
-        with col.container(border=True):
-            st.markdown(f"### {icon} {title}")
-            st.write(line)
-            nav.link(url, f"Ir a {title}", icon="➡️")
-    st.caption("La IA (narrador y explicaciones) es opcional: sin clave, todo lo demás funciona igual.")
-    nav.link("ajustes", "Ajustes: clave de IA", icon="⚙️")
+    """Inicio (decisión 2, rediseño Duolingo + Apple del 2026-11-17): las tres puertas (Aprender, Practicar, Clinical
+    Hub) son las tarjetas de la derecha del tablero; arriba, el monitoreo del paciente activo y los órganos; al centro,
+    el gemelo, la ruta del órgano y un registro real. La clave de IA sigue en Ajustes."""
+    from app.supermodules.ui_home import render_home_dashboard
+
+    render_home_dashboard()
 
 
 def _render_learn_topics(url: str) -> None:
@@ -2610,38 +2598,57 @@ def render_practice_simulator_cases_page() -> None:
     twin.render_clinical_case_mode(st.session_state.twin_shell_organism, expanded=True)
 
 
+def render_learn_topics_page() -> None:
+    from app.supermodules.ui_topic import render_topic_page
+
+    render_topic_page()
+
+
+def render_compare_patients_page() -> None:
+    from app.supermodules.ui_compare import render_compare_page
+
+    render_active_patient_banner()   # I2: el mismo paciente en todas las páginas de Clinical Hub
+    render_compare_page()
+
+
 def render_practice_session_learning_page() -> None:
     from app.supermodules.session_learning_view import render_session_learning_page
 
     render_session_learning_page()
 
 
+CLINICAL_HUB = "Clinical Hub"   # nombre propio de la sección (antes «Explorar»; rediseño del 2026-11-17)
+
+
 def _page_specs() -> list:
-    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
+    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado). Íconos Material, sin
+    emoji (rediseño Duolingo + Apple, 2026-11-17)."""
     return [
-        ("", "inicio", "Inicio", "🏠", render_home_page),
-        ("Aprender", "teoria", "Teoría (Academia)", "📖", render_learn_theory_page),
-        ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
-        ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
-        ("Aprender", "bibliografia", "Bibliografía", "📚", render_learn_bibliography_page),
-        ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
-        ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
-        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
-        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
-        ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
-        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", "📊", render_practice_session_learning_page),
-        ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
-        ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
-        ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),
-        ("Explorar", "respiratorio", "Respiratorio", "💨", render_respiratory_lab_page),
-        ("Explorar", "eeg", "EEG", "🧠", render_eeg_neuro_lab_page),
-        ("Explorar", "emg", "EMG", "🦾", render_emg_page),
-        ("Explorar", "hrv", "Variabilidad cardíaca (HRV)", "📈", render_hrv_page),
-        ("Explorar", "biomarcadores", "Biomarcadores", "🧪", render_biomarkers_page),
-        ("Explorar", "calculadoras", "Calculadoras clínicas", "🧮", render_calculators_page),
-        ("Explorar", "pacientes", "Flujo de pacientes", "👥", render_patient_pipeline_page),
-        ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
-        ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_page),
+        ("", "inicio", "Inicio", ":material/home:", render_home_page),
+        ("Aprender", "temas", "Temas", ":material/menu_book:", render_learn_topics_page),
+        ("Aprender", "teoria", "Teoría (Academia)", ":material/school:", render_learn_theory_page),
+        ("Aprender", "referencias", "Referencias de los laboratorios", ":material/library_books:", render_learn_references_page),
+        ("Aprender", "ecg-3d", "ECG en 3D", ":material/view_in_ar:", render_learn_ecg3d_page),
+        ("Aprender", "bibliografia", "Bibliografía", ":material/bookmarks:", render_learn_bibliography_page),
+        ("Practicar", "quiz", "Quiz de la Academia", ":material/quiz:", render_practice_quiz_page),
+        ("Practicar", "caso-ciego", "Caso ciego", ":material/visibility_off:", render_practice_blind_case_page),
+        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", ":material/ecg:", render_practice_ecg_challenge_page),
+        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", ":material/checklist:", render_practice_lab_quizzes_page),
+        ("Practicar", "casos-simulador", "Casos clínicos del simulador", ":material/stethoscope:", render_practice_simulator_cases_page),
+        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", ":material/insights:", render_practice_session_learning_page),
+        (CLINICAL_HUB, "gemelo", "Gemelo digital (Digital Twin OS)", ":material/body_system:", render_twin_shell_page),
+        (CLINICAL_HUB, "ecg", "ECG", ":material/monitor_heart:", render_ecg_lab_page),
+        (CLINICAL_HUB, "multisensor", "Multisensor", ":material/sensors:", render_multisensor_page),
+        (CLINICAL_HUB, "respiratorio", "Respiratorio", ":material/pulmonology:", render_respiratory_lab_page),
+        (CLINICAL_HUB, "eeg", "EEG", ":material/neurology:", render_eeg_neuro_lab_page),
+        (CLINICAL_HUB, "emg", "EMG", ":material/exercise:", render_emg_page),
+        (CLINICAL_HUB, "hrv", "Variabilidad cardíaca (HRV)", ":material/timeline:", render_hrv_page),
+        (CLINICAL_HUB, "biomarcadores", "Biomarcadores", ":material/science:", render_biomarkers_page),
+        (CLINICAL_HUB, "calculadoras", "Calculadoras clínicas", ":material/calculate:", render_calculators_page),
+        (CLINICAL_HUB, "pacientes", "Flujo de pacientes", ":material/folder_shared:", render_patient_pipeline_page),
+        (CLINICAL_HUB, "comparar", "Comparar pacientes", ":material/compare_arrows:", render_compare_patients_page),
+        (CLINICAL_HUB, "modelo-3d", "Crea tu modelo 3D", ":material/deployed_code:", render_model3d_page),
+        ("Ajustes", "ajustes", "Ajustes", ":material/settings:", render_settings_page),
     ]
 
 
