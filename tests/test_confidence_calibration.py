@@ -54,15 +54,16 @@ def _conceptos_del_contrato():
 def test_cada_pregunta_mapeada_existe_y_usa_el_vocabulario_de_luis():
     # 2026-11-17: también los bancos de EMG y HRV (firmados), con `emg`/`hrv`; y `QUIZ_BANKS` los cubre.
     # y el de NEWS2 (N1–N9, firmado 2026-11-17), con `news2`.
-    from educational.quiz_bank import NEWS2_QUESTIONS
-    enunciados = {q.prompt for q in ACADEMIA_QUESTIONS + ECG12_QUESTIONS + EMG_QUESTIONS + HRV_QUESTIONS + NEWS2_QUESTIONS}
+    from educational.quiz_bank import HEMO_QUESTIONS, NEWS2_QUESTIONS
+    enunciados = {q.prompt for q in ACADEMIA_QUESTIONS + ECG12_QUESTIONS + EMG_QUESTIONS + HRV_QUESTIONS + NEWS2_QUESTIONS + HEMO_QUESTIONS}
     assert set(CONCEPT_BY_PROMPT) <= enunciados
     assert all(CONCEPT_BY_PROMPT[q.prompt] == "emg" for q in EMG_QUESTIONS)
     assert all(CONCEPT_BY_PROMPT[q.prompt] == "hrv" for q in HRV_QUESTIONS)
     assert all(CONCEPT_BY_PROMPT[q.prompt] == "news2" for q in NEWS2_QUESTIONS)
+    assert all(CONCEPT_BY_PROMPT[q.prompt] == "hemodinamica" for q in HEMO_QUESTIONS)
     arbol = ast.parse(Path("app/utils/confidence.py").read_text(encoding="utf-8"))
     nodo = next(n for n in arbol.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "QUIZ_BANKS")
-    assert set(ast.literal_eval(nodo.value)) == {"academia", "ecg12", "emg", "hrv", "news2"}
+    assert set(ast.literal_eval(nodo.value)) == {"academia", "ecg12", "emg", "hrv", "news2", "hemodinamica"}
     assert set(CONCEPT_BY_PROMPT.values()) <= _conceptos_del_contrato()
     assert set(cc.CONCEPT_LABELS) == _conceptos_del_contrato()
 

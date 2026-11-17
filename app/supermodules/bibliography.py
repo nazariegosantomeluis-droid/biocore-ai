@@ -2,7 +2,8 @@
 
 Dos partes:
 1. `SIGNED`: las referencias de `docs/contenido/teoria_citada.md` (firmado por Luis el 2026-11-16) y de
-   `docs/contenido/teoria_citada_2.md` (EMG y HRV, firmado el 2026-11-17), con su clave. Cada
+   `docs/contenido/teoria_citada_2.md` (EMG y HRV, firmado el 2026-11-17), con su clave. Aparte, `HEMODYNAMICS`: las de
+   `docs/contenido/teoria_citada_3.md` (hemodinámica, firmado el 2026-11-17). Cada
    bloque de teoría cita su clave ([K2007], [MCM]...) y enlaza aquí. Los metadatos de StatPearls y de Kors 1990 se
    completaron con el registro de PubMed (decisión adicional 3 de la hoja de firma).
 2. `REPO`: las que la plataforma ya citaba en su código (una sola copia de cada cita en su módulo), en formato uniforme:
@@ -139,6 +140,31 @@ METHODS: Tuple[Reference, ...] = (
 
 SIGNED_KEYS = tuple(r.key for r in SIGNED)
 
+# Hemodinámica (`docs/contenido/teoria_citada_3.md`, firmado por Luis el 2026-11-17 con la condición «que salga de
+# referencias verídicas»). Grupo aparte: los registros se leyeron en Consensus (Semantic Scholar, OpenAlex, PubMed) y de
+# ellos solo hay autor principal, título, revista y año; volumen, páginas y DOI quedan por completar en la fuente.
+HEMO_GROUP = "Hemodinámica (teoría firmada 3)"
+_HEMO_NOTE = "Registro leído en Consensus el 2026-11-17; volumen, páginas y DOI por completar en la fuente original."
+HEMODYNAMICS: Tuple[Reference, ...] = tuple(
+    Reference(key, HEMO_GROUP, text, (("Registro", url),), note=_HEMO_NOTE) for key, text, url in (
+        ("DW2019", "DeMers D, et al. Physiology, Mean Arterial Pressure. *StatPearls*. Treasure Island (FL): StatPearls "
+                   "Publishing; 2019.",
+         "https://consensus.app/papers/details/w:8df53f3a-df91-4c5b-88d8-55afabeabd83/"),
+        ("ME2000", "Meaney E, et al. Formula and nomogram for the sphygmomanometric calculation of the mean arterial "
+                   "pressure. *Heart*. 2000.",
+         "https://consensus.app/papers/details/w:82b2646b-b849-4db3-871e-d97746887ee4/"),
+        ("JO2024", "Jozwiak M, et al. Value and Variability of Pulse Shape Indicator for Estimating Mean Arterial Pressure "
+                   "in the Radial and Femoral Arteries. *J Am Heart Assoc*. 2024.",
+         "https://consensus.app/papers/details/w:b3ea8507-dbe6-474c-ad8e-f64d0e34721b/"),
+        ("MY2003", "Mayet J, et al. Cardiac and vascular pathophysiology in hypertension. *Heart*. 2003.",
+         "https://consensus.app/papers/details/w:1d168653-b62e-4650-aa40-09b3f80606c9/"),
+        ("SQ2015", "Sequeira V, et al. Historical perspective on heart function: the Frank–Starling Law. *Biophys Rev*. "
+                   "2015.",
+         "https://consensus.app/papers/details/w:1789598a-bd26-4709-bdb3-3cedc967949c/"),
+    ))
+HEMO_KEYS = tuple(r.key for r in HEMODYNAMICS)
+
+
 # «Oehler 2014» (auditoría firmada, decisión 2): es una publicación verificable (PubMed 25201032) y sostiene lo que el
 # panel del VCG le atribuye («ángulos amplios se asocian a mayor riesgo»: el resumen la asocia con muerte súbita y
 # mortalidad en estudios observacionales). Por eso se completa, no se sustituye.
@@ -223,6 +249,9 @@ def render_bibliography_page() -> None:
         for ref in SIGNED:
             if ref.group == group:
                 _render_reference(st, ref)
+    render_section_header(HEMO_GROUP)
+    for ref in HEMODYNAMICS:
+        _render_reference(st, ref)
     render_section_header(METHODS_GROUP)
     for ref in METHODS:
         _render_reference(st, ref)

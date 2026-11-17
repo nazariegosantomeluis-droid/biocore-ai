@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-17 — Hemodinámica firmada con fuentes verificables, banco de NEWS2 corregido y caso guiado 2 para firma (Art. I)
+
+**Contexto**: Luis pidió resolver lo urgente de la evaluación: hemodinámica («firmo todo, pero que salga de referencias verídicas»), la observación del banco de NEWS2 y el siguiente paso (un segundo caso guiado). Los datos de la entidad legal siguen pendientes: no se dieron y no se inventan.
+
+1. **Teoría de hemodinámica** (`docs/contenido/teoria_citada_3.md`, FIRMADO con esa condición): PAM (definición, presión de perfusión, diastólica + 1/3 de la presión de pulso y sus limitaciones), gasto cardiaco = FC × VS, precarga, poscarga, Frank–Starling, la analogía con la ley de Ohm y la resistencia. Cada afirmación sale del resumen publicado de su fuente, leído el 17-11-2026 en Consensus (Semantic Scholar, OpenAlex, PubMed): [DW2019] StatPearls, [ME2000] *Heart*, [JO2024] *JAHA*, [MY2003] *Heart* y [SQ2015] *Biophys Rev*. NCBI y PubMed no se pudieron abrir desde el entorno: volumen, páginas y DOI quedan por completar en la fuente original, y así lo dice el documento y la Bibliografía (grupo nuevo `HEMODYNAMICS`).
+2. **Banco de hemodinámica** (`HEMO_QUESTIONS`, G1–G10, lección «Hemodinámica»): el concepto `hemodinamica` tenía 0 preguntas de banco. Dos son cálculos (110/80 → PAM 90 mmHg; 70 lpm × 70 mL → 4.9 L/min), comprobados en la prueba.
+3. **Banco de NEWS2, observación resuelta:** la correcta era la opción más larga en siete preguntas, no cuatro (la observación anterior contó mal). Se alargaron solo los distractores; ninguna respuesta ni explicación firmada cambió. Una prueba lo vigila en los dos bancos nuevos.
+4. **Caso guiado 2, BORRADOR para firma** (`educational/guided_case_anterior.py`, `docs/contenido/caso_guiado_ecg_2.md`): elevación del ST en V1–V4 (`anterior_stemi`, semilla 7), con las líneas t1:72 y t1:78–80. La lección: V1 se eleva (descarta t1:80), V5–V6 apenas (no es «sobre todo V3–V6», t1:79) e I queda en la línea de base (el patrón proximal de t1:78 queda incompleto); el ECG orienta a la descendente anterior, pero el sitio de la oclusión no se puede precisar. La vista del caso guiado admite varios casos: muestra solo los firmados y, con más de uno, un selector; mientras tanto dice que hay uno más pendiente de firma.
+
 ## 2026-11-17 · Kit de marca v1.1 en la app: tokens, tipografía, logo, íconos, sellos y nombres del manual
 
 **Contexto**: llegó el kit de marca (zip y manual). El kit completo vive en `docs/marca/Biocore-Kit-de-marca-v1.1/`, y lo que usa la app en `app/static/marca/` (servido con `server.enableStaticServing`). Además, los bocetos de José Miguel sobre el Inicio y Temas.

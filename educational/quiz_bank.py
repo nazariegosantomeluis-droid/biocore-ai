@@ -735,9 +735,9 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
     QuizQuestion(  # N1 · firmada 2026-11-17 · t1:91
         '¿Para qué sirve NEWS2?',
         ['Para estandarizar cómo se registran, puntúan y atienden las constantes vitales, y detectar el deterioro agudo',
-         'Para diagnosticar la causa del deterioro de un paciente',
-         'Para sustituir la valoración de un clínico',
-         'Para medir la saturación de oxígeno sin pulsioxímetro'],
+         'Para diagnosticar la causa del deterioro de un paciente a partir de sus constantes vitales y de su historia clínica',
+         'Para sustituir la valoración de un clínico cuando las constantes vitales se registran de forma automática en la sala',
+         'Para medir la saturación de oxígeno sin pulsioxímetro, a partir de la frecuencia respiratoria y del pulso del paciente'],
         0, category=_NEWS2,
         explanation=('NEWS2 es una puntuación agregada que estandariza cómo se registran, puntúan y atienden las '
                      'constantes vitales para detectar el deterioro agudo [RCP2017].'),
@@ -747,9 +747,9 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
         '¿Cuántos parámetros puntúa NEWS2?',
         ['Seis: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión '
          'nueva, y temperatura',
-         'Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura',
-         'Cinco: los mismos seis, sin la temperatura',
-         'Tres: pulso, presión arterial y SpO₂'],
+         'Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura; la presión arterial y la consciencia se anotan aparte, sin puntos',
+         'Cinco: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso y nivel de consciencia o confusión nueva, sin temperatura',
+         'Tres: pulso, presión arterial sistólica y SpO₂; la frecuencia respiratoria, la consciencia y la temperatura solo se describen'],
         0, category=_NEWS2,
         explanation=('puntúa seis parámetros: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel '
                      'de consciencia o confusión nueva, y temperatura [RCP2017].'),
@@ -764,20 +764,26 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
     ),
     QuizQuestion(  # N4 · firmada 2026-11-17 · t1:35
         'En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?',
-        ['2 puntos (tramo de 111 a 130 lpm)', '0 puntos', '1 punto', '3 puntos'],
+        ['2 puntos (tramo de 111 a 130 lpm)',
+         '0 puntos (tramo de 51 a 90 lpm)',
+         '1 punto (tramo de 91 a 110 lpm)',
+         '3 puntos (tramo de 131 lpm o más alto)'],
         0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
     ),
     QuizQuestion(  # N5 · firmada 2026-11-17 · t1:35
         'En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?',
-        ['1 punto (tramo de 41 a 50 lpm)', '0 puntos', '2 puntos', '3 puntos'],
+        ['1 punto (tramo de 41 a 50 lpm)',
+         '0 puntos (tramo de 51 a 90 lpm)',
+         '2 puntos (tramo de 111 a 130 lpm)',
+         '3 puntos (tramo de 40 lpm o menos)'],
         0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
     ),
     QuizQuestion(  # N6 · firmada 2026-11-17 · t1:96
         '¿Qué significa un 3 en un solo parámetro de NEWS2?',
         ['Es poco frecuente y motiva una revisión urgente',
-         'Nada mientras el total sea bajo',
-         'Que el paciente recibe oxígeno suplementario',
-         'Que hay que usar la escala 2 de SpO₂'],
+         'Nada, mientras el total de NEWS2 siga en el tramo bajo, de 1 a 4 puntos',
+         'Que el paciente recibe oxígeno suplementario y por eso se le suman puntos',
+         'Que a partir de ahí hay que usar la escala 2 de SpO₂ en vez de la escala 1'],
         0, category=_NEWS2,
         explanation=('un 3 en un solo parámetro (marcado en rojo) es poco frecuente y motiva una revisión urgente '
                      '[RCP2017].'),
@@ -799,9 +805,9 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
         '¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?',
         ['En insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo '
          'indicación de un clínico',
-         'Siempre que la SpO₂ baje de 92 %',
-         'En todo paciente que recibe oxígeno suplementario',
-         'Nunca: NEWS2 tiene una sola escala de SpO₂'],
+         'Siempre que la SpO₂ baje de 92 % en cualquier paciente adulto, sin necesidad de un diagnóstico previo ni de indicación de un clínico',
+         'En todo paciente que recibe oxígeno suplementario, para que esos 2 puntos extra no se cuenten dos veces dentro del total de NEWS2',
+         'Nunca: NEWS2 tiene una sola escala de SpO₂ para todos los pacientes, con o sin insuficiencia respiratoria hipercápnica confirmada'],
         0, category=_NEWS2,
         explanation=('la escala 2 de SpO₂ se usa en insuficiencia respiratoria hipercápnica confirmada (por lo general '
                      'EPOC), con objetivo de 88–92 %, bajo indicación de un clínico. En los demás casos se usa la '
@@ -812,9 +818,9 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
         '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?',
         ['Porque el gemelo no dispone de presión arterial en todos los casos y no modela temperatura ni consciencia: '
          'un total sería falso',
-         'Porque el total de NEWS2 no tiene utilidad clínica',
-         'Porque el total solo se calcula en pacientes con oxígeno suplementario',
-         'Porque el total requiere un electrocardiograma de 12 derivaciones'],
+         'Porque el total de NEWS2 no tiene utilidad clínica y solo se deben mirar los puntos de cada parámetro por separado, uno por uno',
+         'Porque el total solo se calcula en pacientes que reciben oxígeno suplementario, y en ningún caso del gemelo se simula el oxígeno',
+         'Porque el total requiere un electrocardiograma de 12 derivaciones completo, además de las seis constantes vitales del paciente'],
         0, category=_NEWS2,
         explanation=('el gemelo no dispone de presión arterial en todos los casos, y no modela temperatura ni '
                      'consciencia. Sin esos parámetros, un total sería falso; por eso la plataforma muestra los '
@@ -822,6 +828,119 @@ NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
         source=_REF_RCP2017,
     ),
 ], 'news2')
+
+
+# --- Hemodinámica (2026-11-17): G1–G10, FIRMADOS por Luis el 2026-11-17 («que salga de referencias verídicas») -------
+# Texto exacto de `docs/contenido/banco_preguntas_hemodinamica.md`; cada explicación sale de su línea «t3:N» de
+# `docs/contenido/teoria_citada_3.md`. `tests/test_banco_hemodinamica.py` vigila todo esto.
+_HEMO = "Hemodinámica"
+_REF_DW2019 = '[DW2019] DeMers D, et al. Physiology, Mean Arterial Pressure. StatPearls. Treasure Island (FL): StatPearls Publishing; 2019.'
+_REF_ME2000 = '[ME2000] Meaney E, et al. Formula and nomogram for the sphygmomanometric calculation of the mean arterial pressure. Heart. 2000.'
+_REF_MY2003 = '[MY2003] Mayet J, et al. Cardiac and vascular pathophysiology in hypertension. Heart. 2003.'
+_REF_SQ2015 = '[SQ2015] Sequeira V, et al. Historical perspective on heart function: the Frank–Starling Law. Biophys Rev. 2015.'
+
+HEMO_QUESTIONS: List[QuizQuestion] = balance_positions([
+    QuizQuestion(  # G1 · firmada 2026-11-17 · t3:11
+        '¿Qué es la presión arterial media (PAM)?',
+        ['La presión arterial promedio a lo largo de un ciclo cardiaco, en sístole y en diástole',
+         'La presión máxima que alcanza la arteria en cada sístole del ventrículo izquierdo, medida en el brazo',
+         'La diferencia entre la presión sistólica y la diastólica de cada latido, también llamada pulso arterial',
+         'La presión que queda en las venas al final de cada diástole, justo antes de la siguiente contracción'],
+        0, category=_HEMO,
+        explanation='la presión arterial media es la presión arterial promedio a lo largo de un ciclo cardiaco, en sístole y en diástole [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G2 · firmada 2026-11-17 · t3:19
+        '¿Con qué fórmula empírica se estima la PAM a partir de la presión arterial?',
+        ['Diastólica + 1/3 de la presión de pulso',
+         '(Sistólica + diastólica) / 2, el promedio aritmético simple de las dos cifras',
+         'Sistólica − diastólica, que es la presión de pulso de ese mismo latido',
+         'Sistólica + 1/3 de la presión de pulso, para corregir la sobrestimación del brazalete'],
+        0, category=_HEMO,
+        explanation='durante muchos años se ha usado una fórmula empírica: la PAM queda a un tercio de la distancia entre la presión diastólica y la sistólica, es decir, diastólica + 1/3 de la presión de pulso [ME2000].',
+        source=_REF_ME2000,
+    ),
+    QuizQuestion(  # G3 · firmada 2026-11-17 · t3:19
+        'Con una presión de 110/80 mmHg, ¿cuánto da la estimación diastólica + 1/3 de la presión de pulso?',
+        ['90 mmHg',
+         '95 mmHg',
+         '100 mmHg',
+         '85 mmHg'],
+        0, category=_HEMO,
+        explanation='durante muchos años se ha usado una fórmula empírica: la PAM queda a un tercio de la distancia entre la presión diastólica y la sistólica, es decir, diastólica + 1/3 de la presión de pulso [ME2000].',
+        source=_REF_ME2000,
+    ),
+    QuizQuestion(  # G4 · firmada 2026-11-17 · t3:27
+        '¿Qué es el gasto cardiaco?',
+        ['La frecuencia cardiaca por el volumen sistólico',
+         'El volumen sistólico dividido entre la frecuencia cardiaca de ese minuto',
+         'La presión arterial media multiplicada por la resistencia vascular sistémica',
+         'La suma de la frecuencia cardiaca y del volumen sistólico de cada latido'],
+        0, category=_HEMO,
+        explanation='el gasto cardiaco es el producto de la frecuencia cardiaca por el volumen sistólico [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G5 · firmada 2026-11-17 · t3:27
+        'Con una frecuencia de 70 lpm y un volumen sistólico de 70 mL, ¿cuál es el gasto cardiaco?',
+        ['4.9 L/min',
+         '140 mL/min',
+         '0.49 L/min',
+         '49 L/min'],
+        0, category=_HEMO,
+        explanation='el gasto cardiaco es el producto de la frecuencia cardiaca por el volumen sistólico [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G6 · firmada 2026-11-17 · t3:32
+        'Si aumenta la poscarga, ¿qué le pasa al volumen sistólico?',
+        ['Disminuye',
+         'Aumenta, porque el ventrículo se contrae con más fuerza contra la resistencia',
+         'No cambia, porque solo depende de la frecuencia cardiaca',
+         'Aumenta, porque la poscarga es lo mismo que la precarga'],
+        0, category=_HEMO,
+        explanation='un aumento de la poscarga disminuye el volumen sistólico [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G7 · firmada 2026-11-17 · t3:31
+        'Si aumenta el volumen de sangre, ¿qué pasa?',
+        ['Aumentan la precarga, el volumen sistólico y el gasto cardiaco',
+         'Disminuye la precarga y, con ella, bajan el volumen sistólico y el gasto cardiaco del ventrículo',
+         'Aumenta la poscarga y baja el volumen sistólico, aunque el gasto cardiaco se mantiene igual',
+         'No cambia la precarga, porque las venas distensibles absorben todo el volumen que se añade'],
+        0, category=_HEMO,
+        explanation='aumentar el volumen de sangre aumenta la precarga, el volumen sistólico y, por lo tanto, el gasto cardiaco [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G8 · firmada 2026-11-17 · t3:44
+        '¿Qué le pasa a la resistencia vascular sistémica si disminuye el radio de los vasos?',
+        ['Aumenta',
+         'Disminuye, porque la sangre pasa más rápido por un vaso más angosto',
+         'No cambia: la resistencia solo depende de la viscosidad de la sangre',
+         'Disminuye primero y luego aumenta, según la presión arterial media'],
+        0, category=_HEMO,
+        explanation='la resistencia vascular sistémica depende sobre todo del radio de los vasos: disminuir el radio aumenta la resistencia [DW2019].',
+        source=_REF_DW2019,
+    ),
+    QuizQuestion(  # G9 · firmada 2026-11-17 · t3:41
+        'Según la analogía con la ley de Ohm, ¿de dónde puede venir un aumento de la PAM?',
+        ['De más gasto cardiaco, más resistencia periférica o ambos',
+         'Solo de una frecuencia cardiaca más alta, aunque el gasto cardiaco y la resistencia no cambien',
+         'Solo de una menor resistencia periférica, que deja pasar más sangre a las arterias del cuerpo',
+         'De la viscosidad de la sangre, que es lo que más determina la resistencia de los vasos'],
+        0, category=_HEMO,
+        explanation='un aumento de la PAM solo puede venir de un aumento del gasto cardiaco, de la resistencia periférica, o de ambos [MY2003].',
+        source=_REF_MY2003,
+    ),
+    QuizQuestion(  # G10 · firmada 2026-11-17 · t3:35
+        '¿Qué describe la ley de Frank–Starling?',
+        ['Que el corazón ajusta la eyección al llenado ventricular',
+         'Que la frecuencia cardiaca sube cada vez que baja la presión arterial media del cuerpo',
+         'Que la fuerza de contracción del ventrículo no depende de cuánto se llenó antes de contraerse',
+         'Que el volumen sistólico cae cuando aumenta el llenado del ventrículo antes de la sístole'],
+        0, category=_HEMO,
+        explanation='el corazón ajusta la eyección a los cambios del llenado ventricular [SQ2015].',
+        source=_REF_SQ2015,
+    ),
+], 'hemodinamica')
 
 
 # --- Concepto de cada pregunta (2026-11-17): FIRMADO por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -----------------------
@@ -935,4 +1054,24 @@ CONCEPT_BY_PROMPT = {
         'news2',  # N8
     '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?':
         'news2',  # N9
+    '¿Qué es la presión arterial media (PAM)?':
+        'hemodinamica',  # G1
+    '¿Con qué fórmula empírica se estima la PAM a partir de la presión arterial?':
+        'hemodinamica',  # G2
+    'Con una presión de 110/80 mmHg, ¿cuánto da la estimación diastólica + 1/3 de la presión de pulso?':
+        'hemodinamica',  # G3
+    '¿Qué es el gasto cardiaco?':
+        'hemodinamica',  # G4
+    'Con una frecuencia de 70 lpm y un volumen sistólico de 70 mL, ¿cuál es el gasto cardiaco?':
+        'hemodinamica',  # G5
+    'Si aumenta la poscarga, ¿qué le pasa al volumen sistólico?':
+        'hemodinamica',  # G6
+    'Si aumenta el volumen de sangre, ¿qué pasa?':
+        'hemodinamica',  # G7
+    '¿Qué le pasa a la resistencia vascular sistémica si disminuye el radio de los vasos?':
+        'hemodinamica',  # G8
+    'Según la analogía con la ley de Ohm, ¿de dónde puede venir un aumento de la PAM?':
+        'hemodinamica',  # G9
+    '¿Qué describe la ley de Frank–Starling?':
+        'hemodinamica',  # G10
 }
