@@ -4,6 +4,7 @@ El panel de «Cómo se calcula» del ECG muestra EXACTAMENTE las cifras de resul
 evaluación usa registros que el modelo no vio y se predice con los mismos nombres de columna del ajuste.
 """
 
+import importlib
 import json
 import warnings
 from pathlib import Path
@@ -108,3 +109,22 @@ def test_prediction_uses_the_same_column_names_without_warning():
         warnings.simplefilter("error")
         model.predict(ae.features_frame(segs))
         model.predict_proba(ae.features_frame(segs))
+
+
+def test_cache_dir_comes_from_the_variable_or_defaults_inside_the_repo(monkeypatch, tmp_path):
+    try:
+        monkeypatch.setenv("BIOCORE_CACHE_DIR", str(tmp_path))
+        importlib.reload(ae)
+        assert ae.CACHE_DIR == tmp_path
+        monkeypatch.delenv("BIOCORE_CACHE_DIR")
+        importlib.reload(ae)
+        assert ae.CACHE_DIR == Path(__file__).resolve().parents[1] / ".cache" / "biocore"
+    finally:
+        monkeypatch.undo()          # el entorno original, y el modulo recargado con el
+        importlib.reload(ae)
+
+
+def test_no_personal_paths_in_the_card_results_or_code():
+    for path in (ae.RESULTS_DIR / "MODEL_CARD.md", ae.RESULTS_PATH, Path(ae.__file__)):
+        text = path.read_text(encoding="utf-8")
+        assert "C:/Users" not in text and "luisn" not in text, path

@@ -16,8 +16,11 @@ Clases AAMI (ANSI/AAMI EC57, agrupacion de de Chazal 2004, tabla I). Ventana del
 0.25 s antes y 0.45 s despues de la anotacion R, derivacion MLII sin filtrar (Criterio BIOCORE:
 la clase no fija ventana ni filtro; se declara aqui y en results.json).
 
-Reproducir (el python del PATH, con la base descargada fuera de git):
-    python -m domain.physiology.ml.arrhythmia_evaluation --mitdb C:/Users/luisn/biocore_cache/mitdb
+Reproducir (la base y el modelo viven fuera de git, en CACHE_DIR: la variable de entorno
+BIOCORE_CACHE_DIR o, sin ella, `.cache/biocore` en la raiz del repositorio):
+    python -m domain.physiology.ml.arrhythmia_evaluation
+lee la base de CACHE_DIR/mitdb y guarda el modelo en CACHE_DIR/models/<MODEL_VERSION>.joblib
+(`--mitdb` y `--model` cambian esas rutas).
 """
 
 from __future__ import annotations
@@ -26,12 +29,16 @@ import argparse
 import datetime as _dt
 import hashlib
 import json
+import os
 import platform
 from pathlib import Path
 
 import numpy as np
 
-RESULTS_DIR = Path(__file__).resolve().parents[3] / "docs" / "validation" / "arrhythmia_classifier"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+# Base y modelo, fuera de git (`.cache/` esta en .gitignore).
+CACHE_DIR = Path(os.environ.get("BIOCORE_CACHE_DIR") or (REPO_ROOT / ".cache" / "biocore"))
+RESULTS_DIR = REPO_ROOT / "docs" / "validation" / "arrhythmia_classifier"
 RESULTS_PATH = RESULTS_DIR / "results.json"
 MODEL_VERSION = "lgbm-8rasgos-ds1-v1"
 
@@ -302,9 +309,10 @@ def load_results(path: Path = RESULTS_PATH) -> dict | None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mitdb", required=True, type=Path, help="carpeta con los registros de mitdb")
+    ap.add_argument("--mitdb", type=Path, default=CACHE_DIR / "mitdb", help="carpeta con los registros de mitdb")
     ap.add_argument("--out", type=Path, default=RESULTS_DIR)
-    ap.add_argument("--model", type=Path, default=None, help="donde guardar el modelo entrenado (fuera de git)")
+    ap.add_argument("--model", type=Path, default=CACHE_DIR / "models" / f"{MODEL_VERSION}.joblib",
+                    help="donde guardar el modelo entrenado (fuera de git)")
     a = ap.parse_args()
     r = evaluate(a.mitdb, a.out, a.model)
     print(json.dumps({k: r[k] for k in ("estado", "clases_con_sensibilidad_baja")}, ensure_ascii=False))

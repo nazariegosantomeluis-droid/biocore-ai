@@ -15,7 +15,7 @@ Uso **educativo**: sirve para mostrar cuánto acierta un clasificador sencillo c
 - **Rasgos.** Son los 8 de `extract_features`, todos de amplitud del segmento: media, desviación, rango, máximo, mínimo, energía, mediana y entropía de Shannon (histograma de 32 intervalos). **No hay rasgos de intervalo RR.** Por eso no puede distinguir un latido prematuro supraventricular, que tiene forma casi normal y se reconoce por su adelanto.
 - **Modelo evaluado.** `LGBMClassifier` con los parámetros por defecto de la clase. Solo se fijaron `random_state=42`, `deterministic=True` y `force_row_wise=True`. Sin el determinismo, dos corridas iguales dieron sensibilidad de N de 0.9047 y de 0.9003.
 - **Nombres de columna.** Se entrena y se predice con un `DataFrame` que tiene los mismos nombres de columna, así que no aparece el aviso «X does not have valid feature names». Hay una prueba que lo exige.
-- **Archivo del modelo.** Se guarda fuera de git, en `C:/Users/luisn/biocore_cache/models/lgbm-8rasgos-ds1-v1.joblib`, con SHA-256 `2621b367…5e51024`. El hash completo está en `results.json`.
+- **Archivo del modelo.** Se guarda fuera de git, en `$BIOCORE_CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` (por defecto, `.cache/biocore` en la raíz del repositorio), con SHA-256 `2621b367…5e51024`. El hash completo está en `results.json`.
 
 ## Datos
 
@@ -97,14 +97,36 @@ Las cifras por latido están infladas y no se usan. Se reportan solo como eviden
 
 ## Cómo reproducir
 
-```bash
-# 1) Base (fuera de git), unos 90 MB
-python -c "import wfdb; wfdb.dl_database('mitdb', dl_dir='C:/Users/luisn/biocore_cache/mitdb')"
-# 2) Evaluación: escribe results.json y los dos PNG en esta carpeta (unos 45 s)
-python -m domain.physiology.ml.arrhythmia_evaluation --mitdb C:/Users/luisn/biocore_cache/mitdb \
-    --model C:/Users/luisn/biocore_cache/models/lgbm-8rasgos-ds1-v1.joblib
-# 3) Pruebas de la tarjeta
-python -m pytest tests/test_arrhythmia_model_card.py -q
-```
+Todos los comandos se corren desde la raíz del repositorio. La base y el modelo viven fuera de git, en la carpeta `$BIOCORE_CACHE_DIR`; si la variable no está fijada, la carpeta es `.cache/biocore` en la raíz del repositorio (`.cache/` está en `.gitignore`).
+
+1. **Elegir la carpeta** (opcional; sin este paso se usa `.cache/biocore`):
+
+   ```bash
+   # Git Bash
+   export BIOCORE_CACHE_DIR="$HOME/biocore_cache"
+   ```
+
+   ```powershell
+   # PowerShell
+   $env:BIOCORE_CACHE_DIR = "$HOME\biocore_cache"
+   ```
+
+2. **Descargar la base** a `$BIOCORE_CACHE_DIR/mitdb` (unos 90 MB):
+
+   ```bash
+   python -c "from domain.physiology.ml.arrhythmia_evaluation import CACHE_DIR; import wfdb; wfdb.dl_database('mitdb', dl_dir=str(CACHE_DIR / 'mitdb'))"
+   ```
+
+3. **Correr la evaluación**, sin argumentos. Lee la base de `$BIOCORE_CACHE_DIR/mitdb`, guarda el modelo en `$BIOCORE_CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` y escribe `results.json` y los dos PNG en esta carpeta (unos 45 s):
+
+   ```bash
+   python -m domain.physiology.ml.arrhythmia_evaluation
+   ```
+
+4. **Correr las pruebas de la tarjeta:**
+
+   ```bash
+   python -m pytest tests/test_arrhythmia_model_card.py -q
+   ```
 
 Entorno de la corrida: Python 3.13.11, lightgbm 4.6.0, scikit-learn 1.9.0, NumPy 2.4.6 y wfdb 4.3.1. Con `deterministic=True`, dos corridas seguidas dieron un `results.json` idéntico byte a byte. No se probó con otras versiones de lightgbm.

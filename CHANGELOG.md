@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-17 — Residuos del PR #7: licencia de lightgbm, métodos citados y rutas portables (Art. I)
+
+**Contexto.** Rama `luis/ml-hoy`. La tarjeta del modelo usaba `lightgbm` y dos métodos publicados (con la fuente de donde se leyeron las listas DS1/DS2) sin atribuirlos en `THIRD_PARTY_NOTICES.md`, y dejaba rutas personales («C:/Users/…») en el código y en la tarjeta: nadie más podía reproducirla tal como estaba escrita.
+
+- **Licencia de `lightgbm` (`THIRD_PARTY_NOTICES.md`, sección 4).** Leída de su fuente el 2026-11-17, del paquete instalado (lightgbm 4.6.0, Python 3.13.11 del PATH): `LICENSE` del paquete «The MIT License (MIT) / Copyright (c) Microsoft Corporation»; metadatos `License: The MIT License (MIT)` y clasificador `License :: OSI Approved :: MIT License`; página https://github.com/microsoft/LightGBM. Lo usan solo la evaluación (`domain/physiology/ml/arrhythmia_evaluation.py`) y `requirements_arrhythmia.txt`; la app no lo importa al correr y sigue fuera de `requirements.txt` a propósito (las pruebas que lo necesitan se omiten sin él). Se sacó de la nota de paquetes sin licencia leída y del pendiente 4; `kaleido`, `xgboost`, `pytz`, `scikit-plot` y `optuna` siguen pendientes.
+- **Métodos citados (`THIRD_PARTY_NOTICES.md`, sección 5).** División DS1/DS2 y clases AAMI: de Chazal 2004, *IEEE Trans Biomed Eng* 51(7):1196–1206, doi:10.1109/TBME.2004.827359, PMID 15248536 (verificada en PubMed). Puntaje de Brier: Brier 1950, *Monthly Weather Review* 78(1):1–3 (verificada en Crossref; no está en PubMed). Las listas DS1/DS2 se leyeron en Farag 2023, *Sensors* 23(3):1365, PMC9919183, tabla 2 (verificada en PubMed); la tabla de de Chazal no se leyó (es de pago). La MIT-BIH ya estaba atribuida y no se duplicó.
+- **Rutas portables.** `arrhythmia_evaluation.py` define `REPO_ROOT` y `CACHE_DIR` = la variable `BIOCORE_CACHE_DIR` o, sin ella, `.cache/biocore` en la raíz del repositorio (`.cache/` ya está en `.gitignore`). El CLI corre sin argumentos: `--mitdb` vale por defecto `CACHE_DIR/mitdb` y `--model` `CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` (antes `--mitdb` era obligatorio y sin `--model` no se guardaba el modelo; ahora el CLI lo guarda siempre). `MODEL_CARD.md` habla de `$BIOCORE_CACHE_DIR` y su «Cómo reproducir» son cuatro pasos (fijar la variable en Git Bash o PowerShell, o no fijarla; descargar `mitdb`; evaluar sin argumentos; correr las pruebas). El SHA-256 del modelo y todas las cifras quedan igual; `results.json` no tenía rutas personales.
+- **Pruebas nuevas (`tests/test_arrhythmia_model_card.py`).** `CACHE_DIR` sale de la variable y, sin ella, es `<raíz>/.cache/biocore` (recarga el módulo y lo deja como estaba); ni `MODEL_CARD.md`, ni `results.json`, ni `arrhythmia_evaluation.py` contienen «C:/Users» ni «luisn».
+
+**Suite:** PENDIENTE
+
 ## 2026-11-17 — Tarjeta del modelo: evaluación honesta del clasificador de arritmias (Art. I)
 
 **Contexto (Art. I: ninguna cifra sin decir cómo se calculó).** Rama `luis/ml-hoy`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, lightgbm 4.6.0, scikit-learn 1.9.0, NumPy 2.4.6, wfdb 4.3.1.
