@@ -21,6 +21,7 @@ import math
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
+WILSON_KEY = "WILSON1927"   # la misma clave que `bibliography.METHODS` (lo exige tests/test_confidence_calibration.py)
 WILSON_1927 = ("Wilson EB. Probable inference, the law of succession, and statistical inference. J Am Stat Assoc. "
                "1927;22(158):209–212. doi:10.1080/01621459.1927.10502953")
 Z_95 = 1.959963984540054  # cuantil 0.975 de la normal estándar: intervalo de 95 %

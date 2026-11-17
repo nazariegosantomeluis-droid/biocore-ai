@@ -274,7 +274,7 @@ def test_metric_explanations_only_accept_a_signed_topic():
 
 
 def test_bibliography_lists_every_signed_key_and_the_repo_citations_with_links():
-    from app.supermodules.bibliography import SIGNED, SIGNED_KEYS, repo_references
+    from app.supermodules.bibliography import METHODS, SIGNED, SIGNED_KEYS, repo_references
 
     assert set(SIGNED_KEYS) == {"K2007", "W2009", "RCP2017", "B2012", "E2009", "IFCN2017", "MCM", "CS2023",
                                 "AR2025", "KORS1990", "VZ2014"}
@@ -287,6 +287,8 @@ def test_bibliography_lists_every_signed_key_and_the_repo_citations_with_links()
     for key in SIGNED_KEYS:
         assert f"**[{key}]**" in text, key
     assert "https://doi.org/10.1111/anec.12206" in text                    # Oehler 2014, auditado y completado
+    for ref in METHODS:                                                    # Wilson 1927 (2026-11-17)
+        assert f"**[{ref.key}]** {ref.text}" in text, ref.key
     for ref in repo_references():
         assert ref.text in text
         assert " (" not in ref.text.split(". ")[-1] or "publicada" in ref.text or "licencia" in ref.text

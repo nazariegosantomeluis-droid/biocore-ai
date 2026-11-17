@@ -88,4 +88,4 @@ def render_calibration_panel(expanded: bool = False) -> None:
                 st.markdown(f"- {enunciado} (dijiste {r['confidence']} %)")
         if calibracion.sin_confianza:
             st.caption(f"{calibracion.sin_confianza} respuesta(s) de esta sesión no llevan confianza y no cuentan aquí.")
-        st.caption(f"Rango probable del acierto: intervalo de 95 % de Wilson. {cc.WILSON_1927}")
+        st.caption(f"Rango probable del acierto: intervalo de 95 % de Wilson [{cc.WILSON_KEY}]. {cc.WILSON_1927}")

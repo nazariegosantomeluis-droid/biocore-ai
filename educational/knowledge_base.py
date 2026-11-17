@@ -342,7 +342,7 @@ SINONIMOS: Sequence[Sequence[str]] = (
      "variabilidad cardiaca", "variabilidad cardíaca"),
     ("ECG", "EKG", "electrocardiograma", "electrocardiografía", "electrocardiográfico"),
     ("EEG", "electroencefalograma", "electroencefalografía", "electroencefalográfico"),
-    ("FC", "frecuencia cardiaca", "frecuencia cardíaca", "latidos por minuto", "lpm"),
+    ("FC", "frecuencia cardiaca", "frecuencia cardíaca"),
     ("FR", "frecuencia respiratoria", "respiraciones por minuto"),
     ("arritmia sinusal respiratoria", "RSA", "ASR"),
     ("diafonía", "crosstalk", "cross-talk"),
@@ -358,8 +358,6 @@ SINONIMOS: Sequence[Sequence[str]] = (
     ("HF", "alta frecuencia"),
     ("VLF", "muy baja frecuencia"),
     ("ULF", "ultra baja frecuencia"),
-    ("NN", "RR", "intervalo entre latidos", "intervalos entre latidos"),
-    ("parasimpático", "parasimpática", "vagal", "vago"),
     ("Cheyne-Stokes", "Cheyne Stokes"),
 )
 

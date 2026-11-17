@@ -108,3 +108,20 @@ def test_respiratorio_guarda_la_confianza_que_habia_al_responder():
     at.radio(key=f"practicar_resp_quiz_{tipo}_confidence").set_value(25).run()   # ya con el resultado a la vista
     assert [r["confidence"] for r in at.session_state["session_learning_log"]] == [75]
     assert tipo in " ".join(m.value for m in at.main.markdown)                    # el error muestra su pregunta
+
+
+def test_la_clave_de_wilson_en_pantalla_es_la_de_la_bibliografia():
+    from app.supermodules.bibliography import METHODS
+
+    ref = next(r for r in METHODS if r.key == cc.WILSON_KEY)
+    assert "1927;22(158):209–212" in ref.text and "1927;22(158):209–212" in cc.WILSON_1927
+    assert ("doi:10.1080/01621459.1927.10502953", "https://doi.org/10.1080/01621459.1927.10502953") in ref.links
+    assert "intervalo de 95 % de Wilson [{cc.WILSON_KEY}]" in Path("app/utils/confidence.py").read_text(encoding="utf-8")
+    assert f"[{cc.WILSON_KEY}] Wilson EB." in Path("THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+
+
+def test_el_concepto_del_cuestionario_respiratorio_es_del_vocabulario_de_luis():
+    pytest.importorskip("streamlit")
+    from app.supermodules.respiratory_lab import views
+
+    assert views.QUIZ_CONCEPT == "respiracion_y_apnea" and views.QUIZ_CONCEPT in _conceptos_del_contrato()

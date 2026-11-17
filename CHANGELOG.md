@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-17 — Ajustes de la revisión de los PR #5 y #6: Wilson 1927, sinónimos solo de nombres y preguntas de la demo
+
+**Contexto (Art. I)**: la calibración citaba Wilson 1927 en pantalla, pero la cita no estaba en la Bibliografía ni en los avisos de terceros. Además, la tabla de sinónimos de la búsqueda tenía equivalencias que no son nombres ni siglas.
+
+1. **Wilson 1927.** Metadatos verificados en Crossref (doi:10.1080/01621459.1927.10502953): *J Am Stat Assoc* 1927;22(158):209–212.
+   - Entra a la Bibliografía con la clave **[WILSON1927]**, en un grupo propio, «Métodos que usa la plataforma» (`bibliography.METHODS`). No va en `SIGNED`, que es exactamente la lista de claves de `teoria_citada.md`.
+   - Entra también en `THIRD_PARTY_NOTICES.md`, sección 5.
+   - La pantalla muestra la misma clave: «intervalo de 95 % de Wilson [WILSON1927]» (`confidence_calibration.WILSON_KEY`).
+   - Pruebas: la clave, la referencia y el DOI coinciden en el código, la Bibliografía y los avisos, y la página de Bibliografía la dibuja con su clave.
+2. **Sinónimos solo de nombres y siglas (`knowledge_base.SINONIMOS`)**. Salen tres entradas:
+   - NN ↔ RR: B1 los distingue, porque el intervalo NN es entre latidos sinusales sin artefactos.
+   - parasimpático ↔ vagal ↔ vago: es una equivalencia fisiológica, no un nombre.
+   - «lpm» y «latidos por minuto» como sinónimos de FC: son la unidad, no el nombre.
+   - Con esas entradas sale también la prueba «tono vagal → B2».
+   - Los siete pares pedidos ya estaban en la tabla: electromiografía ↔ EMG, HRV ↔ VFC ↔ variabilidad de la frecuencia cardiaca, ECG, EEG, SpO₂, FR y FC.
+   - No distingue acentos ni mayúsculas: lo hacen el tokenizador `unicode61 remove_diacritics 2` y `_normalizar`.
+3. **Preguntas de la demo** (`tests/test_knowledge_base.py`): las 7 preguntas de «Pregunta a BIOCORE» traen un fragmento firmado de su tema (A4, A1, B1, B3, 6, 7, B2), también escritas sin acentos y en mayúsculas. «¿Cuál es la capital de Francia?» sigue sin fragmentos (no disponible).
+   - Antes de los sinónimos, las 7 ya traían fragmentos, porque la búsqueda usa prefijos. Lo que mejoró es el orden: «electromiografía» abría con temas de HRV y de respiración, y ahora abre con A1; «variabilidad de la frecuencia cardiaca» abría con B3, y ahora abre con B1.
+4. **Respiratorio** (ya hecho en `207d924`): se suma la prueba de contrato. El concepto del cuestionario, `respiracion_y_apnea`, es del vocabulario `CONCEPTS`.
+
+**Pendiente, sin tocar:**
+- Una consulta con «CO2» no encuentra «CO₂»: el índice conserva el subíndice y la consulta lo convierte en «2».
+- En «¿cómo se calcula el NEWS2?», el tema 6 sale 4.º y 5.º: «calcula» pesa más que «NEWS2».
+- El sinónimo LF ↔ «baja frecuencia» trae A8 («artefacto de movimiento: de baja frecuencia») en la pregunta de la razón LF/HF.
+
 ## 2026-11-17 — Sinónimos en la búsqueda de la base de conocimiento
 
 **Contexto**: la búsqueda no tenía sinónimos, así que «electromiografía» no encontraba nada porque la teoría firmada dice «EMG». Los sinónimos solo amplían la búsqueda: no cambian lo que la base contiene ni lo que la IA puede citar.
