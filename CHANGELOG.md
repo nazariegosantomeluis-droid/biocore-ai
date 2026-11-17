@@ -51,7 +51,7 @@ Rama `cierre-pulido`, apilada sobre `pulido-profesional`: esa rama no está fusi
   9. Valores de referencia y límites de interpretación.
 
 ### Verificación
-- Suite completa en serie: **SUITE**.
+- Suite completa en serie: **2299 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4), 4 avisos, 671 s**.
 - Pruebas nuevas: `tests/test_cierre_pulido.py`. El recorrido de idioma y tratamientos ahora también vigila «[Sin fuente]».
 - Adaptadas sin debilitarse:
   - la alcanzabilidad del Monitoreo (ya no exige el material sin fuente ni «Simular»);
