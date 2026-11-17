@@ -519,3 +519,60 @@ EEG_QUESTIONS: List[QuizQuestion] = balance_positions([
         source=KANE_2017,
     ),
 ], "eeg")
+
+
+# --- Concepto de cada pregunta (2026-11-17): PROPUESTA pendiente de revisión de Luis -----------------------------
+# Vocabulario: `CONCEPTS` de `app/utils/session_learning.py` (el contrato de Luis; no se inventan otros). Lo usa la
+# calibración de la confianza (`educational/confidence_calibration.py`). Una pregunta que no encaja en ningún
+# concepto del vocabulario NO está aquí y su respuesta no entra al registro de la sesión: hoy quedan fuera 10 preguntas
+# (EEG, PPG, HVI, pericarditis, onda T normal, manejo del IAMCEST y las que describen la propia app).
+CONCEPT_BY_PROMPT = {
+    'Por convención docente, la FC del adulto en reposo se toma como normal entre 60 y 100 lpm. ¿Con qué valor define la bradicardia sinusal la guía ACC/AHA/HRS 2018?':
+        'frecuencia_cardiaca',
+    '¿Qué representa el complejo QRS?':
+        'ritmo_y_conduccion',
+    'Durante un infarto con elevación del ST, ¿qué puede significar una depresión del ST en V1 y V2?':
+        'derivaciones_e_isquemia',
+    'En una persona con dolor torácico agudo, ¿qué diagnóstico de trabajo plantea una elevación persistente del ST?':
+        'derivaciones_e_isquemia',
+    '¿Qué mide el intervalo PR?':
+        'ritmo_y_conduccion',
+    '¿Qué es una PVC?':
+        'ritmo_y_conduccion',
+    '¿Cómo se calcula la FC (en lpm) a partir del intervalo RR?':
+        'frecuencia_cardiaca',
+    'Una elevación del ST solo en II, III y aVF puede deberse a la oclusión de:':
+        'derivaciones_e_isquemia',
+    '¿Cuál de estas condiciones causa bradicardia?':
+        'ritmo_y_conduccion',
+    'Un eje del QRS entre −45° y −90°, con qR en aVL y QRS < 120 ms, cumple criterios de:':
+        'ritmo_y_conduccion',
+    '¿Qué patrón corresponde a un bloqueo de rama derecha completo en el adulto?':
+        'ritmo_y_conduccion',
+    '¿Cómo se reconoce la fibrilación auricular en el ECG?':
+        'ritmo_y_conduccion',
+    'Según la AHA/ACCF/HRS 2009, ¿desde qué QTc se considera prolongado el QT de un hombre adulto?':
+        'ritmo_y_conduccion',
+    'Una elevación del ST en V1–V4 orienta a la oclusión de:':
+        'derivaciones_e_isquemia',
+    '¿Qué eje del QRS es criterio de bloqueo fascicular anterior izquierdo?':
+        'ritmo_y_conduccion',
+    '¿Qué patrón es característico del bloqueo de rama derecha completo?':
+        'ritmo_y_conduccion',
+    'PR corto, onda delta y QRS ancho en ritmo sinusal son signos de:':
+        'ritmo_y_conduccion',
+    'Sin ondas P discernibles ni otra actividad auricular regular, y con intervalos RR sin patrón, el ritmo sugiere:':
+        'ritmo_y_conduccion',
+    'Un QTc de 500 ms o más se asocia con mayor riesgo de:':
+        'ritmo_y_conduccion',
+    'Una oclusión proximal de la descendente anterior eleva el ST en:':
+        'derivaciones_e_isquemia',
+    '¿Cuál es el rango habitual del PR en el adulto?':
+        'ritmo_y_conduccion',
+    'Un eje del QRS entre +90° y +180° en un adulto, con rS en I y aVL, qR en III y aVF y QRS < 120 ms, cumple criterios de:':
+        'ritmo_y_conduccion',
+    'Un QRS de 120 ms o más en un adulto, con la morfología típica, indica:':
+        'ritmo_y_conduccion',
+    '¿Dónde se mide habitualmente el desplazamiento del segmento ST?':
+        'derivaciones_e_isquemia',
+}

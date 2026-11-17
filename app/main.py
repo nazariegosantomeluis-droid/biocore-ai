@@ -2563,9 +2563,11 @@ def render_learn_ask_page() -> None:
 
 def render_practice_quiz_page() -> None:
     from app.supermodules.academia.pages import render_quiz_section
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Quiz de la Academia", icon="✍️")
     render_quiz_section()
+    render_calibration_panel()
 
 
 def render_practice_blind_case_page() -> None:
@@ -2577,9 +2579,11 @@ def render_practice_blind_case_page() -> None:
 
 def render_practice_ecg_challenge_page() -> None:
     from app.supermodules.ecg_12.quiz import render_ecg12_quiz
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Desafío ECG de 12 derivaciones", icon="📋")
     render_ecg12_quiz(key_prefix="practicar_")
+    render_calibration_panel()
 
 
 def render_practice_lab_quizzes_page() -> None:

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-17 — Calibración de la confianza sobre `session_learning` (Uncertainty Lab, primera pieza)
+
+**Contexto (Art. I)**: el estudiante dice qué tan seguro está antes de ver el resultado y BIOCORE compara esa confianza con su acierto. Se construye sobre el contrato `app/utils/session_learning.py` (sin modificarlo): solo en la sesión, sin base de datos.
+
+1. **`educational/confidence_calibration.py`** (nuevo, sin Streamlit): confianza media frente a acierto, en total, por concepto y por nivel de confianza; lista de los errores con más confianza.
+   - El acierto lleva su intervalo de 95 % de Wilson [Wilson 1927, J Am Stat Assoc 22(158):209–212, doi:10.1080/01621459.1927.10502953].
+   - «Exceso de confianza» solo si la confianza media queda por encima de TODO el intervalo; «falta de confianza», solo por debajo. Dentro del intervalo no se etiqueta. No hay umbrales fijos ni un mínimo de respuestas inventado: con pocas respuestas el intervalo es ancho y el veredicto es «no se detecta».
+   - Sin respuestas con confianza: «No disponible», con el motivo.
+2. **`quiz_bank.CONCEPT_BY_PROMPT`**: **propuesta, pendiente de revisión de Luis.** Asigna uno de los 8 `CONCEPTS` del contrato a 24 preguntas del Quiz de la Academia y del Desafío ECG-12. Las 10 que no encajan en el vocabulario (EEG, PPG, HVI, pericarditis, onda T normal, manejo del IAMCEST y las que describen la app) no se registran. No se inventaron conceptos nuevos.
+3. **`app/utils/confidence.py`** (nuevo):
+   - `render_confidence_input`: selector opcional 25/50/75/100 %, sin valor por defecto.
+   - `record_quiz_answer`: llama a `log_session_answer(..., source="quiz")` una sola vez por intento.
+   - `render_calibration_panel`: el expander «Tu calibración en esta sesión».
+   - Conectado en el Quiz de la Academia (`academia/pages.py`) y en el Desafío ECG-12 (`ecg_12/quiz.py`). El selector va DESPUÉS de las opciones de respuesta, así `at.radio[0]` sigue siendo la respuesta en las pruebas existentes. El panel se monta en las páginas `quiz` y `desafio-ecg`.
+4. **Pruebas**: `tests/test_confidence_calibration.py` (7). Verificado aquí: 6 pasan (Wilson contra su valor de referencia, veredictos, agrupaciones y mapeo contra el vocabulario del contrato, leído sin importar Streamlit). **Falta correr** la prueba AppTest del Desafío ECG-12 y la suite completa en el intérprete de Luis.
+
+**Pendiente:** revisión del mapeo de conceptos por Luis; pedir la confianza también en los cuestionarios de Respiratorio (concepto `respiracion_y_apnea`); el EEG no tiene concepto en el vocabulario.
+
 ## 2026-11-17 — Base de conocimiento de la IA: solo lo firmado, todo con cita
 
 **Contexto (Art. I)**: la IA de BIOCORE no se entrena; consulta una base verificada y cita lo que encuentra. Esta tanda crea esa base a partir de la teoría ya firmada.
