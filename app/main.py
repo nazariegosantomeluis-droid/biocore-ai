@@ -63,6 +63,7 @@ from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
+from app.utils.patient_banner import render_active_patient_banner
 from app.utils.patient_session import (
     get_active_patient_display_name,
     get_active_patient_id,
@@ -340,16 +341,20 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
 # CHANGELOG.md; `tests/test_pulido_profesional.py` comprueba que ninguna función se perdió.
 
 def render_twin_shell_page() -> None:
+    get_active_patient_id()          # el gemelo SIEMPRE tiene paciente (su `init_session` lo crea): que el banner ya lo vea
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.twin_shell.pages import run as run_twin_shell
     run_twin_shell()
 
 
 def render_model3d_page() -> None:
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.model3d.pages import run as run_model3d
     run_model3d()
 
 
 def render_calculators_page() -> None:
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.calculators.pages import run as run_calculators
     run_calculators()
 
@@ -463,6 +468,7 @@ def render_ecg_lab_page() -> None:
     contra 25 registros de la cohorte MIT-BIH, ver CHANGELOG.md). Tanda
     Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
     la firma del experto (antes, texto provisional de Tanda 1)."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Laboratorio de ECG", icon="🫀",
         validation="VALIDATED",
@@ -488,6 +494,7 @@ def render_eeg_neuro_lab_page() -> None:
     inline, que dependía de 'biomedical.eeg' (módulo inexistente) y no tenía
     visualización de bandas de potencia. El supermódulo real (pages_legacy/
     8_🧠_EEG-Neuro-Lab.py, vía src/signals/eeg) sí la tiene."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.eeg_neuro_lab.pages import run as run_eeg_neuro_lab
     run_eeg_neuro_lab()
 
@@ -499,6 +506,7 @@ def render_respiratory_lab_page() -> None:
     src/signals/respiration) tiene 7 patrones seleccionables, análisis real de apnea/AHI,
     canales de tórax/abdomen/SpO2, tablas de referencia clínica y un quiz — nada de la
     versión inline era único, confirmado por auditoría antes de reemplazar."""
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     from app.supermodules.respiratory_lab.pages import run as run_respiratory_lab
     run_respiratory_lab()
 
@@ -646,6 +654,7 @@ def render_biomarkers_page() -> None:
     # `validation="HEURISTIC"`. Texto verbatim -- coherente con el badge
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Biomarcadores", icon="🧬",
         validation="HEURISTIC",
@@ -918,6 +927,7 @@ def render_emg_page() -> None:
     # sobre umbrales sintéticos fijos (no calibrados) -- `validation=
     # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
     # dos partes del lab en la propia cita.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Laboratorio de EMG", icon="🦾",
         validation="HEURISTIC",
@@ -1910,6 +1920,7 @@ def render_multisensor_page() -> None:
     # Tanda Final (2026-09-22): tier renombrado a "HEURISTIC" (antes
     # "heuristico") y texto actualizado al verbatim de la firma del
     # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Fusión multisensor", icon="🔗",
         validation="HEURISTIC",
@@ -2102,6 +2113,7 @@ def render_hrv_page() -> None:
     # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
     # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
     # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Variabilidad de la frecuencia cardíaca (HRV)", icon="📈",
         validation="VALIDATED",
@@ -2305,6 +2317,7 @@ def render_patient_pipeline_page() -> None:
     # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
     # ninguna inferencia propia que "validar" o "no validar". El concepto
     # de nivel de confianza clínico no aplica a este módulo.
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header("Flujo de pacientes", icon="👥", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 

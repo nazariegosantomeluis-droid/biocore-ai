@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-17 — Un mismo paciente entre laboratorios (rama `Integration`)
+
+**Contexto (Art. I)**: los estudiantes valoraron que BIOCORE sea «íntegro» (un solo UPS), pero al moverse entre laboratorios no se notaba que era el mismo paciente.
+
+1. **Mapa (I1)**: qué página de Explorar usa el paciente activo (`get_active_patient_id`). Ninguna LEÍA el UPS; las que lo usan, escriben al pulsar «Guardar estado al gemelo».
+
+   | Página | Antes de hoy | Hoy |
+   |---|---|---|
+   | Gemelo digital | crea y usa el paciente (`init_session`) | + botones «Abrir en…» |
+   | ECG (Monitoreo) | escribe al guardar; 12 Derivaciones y tutorial: datos propios | banner |
+   | Multisensor | datos propios (canales demo); no usa al paciente | banner |
+   | Respiratorio | escribe al guardar (`build_twin_state`); datos propios | banner |
+   | EEG | escribe al guardar; datos propios | banner |
+   | EMG | escribe al guardar; datos propios | banner |
+   | HRV | escribe al guardar; datos propios | banner |
+   | Biomarcadores | no usa paciente (modo demostración, entrada manual) | banner |
+   | Calculadoras | leía el organismo EN MEMORIA del gemelo, no el UPS | lee el UPS: carga FC/FR/SpO₂ y muestra sus puntos NEWS2 |
+   | Flujo de pacientes | crea y usa el paciente | banner |
+   | Crea tu modelo 3D | no usa paciente (TC/RM) | banner |
+
+   Las páginas que generan datos propios (ECG 12 Derivaciones, Multisensor, Biomarcadores, Modelo 3D, y las señales de cada laboratorio) NO se cambiaron: no leen al paciente y no se fuerzan (barandilla 4). El banner solo declara qué tiene el UPS del paciente.
+2. **Banner (I2)**: `app/utils/patient_banner.py::render_active_patient_banner()`, una línea al inicio de cada página de Explorar (`app/main.py`). Muestra el id corto, la fuente activa (escenario o sliders) y la última FC, FR y SpO₂ del UPS con su procedencia. Lo que el UPS no tiene dice «Sin dato»; sin paciente, «Sin paciente activo». Mirar una página NO crea al paciente (`peek_active_patient_id`); el gemelo sí lo crea al abrirse.
+3. **«Abrir en…» (I3)**: `render_open_in_labs()` en `twin_shell/pages.py`: «Ver ECG», «Ver HRV» y «Calcular en Calculadoras» (`st.switch_page`). Antes de cambiar de página guarda el estado actual del organismo en el UPS del paciente activo (simulación, con el escenario en `source_detail`): un escenario aplicado vive solo en memoria y sin guardarlo el destino diría «sin dato». Calculadoras (`calculators/pages.py`, fuera de la lista de archivos de la tarea, cambio mínimo) carga FC/FR/SpO₂ del UPS y muestra los puntos NEWS2 de cada una con `news2_partial`, la misma función del gemelo; sin total.
+4. **Pruebas**: `tests/test_integracion_paciente.py`. Golden: con sepsis aplicada en cada horizonte, los puntos NEWS2 de pulso, FR y SpO₂ de Calculadoras coinciden con los del gemelo.
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
