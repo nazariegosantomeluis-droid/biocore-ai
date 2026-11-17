@@ -14,6 +14,7 @@
 3. **Montado** donde dice la firma: Practicar, «Caso guiado de ECG» (`caso-guiado`), después de `desafio-ecg`. `_page_specs()` declara 26 páginas (24 de main + «Pregunta a BIOCORE» + el caso).
 4. **Registro**: sin cambios de código; cada decisión, una vez por intento, con `log_session_answer(..., "caso_guiado", "derivaciones_e_isquemia", correcto, confianza)` vía `confidence.record_answer`, y el panel de `educational/confidence_calibration.py` en el resumen.
 5. **Pruebas** (`tests/test_guided_case.py`): cada texto que ve el estudiante (también desafíos, evidencias, resultados y la introducción) está en el documento firmado; cada t1:N existe literal en `teoria_citada.md`; el caso aparece en su página con el documento FIRMADO; el registro no se duplica al volver a dibujar. Se corrigió una fuga entre pruebas: la prueba de la pantalla firmada reasignaba `case_signed` en el módulo importado y la siguiente veía el caso «firmado»; ahora la firma se simula con `monkeypatch`.
+6. **Falla heredada de `base-conocimiento-ia`, corregida en la prueba:** `tests/test_respiratory_phase43.py` daba 3 errores ya en esa rama sola (en main, 0). Su recorrido tomaba como «respuesta» el primer radio del cuestionario de Respiratorio, que desde `207d924` es el de la confianza (se pide antes de responder), y le asignaba el texto formateado. El recorrido ahora salta el radio `_confidence` y vuelve a pasar por todas las respuestas; la app no cambia.
 
 ## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
 
