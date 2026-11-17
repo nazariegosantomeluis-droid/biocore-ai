@@ -23,8 +23,8 @@
     }
   },
   "datos": {
-    "base": "MIT-BIH Arrhythmia Database (PhysioNet mitdb), 360 muestras/s, derivacion MLII",
-    "separacion": "entre pacientes: entrenamiento DS1, evaluacion DS2 (de Chazal 2004)",
+    "base": "MIT-BIH Arrhythmia Database (PhysioNet mitdb), 360 muestras/s, derivación MLII",
+    "separacion": "entre pacientes: entrenamiento con DS1, evaluación con DS2 (de Chazal 2004)",
     "cita_separacion": "de Chazal P, O'Dwyer M, Reilly RB. IEEE Trans Biomed Eng 2004;51(7):1196-1206",
     "registros_entrenamiento": [
       101,
@@ -81,7 +81,7 @@
       217
     ],
     "clases_aami": "ANSI/AAMI EC57; N={N,L,R,e,j}, S={A,a,J,S}, V={V,E}, F={F}, Q={/,f,Q}",
-    "ventana_latido": "0.25 s antes y 0.45 s despues de la anotacion R, sin filtro (Criterio BIOCORE)",
+    "ventana_latido": "0.25 s antes y 0.45 s después de la anotación R, sin filtro (Criterio BIOCORE)",
     "latidos_entrenamiento": {
       "N": 45848,
       "S": 944,
@@ -182,9 +182,9 @@
     "f1_macro": 0.29875955930771847,
     "f1_macro_definicion": "media del F1 de las clases con al menos un latido en DS2",
     "exactitud": 0.8426306045238671,
-    "exactitud_advertencia": "Con clases desbalanceadas (la N domina) la exactitud global engana: un modelo que siempre dice N la tendria alta.",
+    "exactitud_advertencia": "Con clases desbalanceadas (la N domina), la exactitud global engaña: un modelo que siempre dijera N la tendría alta.",
     "brier": 0.2910023118296208,
-    "brier_definicion": "Brier (1950) multicategoria: media de sum_k (p_k - o_k)^2 sobre 5 clases; 0 perfecto, 2 el peor",
+    "brier_definicion": "Brier (1950), forma multicategoría: media de la suma de (p_k − o_k)² sobre 5 clases; 0 es perfecto y 2 el peor",
     "confiabilidad": [
       {
         "desde": 0.0,
@@ -259,7 +259,7 @@
     ]
   },
   "fuga_por_latido": {
-    "descripcion": "train_test_split(test_size=0.2, stratify) por latido sobre DS1+DS2, como ArrhythmiaClassifier.train",
+    "descripcion": "train_test_split(test_size=0.2, stratify) por latido sobre DS1 y DS2 juntos, como ArrhythmiaClassifier.train",
     "registros_en_entrenamiento_y_prueba": 44,
     "registros_totales": 44,
     "exactitud": 0.9437410000496549,
@@ -348,5 +348,5 @@
   ],
   "umbral_sensibilidad_baja": 0.8,
   "umbral_sensibilidad_baja_origen": "Criterio BIOCORE (sin cita)",
-  "uso_previsto": "Educativo. No apto para diagnostico ni para decisiones clinicas."
+  "uso_previsto": "Educativo. No apto para diagnóstico ni para decisiones clínicas."
 }

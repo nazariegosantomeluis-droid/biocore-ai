@@ -169,7 +169,7 @@ def per_beat_split_metrics(X, y, rec_of):
     cm, per_class, macro_f1, acc = class_metrics(y[te], model.predict(X.iloc[te]))
     shared = sorted(set(rec_of[tr].tolist()) & set(rec_of[te].tolist()))
     return {
-        "descripcion": "train_test_split(test_size=0.2, stratify) por latido sobre DS1+DS2, como ArrhythmiaClassifier.train",
+        "descripcion": "train_test_split(test_size=0.2, stratify) por latido sobre DS1 y DS2 juntos, como ArrhythmiaClassifier.train",
         "registros_en_entrenamiento_y_prueba": len(shared),
         "registros_totales": int(len(set(rec_of.tolist()))),
         "exactitud": acc, "f1_macro": macro_f1, "por_clase": per_class, "matriz_confusion": cm,
@@ -253,14 +253,14 @@ def evaluate(mitdb_dir: Path, out_dir: Path = RESULTS_DIR, model_path: Path | No
                           "scikit_learn": sklearn.__version__, "numpy": np.__version__},
         },
         "datos": {
-            "base": "MIT-BIH Arrhythmia Database (PhysioNet mitdb), 360 muestras/s, derivacion MLII",
-            "separacion": "entre pacientes: entrenamiento DS1, evaluacion DS2 (de Chazal 2004)",
+            "base": "MIT-BIH Arrhythmia Database (PhysioNet mitdb), 360 muestras/s, derivación MLII",
+            "separacion": "entre pacientes: entrenamiento con DS1, evaluación con DS2 (de Chazal 2004)",
             "cita_separacion": "de Chazal P, O'Dwyer M, Reilly RB. IEEE Trans Biomed Eng 2004;51(7):1196-1206",
             "registros_entrenamiento": list(DS1),
             "registros_evaluacion": list(DS2),
             "registros_excluidos_marcapasos": list(EXCLUDED_PACED),
             "clases_aami": "ANSI/AAMI EC57; N={N,L,R,e,j}, S={A,a,J,S}, V={V,E}, F={F}, Q={/,f,Q}",
-            "ventana_latido": f"{PRE_S} s antes y {POST_S} s despues de la anotacion R, sin filtro (Criterio BIOCORE)",
+            "ventana_latido": f"{PRE_S} s antes y {POST_S} s después de la anotación R, sin filtro (Criterio BIOCORE)",
             "latidos_entrenamiento": _counts(y1),
             "latidos_evaluacion": _counts(y2),
         },
@@ -271,9 +271,9 @@ def evaluate(mitdb_dir: Path, out_dir: Path = RESULTS_DIR, model_path: Path | No
             "f1_macro": macro_f1,
             "f1_macro_definicion": "media del F1 de las clases con al menos un latido en DS2",
             "exactitud": acc,
-            "exactitud_advertencia": "Con clases desbalanceadas (la N domina) la exactitud global engana: un modelo que siempre dice N la tendria alta.",
+            "exactitud_advertencia": "Con clases desbalanceadas (la N domina), la exactitud global engaña: un modelo que siempre dijera N la tendría alta.",
             "brier": brier_multiclass(y2, proba),
-            "brier_definicion": "Brier (1950) multicategoria: media de sum_k (p_k - o_k)^2 sobre 5 clases; 0 perfecto, 2 el peor",
+            "brier_definicion": "Brier (1950), forma multicategoría: media de la suma de (p_k − o_k)² sobre 5 clases; 0 es perfecto y 2 el peor",
             "confiabilidad": bins,
         },
         "fuga_por_latido": per_beat_split_metrics(
@@ -283,7 +283,7 @@ def evaluate(mitdb_dir: Path, out_dir: Path = RESULTS_DIR, model_path: Path | No
         "clases_con_sensibilidad_baja": low,
         "umbral_sensibilidad_baja": LOW_SENSITIVITY,
         "umbral_sensibilidad_baja_origen": "Criterio BIOCORE (sin cita)",
-        "uso_previsto": "Educativo. No apto para diagnostico ni para decisiones clinicas.",
+        "uso_previsto": "Educativo. No apto para diagnóstico ni para decisiones clínicas.",
     }
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

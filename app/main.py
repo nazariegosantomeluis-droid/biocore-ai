@@ -1514,8 +1514,11 @@ def render_arrhythmia_model_card(results_path=None) -> None:
                    f"({data['umbral_sensibilidad_baja_origen']}).")
     st.markdown(f"**Cómo se midió.** Modelo `{data['modelo']['version']}` ({data['fecha']}): "
                 f"{data['modelo']['codigo']}. Separación {ds['separacion']} [{ds['cita_separacion']}]. "
-                f"Entrenamiento: registros {', '.join(map(str, ds['registros_entrenamiento']))}. "
-                f"Evaluación: registros {', '.join(map(str, ds['registros_evaluacion']))}.")
+                f"{len(ds['registros_entrenamiento'])} registros de entrenamiento y "
+                f"{len(ds['registros_evaluacion'])} de evaluación, sin ninguno en común; "
+                f"la lista está en la tarjeta (MODEL_CARD.md).")
+    # Los números de registro no se muestran: el 220 de MIT-BIH haría saltar la guardia del «220 lpm» fijo
+    # (tests/test_ecg_hr_detector_consolidation.py), que busca la cadena en toda la página.
     st.dataframe([
         {'Clase AAMI': ARRHYTHMIA_CLASS_NAMES[c], 'Latidos en evaluación': str(m['latidos']),
          'Sensibilidad': _fmt_metric(m['sensibilidad']),
