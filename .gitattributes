@@ -15,3 +15,11 @@
 *.ipynb binary
 *.db binary
 *.pkl binary
+
+# Kit de marca (2026-11-17): formatos que la normalización de finales de línea podría alterar.
+*.eps binary
+*.ase binary
+*.woff2 binary
+*.ttf binary
+*.ico binary
+*.pdf binary

@@ -43,7 +43,12 @@ def test_config_toml_is_a_copy_of_the_palette_and_there_is_one_theme():
     assert theme["textColor"].lower() == PALETTE.TEXT
     assert theme["codeTextColor"].lower() == PALETTE.TEXT      # el verde por defecto no llegaba a AA (medido renderizado)
     assert theme["linkColor"].lower() == PALETTE.ACCENT_ON_DARK            # un enlace nunca en PRIMARY (tanda 2)
-    assert theme["font"] == "sans-serif"                                   # la de Streamlit, sin servicio externo
+    # Kit de marca v1.1 (2026-11-17): Noto Sans en el texto y Figtree en títulos, servidas EN LOCAL (sin servicio externo).
+    assert theme["font"].startswith("Noto Sans") and theme["headingFont"].startswith("Figtree")
+    faces = theme["fontFaces"]
+    assert {f["family"] for f in faces} == {"Figtree", "Noto Sans"}
+    for face in faces:
+        assert face["url"].startswith("app/static/") and Path(face["url"]).is_file(), face["url"]
     assert not any(k in theme for k in ("light", "dark"))                  # un solo tema
 
 

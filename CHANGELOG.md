@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-11-17 · Kit de marca v1.1 en la app: tokens, tipografía, logo, íconos, sellos y nombres del manual
+
+**Contexto**: llegó el kit de marca (zip y manual). El kit completo vive en `docs/marca/Biocore-Kit-de-marca-v1.1/`, y lo que usa la app en `app/static/marca/` (servido con `server.enableStaticServing`). Además, los bocetos de José Miguel sobre el Inicio y Temas.
+
+1. **Color** (tokens Monitor):
+   - `PRIMARY` pasa a `nucleo` (#099fbd), para lo que se toca.
+   - `ACCENT_ON_DARK` pasa a `trazo` (#22d3ee), para enlaces, foco y la primera serie de gráficas.
+   - Se suman `TINTA_TITULO`, `TINTA_2` y `PANEL`, con sus pares en `CONTRAST_PAIRS`.
+   - Dos tokens del kit no llegan a 4.5:1 como texto y no se usan:
+     - `estado-neutral` (#64748b, 3.75:1): `NEUTRAL` pasa a `tinta-3` (#94a3c8, 7.08:1).
+     - `estado-critico` (#ff4d4d, 4.36:1 sobre la consola): se conserva #ff6464.
+   - La prueba de «PRIMARY nunca como texto» sigue por regla de marca, con una excepción: el «Correcto» del quiz.
+2. **Tipografía**: Figtree en títulos y Noto Sans en texto, en WOFF2, servidas en local (`[[theme.fontFaces]]`). La prueba exige que cada archivo exista bajo `app/static/`.
+3. **Nombres** (manual, p. 7):
+   - la sección conserva su nombre, «Explorar», por decisión de José Miguel;
+   - en el menú: Gemelo digital, Fusión de sensores, Respiración, Variabilidad cardiaca, Pacientes y Taller 3D;
+   - sin «AI» ni «OS» en el título de la pestaña ni en «Acerca de».
+4. **Logo e íconos**:
+   - `st.logo` con el logotipo y el isotipo; el favicon es el del kit.
+   - El manual pide «sin emoji ni librerías genéricas de íconos»: el menú ya no usa íconos Material, y los íconos dibujados del kit los pone el CSS junto a cada página que tiene uno.
+   - El menú lateral va en píldoras.
+5. **Inicio**:
+   - logo y lema «Equivócate aquí.» en píldora, con el descriptor del manual;
+   - el monitoreo lleva a cada valor su sello de procedencia (`PROVENANCE_SEAL`) y una vista previa con la tira del kit (registro real MIT-BIH 100, con su rótulo), que enlaza al laboratorio de ECG completo;
+   - al bajar, el logo y los signos suben a una barra compacta. Es una animación ligada al scroll, solo CSS; sin soporte o con movimiento reducido, la barra se queda visible;
+   - el gemelo lleva como dibujo acompañante el ícono del órgano;
+   - una sola tira por vista (manual, p. 19): el registro del órgano se queda en «Hallazgos» de Temas.
+6. **Temas**: dibujo acompañante en la explicación, chips con sello, y la retroalimentación del quiz con la regla de marca («✓ Correcto.» en Núcleo y «↻ Todavía no.» en tinta-2).
+7. **Lema**: el boceto decía «Entrena aquí», pero el manual fija «Equivócate aquí.». Queda el del manual; cambiarlo es decisión de marca.
+
+## 2026-11-17 · Rediseño Duolingo + Apple: Inicio como tablero, «Temas» y «Comparar pacientes»
+
+**Contexto**: bocetos de José Miguel sobre capturas de Duolingo y de apple.com. Rama `ui-inicio-temas-comparar`, apilada sobre `pasaporte-evidencia` (PR #9).
+
+1. **Inicio** (`app/supermodules/ui_home.py`):
+   - franja «Monitoreo del paciente activo» con el último estado del UPS. No es una señal en vivo y lo dice; el monitoreo en vivo enlaza al laboratorio de ECG;
+   - selector de órganos con íconos Material;
+   - al centro, el gemelo con los valores del UPS de ese órgano y su procedencia, la ruta del órgano en nodos y «Información» con un registro real (PTB s0010 o CAP n16) o «sin registro real»;
+   - a la derecha, las tres puertas de la decisión 2 como tarjetas: Aprender (concepto firmado y ficha de estudio con pista), Practicar (avance de la sesión) y Clinical Hub (expediente).
+2. **Temas** (`ui_topic.py`, Aprender): ficha estilo Apple de cada tema firmado.
+   - Carrusel: Explicación, Teoría, Hallazgos y Quiz final.
+   - El quiz registra en `session_learning` con la confianza declarada o «sin declarar», nunca 50.
+   - A la derecha: la calculadora del tema, con campos vacíos por defecto, y el paciente activo, con «Usar en la calculadora».
+3. **Comparar pacientes** (`ui_compare.py`, Clinical Hub): hasta tres estados guardados del UPS (pacientes distintos o el mismo paciente en el tiempo), filas por sistema y cada valor con su procedencia. Solo lee la base.
+4. **Menú**: «Explorar» pasa a llamarse «Clinical Hub», como en los bocetos, y los íconos son símbolos Material en lugar de emoji. Son 25 páginas. **Decisión para Luis**: cambia el nombre de una sección de la tanda 1 de la fase 1 y la composición de Inicio de la decisión 2; las tres puertas se conservan como tarjetas.
+5. **Color**: `PALETTE.TRAZO` (#22d3ee) es el acento.
+   - Es **provisional**: el kit de marca v1.1 no está en el repositorio, y el valor sale de `visualization/art/tokens.py` de la rama de respaldo.
+   - Contraste medido en `CONTRAST_PAIRS`: 9.88:1 sobre el fondo, 7.88:1 sobre el panel y 9.88:1 con texto oscuro encima.
+   - El CSS no usa el borde izquierdo de 3 px, que es la firma del marcador de validación.
+6. **Pruebas**: `tests/test_ui_duolingo_apple.py` (catálogo, filas del comparativo, columnas por defecto, Inicio, quiz que registra en la sesión, calculadora vacía, comparativo). Se actualizaron las pruebas del menú, de Calculadoras y del modelo 3D por el nombre de la sección.
 ## 2026-11-17 — Banco de NEWS2 firmado, D1 firmado y opción B: los datos en internet son compartidos y temporales (Art. I)
 
 **Contexto**: Luis firmó todo («Firmo todo»): el banco de NEWS2 (N1–N9, con D-N7: sí) y el consentimiento D1. Para la persistencia eligió la opción B: decir con claridad dónde quedan los datos cuando la app corre en internet, en vez de montar ahora una base con cuentas (opción A, para después).
