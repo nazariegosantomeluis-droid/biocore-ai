@@ -173,3 +173,15 @@ def test_el_pie_de_pagina_va_en_cada_pagina_y_enlaza_a_los_textos():
     assert legal.FOOTER_NOTICE in _texts(at)
     links = {(link.proto.page, link.proto.label) for link in at.main.get("page_link")}
     assert {("terminos", "Términos y condiciones"), ("privacidad", "Aviso de privacidad")} <= links
+
+
+@pytest.mark.aviso_de_entrada
+def test_la_entrada_streamlit_app_no_se_traga_el_redibujado():
+    """`app/streamlit_app.py` corre `main.py` con runpy; un `finally: st.stop()` reemplazaba la RerunException de
+    `st.rerun()` y, tras «Ingresar al laboratorio», la página quedaba en blanco hasta el siguiente clic."""
+    at = AppTest.from_file(str(Path("app/streamlit_app.py").resolve()), default_timeout=240)
+    at.run()
+    at.checkbox[0].check().run()
+    next(b for b in at.button if b.label == legal.CLICKWRAP_BUTTON).click().run()
+    assert at.exception == []
+    assert legal.FOOTER_NOTICE in _texts(at) and legal.CLICKWRAP_TEXT not in _texts(at)

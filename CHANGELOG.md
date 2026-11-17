@@ -4,6 +4,8 @@
 
 Luis firmó los textos legales («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los ajustes del Art. I. `docs/legal/textos_legales.md` dice FIRMADO y su hoja de firma está marcada; el aviso arriba de Términos y Aviso de privacidad ya no habla de cláusulas pendientes, solo de los datos de la entidad legal que faltan. Queda abierta la decisión D1 (consentimiento antes de medir las propias señales).
 
+**Arreglo de paso:** `app/streamlit_app.py` terminaba con `finally: st.stop()`, que reemplazaba la `RerunException` de cualquier `st.rerun()` de la app: abierta por esa entrada, la página quedaba en blanco tras «Ingresar al laboratorio», «Nuevo caso» y demás botones que redibujan. Se quitó (las excepciones de control de Streamlit heredan de `BaseException` y el `except Exception` no las atrapa); prueba en `tests/test_legal.py`.
+
 ## 2026-11-17 — Textos legales en la app: Términos, Aviso de privacidad, aviso clínico de entrada y precauciones del manual (Art. I)
 
 **Contexto**: Luis entregó los Términos y condiciones, el Aviso de privacidad (LFPDPPP), el texto del empaque (NOM-050), las precauciones del manual y el aviso clínico de entrada. Decisiones suyas: los datos faltantes se ven como «[pendiente: …]»; lo que hoy no es cierto se ajusta y queda para su firma; la casilla obligatoria (sin detectar el desplazamiento); el empaque y el manual quedan como documentos y las precauciones también en los tutoriales.
