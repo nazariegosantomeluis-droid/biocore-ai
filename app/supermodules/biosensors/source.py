@@ -12,6 +12,8 @@ from typing import Callable, Dict, Optional
 
 import numpy as np
 import streamlit as st
+
+from app.utils.legal import own_signals_consent
 from streamlit.errors import StreamlitAPIException
 
 from app.supermodules.biosensors import live_service
@@ -84,6 +86,9 @@ def render_board_source(sensor: BioSensor, duration_s: float, prefix: str, min_s
         if controls is not None:
             controls(prac.board, sb, f'{prefix}_sim')
     else:
+        # D1 (2026-11-17): con la placa real, el consentimiento para medir las propias señales (`app/utils/legal.py`).
+        if not own_signals_consent(sb):
+            return None
         service = live_service.get_board_service(sensor.key)
     mains_hz = None
     if mains_filter:

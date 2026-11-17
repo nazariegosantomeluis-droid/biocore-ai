@@ -58,14 +58,14 @@ def test_each_section_holds_what_the_signed_decision_lists():
     for section, url, *_ in _specs():
         by_section.setdefault(section, []).append(url)
     # Pulido profesional (2026-11-16): Bibliografía, pedida en la tanda (todas las referencias, con enlaces).
-    # Rediseño Duolingo + Apple (2026-11-17): «Temas» en Aprender, «Comparar pacientes» en Laboratorios (antes Explorar; manual de marca, p. 7).
-    assert by_section["Aprender"] == ["temas", "teoria", "referencias", "ecg-3d", "bibliografia"]
+    # Rediseño Duolingo + Apple (2026-11-17): «Temas» en Aprender y «Comparar pacientes» en Explorar.
+    assert by_section["Aprender"] == ["temas", "teoria", "referencias", "ecg-3d", "bibliografia", "pregunta"]
     # 2026-11-17: «Tu aprendizaje en esta sesión» (solo la sesión del navegador; no es «Mi progreso»).
-    assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "cuestionarios", "casos-simulador",
-                                       "mi-sesion"]
+    assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "caso-guiado", "cuestionarios",
+                                       "casos-simulador", "what-if", "detective", "mi-sesion"]
     assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
-                                          "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
-    assert by_section["Ajustes"] == ["ajustes"] and by_section[""] == ["inicio"]
+                                      "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
+    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio"]
 
 
 def test_the_twelve_old_entries_all_map_to_existing_pages():
@@ -82,7 +82,8 @@ def test_every_old_entry_is_reachable_and_renders(url):
     assert len(at.main.markdown) + len(at.main.get("tabs")) > 0, title
 
 
-@pytest.mark.parametrize("url", ["inicio", "temas", "comparar", "referencias", "ecg-3d", "desafio-ecg", "cuestionarios", "casos-simulador", "ajustes"])
+@pytest.mark.parametrize("url", ["inicio", "temas", "comparar", "referencias", "ecg-3d", "desafio-ecg", "cuestionarios",
+                                 "casos-simulador", "what-if", "ajustes"])
 def test_the_new_pages_render(url):
     _open(url)
 

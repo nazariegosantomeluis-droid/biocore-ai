@@ -55,9 +55,12 @@ PRACTICE_INTRO = (
     'de la fuente en vivo del laboratorio.'
 )
 PRACTICE_OBSERVE = [
-    '**Contrae y relaja.** El RMS sube con la fuerza que elijas y vuelve al piso de ruido (unos 10 µV) al relajar; la '
-    '«activación muscular» del laboratorio casi no cambia, porque es un cociente entre el promedio y el pico, no '
-    'cuánto contraes.',
+    # Teoría citada 2 (2026-11-17, Art. I): decía «El RMS sube con la fuerza que elijas»; el simulador sube el RMS con el
+    # nivel elegido porque así está programado, pero en un músculo la amplitud no dice la fuerza (A1, A9).
+    '**Contrae y relaja.** El RMS sube con el nivel que elijas (así está programada la placa simulada) y vuelve al piso '
+    'de ruido (unos 10 µV) al relajar; la «activación muscular» del laboratorio casi no cambia, porque es un cociente '
+    'entre el promedio y el pico. En un músculo de verdad, la amplitud del EMG de superficie indica la **excitación** '
+    'del músculo, no su fuerza [V2018].',
     '**Despega un electrodo.** Entra el zumbido de la red y una deriva lenta: la calidad lo marca y el guardado al '
     'gemelo se bloquea.',
     '**Desconecta el cable.** El estado pasa a «sin conexión» al instante y la app reintenta sola; al reconectar, '

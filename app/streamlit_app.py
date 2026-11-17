@@ -15,11 +15,12 @@ if not app_main.exists():
     st.error(f'Could not find Streamlit entrypoint: {app_main}')
     st.stop()
 
+# 2026-11-17: sin `finally: st.stop()`. Ese alto reemplazaba la RerunException de cualquier `st.rerun()` de la app
+# (aviso de entrada, «Nuevo caso»…) y la página quedaba en blanco hasta el siguiente clic. Las excepciones de control de
+# Streamlit heredan de BaseException: el `except Exception` no las atrapa y siguen su curso.
 try:
     runpy.run_path(str(app_main), run_name='__main__')
 except Exception as e:
     st.error(f'Failed to execute app/main.py: {e}')
     import traceback
     st.text(traceback.format_exc())
-finally:
-    st.stop()

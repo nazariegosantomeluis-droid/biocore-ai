@@ -19,6 +19,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+from app.utils.legal import own_signals_consent
 from streamlit.errors import StreamlitAPIException
 
 from app.supermodules.eeg_neuro_lab import live_service
@@ -231,6 +233,10 @@ def render_live_source(duration_s: float) -> Optional[LiveData]:
     names = [d.name for d in DEVICES]
     device = DEVICES[names.index(sb.selectbox("Dispositivo EEG", names, key="eeglab_live_device"))]
     sb.caption(device.connection + f" ¿Primera vez? Abre la pestaña «{TUTORIAL_TAB}».")
+    # D1 (2026-11-17): con un equipo real o un flujo LSL (origen no verificable), el consentimiento para medir las
+    # propias señales (`app/utils/legal.py`); los dos simuladores no lo piden.
+    if device.provenance != SIMULACION and not own_signals_consent(sb):
+        return None
     reason = backend_unavailable_reason(device.backend)
     if reason:
         sb.error(reason)

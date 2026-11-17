@@ -12,6 +12,7 @@ from typing import Callable, Sequence
 import streamlit as st
 
 from app.utils.design_system import PALETTE, render_section_header
+from app.utils.legal import SAFETY_BY_KIND, render_safety_precautions
 from hardware.biosensors import BioSensor
 
 STATES = [
@@ -95,6 +96,8 @@ def render_sensor_tutorial(sensor: BioSensor, title: str, prefix: str, intro: st
         if sensor.safety:
             st.warning(sensor.safety[0])
             st.markdown(_bullets(sensor.safety[1:]))
+        if sensor.key in SAFETY_BY_KIND:     # 2026-11-17: precauciones del manual de usuario (`app/utils/legal.py`)
+            render_safety_precautions(sensor.key)
 
     with st.expander(f'3. Conecta {sensor_label} a la ESP32'):
         st.markdown(wiring_svg(sensor, sensor_label), unsafe_allow_html=True)

@@ -47,7 +47,8 @@ def test_no_layer_is_filler_and_every_detail_names_its_source_or_says_it_has_non
 
 
 def test_the_three_learn_pages_use_the_single_component_and_open_layers_on_demand():
-    for url, n_topics in (("teoria", 6), ("referencias", 8), ("ecg-3d", 1)):
+    # Teoría citada 2 (2026-11-17): Referencias suma los 9 temas de EMG y los 9 de HRV.
+    for url, n_topics in (("teoria", 6), ("referencias", 26), ("ecg-3d", 1)):
         at = AppTest.from_file(MAIN, default_timeout=240)
         at.session_state["biocore_start_page"] = url
         at.run()

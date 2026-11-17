@@ -60,6 +60,10 @@ def lab_texts(tmp_path_factory):
             for b in tree.button:
                 seen.setdefault(" ".join(b.label.split()), ctx + "/botón")
 
+    def _is_answer(r) -> bool:
+        return (r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")
+                and not str(r.key or "").endswith("_confidence"))
+
     at = AppTest.from_function(_script, default_timeout=120)
     at.session_state["twin_shell_ups_session_factory"] = sf
     at.session_state["twin_shell_ups_patient_id"] = pid
@@ -76,11 +80,12 @@ def lab_texts(tmp_path_factory):
         for opt in quiz_options:
             next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value(opt).run()
             collect(at, f"{pattern}/quiz:{opt}")
-            answers = [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")]
+            # 2026-11-17: el radio de confianza (`_confidence`, antes de responder) no es la respuesta.
+            answers = [r for r in at.radio if _is_answer(r)]
             if not answers:
                 continue
             for o in list(answers[0].options):
-                [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")][0].set_value(o).run()
+                [r for r in at.radio if _is_answer(r)][0].set_value(o).run()
                 collect(at, f"{pattern}/quiz:{opt}/{o}")
         next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value(quiz_options[0]).run()
     assert at.exception == []

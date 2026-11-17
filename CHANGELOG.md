@@ -50,6 +50,275 @@
    - Contraste medido en `CONTRAST_PAIRS`: 9.88:1 sobre el fondo, 7.88:1 sobre el panel y 9.88:1 con texto oscuro encima.
    - El CSS no usa el borde izquierdo de 3 px, que es la firma del marcador de validación.
 6. **Pruebas**: `tests/test_ui_duolingo_apple.py` (catálogo, filas del comparativo, columnas por defecto, Inicio, quiz que registra en la sesión, calculadora vacía, comparativo). Se actualizaron las pruebas del menú, de Calculadoras y del modelo 3D por el nombre de la sección.
+## 2026-11-17 — Banco de NEWS2 firmado, D1 firmado y opción B: los datos en internet son compartidos y temporales (Art. I)
+
+**Contexto**: Luis firmó todo («Firmo todo»): el banco de NEWS2 (N1–N9, con D-N7: sí) y el consentimiento D1. Para la persistencia eligió la opción B: decir con claridad dónde quedan los datos cuando la app corre en internet, en vez de montar ahora una base con cuentas (opción A, para después).
+
+1. **NEWS2 en el Quiz de la Academia:** lección «NEWS2» con `NEWS2_QUESTIONS` (9 preguntas de los temas 2 y 6 firmados, fuente [RCP2017]), banco `news2` en la mejora continua y concepto `news2` en la sesión y la calibración. El concepto `news2` tenía 0 preguntas de banco. `tests/test_banco_news2.py`: la hoja firmada y el código dicen lo mismo, cada cita es literal y los puntos de pulso coinciden con `news2_pulse_score`. Observación sin cambiar lo firmado: en N1, N2, N8 y N9 la correcta es la opción más larga.
+2. **D1 firmado:** el consentimiento antes de medir las propias señales queda firmado en `docs/legal/textos_legales.md`.
+3. **Opción B (Art. I):** AP1 decía «base local de la computadora donde corre la plataforma» y AP3 «solo en la computadora donde corre BIOCORE AI»; en Streamlit Cloud eso no es cierto: las bases están en el servidor, compartidas entre quienes usan la copia y se borran al reiniciar. Ahora lo dicen, y bajo el «ID del estudiante» del quiz aparece `SHARED_DATA_NOTICE` (el ID es texto libre; quien escriba el mismo ve ese progreso; no uses tu nombre ni tu matrícula).
+
+## 2026-11-17 — Evaluación de la plataforma, bloque 1: arreglos rápidos (Art. I)
+
+**Contexto**: Luis pidió evaluar la plataforma. La evaluación (por ejecución: las 29 páginas, capturas en computadora y celular, bancos de preguntas, arranque y dependencias) encontró, entre otros: el selector «Nivel» del quiz no cambiaba la dificultad; en el celular el menú tapaba el contenido; el despliegue en la nube quedaba con módulos viejos; diez paquetes de `requirements.txt` que la app no importa. Bloque 1:
+
+1. **«Nivel» → «Cuántas preguntas» (Art. I):** Básico/Intermedio/Avanzado solo cambiaba cuántas preguntas salían, en el orden del banco; en 4 de las 6 lecciones los tres daban las mismas. Ahora se rotula «Hasta 5 / Hasta 8 / Todas», con cuántas tiene la lección y que la dificultad no cambia.
+2. **Menú en el celular:** `initial_sidebar_state` pasa de «expanded» a «auto»; con «expanded» el menú se abría encima del contenido y tapaba el aviso de entrada.
+3. **Versión y proceso viejo:** `app/utils/version.py`. Ajustes dice qué commit corre y con cuál arrancó el proceso; si difieren, el pie de cada página pide reiniciar la app (la causa del ImportError de hoy en Streamlit Cloud).
+4. **Dependencias:** `requirements.txt` queda con lo que la app importa; jupyter, seaborn, shap, lime, pytest, pytest-cov, mypy, pylint, black y flake8 pasan a `requirements-dev.txt` (que incluye `requirements.txt`). Menos instalación en la nube; el entorno de pruebas no cambia.
+5. **D1, consentimiento antes de medir las propias señales (elaborado, pendiente de firma):** `legal.own_signals_consent`, una vez por sesión, antes de usar un equipo real en las fuentes en vivo de ECG, biosensores y EEG (o un flujo LSL); las prácticas simuladas no lo piden; sin aceptar, la fuente no se conecta. Texto en `docs/legal/textos_legales.md` (D1.1–D1.4), sacado de AP1 y AP3.
+6. **No se hizo:** cargar el narrador con IA bajo demanda (2 s del arranque en frío). `app/main.py` importa `domain.physiology.narrator.privacy`, que carga el paquete entero, y esos 2 s solo se pagan al arrancar el proceso, no en cada visita.
+
+## 2026-11-17 — Textos legales firmados
+
+Luis firmó los textos legales («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los ajustes del Art. I. `docs/legal/textos_legales.md` dice FIRMADO y su hoja de firma está marcada; el aviso arriba de Términos y Aviso de privacidad ya no habla de cláusulas pendientes, solo de los datos de la entidad legal que faltan. Queda abierta la decisión D1 (consentimiento antes de medir las propias señales).
+
+**Arreglo de paso:** `app/streamlit_app.py` terminaba con `finally: st.stop()`, que reemplazaba la `RerunException` de cualquier `st.rerun()` de la app: abierta por esa entrada, la página quedaba en blanco tras «Ingresar al laboratorio», «Nuevo caso» y demás botones que redibujan. Se quitó (las excepciones de control de Streamlit heredan de `BaseException` y el `except Exception` no las atrapa); prueba en `tests/test_legal.py`.
+
+## 2026-11-17 — Textos legales en la app: Términos, Aviso de privacidad, aviso clínico de entrada y precauciones del manual (Art. I)
+
+**Contexto**: Luis entregó los Términos y condiciones, el Aviso de privacidad (LFPDPPP), el texto del empaque (NOM-050), las precauciones del manual y el aviso clínico de entrada. Decisiones suyas: los datos faltantes se ven como «[pendiente: …]»; lo que hoy no es cierto se ajusta y queda para su firma; la casilla obligatoria (sin detectar el desplazamiento); el empaque y el manual quedan como documentos y las precauciones también en los tutoriales.
+
+1. **Un solo lugar:** `app/utils/legal.py` (textos de la app, `LEGAL_DATA`, aviso de entrada, pie de página) y `docs/legal/textos_legales.md` (lo que muestra la app, los ajustes con su motivo, los originales tal como se entregaron y la hoja de firma). Una prueba exige que cada texto de la app esté literal en el documento.
+2. **Datos faltantes, sin inventar:** entidad legal, domicilio, correo de privacidad, universidad, dominio, consumo del kit y contacto de soporte se muestran como «[pendiente: …]»; la prueba avisa mientras falte alguno.
+3. **Ajustes (Art. I), pendientes de firma:**
+   - SpO₂: solo del modelo simulado; no se calcula con el sensor de pulso (TC2).
+   - Procedencia de cada valor, con una cuarta categoría (calculado, con su criterio rotulado) (TC3).
+   - Propiedad intelectual con la excepción de los componentes de terceros de THIRD_PARTY_NOTICES (TC4).
+   - Sin cuentas ni Capa Docente hoy (TC5, AP2, AP5).
+   - Datos que se guardan hoy: el «ID del estudiante» y los valores del UPS en bases locales; no la señal completa (AP1).
+   - Sin servidores de BIOCORE AI, con la excepción de la IA: con clave de Anthropic, el contexto puede llevar datos de un sensor real (AP3).
+   - Simulaciones «rotuladas» en vez de «validadas», con la PA de la sepsis en revisión clínica (CW1).
+4. **En la app:** «Términos y condiciones» y «Aviso de privacidad» en Ajustes (29 páginas), enlazadas al pie de cada página con «BIOCORE AI NO ES UN DISPOSITIVO MÉDICO: uso exclusivamente educativo.». El aviso clínico de entrada bloquea la página al iniciar la sesión y al entrar a cada página de caso clínico. Las precauciones PS1–PS4 del manual, tal cual, en «Seguridad» de los tutoriales (ECG: PS1–PS2; EMG: PS1–PS2; pulso: PS3; temperatura: PS2; EEG: PS4); no contradicen lo que ya decían.
+5. **Pruebas:** `tests/test_legal.py`; `tests/conftest.py` apaga el aviso de entrada para las pruebas que abren páginas (marca `aviso_de_entrada` para las suyas).
+
+## 2026-11-17 — Integración 3: pasaporte de evidencia en main, Detective corregido y un solo criterio de calibración (Art. I)
+
+**Contexto**: `pasaporte-evidencia` (José Miguel) se fusionó sobre `integracion-3` (base de conocimiento, caso guiado firmado e `integracion-1`). Sus commits no traen atribución a Claude: fusión normal, con sus autores.
+
+1. **Fusión**: el banner del paciente activo y Calculadoras conservan los puntos NEWS2 de cada lectura y ganan el pasaporte de evidencia por valor; «Abrir en…» desde el gemelo y la fuente «Paciente activo» de ECG Monitoreo, Respiratorio y HRV quedan como estaban en main. «Tu aprendizaje en esta sesión» (`mi-sesion`) va al final de Practicar: `_page_specs()` declara 27 páginas.
+2. **Un solo criterio de calibración en pantalla.** «Tu aprendizaje en esta sesión» decidía «exceso/falta de confianza» con un margen de 10 puntos HEURISTIC (y solo desde 5 respuestas); el panel del quiz, con el intervalo de Wilson al 95 % [WILSON1927]. Dos veredictos distintos para el mismo registro. Ahora los dos usan `confidence_calibration` (veredicto y frase); se retiraron el margen, `calibration_verdict` y el mínimo de 5 (el intervalo de Wilson ya es ancho con pocas respuestas). La única fórmula de Brier de la sesión (forma binaria [BRIER1950]) pasó a `confidence_calibration.brier`; el panel del quiz la muestra con el mismo texto (`confidence.brier_text`). La de `domain/physiology/ml/arrhythmia_evaluation.py` es la forma multicategoría del clasificador de latidos y no se tocó (`domain/`). Prueba: el mismo registro de 10 respuestas da el mismo veredicto y el mismo Brier en las dos pantallas.
+3. **Detective** (`app/supermodules/detective/pages.py`):
+   - La pista de PA de la sepsis lleva «en revisión clínica» con su motivo (capacitancia venosa 2×, Criterio BIOCORE, sin cita), la misma etiqueta del gemelo (`SEPSIS_MODEL_DECLARATION`). El Detective no muestra el gasto cardiaco.
+   - Registro: cada diagnóstico UNA vez por caso (`logged`), con `log_session_answer("detective:<paciente>", "detective", concepto, correcto, confianza)`. La convulsión estaba en «news2», que no es lo que el caso evalúa: no encaja en ningún concepto de `CONCEPTS` y ya no se registra (no se inventa un concepto).
+   - Texto clínico: no había explicación clínica sin firma (la corrección muestra el diagnóstico del banco y `case_evidence`, como antes). Se corrigió una afirmación de validación: «el modelo hemodinámico solo está validado en sano, hipertensión y sepsis» decía «validado» de un lazo cerrado cuya PA de sepsis está en revisión clínica; ahora «habilitado» (Art. I).
+
+## 2026-11-17 — Caso guiado de ECG firmado y montado en Practicar; base de conocimiento en main (Art. I)
+
+**Contexto**: Luis firmó el caso guiado de ECG («firmo todo» sobre la hoja de revisión). La rama `caso-guiado-ecg` necesitaba la calibración de la confianza de `base-conocimiento-ia`, que no estaba en main; se fusionó primero y el caso entró encima (solo su commit `be329a3`: los otros 8 de la rama ya estaban en `base-conocimiento-ia`).
+
+1. **Firma** (`docs/contenido/caso_guiado_ecg.md`): estado «FIRMADO 2026-11-17», la firma con la lista explícita de IDs (sección 8) y cada texto con su ID. Los números t1:N se comprobaron contra `teoria_citada.md` de main y no se movieron; la sección 2 copia literal cada línea citada (también t1:29 y t1:49–52, que nombran los distractores).
+2. **Correcciones de la hoja, aplicadas tal cual** en el documento y en `educational/guided_case.py` (Art. I: ningún texto agrega nada a su línea firmada):
+   - Descendente anterior con el grupo completo de t1:78 («V1–V4, I, aVL y a menudo aVR» → «oclusión proximal») en P4.m1 y DS5; el resultado de P4 y el desafío DS5 muestran también I, aVL y aVR medidos.
+   - «Acompañar la oclusión de la circunfleja» (t1:82) en P2.m1, DS3 y DS4.
+   - Ventrículo derecho en el sentido de t1:83 (hallazgo → qué sugiere), sin «haría falta» ni «ni descartar»: D4.o1, D4.e, P5.nd y C6.
+   - C2 y C4 sin «es lo que»/«solo»; la lógica de C4 se alineó con su texto: cuenta como prematura la primera conclusión «sugiere coronaria derecha» sin haber comparado II con III (antes también penalizaba la circunfleja después de revisar I y aVL).
+   - «Buscar una onda delta» (sin línea firmada) → «Medir el intervalo QT» (t1:51) y «Medir el intervalo PR» (t1:49). Ningún texto quedó en QUITAR.
+3. **Montado** donde dice la firma: Practicar, «Caso guiado de ECG» (`caso-guiado`), después de `desafio-ecg`. `_page_specs()` declara 26 páginas (24 de main + «Pregunta a BIOCORE» + el caso).
+4. **Registro**: sin cambios de código; cada decisión, una vez por intento, con `log_session_answer(..., "caso_guiado", "derivaciones_e_isquemia", correcto, confianza)` vía `confidence.record_answer`, y el panel de `educational/confidence_calibration.py` en el resumen.
+5. **Pruebas** (`tests/test_guided_case.py`): cada texto que ve el estudiante (también desafíos, evidencias, resultados y la introducción) está en el documento firmado; cada t1:N existe literal en `teoria_citada.md`; el caso aparece en su página con el documento FIRMADO; el registro no se duplica al volver a dibujar. Se corrigió una fuga entre pruebas: la prueba de la pantalla firmada reasignaba `case_signed` en el módulo importado y la siguiente veía el caso «firmado»; ahora la firma se simula con `monkeypatch`.
+6. **Falla heredada de `base-conocimiento-ia`, corregida en la prueba:** `tests/test_respiratory_phase43.py` daba 3 errores ya en esa rama sola (en main, 0). Su recorrido tomaba como «respuesta» el primer radio del cuestionario de Respiratorio, que desde `207d924` es el de la confianza (se pide antes de responder), y le asignaba el texto formateado. El recorrido ahora salta el radio `_confidence` y vuelve a pasar por todas las respuestas; la app no cambia.
+
+## 2026-11-17 — Integración 1: bloque de firma textual del banco EMG/HRV y fixture de la auditoría respiratoria
+
+**Contexto.** Rama `integracion-1`: fusión de `origin/main` (PR #7, #8 y #10) y de `base-conocimiento-ia` (solo el merge del PR #6; sin diferencias de archivos).
+
+- **Firma (Art. I).** En `docs/contenido/banco_preguntas_emg_hrv.md`, «Firmo todo.» se sustituye por el bloque de firma textual de Luis del 17-11-2026: (1) E1–E10 y H1–H8 como quedan en la hoja v2; (2) `CONCEPT_BY_PROMPT` con «onda T normal» → `ritmo_y_conduccion`, la pericarditis fuera hoy, E1–E10 → `emg` y H1–H8 → `hrv`; (3) privacidad P1–P3. No se firman las [N] del apéndice, H10–H12, C1.2 ni los casos C1–C6. `tests/test_banco_emg_hrv.py` exige el bloque literal y que ya no diga «Firmo todo»; los comentarios de `quiz_bank.py` apuntan al bloque. Las entradas anteriores de este archivo que citan «Firmo todo.» son históricas.
+- **Fixture `lab_texts`** (`tests/test_respiratory_phase43.py`): el filtro de radios de respuesta excluye los de confianza (key que termina en `_confidence`), que la calibración agregó al cuestionario.
+
+## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
+
+- **`src/signals/ecg/rsa.py`.**
+  - `RSA_CITATION`, que es la cita de la tarjeta «Potencia HF», se atribuía a la Task Force. Ahora dice lo firmado en B3 y B5: «Banda HF (0.15-0.40 Hz), la "banda respiratoria": está influida por la respiración entre 9 y 24 respiraciones por minuto, y la arritmia sinusal respiratoria está mediada por el nervio vago [SG2017]».
+  - La regla de los «10 periodos» se queda, sin atribuirla a ninguna fuente: «Criterio BIOCORE (HEURISTIC): al menos 10 periodos de la frecuencia más baja de la banda».
+  - El motivo «respiración fuera de la banda HF» ya no nombra a la Task Force: cita la «banda respiratoria» [SG2017].
+  - Los comentarios del módulo dicen lo mismo.
+  - [TF1996] sigue solo en la Bibliografía, con su nota.
+- **Carga cognitiva: se quitó la cita de Holm 2009.**
+  - **La referencia existe.** Holm A, Lukander K, Korpela J, Sallinen M, Müller KMI. Estimating brain load from the EEG. *ScientificWorldJournal*. 2009;9:639–651. doi:10.1100/tsw.2009.83. PMID 19618092, PMC5823228 (verificada en PubMed el 2026-11-17).
+  - **Solo se leyó el resumen:** PMC no tiene el texto completo legible.
+  - **No respalda la ayuda.** El resumen describe la razón **theta Fz / alpha Pz**, que aumenta con las tareas simultáneas y con el tiempo despierto. No respalda la escala 0.5–4.0, ni el peso 0.7, ni una razón θ/α sin canales, que es lo que calcula BIOCORE.
+  - **Queda como Criterio BIOCORE:** la ayuda dice «Razón θ/α 0.5-4.0 (límites de la escala del índice, no valores de referencia) y su peso (0.7)», sin cita.
+- **Guardia (`tests/test_validado_requiere_clave.py`), ampliada:**
+  - ninguna ayuda ni archivo de `app/` dice «cita sin verificar»;
+  - ningún texto visible del laboratorio de HRV atribuye nada a la Task Force. Lo comprueba con AppTest sobre las dos fuentes, la simulación del acoplamiento cardiopulmonar y la «Serie RR manual», y con los dos motivos con que la RSA declina: registro corto y respiración fuera de la banda HF.
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia, las de rsa y HRV (`test_rsa_cardiopulmonary`, `test_hrv_nonlinear`, `test_teoria_emg_hrv`) y las de Biomarcadores (`test_biomarkers_plv`, `test_visual_migration_main_inline`, `test_visual_consolidation_tanda_final`, `test_cierre_pulido`, `test_fase1_t1_contencion`): 136 passed, 1 skipped (de entorno: sin base de desarrollo). El recorrido de idioma y contención de las páginas `hrv` y `biomarcadores` (`test_fase1_t2_pulido`, `test_integracion_contencion`, `test_pulido_profesional`): 50 passed. No se corrió la suite completa.
+
+## 2026-11-17 — Caso guiado de ECG (C3): razonar con incertidumbre, borrador para firma
+
+**Contexto (Art. I)**: primer caso progresivo. El estudiante ve un ECG de 12 derivaciones simulado, plantea una hipótesis, pide pruebas y justifica por qué, recibe un desafío a su conclusión y al final ve su recorrido. Junta el Uncertainty Lab, un agente adversarial por reglas (sin modelo de lenguaje) y la calibración. **No entra a la app hasta que Luis firme** `docs/contenido/caso_guiado_ecg.md`, y la página no se monta en el menú (D2).
+
+1. **`educational/guided_case.py`** (nuevo, sin Streamlit):
+   - **Trazado:** simulado (`generate_twelve_lead("inferior_stemi", seed=7)`). Los resultados de las pruebas salen de la medición de `analyze_twelve_lead`: II +2.1, III +2.9, aVF +2.5, I −0.7, aVL −1.8 y V1–V6 0.0 mm.
+   - **Incertidumbre, toda del tema 5 firmado [W2009]:**
+     - Con elevación en II, III y aVF, la coronaria derecha y la circunfleja son posibles (t1:81).
+     - III mayor que II sugiere la coronaria derecha (t1:81).
+     - I y aVL sin elevación (t1:82).
+     - V3R y V4R **no disponibles**: el simulador solo genera las 12 estándar (t1:83). Es la información incompleta del caso.
+   - **4 decisiones** (correcta primero), **5 pruebas** con su motivo y un **desafío** a la hipótesis final según la respuesta y las pruebas pedidas. Puede contradecirla con evidencia del caso: por ejemplo, ante la circunfleja muestra que I y aVL tienen descenso, no elevación.
+   - **6 competencias:** reconoce lo que el primer dato no permite decidir, pide la prueba que distingue, justifica cada prueba, evita concluir antes del dato (cuenta la PRIMERA conclusión), actualiza la hipótesis y reconoce la información que falta.
+   - **Nombres:** las derivaciones se nombran por su nombre, no por pared (decisión de Luis, t1:70). `case_signed()` lee el «Estado» del documento.
+2. **`docs/contenido/caso_guiado_ecg.md`** (BORRADOR): generado desde el código, con los valores medidos, las líneas firmadas textuales, cada decisión, prueba y desafío con su casilla de firma, y las decisiones D1–D3.
+3. **`app/supermodules/academia/guided_case_view.py`** (nuevo):
+   - Sin firma, solo dice «Caso pendiente de firma».
+   - Con firma: el trazado con la etiqueta «Simulación», las fases y el desafío («Mantengo / Cambio / Pido más pruebas»), las competencias, el recorrido en tabla y el panel de calibración.
+   - Cada decisión pide la confianza y se registra con `source="caso_guiado"` y `concept="derivaciones_e_isquemia"`. `confidence.record_answer` acepta ahora `source`.
+4. **Pruebas:** `tests/test_guided_case.py` (13). Comprueban que:
+   - cada línea citada existe en la teoría firmada;
+   - las premisas del caso salen de la medición (si el generador cambia, la prueba falla);
+   - todo texto del código está en el documento para firma;
+   - sin firma no se muestra;
+   - los desafíos citan [W2009] y ninguna derivación se rotula por pared;
+   - el recorrido ideal logra las 6 competencias y la conclusión prematura se detecta.
+
+   Verificado aquí: 11 pasan. **Falta correr** las 2 de pantalla (AppTest) y la suite completa en el intérprete de Luis.
+
+## 2026-11-17 — Banco de preguntas de EMG y HRV firmado (E1–E10, H1–H8) y privacidad de «Pregunta a BIOCORE»
+
+**Contexto (Art. I)**: Luis firmó el banco v2 el 17 de noviembre: «Firmo todo.» Abarca las 18 preguntas E1–E10 y H1–H8, tal como quedan en la hoja de firma v2 (E1 tal cual; E2–E10 y H1–H8 con su corrección). Los casos clínicos, el apéndice y las decisiones quedan para después de hoy.
+
+- **Documentos**:
+  - `docs/contenido/hoja_firma_banco_emg_hrv_v2.md`: la hoja de firma, copiada tal cual.
+  - `docs/contenido/banco_preguntas_emg_hrv.md`: estado «FIRMADO 2026-11-17», la firma textual y la lista explícita de IDs. Las 18 preguntas llevan la redacción exacta de la hoja v2 y la marca «☑ firmo». La Parte 3 (casos), el apéndice y las decisiones quedan marcados «Después de hoy».
+- **`educational/quiz_bank.py`**:
+  - `EMG_QUESTIONS` (E1–E10) y `HRV_QUESTIONS` (H1–H8), dentro de `balance_positions(...)` como los otros bancos: correcta primero, explicación, fuente y categoría.
+  - La fuente es la referencia completa de `teoria_citada_2.md` con su clave.
+  - Cada explicación es una subcadena literal de su línea t2:N, con dos excepciones:
+    - E1 conserva la explicación de la v2, firmada «tal cual».
+    - H4 se corta antes de la segunda mención de «la razón LF/HF», en el límite de la cláusula: termina en «…y otras no identificadas».
+  - Las preguntas se generaron leyendo la hoja (no se volvieron a teclear); los datos de la otra sesión no se commitean.
+  - `CONCEPT_BY_PROMPT`: ya no dice «propuesta» y anota la firma. Suma la onda T normal (→ `ritmo_y_conduccion`) y las 18 preguntas nuevas (→ `emg` / `hrv`). La pericarditis sigue fuera.
+  - La correcta es la opción más larga en 3 de 10 (EMG) y 3 de 8 (HRV), dentro del límite de 40 %.
+- **Quiz de la Academia**: nuevas lecciones «EMG» y «HRV» (`learning_engine.LESSON_CATEGORIES`, `LESSON_BANKS`). Cada respuesta se registra:
+  - con su banco (`emg`/`hrv`) en la mejora continua, vía `log_answer` de `app/utils/learning_log.py` (sin modificar ese archivo);
+  - con su concepto en la sesión, vía `record_quiz_answer`.
+  - `confidence.QUIZ_BANKS` cubre ahora `academia`, `ecg12`, `emg` y `hrv`.
+- **«Pregunta a BIOCORE»** (`app/supermodules/academia/ask.py`):
+  - **P1**: la pregunta y la respuesta viven solo en la sesión del navegador. No pasan por `learning_log` ni por ninguna base; la base de conocimiento solo se lee.
+  - **P2**: sobre el campo, el aviso «No escribas datos personales ni de pacientes: tu pregunta se envía al proveedor de IA configurado para responderla.»
+  - **P3**: sin cambios, porque ya era así. El nivel gratuito de Gemini nunca recibe la pregunta, y sin IA solo se ven los fragmentos firmados.
+- **Pruebas**: `tests/test_banco_emg_hrv.py` (nuevo) comprueba:
+  - letra por letra contra la hoja y contra el documento firmado;
+  - cada explicación dentro de su línea t2:N;
+  - ningún ID fuera de E1–E10/H1–H8;
+  - los dos bancos en `balance_positions`;
+  - la correcta como opción más larga en a lo sumo 40 %;
+  - la regla B3 de LF/HF en las 18;
+  - las 18 registradas en la sesión con `emg`/`hrv` y en la mejora continua con su banco;
+  - «Pregunta a BIOCORE» sin dejar nada en ninguna base y con el aviso a la vista.
+  - Se ampliaron `test_quiz_bank.py` (bancos de EMG y HRV, y sus lecciones) y `test_confidence_calibration.py` (vocabulario y `QUIZ_BANKS`).
+
+## 2026-11-17 — Ajustes de la revisión de los PR #5 y #6: Wilson 1927, sinónimos solo de nombres y preguntas de la demo
+
+**Contexto (Art. I)**: la calibración citaba Wilson 1927 en pantalla, pero la cita no estaba en la Bibliografía ni en los avisos de terceros. Además, la tabla de sinónimos de la búsqueda tenía equivalencias que no son nombres ni siglas.
+
+1. **Wilson 1927.** Metadatos verificados en Crossref (doi:10.1080/01621459.1927.10502953): *J Am Stat Assoc* 1927;22(158):209–212.
+   - Entra a la Bibliografía con la clave **[WILSON1927]**, en un grupo propio, «Métodos que usa la plataforma» (`bibliography.METHODS`). No va en `SIGNED`, que es exactamente la lista de claves de `teoria_citada.md`.
+   - Entra también en `THIRD_PARTY_NOTICES.md`, sección 5.
+   - La pantalla muestra la misma clave: «intervalo de 95 % de Wilson [WILSON1927]» (`confidence_calibration.WILSON_KEY`).
+   - Pruebas: la clave, la referencia y el DOI coinciden en el código, la Bibliografía y los avisos, y la página de Bibliografía la dibuja con su clave.
+2. **Sinónimos solo de nombres y siglas (`knowledge_base.SINONIMOS`)**. Salen tres entradas:
+   - NN ↔ RR: B1 los distingue, porque el intervalo NN es entre latidos sinusales sin artefactos.
+   - parasimpático ↔ vagal ↔ vago: es una equivalencia fisiológica, no un nombre.
+   - «lpm» y «latidos por minuto» como sinónimos de FC: son la unidad, no el nombre.
+   - Con esas entradas sale también la prueba «tono vagal → B2».
+   - Los siete pares pedidos ya estaban en la tabla: electromiografía ↔ EMG, HRV ↔ VFC ↔ variabilidad de la frecuencia cardiaca, ECG, EEG, SpO₂, FR y FC.
+   - No distingue acentos ni mayúsculas: lo hacen el tokenizador `unicode61 remove_diacritics 2` y `_normalizar`.
+3. **Preguntas de la demo** (`tests/test_knowledge_base.py`): las 7 preguntas de «Pregunta a BIOCORE» traen un fragmento firmado de su tema (A4, A1, B1, B3, 6, 7, B2), también escritas sin acentos y en mayúsculas. «¿Cuál es la capital de Francia?» sigue sin fragmentos (no disponible).
+   - Antes de los sinónimos, las 7 ya traían fragmentos, porque la búsqueda usa prefijos. Lo que mejoró es el orden: «electromiografía» abría con temas de HRV y de respiración, y ahora abre con A1; «variabilidad de la frecuencia cardiaca» abría con B3, y ahora abre con B1.
+4. **Respiratorio** (ya hecho en `207d924`): se suma la prueba de contrato. El concepto del cuestionario, `respiracion_y_apnea`, es del vocabulario `CONCEPTS`.
+
+**Pendiente, sin tocar:**
+- Una consulta con «CO2» no encuentra «CO₂»: el índice conserva el subíndice y la consulta lo convierte en «2».
+- En «¿cómo se calcula el NEWS2?», el tema 6 sale 4.º y 5.º: «calcula» pesa más que «NEWS2».
+- El sinónimo LF ↔ «baja frecuencia» trae A8 («artefacto de movimiento: de baja frecuencia») en la pregunta de la razón LF/HF.
+
+## 2026-11-17 — Residuos del PR #8: insignias de Biomarcadores, firma de la HRV y cita de [DL2010]
+
+**Contexto (Art. I)**: tras la Teoría citada 2 quedaban textos que presentaban como «Validado por fuente» lo que no tiene una fuente de la Bibliografía, y textos que atribuían las métricas de la HRV a la Task Force ESC/NASPE ([TF1996]), a la que no se le atribuye ninguna afirmación (no se leyó su texto completo). Solo se bajan insignias; ninguna sube.
+
+- **Firma de Biomarcadores** (`_BIOMARKERS_VALIDATION_DETAIL`, `app/main.py`): nombraba el «Estrés» (ya no se muestra desde B3) y decía «de literatura base». Ahora nombra solo los índices que la página calcula: Carga cognitiva, Índice de recuperación y Resiliencia fisiológica, «derivados analíticamente, sin calibración de dispositivo médico». La Disposición para el aprendizaje no se nombra: depende del PLV neurocardíaco y en la práctica sale «no disponible» (lo detectó `test_visual_migration_main_inline.py`, que busca la tarjeta por su nombre).
+- **Ayudas de Biomarcadores** (`_BIOMARKER_HELP`), de «Validado por fuente» a «Criterio BIOCORE» (Art. I):
+  - **Resiliencia fisiológica**: citaba los «marcadores dorados de resiliencia cardiovascular» (dictamen interno del validador, sin fuente publicada). SDNN 15-150 ms y recuperación de la FC 15-50 lpm/min se rotulan «límites de la escala del índice, no valores de referencia». Se retiró la constante `BIOMARKER_SOURCE_RESILIENCE_GOLD` y la frase del material sin montar (`_biomarkers_ghost_history`).
+  - **Índice de estrés** (la ayuda ya no se monta, pero no debe mentir): citaba «Task Force ESC/NASPE 1996». Ahora «razón LF/HF (interpretación discutida) [B2013]» (decisión B3), con 0.5–5.0 como límites de la escala. Se retiró `BIOMARKER_SOURCE_ESC_NASPE`; el material sin montar y el docstring de `calculate_stress_index()` (`biomarkers.py`) ya no dicen que el score esté citado por la Task Force.
+  - **Carga cognitiva**: citaba a Holm et al. 2009 («índice EEG robusto y validado»), que no está en la Bibliografía. Queda «Holm et al., 2009 (cita sin verificar; no está en la Bibliografía)», sin los adjetivos, y la razón θ/α 0.5–4.0 como límites de la escala.
+  - Constante nueva `BIOMARKER_SCALE_LIMITS`; `BIOMARKER_SOURCE_RMSSD` se arma con ella (mismo texto).
+- **HRV**: la firma del laboratorio (`_HRV_VALIDATION_DETAIL`) dice «Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017].» y la ayuda de «Frecuencia respiratoria (rpm)» dice «La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.» (B2/B3). `src/signals/ecg/rsa.py` no se tocó: sus textos visibles que citan a la Task Force quedan para decisión aparte.
+- **Guardia nueva** `tests/test_validado_requiere_clave.py` (sin hardware ni AppTest): todo segmento de `_BIOMARKER_HELP` con «Validado por fuente» lleva una clave de la Bibliografía distinta de [TF1996]; «marcadores dorados» no aparece en ningún `.py` de `app/`; la firma de la HRV cita [SG2017] y no la Task Force.
+- **Pruebas actualizadas**: `tests/test_visual_consolidation_tanda_final.py` (firmas de HRV y Biomarcadores) y `tests/test_visual_migration_main_inline.py` (el fragmento de la firma de HRV pasa de «Task Force» a «[SG2017]»).
+
+**[DL2010]: corrección de cita** (volumen 43(8), verificado en PubMed, PMID 20206934), sin cambio de contenido: `app/supermodules/bibliography.py` y `docs/contenido/teoria_citada_2.md` decían «2010;43:1573–1579»; ahora «2010;43(8):1573–1579».
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia nueva `test_validado_requiere_clave.py` (con una prueba de que rechaza lo que debe) y las de teoría, pulido y contención que ya tocaba el PR (`test_teoria_emg_hrv`, `test_fase1_t2_teoria`, `test_fase1_t2_pulido`, `test_pulido_profesional`, `test_containment_facades_tanda1`, `test_integracion_contencion`, `test_ecg12_rhythm_labels`, `test_twelve_lead_measure`), más `test_visual_consolidation_tanda_final`, `test_visual_migration_main_inline` y `test_biomarkers_plv`: 290 passed. No se corrió la suite completa.
+
+## 2026-11-17 — Sinónimos en la búsqueda de la base de conocimiento
+
+**Contexto**: la búsqueda no tenía sinónimos, así que «electromiografía» no encontraba nada porque la teoría firmada dice «EMG». Los sinónimos solo amplían la búsqueda: no cambian lo que la base contiene ni lo que la IA puede citar.
+
+1. **`knowledge_base.SINONIMOS`**: 22 grupos, sobre todo sigla ↔ nombre completo. Por ejemplo: EMG ↔ electromiografía; HRV ↔ VFC ↔ variabilidad de la frecuencia cardiaca; FC ↔ frecuencia cardiaca ↔ lpm; contracción voluntaria (isométrica) máxima ↔ MVC ↔ CVM; SpO₂ ↔ SpO2 ↔ saturación de oxígeno; diafonía ↔ crosstalk; parasimpático ↔ vagal ↔ vago; DA ↔ descendente anterior; LF ↔ baja frecuencia.
+2. **Gana el término más largo** (`_analizar`): en «variabilidad de la frecuencia cardiaca» se reconoce la frase entera (grupo HRV) y «frecuencia cardiaca» no cuenta aparte. Antes de este ajuste la consulta traía primero el tema 2, de frecuencia cardiaca. Las palabras sueltas conservan su prefijo; los sinónimos van exactos (una sigla corta como «DA» con prefijo hallaría «daño») y las de varias palabras, como frase. Sin acentos, igual que el índice.
+3. **Pruebas** (`tests/test_knowledge_base.py`, +12): 9 consultas llegan a su tema (electromiografía → A1; variabilidad de la frecuencia cardiaca → B1; frecuencia cardiaca normal → 2; CVM con dolor → A6; saturación de oxígeno → 6; tono vagal → B2…); ningún término está en dos grupos; cada grupo nombra algo que está en la teoría firmada (la prueba sacó un grupo IAMCEST/STEMI que no aparece en ella); y los sinónimos no inventan respuestas («tratamiento de la diabetes» sigue sin fragmentos). Verificado aquí: 36 pasan entre la base y el tutor.
+
+## 2026-11-17 — Residuos del PR #7: licencia de lightgbm, métodos citados y rutas portables (Art. I)
+
+**Contexto.** Rama `luis/ml-hoy`. La tarjeta del modelo usaba `lightgbm` y dos métodos publicados (con la fuente de donde se leyeron las listas DS1/DS2) sin atribuirlos en `THIRD_PARTY_NOTICES.md`, y dejaba rutas personales («C:/Users/…») en el código y en la tarjeta: nadie más podía reproducirla tal como estaba escrita.
+
+- **Licencia de `lightgbm` (`THIRD_PARTY_NOTICES.md`, sección 4).** Leída de su fuente el 2026-11-17, del paquete instalado (lightgbm 4.6.0, Python 3.13.11 del PATH): `LICENSE` del paquete «The MIT License (MIT) / Copyright (c) Microsoft Corporation»; metadatos `License: The MIT License (MIT)` y clasificador `License :: OSI Approved :: MIT License`; página https://github.com/microsoft/LightGBM. Lo usan solo la evaluación (`domain/physiology/ml/arrhythmia_evaluation.py`) y `requirements_arrhythmia.txt`; la app no lo importa al correr y sigue fuera de `requirements.txt` a propósito (las pruebas que lo necesitan se omiten sin él). Se sacó de la nota de paquetes sin licencia leída y del pendiente 4; `kaleido`, `xgboost`, `pytz`, `scikit-plot` y `optuna` siguen pendientes.
+- **Métodos citados (`THIRD_PARTY_NOTICES.md`, sección 5).** División DS1/DS2 y clases AAMI: de Chazal 2004, *IEEE Trans Biomed Eng* 51(7):1196–1206, doi:10.1109/TBME.2004.827359, PMID 15248536 (verificada en PubMed). Puntaje de Brier: Brier 1950, *Monthly Weather Review* 78(1):1–3 (verificada en Crossref; no está en PubMed). Las listas DS1/DS2 se leyeron en Farag 2023, *Sensors* 23(3):1365, PMC9919183, tabla 2 (verificada en PubMed); la tabla de de Chazal no se leyó (es de pago). La MIT-BIH ya estaba atribuida y no se duplicó.
+- **Rutas portables.** `arrhythmia_evaluation.py` define `REPO_ROOT` y `CACHE_DIR` = la variable `BIOCORE_CACHE_DIR` o, sin ella, `.cache/biocore` en la raíz del repositorio (`.cache/` ya está en `.gitignore`). El CLI corre sin argumentos: `--mitdb` vale por defecto `CACHE_DIR/mitdb` y `--model` `CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` (antes `--mitdb` era obligatorio y sin `--model` no se guardaba el modelo; ahora el CLI lo guarda siempre). `MODEL_CARD.md` habla de `$BIOCORE_CACHE_DIR` y su «Cómo reproducir» son cuatro pasos (fijar la variable en Git Bash o PowerShell, o no fijarla; descargar `mitdb`; evaluar sin argumentos; correr las pruebas). El SHA-256 del modelo y todas las cifras quedan igual; `results.json` no tenía rutas personales.
+- **Pruebas nuevas (`tests/test_arrhythmia_model_card.py`).** `CACHE_DIR` sale de la variable y, sin ella, es `<raíz>/.cache/biocore` (recarga el módulo y lo deja como estaba); ni `MODEL_CARD.md`, ni `results.json`, ni `arrhythmia_evaluation.py` contienen «C:/Users» ni «luisn».
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): `tests/test_arrhythmia_model_card.py`, `test_arrhythmia_classifier_new.py` y `test_docs_honest_tanda2.py`: 18 passed. Sin `lightgbm` (paquete simulado que lanza `ImportError`): 8 passed, 1 skipped (la prueba de predicción, por `importorskip`). Guardias de `domain/` (`test_ups_body_3d_paridad.py`, `test_ups_derived_contract.py`) con el cambio commiteado: 50 passed. No se corrió la suite completa.
+
+## 2026-11-17 — «¿Qué pasa si…?»: predecir y comprobar contra el motor hemodinámico (Practicar)
+
+**Contexto (Art. I)**: una práctica nueva, sin texto fisiológico nuevo y sin tocar `domain/`. El alumno predice qué le pasa al gemelo hemodinámico (simulado) ante UNA intervención, declara su confianza y se califica contra lo que calcula el motor de lazo cerrado. Rama `luis/what-if`, desde `origin/main`; Python del PATH (3.13.11).
+
+- **Página** `what-if` en Practicar (`app/supermodules/what_if.py`; `render_practice_what_if_page` en `app/main.py`).
+- **Qué intervenciones hay, y por qué solo esas**:
+  - `run_closed_loop(scenario, heart_rate_bpm)` solo deja variar la frecuencia cardiaca y el escenario. La resistencia, el volumen/P_sf, la capacitancia venosa, la ganancia del reflejo y la contractilidad son constantes del módulo. Cambiarlas exigiría parchear variables globales en tiempo de ejecución (afectaría a todas las sesiones a la vez) o reimplementar física fuera de `domain/`; no se ofrecen.
+  - Lista cerrada: sano 72 → 50 y → 120 lpm; hipertensión 85 → 60 y → 130 lpm.
+    - Las FC de partida son los puntos fijos del panel del barorreflejo.
+    - Las de llegada están dentro del barrido validado (40–220 lpm), y se comprobó que el lazo converge sin saturar el reflejo ni el piso de EDV.
+  - **Sepsis excluida**: depende de la capacitancia venosa 2× (Criterio BIOCORE, sin cita, en revisión clínica), de la FC 150 sin cita y de su gasto cardiaco «calculado por el motor — en revisión clínica». La página lo dice. Un caso marcado `in_review` se mostraría con su etiqueta y no se califica ni registra.
+- **Flujo**:
+  1. Antes de enviar, el alumno elige «sube / baja / sin cambio» y su confianza (0–100) para la PAM, el gasto cardiaco (VS × FC, como el panel del barorreflejo) y el volumen sistólico. El motor no se corre y no se ve ningún número suyo.
+  2. Al enviar, el motor corre basal e intervención (determinista, caché por escenario y FC). Los valores llevan «calculado por el motor de lazo cerrado de BIOCORE» y la etiqueta de simulación.
+  3. «Cómo lo calcula el modelo» cita la cadena tal como está escrita en `closed_loop.py` y la nota del brazo cardiaco del panel del barorreflejo (la FC es una entrada; el reflejo no la cambia).
+  - La sistólica y la diastólica no se muestran: heredan la compliancia C pendiente de validación. PAM, gasto y VS no dependen de C.
+- **Calificación**: la respuesta correcta es el signo del cambio que calculó el motor. Umbral de «sin cambio»: `NO_CHANGE_REL` = 2 % del valor basal, rotulado en la página como «Criterio BIOCORE (HEURISTIC)».
+  - Ejemplo del motor: sano 72 → 50 lpm da PAM sin cambio (el reflejo la devuelve a su punto de ajuste), gasto baja y VS sube.
+- **Registro**: cada predicción calificada pasa por `log_session_answer("what_if:<caso>:<salida>", "what_if", "hemodinamica", correcto, confianza)`. Es el primer llamador de `session_learning`.
+  - Una sola vez por intento, con el criterio de `app/utils/confidence.py` (rama `calibracion-confianza`): la marca es (intento, caso) y el intento solo cambia con «Otra predicción». Salir del caso y volver a enviarlo sin pedir otro no registra de nuevo (prueba `test_resending_the_same_case_without_asking_for_another_is_not_logged_again`).
+- **Rótulo junto a la tabla del resultado** (procedencia, no fisiología): «Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real».
+- **Pruebas** (`tests/test_what_if.py`, 9):
+  - con el motor sustituido por uno que da el signo contrario, la calificación se invierte;
+  - antes de enviar el motor no se corre y no hay números;
+  - lo que está en revisión clínica no se califica ni se registra;
+  - lo registrado usa "what_if" y "hemodinamica" con la confianza elegida;
+  - la cadena del modelo es literal del código;
+  - toda la lista cerrada converge.
+  - La navegación (`test_fase1_t1_navegacion.py`) incluye `what-if` en Practicar.
+  - Resultado: 38 pasan (los dos archivos). Por instrucción no se corrió la suite completa.
+  - Tras el registro por intento y el rótulo: `test_what_if.py` + `test_docs_honest_tanda2.py` + `test_fase1_t2_pulido.py` = 55 pasan con el Python del PATH (3.13.11, Streamlit 1.67.0). Sin el guardia, la prueba nueva falla (6 registros en vez de 3).
+
+## 2026-11-17 — Banco de preguntas EMG y HRV, versión 2: arreglos de la revisión de `base-conocimiento-ia`
+
+**Contexto (Art. I)**: la revisión externa de la rama (suite: 2328 pasan, 8 omitidas, 0 fallos en Linux con Python 3.13.18) pidió que cada pregunta del banco se sostenga en una línea firmada de `teoria_citada_2.md` y que salga de la hoja todo lo que no está firmado. Solo cambia el documento: nada entra a la app.
+
+1. **`docs/contenido/banco_preguntas_emg_hrv.md`**, versión 2: quedan **26 preguntas**, cada una con su línea firmada citada textual («t2:N», copiada del documento firmado, no reescrita) y una casilla «Firma de Luis». Al final hay una hoja de firma de 26 filas con la columna «Firma de Luis» vacía.
+2. **Corregidas (5):**
+   - **E2:** se cambió el distractor «Mayor riesgo de lesión», que iba contra A9.
+   - **H2:** ahora pregunta qué medida está más influida por el parasimpático **que la SDNN**, como dice t2:111.
+   - **H8:** se retiró el distractor con una cifra de SDNN (B9).
+   - **C5:** la viñeta dice «razón LF/HF (interpretación discutida)» con [B2013] (B3).
+   - **C6.1:** se retiró de la explicación la frase de Laborde 2017 y se cambió el distractor de la razón LF/HF.
+3. **Fuera de la hoja (10):** E11, E12, H9, H10, H11, H12, C1.2, C4.2, C5.1 y C6.2 pasan a un apéndice con la afirmación que habría que firmar primero en la teoría. H10 y C4.2 dependen además de ampliar B7 (D2); H12 y C4.2, de aceptar Laborde 2017 (D1).
+4. **Decisiones** D1–D5. Desaparecen las marcas [F]/[N]: en la hoja solo queda lo que tiene línea firmada.
+5. **Uso:** las claves se resolverán contra `app/supermodules/bibliography.py` (las de EMG y HRV llegan con la rama `teoria-emg-hrv`); no se crea `clinical/hrv_references.py`. Solo entran a la app, como `EMG_QUESTIONS` y `HRV_QUESTIONS`, las preguntas que Luis marque «firmo». Cada respuesta se registrará con `session_learning` (`emg` o `hrv`).
+
+**Sincronización:** `main` no cambió desde `e3fc423` (ya incluido en esta rama). Cuando `teoria-emg-hrv` entre a `main`, hay que volver a fusionar `main` aquí: chocarán `CHANGELOG.md` y `CLAUDE.md` (conteo de páginas), y se conservan ambas entradas.
 
 ## 2026-11-17 · Pasaporte de evidencia y «Tu aprendizaje en esta sesión»
 
@@ -86,6 +355,187 @@
 3. **«Abrir en…» (I3)**: `render_open_in_labs()` en `twin_shell/pages.py`: «Ver ECG», «Ver HRV» y «Calcular en Calculadoras» (`st.switch_page`). Antes de cambiar de página guarda el estado actual del organismo en el UPS del paciente activo (simulación, con el escenario en `source_detail`): un escenario aplicado vive solo en memoria y sin guardarlo el destino diría «sin dato». Calculadoras (`calculators/pages.py`, fuera de la lista de archivos de la tarea, cambio mínimo) carga FC/FR/SpO₂ del UPS y muestra los puntos NEWS2 de cada una con `news2_partial`, la misma función del gemelo; sin total.
 4. **Un solo criterio visible (decisión de contenido de Luis)**: la misma FC se leía con dos criterios en pantallas distintas (el corte convencional de 60–100 lpm del ECG y los puntos NEWS2 del RCP 2017). Ahora toda lectura de FC, FR o SpO₂ trae también sus puntos NEWS2: `clinical.calculators.news2_reading_note()` (sobre `news2_partial`, la función del gemelo; un componente, nunca un total), usada en el banner, el ECG Monitoreo, el Multisensor y la FC de Calculadoras. La clasificación que cada pantalla ya mostraba no cambia ni se reinterpreta: solo se añade el otro criterio citado. `app/utils.py::detect_physiological_inconsistencies` (cortes 60–100 y SpO₂ < 90 sin cita) no la llama nadie; no se tocó.
 5. **Pruebas**: `tests/test_integracion_paciente.py`. Golden: con sepsis aplicada en cada horizonte, los puntos NEWS2 de pulso, FR y SpO₂ de Calculadoras coinciden con los del gemelo.
+6. **El ECG Monitoreo late a la FC del paciente activo (Art. I; cambia lo que muestra el laboratorio, pendiente de visto bueno de Luis)**: antes el banner decía 100 lpm (sepsis) y el trazo de la demo seguía a 72 lpm, dos números distintos para «el mismo» paciente. Nueva fuente `Paciente activo (simulación a su FC)` en el selector «Origen del ECG» (`_ecg_from_active_patient()` en `app/main.py`): el UPS guarda la FC, no la onda, así que la onda es una vista determinista de ese valor (`DynamicECGGenerator`, McSharry 2003, sin ruido ni semilla: la misma FC da siempre el mismo trazo), rotulada «simulación a la FC del paciente activo (UPS)». El Monitoreo abre en ella solo si el paciente ya tiene FC en el UPS; sin paciente abre en la demo, como siempre. Sin FC, sin paciente o con la FC fuera de 40–200 lpm (rango en que el generador está validado con el detector TKEO) dice «sin dato» con el motivo y NO cae en la demo; con una arritmia aplicada en el gemelo dice «ritmo no modelado» (la FC sola no la describe y un ritmo sinusal regular sería una onda falsa). No se guarda de vuelta al gemelo (escribiría el mismo valor otra vez). No se inventó ningún parámetro. Pendiente (no hecho): Respiratorio (FR → generador) y HRV (SDNN → serie RR) desde el UPS.
+7. **Detective fisiológico (`detective`, Practicar; página nueva, versión corta y honesta de la propuesta de Luis)**: `app/supermodules/detective/pages.py`. Un caso del banco de casos (`generate_case`, el de «Caso ciego») con el diagnóstico oculto; el estudiante PIDE las pistas una por una (signos vitales con sus puntos NEWS2 de la misma tabla del gemelo, HRV, eventos del UPS y la PA calculada solo en sano/hipertensión/sepsis; en el resto, «no modelada» con el motivo), diagnostica con una confianza (0–100) y una justificación obligatoria. La corrección es determinista (la respuesta es el escenario que generó el caso), sin IA; la justificación NO se califica (no existe una explicación clínica por escenario con fuente: `CASE_EXPLANATION_PENDING`), se muestra junto a la evidencia. «Tu recorrido» es descriptivo (qué pistas pidió y en qué orden; sin puntaje) y «Tu sesión con el Detective» cuenta casos, aciertos y confianza declarada por concepto vía `app/utils/session_learning.py` (`source="detective"`), sin umbrales ni «dominio». Lo que NO hay y por qué: ECG/EEG/EMG (el UPS guarda escalares, no la onda; la morfología de cada escenario no está modelada) y el índice por hora de sueño (`ahi`: el organismo lo calcula en 0 por defecto). Usa un paciente efímero del banco de casos: no toca el paciente activo. **Pendiente de Luis**: `SCENARIO_CONCEPT` (a qué concepto de `session_learning.CONCEPTS` cuenta cada escenario) es Criterio BIOCORE sin cita. Como suma una página, `CLAUDE.md` y `tests/test_fase1_t1_navegacion.py` la cuentan (24 páginas al fusionar `main`, que trajo «¿Qué pasa si…?»). Pruebas: `tests/test_integracion_detective.py` (incluye cada uno de los 15 escenarios con todas sus pistas bajo el filtro de idioma y tratamiento).
+8. **Respiratorio y HRV empiezan en el paciente activo**: `app/utils/patient_banner.py::patient_start_value()`. Respiratorio: la FR y la SpO₂ basal del generador EMPIEZAN en las del paciente (si caben en el rango del control; 85 % no cabe en 90–100 y NO se recorta a 90: sería otro paciente, se dice y se usa el valor inicial de siempre). HRV: la FC base y la FR del ECG con RSA empiezan en las del paciente; la amplitud RSA NO, porque el `hrv` del UPS no dice qué índice es y ajustar la serie para «dar» ese número inventaría la relación. Cada control dice de dónde salió su valor inicial («si la mueves, ya es tu simulación»). Sin paciente, los dos laboratorios se ven como siempre. No se cambió ningún cálculo. De paso: la página de HRV decía «explanation clínica» (inglés visible, y no hay explicación clínica con fuente): ahora «métricas de tiempo y frecuencia». `CLAUDE.md` describe la integración completa en un párrafo propio.
+9. **Fusión de `main` (PR #7, #8, #10 de Luis) en `Integration`**: conflictos resueltos conservando las dos ramas. Practicar tiene «¿Qué pasa si…?» y el Detective (24 páginas). En HRV quedan la atribución a [SG2017] y el texto de ayuda de Luis (sin Task Force), y además los controles empiezan en el paciente activo. CHANGELOG: las entradas de las dos ramas.
+
+## 2026-11-17 — Calibración de la confianza sobre `session_learning` (Uncertainty Lab, primera pieza)
+
+**Contexto (Art. I)**: el estudiante dice qué tan seguro está antes de ver el resultado y BIOCORE compara esa confianza con su acierto. Se construye sobre el contrato `app/utils/session_learning.py` (sin modificarlo): solo en la sesión, sin base de datos.
+
+1. **`educational/confidence_calibration.py`** (nuevo, sin Streamlit): confianza media frente a acierto, en total, por concepto y por nivel de confianza; lista de los errores con más confianza.
+   - El acierto lleva su intervalo de 95 % de Wilson [Wilson 1927, J Am Stat Assoc 22(158):209–212, doi:10.1080/01621459.1927.10502953].
+   - «Exceso de confianza» solo si la confianza media queda por encima de TODO el intervalo; «falta de confianza», solo por debajo. Dentro del intervalo no se etiqueta. No hay umbrales fijos ni un mínimo de respuestas inventado: con pocas respuestas el intervalo es ancho y el veredicto es «no se detecta».
+   - Sin respuestas con confianza: «No disponible», con el motivo.
+2. **`quiz_bank.CONCEPT_BY_PROMPT`**: **propuesta, pendiente de revisión de Luis.** Asigna uno de los 8 `CONCEPTS` del contrato a 24 preguntas del Quiz de la Academia y del Desafío ECG-12. Las 10 que no encajan en el vocabulario (EEG, PPG, HVI, pericarditis, onda T normal, manejo del IAMCEST y las que describen la app) no se registran. No se inventaron conceptos nuevos.
+3. **`app/utils/confidence.py`** (nuevo):
+   - `render_confidence_input`: selector opcional 25/50/75/100 %, sin valor por defecto.
+   - `record_quiz_answer`: llama a `log_session_answer(..., source="quiz")` una sola vez por intento.
+   - `render_calibration_panel`: el expander «Tu calibración en esta sesión».
+   - Conectado en el Quiz de la Academia (`academia/pages.py`) y en el Desafío ECG-12 (`ecg_12/quiz.py`). El selector va DESPUÉS de las opciones de respuesta, así `at.radio[0]` sigue siendo la respuesta en las pruebas existentes. El panel se monta en las páginas `quiz` y `desafio-ecg`.
+4. **Pruebas**: `tests/test_confidence_calibration.py` (7). Verificado aquí: 6 pasan (Wilson contra su valor de referencia, veredictos, agrupaciones y mapeo contra el vocabulario del contrato, leído sin importar Streamlit). **Falta correr** la prueba AppTest del Desafío ECG-12 y la suite completa en el intérprete de Luis.
+
+5. **Respiratorio** (`respiratory_lab/views.py::render_quiz`): las 5 preguntas (3 conceptuales y 2 sobre la señal simulada) son del concepto `respiracion_y_apnea`. Aquí la respuesta se corrige al elegirla, sin botón «Verificar», así que la confianza se pide ANTES de las opciones (`CONFIDENCE_FIRST_HINT`) y se guarda al responder: cambiarla después, ya con el resultado a la vista, no cuenta (`confidence.record_answer`, un registro por `mark`). Las preguntas de la señal se identifican por su valor correcto (`respiratorio:fr:<n>`, `respiratorio:apneas:<n>`), así que una señal nueva es una pregunta nueva. El panel se monta también en la página `cuestionarios`. El EEG no tiene concepto en el vocabulario y no se registra.
+6. **Pruebas:** `test_respiratorio_guarda_la_confianza_que_habia_al_responder` (AppTest; **falta correrla** en el intérprete de Luis). La lógica de registro se verificó aquí con un sustituto mínimo de Streamlit fuera del repositorio: un registro por respuesta, la confianza que había al responder y nada de las preguntas sin concepto.
+
+**Pendiente:** revisión del mapeo de conceptos por Luis; el EEG no tiene concepto en el vocabulario.
+
+## 2026-11-17 — Base de conocimiento de la IA: solo lo firmado, todo con cita
+
+**Contexto (Art. I)**: la IA de BIOCORE no se entrena; consulta una base verificada y cita lo que encuentra. Esta tanda crea esa base a partir de la teoría ya firmada.
+
+1. **`educational/knowledge_base.py`** (nuevo):
+   - Lee `docs/contenido/teoria_citada.md` y `teoria_citada_2.md` (`CORPUS`) y los parte en fragmentos (párrafo, viñeta o tabla) con tema, capa (idea, mecanismo, detalle) y claves de cita.
+   - Solo entran los documentos con «Estado: FIRMADO» y, dentro de ellos, los temas con ☑ en la hoja de firma. Un borrador no alimenta a la IA.
+   - Guarda también las «Decisiones de Luis» (capa `decision`) y las listas «Sin fuente verificada» (capa `sin_fuente`). Los comentarios sobre la propia plataforma («Por qué BIOCORE no calcula el total…», notas entre paréntesis) van como `nota`, sin heredar la cita del encabezado.
+   - Si un tema firmado tiene una afirmación sin cita o una clave que no está en su Bibliografía, no se construye nada (`BaseInvalidaError`).
+   - Índice SQLite FTS5 sin distinguir acentos en `data/local/conocimiento.db` (ignorado por git; se regenera con `python -m educational.knowledge_base`).
+   - `buscar()` devuelve los fragmentos con sus referencias completas; `contexto_para_ia()` arma el bloque para el modelo con las restricciones firmadas del tema. Sin fragmentos devuelve `None` y la respuesta es `NO_DISPONIBLE`, sin llamar al modelo.
+   - Resultado al construir: 107 fragmentos (46 de `teoria_citada.md`, 61 de `teoria_citada_2.md`) de 28 temas firmados, 18 referencias.
+2. **Aislamiento**: `tests/conftest.py` redirige `knowledge_base.DEFAULT_DB_PATH` a un archivo temporal, como ya se hace con la base del UPS y la de aprendizaje.
+3. **Pruebas de la base**: `tests/test_knowledge_base.py` (18). Verificado en un entorno sin `plotly` ni `fooof`: 17 pasan con `--noconftest`; el fixture de aislamiento se verificó aparte. Falta correr la suite completa en el intérprete de Luis.
+
+4. **`educational/citation_tutor.py`** (nuevo): conecta la base con el modelo SIN modificar `domain/` (reutiliza `resolve_model` y `check_provider_allows` del narrador).
+   - Sin fragmentos firmados devuelve `NO_DISPONIBLE` y no llama al modelo.
+   - `SYSTEM_PROMPT`: responder solo con los fragmentos, citar cada afirmación con su clave, decir qué falta en lugar de completarlo, respetar las restricciones de Luis y no dar indicaciones para una persona real.
+   - La pregunta es texto libre de una persona: su origen es DESCONOCIDO (`privacy.py`), así que el nivel gratuito de Gemini no la recibe. **Decisión para Luis:** confirmar o cambiar este criterio.
+   - `verificar_citas()`: una clave que el modelo no recibió, o una respuesta sin citas, se avisa en pantalla.
+   - `knowledge_base.asegurar_base()`: la base se reconstruye sola si falta o si cambió un documento firmado (compara el SHA-256 de cada uno).
+5. **Página «Pregunta a BIOCORE»** (`pregunta`, sección Aprender; `app/supermodules/academia/ask.py`): con o sin IA muestra los fragmentos firmados que responden a la pregunta; con IA, la explicación en streaming y los avisos de citas. `_page_specs()` pasa a 23 páginas: se actualizaron `tests/test_fase1_t1_navegacion.py` y `CLAUDE.md`.
+6. **Pruebas**: `tests/test_citation_tutor.py` (8) con un cliente simulado, sin red. Verificado aquí sin `anthropic`, `sqlalchemy` ni `streamlit` (cargando `privacy.py` y `errors.py` del narrador por separado): 24 pasan entre las dos pruebas nuevas; la prueba de la página (AppTest) se salta aquí y **falta correrla**, junto con la suite completa, en el intérprete de Luis.
+
+**Pendiente:** sinónimos para la búsqueda (hoy «electromiografía» no encuentra «EMG»); indexar los bancos de preguntas; probar con una clave real de Anthropic (aquí no se hizo ninguna llamada real).
+
+## 2026-11-17 — Teoría citada 2 (EMG y HRV) y coherencia con la teoría firmada
+
+**Contexto (Art. I)**: Luis firmó `docs/contenido/teoria_citada_2.md` (EMG A1–A9 y HRV B1–B9, con restricciones en cada tema). Junto con `teoria_citada.md`, es la única fuente de texto médico nuevo de esta tanda. Varias etiquetas de la app contradecían lo firmado:
+- la razón LF/HF leída como «balance simpático/vagal» y como «estrés»;
+- el RMS del EMG presentado como medida de cuánto se contrae;
+- factores de la HRV y una cifra de normalidad sin fuente;
+- escenarios STEMI nombrados por pared y arteria.
+
+Rama `teoria-emg-hrv`, desde `main`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, NumPy 2.4.6, SciPy 1.17.1, pylsl 1.18.7. En el paso 0, la suite completa dio 2299 pasan, 0 fallan y 6 omitidas.
+
+### Parte A — Teoría de EMG y HRV
+- **18 temas firmados** en la teoría en capas (`learn_theory.py`: `SIGNED_EMG_A1…A9`, `SIGNED_HRV_B1…B9`). Cada línea está tal cual en el documento; la prueba literal (`test_fase1_t2_teoria.py`) ahora también lo busca en `teoria_citada_2.md`.
+  - **En Aprender** → Referencias de los laboratorios, con los encabezados «EMG de superficie» y «Variabilidad de la frecuencia cardiaca (HRV)».
+  - **En la «Teoría» de cada laboratorio**: EMG, A1–A9; HRV, B1–B9, en un expander nuevo dentro de «Aprender y explicar».
+  - **Lo que el documento lista como «sin fuente verificada» no se escribe**: el ECG en los músculos del tronco, las dimensiones SENIAM, la postura, los fármacos, el ejercicio y las cifras de referencia. Una prueba lo vigila.
+- **«¿Qué significa…?» solo con texto firmado**:
+  - RMS del EMG: A5. Frecuencia mediana: A7.
+  - SDNN, RMSSD y pNN50: su línea de B2.
+  - La «Activación muscular» no tiene tema firmado y conserva solo la definición del cálculo.
+  - Un tema firmado sin capa de detalle ahora también muestra su fuente y el enlace a la Bibliografía.
+- **Bibliografía**: las 7 referencias nuevas ([DL1997], [DL2010], [V2018], [H2000], [SG2017], [B2013], [TF1996]). [TF1996] lleva la nota de que no se le atribuye ninguna afirmación directamente.
+
+### Parte B — Etiquetas que contradecían lo firmado
+1. **Razón LF/HF** (B3, decisión de Luis: «razón LF/HF (interpretación discutida)» con [B2013], nunca «balance simpático-vagal»):
+   - **HRV, espectro**: decía «LF/HF: 0.85». Ahora dice «razón LF/HF (interpretación discutida) [B2013]: 0.85», con la explicación firmada debajo. La pestaña «Espectro (LF/HF)» pasa a «Espectro (bandas LF y HF)».
+   - **HRV, narrador**: el hallazgo `lf_hf_ratio` decía «Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.». Ahora lleva el rótulo y la explicación firmada de B3.
+   - **Biomarcadores**: el «Índice de Estrés» era la razón LF/HF normalizada a 0–100, con la etiqueta «Validado por fuente» (Task Force). Leer LF/HF como estrés es leerla como equilibrio simpático-vagal: ya no se muestra.
+     - Queda «Índice de estrés: no disponible», con el motivo firmado.
+     - La razón se muestra con su rótulo.
+     - La entrada «Ratio LF/HF» pasa a «Razón LF/HF (interpretación discutida) [B2013]».
+     - `calculate_stress_index()` sigue en `biomarkers.py`, sin mostrarse.
+   - **Prueba**: el recorrido de todas las páginas y fuentes (`test_fase1_t2_pulido.py`, `lf_hf_offenders`) exige que todo texto con «LF/HF» lleve el rótulo, o sea el texto firmado que explica por qué es discutida, y que nunca diga «balance», «dominancia» ni «proxy».
+2. **EMG** (A1, A6, A9):
+   - Vista del laboratorio: decía «Para saber cuánto contraes, mira el RMS: crece con la contracción». Ahora: «La amplitud del EMG de superficie indica la **excitación** del músculo, no su fuerza [V2018]».
+   - Guía del sensor (`hardware/biosensors/sensors.py`): decía «Para saber cuánto contraes, mira el RMS en mV». Ahora, la misma frase firmada.
+   - Práctica con la placa simulada: decía «El RMS sube con la fuerza que elijas». Ahora: «sube con el nivel que elijas (así está programada la placa simulada)», más la frase firmada.
+   - No se encontró ningún texto que hablara de hipertrofia, diagnóstico o lesión a partir de la amplitud. «No es %MVC: no mide cuánto contraes» se queda: es una negación correcta.
+3. **HRV** (B7, B9):
+   - «¿Qué afecta la HRV?» decía «Un mayor tono vagal eleva la RMSSD y el pNN50» y «La enfermedad crónica y la edad tienden a bajar el SDNN». Ahora es el tema B7 (solo edad, sexo, duración del registro y respiración).
+   - Los significados que recibe el narrador («aproximación del tono parasimpático», «indicador vagal») se cambiaron por las líneas de B2.
+   - Biomarcadores: «RMSSD 10-100ms: rango fisiológico correcto (dictamen del validador)» con etiqueta «Validado por fuente» era una cifra de normalidad sin fuente publicada. Ahora: «RMSSD normalizada entre 10 y 100 ms: límites de la escala del índice, no valores de referencia», con etiqueta «Criterio BIOCORE».
+4. **Escenarios de 12 Derivaciones**: se nombran por lo que se ve en el trazado construido (elevación del ST ≥ 1 mm a la magnitud de referencia, medida en `truth.st_j_mv`):
+
+   | Antes | Ahora |
+   |---|---|
+   | «🔴 STEMI Anterior - Infarto anterior (DA)» | «🔴 STEMI con elevación del ST en V1–V4» |
+   | «🔴 STEMI Inferior - Infarto inferior (CD o Cx)» | «🔴 STEMI con elevación del ST en II, III y aVF» |
+   | «🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)» | «🔴 STEMI con elevación del ST en I, aVL, V5–V6» |
+
+   La interpretación pasa al expander «Corrección del caso: qué sugiere el trazado y arteria probable (tema 5)». Muestra en qué derivaciones construyó el generador la elevación y el descenso del ST, y la tabla firmada del tema 5 con su advertencia.
+
+### Verificación
+- Suite completa en serie: **2332 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4). Corrida en una worktree aparte porque el directorio de trabajo cambió de rama durante la tanda: 2330 pasan y 8 omitidas; las 2 de más leen la base de desarrollo y sus respaldos, y con una copia en la worktree pasan las 2**.
+- Pruebas nuevas en `tests/test_teoria_emg_hrv.py`:
+  - 18 temas integrados, en Aprender y en cada laboratorio;
+  - nada «sin fuente verificada»;
+  - [TF1996] sin afirmaciones;
+  - «¿Qué significa…?» firmado;
+  - LF/HF rotulada en HRV, Biomarcadores y el narrador;
+  - EMG sin deducir fuerza;
+  - HRV sin postura, fármacos ni ejercicio, ni cifras de normalidad;
+  - nombres STEMI comprobados contra el trazado construido.
+- La guardia de LF/HF entra al recorrido de todas las páginas.
+- Excepciones nuevas, por texto exacto y exigiendo que estén en el documento firmado:
+  - tres frases de A3 y A4 que el patrón amplio de tratamientos atrapaba («Recomendación clásica…», «recomendaciones de colocación…», «coincide con esta recomendación»);
+  - el título del artículo de [B2013] en la Bibliografía;
+  - la línea firmada de B6 sobre la entropía muestral en la guardia de «Entropía» de la contención de la tanda 1 (que buscaba el botón falso de «complejidad»).
+- Base de desarrollo intacta (1/7/53/0).
+
+### Sin tocar
+- **Código con LF/HF como «balance» que ninguna página monta**:
+  - `src/advanced_hrv.py`, `src/risk_analysis.py` y `src/feature_extraction.py` (sin llamador en la app);
+  - `src/ecg_education.py` (solo lo usa `app/ecg_trainer.py`, que no está en el menú);
+  - `src/interpretability.py` (solo lo usa el clasificador de `domain/`, oculto desde la contención).
+  - Si alguno se vuelve a montar, tiene que pasar la guardia.
+- **Twin OS**: «Balance simpático/parasimpático: no modelado». No lo atribuye a LF/HF; se queda.
+- **Biomarcadores**:
+  - La firma del módulo sigue diciendo «Índices compuestos (Estrés, Carga Cognitiva)».
+  - La ayuda de Resiliencia («SDNN 15-150ms… marcadores dorados», etiqueta «Validado por fuente») no es una cifra de normalidad, pero tampoco tiene fuente publicada.
+- **HRV**: la firma del laboratorio y la ayuda del control de respiración atribuyen las bandas a la Task Force, a la que el documento no permite atribuirle afirmaciones; las mismas bandas están firmadas con [SG2017].
+- **EMG**: los botones de la práctica «Contraer suave (30 %)» y «Contraer fuerte (80 %)» son niveles del simulador, no %MVC.
+
+## 2026-11-17 — Tarjeta del modelo: evaluación honesta del clasificador de arritmias (Art. I)
+
+**Contexto (Art. I: ninguna cifra sin decir cómo se calculó).** Rama `luis/ml-hoy`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, lightgbm 4.6.0, scikit-learn 1.9.0, NumPy 2.4.6, wfdb 4.3.1.
+
+**Inventario.** El «clasificador LightGBM» es `biomedical/arrhythmia_classifier.py`, no `domain/physiology/ml/`. Lo que había:
+- 8 rasgos de amplitud del segmento, sin RR.
+- RandomForest siempre; XGBoost y LightGBM solo si están instalados.
+- Ningún modelo entrenado, ninguna métrica guardada y ninguna pantalla que lo use.
+
+**Fuga de datos, con evidencia.** `ArrhythmiaClassifier.train` separa entrenamiento y prueba con `train_test_split` **por latido**. Medido con ese mismo protocolo sobre MIT-BIH (DS1 y DS2 juntos):
+- Los 44 de 44 registros quedan a la vez en entrenamiento y en prueba.
+- La exactitud sale 0.944 y el F1 macro 0.531.
+- Entre pacientes (entrenamiento DS1, evaluación DS2; de Chazal 2004) bajan a 0.843 y 0.299.
+- La sensibilidad de S cae de 0.424 a 0.007.
+
+**Qué se hizo:**
+1. `domain/physiology/ml/arrhythmia_evaluation.py`. Usa los rasgos de la clase y `LGBMClassifier` con sus parámetros por defecto. Añade `deterministic=True`: sin él, dos corridas iguales dieron sensibilidad de N de 0.9047 y de 0.9003. Entrena con DS1 y evalúa con DS2:
+   - clases AAMI N, S, V, F y Q;
+   - matriz de confusión;
+   - sensibilidad, valor predictivo positivo y F1 por clase;
+   - F1 macro;
+   - exactitud, con la advertencia de desbalance: un modelo que siempre dijera N tendría 0.890, más que este;
+   - Brier multicategoría y curva de confiabilidad.
+   
+   Predice con un `DataFrame` que tiene los mismos nombres de columna que el ajuste, sin el aviso «X does not have valid feature names». Escribe `docs/validation/arrhythmia_classifier/results.json` (fecha, versión `lgbm-8rasgos-ds1-v1`, registros, SHA-256 del modelo) y dos PNG. El modelo se guarda fuera de git, en `biocore_cache`. No había modelo anterior que conservar.
+2. Listas DS1 y DS2 verificadas en texto completo de PMC: Farag 2023, PMC9919183, tabla 2. Coinciden con García 2017 y Zou 2022. La tabla del artículo de de Chazal no se leyó (es de pago).
+3. `MODEL_CARD.md`: uso educativo, no apto para diagnóstico; datos, separación, métricas, calibración, limitaciones y cómo reproducir.
+4. ECG → Monitoreo → «Cómo se calcula»: panel «Tarjeta del modelo» (`render_arrhythmia_model_card`, `app/main.py`).
+   - **Lee** `results.json`; ninguna cifra está escrita en el código.
+   - El modelo se rotula «En evaluación»: S, V, F y Q tienen sensibilidad menor que 0.80, umbral que es Criterio BIOCORE sin cita.
+   - Sin el archivo, el panel dice «Sin dato» y explica el motivo.
+5. Pruebas en `tests/test_arrhythmia_model_card.py`:
+   - golden test: el panel muestra exactamente las cifras de `results.json`;
+   - los registros de evaluación no están entre los de entrenamiento;
+   - métricas y Brier en un caso conocido;
+   - predicción sin aviso de nombres de columna;
+   - el panel funciona sin `results.json`.
+
+**Pendiente:**
+- `lightgbm` no está en `requirements.txt` ni en THIRD_PARTY_NOTICES con su licencia.
+- RandomForest y XGBoost no se evaluaron.
+- La propia clase (`biomedical/`, fuera del alcance de esta tanda) sigue emitiendo el aviso «X does not have valid feature names» en `tests/test_arrhythmia_classifier_new.py`. La ruta de evaluación nueva no lo emite.
+
+**Suite**, en serie con el intérprete del PATH, sobre la rama commiteada: **2303 passed, 8 skipped, 0 failed** (24 min). Las omitidas son de entorno: pseudo-terminal en Windows y la base de desarrollo, que no existe en el worktree.
+
+La primera corrida dio 4 fallos en `test_ecg_hr_detector_consolidation.py`. Su guardia del «220 lpm» fijo busca la cadena «220» en el markdown de la página, y el panel listaba el registro 220 de MIT-BIH. Se corrigió: el panel da cuántos registros hay y remite a `MODEL_CARD.md` para la lista.
+
 
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 

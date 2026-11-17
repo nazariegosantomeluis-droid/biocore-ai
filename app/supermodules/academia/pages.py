@@ -33,7 +33,9 @@ from domain.physiology.narrator import (
 )
 # Clave de IA por sesión (2026-10-25): "configurado" = clave pegada en esta sesión o del entorno.
 from app.utils.ai_session import AI_KEY_HINT, AI_OFF, ai_client, render_settings_link
+from app.utils.confidence import record_quiz_answer, render_confidence_input
 from app.utils.learning_log import log_answer, render_report_box
+from app.utils.legal import SHARED_DATA_NOTICE
 from app.supermodules.academia import improvement
 from educational.learning_analytics import new_attempt
 
@@ -72,7 +74,7 @@ from app.supermodules.twin_shell.pages import (
 from app.supermodules.twin_shell.ups_body_visual import render_ups_body
 
 try:
-    from educational.learning_engine import LearningEngine, LESSON_CATEGORIES, generate_quiz
+    from educational.learning_engine import BANK_BY_CATEGORY, LearningEngine, LESSON_CATEGORIES, generate_quiz
     LESSONS_AVAILABLE = True
 except ImportError:
     LESSONS_AVAILABLE = False
@@ -144,6 +146,12 @@ def render_lessons_quizzes_tab() -> None:
     render_synthetic_case_section()
 
 
+# Lo que de verdad cambia el selector del quiz (2026-11-17): cuántas preguntas salen, no su dificultad.
+QUIZ_SIZE_LABELS = {"basic": "Hasta 5", "intermediate": "Hasta 8", "advanced": "Todas"}
+QUIZ_SIZE_NOTE = ("Esta lección tiene {n} preguntas. Salen en el orden del banco; la dificultad no cambia. Para "
+                  "preguntas a tu medida, usa «Práctica adaptativa».")
+
+
 def render_quiz_section() -> None:
     """Quiz del banco de preguntas (tanda 1 de la fase 1: separado de `render_lessons_quizzes_tab` para que Practicar lo
     monte solo). Contención (Art. I): ninguna opción preseleccionada y «Responder» deshabilitado hasta que se elige una;
@@ -153,6 +161,7 @@ def render_quiz_section() -> None:
         return
 
     student_id = st.text_input("ID del estudiante", value="estudiante_demo", key="academia_student_id")
+    st.caption(SHARED_DATA_NOTICE)       # opción B (2026-11-17): el ID no es una cuenta; en internet, datos compartidos
     rural_mode_enabled = st.checkbox(
         "Modo Rural (offline, guardar progreso localmente)", value=False, key="academia_rural_mode"
     )
@@ -180,8 +189,11 @@ def render_quiz_section() -> None:
 
     with col1:
         lesson = st.selectbox("Lección", LESSON_CATEGORIES, key="academia_lesson")
-        level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level",
-                         format_func={"basic": "Básico", "intermediate": "Intermedio", "advanced": "Avanzado"}.get)
+        # 2026-11-17 (Art. I): esto NO cambia la dificultad: solo cuántas preguntas de la lección salen, en el orden del
+        # banco (`generate_quiz`). Antes se rotulaba «Nivel: Básico/Intermedio/Avanzado», que prometía otra cosa.
+        level = st.radio("Cuántas preguntas", ["basic", "intermediate", "advanced"], key="academia_level",
+                         format_func=QUIZ_SIZE_LABELS.get, horizontal=True)
+        st.caption(QUIZ_SIZE_NOTE.format(n=len(generate_quiz(level="advanced", lesson=lesson))))
         if st.button("Iniciar Quiz", key="academia_start_quiz"):
             questions = generate_quiz(topic="ecg_basics", level=level, lesson=lesson)
             st.session_state["academia_quiz"] = _new_quiz(lesson, questions)
@@ -212,6 +224,8 @@ def render_quiz_section() -> None:
                 # 2026-11-14 (Art. I): opciones en el orden de `display_choices()`, que reparte el lugar de la
                 # correcta; sin opción elegida de inicio (tanda 1).
                 selected = st.radio("Opciones", q.display_choices(), index=None, key=choice_key)
+                # 2026-11-17: confianza opcional, antes de ver el resultado (calibración; `app/utils/confidence.py`).
+                confidence = render_confidence_input(key=f"academia_quiz_confidence_{current}")
 
                 if not narrator_is_configured():
                     render_ai_feedback_off_notice()
@@ -224,7 +238,11 @@ def render_quiz_section() -> None:
                 if st.button("Responder", key=f"academia_quiz_submit_{current}", disabled=selected is None):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
-                    log_answer(BANK, q, selected, quiz_state.setdefault("attempt", new_attempt()))
+                    # 2026-11-17: las preguntas de EMG y HRV se registran con su banco («emg», «hrv»), como pide la
+                    # mejora continua (el identificador de una pregunta es banco + enunciado).
+                    bank = BANK_BY_CATEGORY.get(q.category, BANK)
+                    log_answer(bank, q, selected, quiz_state.setdefault("attempt", new_attempt()))
+                    record_quiz_answer(bank, q, selected, confidence, quiz_state["attempt"])
                     quiz_state["feedback"] = None
                     quiz_state["feedback_error"] = None
                     if narrator_is_configured():
@@ -270,7 +288,7 @@ def render_quiz_section() -> None:
                     st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
                 if q.source:
                     st.caption(f"Fuente: {q.source}")
-                render_report_box(BANK, [q], key=f"academia_report_{current}")
+                render_report_box(BANK_BY_CATEGORY.get(q.category, BANK), [q], key=f"academia_report_{current}")
 
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:

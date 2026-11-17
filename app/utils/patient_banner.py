@@ -158,3 +158,26 @@ def render_active_patient_banner() -> None:
                                          procedencia=getattr(vitals.values[key], "provenance", None))
         st.caption("Último estado guardado en el UPS de esta sesión; un laboratorio lo actualiza con «Guardar estado "
                    "al gemelo». Valores simulados no son mediciones de un paciente.")
+
+
+def patient_start_value(key: str, lo: float, hi: float, fallback: float, control: str) -> tuple:
+    """Valor inicial de un control de simulación tomado del paciente activo (integración, 2026-11-17).
+
+    Devuelve `(valor, nota)`. Usa la FC/FR/SpO₂ que el UPS ya tiene del paciente, redondeada, SOLO si cae dentro del
+    rango del control; si no hay paciente, no hay ese valor o está fuera de rango, devuelve el valor inicial de siempre
+    del laboratorio y la nota dice por qué (nunca se recorta un valor para que «quepa»: sería otro paciente). La nota
+    es `None` cuando no hay paciente (el laboratorio se ve como siempre)."""
+    vitals = read_active_vitals()
+    if vitals.patient_id is None:
+        return fallback, None
+    label = next(lab for k, lab, *_ in VITALS if k == key)
+    descriptor = vitals.values[key]
+    if descriptor is None:
+        return fallback, f"{control}: el paciente activo `{vitals.short_id}` no tiene {label} en el UPS; valor inicial de siempre."
+    value = round(descriptor.value)
+    unit = UNIT_ES.get(descriptor.unit, descriptor.unit)
+    if not lo <= value <= hi:
+        return fallback, (f"{control}: la {label} del paciente activo ({value} {unit}) está fuera del rango de este control "
+                          f"({lo:g}–{hi:g}); valor inicial de siempre.")
+    return value, (f"{control}: empieza en la {label} del paciente activo `{vitals.short_id}` ({value} {unit}, "
+                   f"{provenance_label(descriptor)}, UPS). Si la mueves, ya es tu simulación.")

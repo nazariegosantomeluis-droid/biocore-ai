@@ -27,6 +27,7 @@ import hardware.ecg_plugplay as ecg_plugplay
 from app.supermodules.ecg_live import service as live_service
 from app.supermodules.ecg_live.monitor_source import TUTORIAL_TAB
 from app.utils.design_system import PALETTE, render_section_header
+from app.utils.legal import render_safety_precautions
 from hardware.ecg_plugplay.config import AD8232_GAIN_SOURCE
 from hardware.ecg_plugplay.preprocessing import FILTER_LIMITS_SOURCE
 
@@ -328,6 +329,7 @@ def render_live_tutorial() -> None:
         st.warning(SAFETY[0])
         st.markdown(_bullets(SAFETY[1:]))
         st.caption(f'Fuente: {SPARKFUN_GUIDE}')
+        render_safety_precautions('ecg')       # 2026-11-17: precauciones del manual de usuario (`app/utils/legal.py`)
 
     with st.expander('3. Conecta el AD8232 a la ESP32'):
         st.markdown(wiring_svg(), unsafe_allow_html=True)

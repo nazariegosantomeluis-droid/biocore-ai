@@ -248,15 +248,19 @@ nav.link("teoria", "Teoría del ECG en Aprender: de dónde salen las 12 derivaci
 col1, col2 = st.columns([2, 1])
 
 with col1:
+    # Teoría citada 2 (2026-11-17, Art. I; tema 5 de teoria_citada.md): los escenarios de infarto se nombran por lo que se
+    # ve en el trazado construido (elevación del ST ≥ 1 mm a 0.3 mV de referencia, medida en `truth.st_j_mv`). Antes:
+    # «STEMI Anterior - Infarto anterior (DA)», «STEMI Inferior - Infarto inferior (CD o Cx)», «STEMI Lateral - Infarto
+    # lateral alto (I y aVL, V5-V6)». Qué sugiere cada grupo y la arteria probable pasan a la corrección del caso.
     condition = st.selectbox(
         "🩺 Escenario clínico",
         [
             "Normal - Ritmo sinusal normal",
             "Taquicardia sinusal - FC > 100 lpm",
             "Bradicardia sinusal - FC < 60 lpm por convención (< 50 según la guía de 2018)",
-            "🔴 STEMI Anterior - Infarto anterior (DA)",
-            "🔴 STEMI Inferior - Infarto inferior (CD o Cx)",
-            "🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)",
+            "🔴 STEMI con elevación del ST en V1–V4",
+            "🔴 STEMI con elevación del ST en II, III y aVF",
+            "🔴 STEMI con elevación del ST en I, aVL, V5–V6",
             "Bloqueo de rama derecha (RBBB)",
             "Bloqueo de rama izquierda (LBBB)",
             "Hipertrofia ventricular izquierda (LVH)",
@@ -271,9 +275,9 @@ with col1:
         "Normal - Ritmo sinusal normal": "normal",
         "Taquicardia sinusal - FC > 100 lpm": "tachycardia",
         "Bradicardia sinusal - FC < 60 lpm por convención (< 50 según la guía de 2018)": "bradycardia",
-        "🔴 STEMI Anterior - Infarto anterior (DA)": "anterior_stemi",
-        "🔴 STEMI Inferior - Infarto inferior (CD o Cx)": "inferior_stemi",
-        "🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)": "lateral_stemi",
+        "🔴 STEMI con elevación del ST en V1–V4": "anterior_stemi",
+        "🔴 STEMI con elevación del ST en II, III y aVF": "inferior_stemi",
+        "🔴 STEMI con elevación del ST en I, aVL, V5–V6": "lateral_stemi",
         "Bloqueo de rama derecha (RBBB)": "rbbb",
         "Bloqueo de rama izquierda (LBBB)": "lbbb",
         "Hipertrofia ventricular izquierda (LVH)": "lvh",
@@ -475,6 +479,17 @@ if "ecg_data" in st.session_state:
     )
     report = analyze_twelve_lead(ecg_data, population=population_labels[population_choice])
     render_twelve_lead_report(report, st.session_state.get("ecg_truth"))
+
+    # Teoría citada 2 (2026-11-17): la interpretación que antes iba en el nombre del escenario («(DA)», «(CD o Cx)»)
+    # vive en la corrección, con la tabla firmada del tema 5 y su advertencia; el nombre solo dice lo que se ve.
+    _truth = st.session_state.get("ecg_truth")
+    if _truth is not None and st.session_state.get("condition") in STEMI_SCENARIOS:
+        with st.expander("Corrección del caso: qué sugiere el trazado y arteria probable (tema 5)"):
+            _up = [ld for ld, v in _truth.st_j_mv.items() if v >= 0.1]
+            _down = [ld for ld, v in _truth.st_j_mv.items() if v <= -0.05]
+            st.markdown(f"El generador construyó elevación del ST ≥ 1 mm en: **{', '.join(_up) or 'ninguna'}**"
+                        + (f"; descenso en: {', '.join(_down)}." if _down else "."))
+            render_theory_topic(SIGNED_ISCHEMIA, inside_expander=True)
 
     st.markdown("---")
 

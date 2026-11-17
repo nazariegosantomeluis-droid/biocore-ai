@@ -519,3 +519,420 @@ EEG_QUESTIONS: List[QuizQuestion] = balance_positions([
         source=KANE_2017,
     ),
 ], "eeg")
+
+
+# --- EMG y HRV (2026-11-17): E1–E10 y H1–H8, FIRMADOS por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -------------------
+# Redacción exacta de la hoja de firma v2 (`docs/contenido/hoja_firma_banco_emg_hrv_v2.md`): E1 tal cual, E2–E10 y
+# H1–H8 con su corrección. Cada explicación es una subcadena literal de la línea «t2:N» de
+# `docs/contenido/teoria_citada_2.md` que la sostiene (E1 conserva la explicación de la v2, firmada «tal cual»; H4 se
+# corta antes de la segunda mención de «la razón LF/HF», que no lleva el rótulo). La fuente es la referencia completa
+# de ese documento, con su clave. `tests/test_banco_emg_hrv.py` vigila todo esto.
+_EMG = "EMG"
+_HRV = "HRV"
+_REF_B2013 = '[B2013] Billman GE. The LF/HF ratio does not accurately measure cardiac sympatho-vagal balance. Front Physiol. 2013;4:26. doi:10.3389/fphys.2013.00026.'
+_REF_DL1997 = '[DL1997] De Luca CJ. The use of surface electromyography in biomechanics. J Appl Biomech. 1997;13(2):135–163.'
+_REF_DL2010 = '[DL2010] De Luca CJ, Gilmore LD, Kuznetsov M, Roy SH. Filtering the surface EMG signal: movement artifact and baseline noise contamination. J Biomech. 2010;43:1573–1579. doi:10.1016/j.jbiomech.2010.01.027.'
+_REF_SG2017 = '[SG2017] Shaffer F, Ginsberg JP. An overview of heart rate variability metrics and norms. Front Public Health. 2017;5:258. doi:10.3389/fpubh.2017.00258.'
+_REF_V2018 = '[V2018] Vigotsky AD, Halperin I, Lehman GJ, Trajano GS, Vieira TM. Interpreting signal amplitudes in surface electromyography studies in sport and rehabilitation sciences. Front Physiol. 2018;8:985. doi:10.3389/fphys.2017.00985.'
+
+EMG_QUESTIONS: List[QuizQuestion] = balance_positions([
+    QuizQuestion(  # E1 · firmada 2026-11-17 · t2:13
+        '¿Qué registra un electrodo de EMG de superficie?',
+        ['La suma de los potenciales de acción de las unidades motoras activas bajo el electrodo',
+         'La fuerza mecánica que produce el músculo',
+         'La actividad de un único nervio periférico, aislada',
+         'El potencial de reposo de las fibras musculares'],
+        0, category=_EMG,
+        explanation='el electrodo capta la suma de los potenciales de las unidades motoras que tiene debajo.',
+        source=_REF_DL1997,
+    ),
+    QuizQuestion(  # E2 · firmada 2026-11-17 · t2:17, t2:62
+        '¿Qué indica una amplitud más alta del EMG de superficie?',
+        ['Mayor excitación del músculo, no su fuerza',
+         'Mayor fuerza muscular, en proporción directa',
+         'Mayor fuerza muscular, siempre que la señal esté normalizada',
+         'Mayor masa muscular'],
+        0, category=_EMG,
+        explanation='La amplitud del EMG de superficie indica la excitación del músculo, no su fuerza. Incluso normalizada, la amplitud no permite deducir la fuerza del músculo.',
+        source=_REF_V2018,
+    ),
+    QuizQuestion(  # E3 · firmada 2026-11-17 · t2:25
+        'El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que las ya activas disparen más rápido. ¿Puede la amplitud del EMG de superficie decir cuánto del aumento se debe a cada una?',
+        ['No: la amplitud no permite distinguir cuánto se debe a cada una',
+         'Sí: si la amplitud sube, todo el aumento se debe al reclutamiento',
+         'Sí: si la amplitud sube, todo el aumento se debe a la frecuencia de disparo',
+         'Sí, siempre que la señal esté normalizada'],
+        0, category=_EMG,
+        explanation='Con la amplitud del EMG de superficie no se puede distinguir cuánto se debe al reclutamiento y cuánto a la frecuencia de disparo.',
+        source=_REF_DL1997 + " · " + _REF_V2018,
+    ),
+    QuizQuestion(  # E4 · firmada 2026-11-17 · t2:45
+        '¿Por qué se recomienda un filtro pasa-altas de 20 Hz para el EMG de superficie?',
+        ['Porque el artefacto de movimiento concentra su energía en frecuencias bajas',
+         'Para eliminar la interferencia de la red eléctrica',
+         'Porque por debajo de 20 Hz está la mayor parte de la energía de la señal muscular',
+         'Para eliminar la diafonía de los músculos vecinos'],
+        0, category=_EMG,
+        explanation='Pasa-altas de 20 Hz (Butterworth, 12 dB/octava) para uso general: el artefacto de movimiento concentra su energía en frecuencias bajas y cae rápidamente por encima de 20 Hz; la energía del EMG por debajo de 20 Hz es poca e inestable.',
+        source=_REF_DL2010,
+    ),
+    QuizQuestion(  # E5 · firmada 2026-11-17 · t2:54
+        'Para medir la amplitud de una contracción voluntaria, ¿qué medida se recomienda y por qué?',
+        ['El RMS, porque representa la potencia de la señal y tiene un significado físico claro',
+         'El valor medio rectificado, porque representa la potencia de la señal y tiene un significado físico claro',
+         'El valor máximo, porque es el más estable',
+         'La frecuencia mediana, porque no depende de la amplitud'],
+        0, category=_EMG,
+        explanation='El RMS representa la potencia de la señal y tiene un significado físico claro; el valor medio rectificado mide el área bajo la señal y no tiene un significado físico específico.',
+        source=_REF_DL1997,
+    ),
+    QuizQuestion(  # E6 · firmada 2026-11-17 · t2:58, t2:62
+        '¿Por qué suele normalizarse la amplitud del EMG, por ejemplo a la contracción voluntaria isométrica máxima?',
+        ['Porque los microvoltios no se pueden comparar entre personas, músculos o sesiones',
+         'Porque así la amplitud se vuelve igual a la fuerza',
+         'Porque así se elimina el artefacto de movimiento',
+         'Porque así se puede distinguir el reclutamiento de la frecuencia de disparo'],
+        0, category=_EMG,
+        explanation='La amplitud en microvoltios no se puede comparar entre personas, músculos o sesiones; por eso suele normalizarse, por ejemplo a la contracción voluntaria isométrica máxima. Incluso normalizada, la amplitud no permite deducir la fuerza del músculo.',
+        source=_REF_V2018,
+    ),
+    QuizQuestion(  # E7 · firmada 2026-11-17 · t2:66
+        'Durante una contracción sostenida, ¿qué le ocurre al espectro del EMG y qué índice se usa para seguirlo?',
+        ['Se desplaza hacia frecuencias más bajas; se sigue con la frecuencia mediana',
+         'Se desplaza hacia frecuencias más altas; se sigue con la frecuencia mediana',
+         'No cambia; solo cambia la amplitud',
+         'Se desplaza hacia frecuencias más bajas; se sigue con el valor máximo'],
+        0, category=_EMG,
+        explanation='Durante una contracción sostenida, el espectro del EMG se "comprime" hacia frecuencias más bajas, y la frecuencia mediana es el índice preferido para seguir ese cambio.',
+        source=_REF_DL1997,
+    ),
+    QuizQuestion(  # E8 · firmada 2026-11-17 · t2:77
+        'Un electrodo sobre un músculo capta también parte de la actividad de los músculos vecinos. ¿Cómo se llama esto y hasta cuánto puede llegar?',
+        ['Diafonía (crosstalk): hasta 17 % de la actividad de los músculos vecinos',
+         'Artefacto de movimiento: hasta 17 % de la actividad de los músculos vecinos',
+         'Diafonía: siempre menos de 1 %',
+         'Fatiga: hasta 50 %'],
+        0, category=_EMG,
+        explanation='Diafonía (crosstalk): hasta 17 % de la actividad eléctrica de músculos vecinos puede detectarse en el electrodo.',
+        source=_REF_DL1997,
+    ),
+    QuizQuestion(  # E9 · firmada 2026-11-17 · t2:89, t2:86, t2:87
+        '¿Cuál de estas conclusiones sí permite, con cautela, un EMG de superficie?',
+        ['Decir si un músculo está «encendido» o «apagado» en intervalos de más de unos 200 ms',
+         'Calcular la fuerza del músculo en newtons',
+         'Predecir cuánto crecerá el músculo con el entrenamiento',
+         'Comparar la fuerza de dos personas por su amplitud en microvoltios'],
+        0, category=_EMG,
+        explanation='Sí permite, con cautela, decir si un músculo está "encendido" o "apagado" en intervalos de más de unos 200 ms, y hacer comparaciones dentro de la misma persona y el mismo músculo si se controlan las condiciones. No permite deducir la fuerza muscular. No predice la hipertrofia ni la adaptación a largo plazo.',
+        source=_REF_V2018,
+    ),
+    QuizQuestion(  # E10 · firmada 2026-11-17 · t2:87
+        'Un ejercicio produce más amplitud de EMG que otro en el mismo músculo. ¿Permite eso afirmar que producirá más hipertrofia?',
+        ['No: la amplitud no predice la hipertrofia',
+         'Sí: más amplitud implica más hipertrofia a largo plazo',
+         'Sí, si la diferencia es mayor de 20 %',
+         'Solo si la señal está normalizada'],
+        0, category=_EMG,
+        explanation='No predice la hipertrofia ni la adaptación a largo plazo.',
+        source=_REF_V2018,
+    ),
+], 'emg')
+
+
+HRV_QUESTIONS: List[QuizQuestion] = balance_positions([
+    QuizQuestion(  # H1 · firmada 2026-11-17 · t2:101, t2:103
+        '¿Qué es la variabilidad de la frecuencia cardiaca (HRV)?',
+        ['La variación del tiempo entre latidos consecutivos',
+         'El número de latidos por minuto',
+         'La diferencia entre la frecuencia cardiaca máxima y la mínima del día',
+         'La irregularidad causada por arritmias'],
+        0, category=_HRV,
+        explanation='La HRV es la variación del tiempo entre latidos consecutivos. Se calcula sobre intervalos NN ("normal a normal"): intervalos entre latidos sinusales de los que se han retirado los artefactos.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H2 · firmada 2026-11-17 · t2:110, t2:111
+        '¿Qué afirmación sobre la RMSSD y la SDNN es correcta?',
+        ['La RMSSD está más influida por el sistema nervioso parasimpático que la SDNN',
+         'La SDNN está más influida por el sistema nervioso parasimpático que la RMSSD',
+         'La RMSSD es la desviación estándar de los intervalos NN',
+         'Las dos están igual de influidas por el sistema nervioso parasimpático'],
+        0, category=_HRV,
+        explanation='SDNN: desviación estándar de los intervalos NN, en ms. RMSSD: está más influida por el sistema nervioso parasimpático que la SDNN.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H3 · firmada 2026-11-17 · t2:124, t2:125, t2:127
+        '¿Qué rango ocupa la banda HF y qué la modifica?',
+        ['0.15–0.40 Hz; está influida por la respiración entre 9 y 24 respiraciones por minuto',
+         '0.04–0.15 Hz; está influida por la respiración',
+         '0.0033–0.04 Hz; está influida por la respiración entre 9 y 24 respiraciones por minuto',
+         '0.15–0.40 Hz; no depende de la respiración'],
+        0, category=_HRV,
+        explanation='LF: 0.04–0.15 Hz. HF ("banda respiratoria"): 0.15–0.40 Hz. La banda HF está influida por la respiración entre 9 y 24 respiraciones por minuto.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H4 · firmada 2026-11-17 · t2:128
+        '¿Qué afirmación sobre la razón LF/HF (interpretación discutida) es correcta?',
+        ['No mide con exactitud el equilibrio entre simpático y parasimpático, porque la potencia LF mezcla varias influencias',
+         'Mide directamente el impulso simpático cardiaco',
+         'Un valor alto demuestra predominio simpático',
+         'Es la medida de referencia del sistema nervioso autónomo'],
+        0, category=_HRV,
+        explanation='La razón LF/HF es discutida: la potencia LF no es un índice del impulso simpático cardiaco, sino una mezcla de influencias simpáticas, parasimpáticas y otras no identificadas',
+        source=_REF_B2013 + " · " + _REF_SG2017,
+    ),
+    QuizQuestion(  # H5 · firmada 2026-11-17 · t2:136
+        'Una estudiante compara la SDNN de un registro de 5 minutos con la de un Holter de 24 horas. ¿Es correcto?',
+        ['No: no es apropiado comparar la SDNN calculada sobre periodos de distinta duración',
+         'Sí, porque la SDNN no depende de la duración',
+         'Sí, si se multiplica el valor de 5 minutos por 288',
+         'Sí, si los dos registros son de la misma persona'],
+        0, category=_HRV,
+        explanation='Los valores de registros cortos y ultracortos no son intercambiables con los de 24 horas, y no es apropiado comparar métricas como la SDNN calculadas sobre periodos de distinta duración.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H6 · firmada 2026-11-17 · t2:155
+        '¿Qué les ocurre a las medidas de HRV del dominio del tiempo con la edad?',
+        ['Disminuyen',
+         'Aumentan',
+         'No cambian',
+         'Solo dependen de la duración del registro, no de la edad'],
+        0, category=_HRV,
+        explanation='La duración del registro, la edad y el sexo influyen en los valores basales; las medidas del dominio del tiempo disminuyen con la edad.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H7 · firmada 2026-11-17 · t2:150
+        'La entropía muestral se diseñó como:',
+        ['Una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal',
+         'Una medida de la potencia de la banda HF',
+         'Un método para detectar latidos ectópicos',
+         'Una forma de calcular la frecuencia cardiaca media'],
+        0, category=_HRV,
+        explanation='Entropía muestral: se diseñó como una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal.',
+        source=_REF_SG2017,
+    ),
+    QuizQuestion(  # H8 · firmada 2026-11-17 · t2:169
+        '¿Existe un único «valor normal» de HRV?',
+        ['No: depende de la duración del registro, la edad y el sexo',
+         'Sí: el mismo para todas las edades, sexos y duraciones del registro',
+         'Sí, pero solo para registros de 5 minutos',
+         'Sí, el que calcula el equipo'],
+        0, category=_HRV,
+        explanation='No hay un único "valor normal": los valores de referencia dependen de la duración del registro, la edad y el sexo, y los de registros cortos no sirven para comparar con los de 24 horas.',
+        source=_REF_SG2017,
+    ),
+], 'hrv')
+
+
+# --- NEWS2 (2026-11-17): N1–N9, FIRMADOS por Luis el 2026-11-17 («Firmo todo»; D-N7: sí) ------------------------------
+# Texto exacto de `docs/contenido/banco_preguntas_news2.md`. Cada explicación es la de esa hoja, que sale de la línea
+# «t1:N» de `docs/contenido/teoria_citada.md` (temas 2 y 6). `tests/test_banco_news2.py` vigila todo esto.
+_NEWS2 = "NEWS2"
+_REF_RCP2017 = ('[RCP2017] Royal College of Physicians. National Early Warning Score (NEWS) 2: Standardising the '
+                'assessment of acute-illness severity in the NHS. Updated report of a working party. Londres: RCP; 2017.')
+_NEWS2_PULSE = 'en la escala NEWS2, el pulso puntúa: ≤40 lpm, 3 puntos; 41–50, 1; 51–90, 0; 91–110, 1; 111–130, 2; ≥131, 3 [RCP2017].'
+
+NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
+    QuizQuestion(  # N1 · firmada 2026-11-17 · t1:91
+        '¿Para qué sirve NEWS2?',
+        ['Para estandarizar cómo se registran, puntúan y atienden las constantes vitales, y detectar el deterioro agudo',
+         'Para diagnosticar la causa del deterioro de un paciente',
+         'Para sustituir la valoración de un clínico',
+         'Para medir la saturación de oxígeno sin pulsioxímetro'],
+        0, category=_NEWS2,
+        explanation=('NEWS2 es una puntuación agregada que estandariza cómo se registran, puntúan y atienden las '
+                     'constantes vitales para detectar el deterioro agudo [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N2 · firmada 2026-11-17 · t1:94
+        '¿Cuántos parámetros puntúa NEWS2?',
+        ['Seis: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión '
+         'nueva, y temperatura',
+         'Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura',
+         'Cinco: los mismos seis, sin la temperatura',
+         'Tres: pulso, presión arterial y SpO₂'],
+        0, category=_NEWS2,
+        explanation=('puntúa seis parámetros: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel '
+                     'de consciencia o confusión nueva, y temperatura [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N3 · firmada 2026-11-17 · t1:94
+        'Si el paciente recibe oxígeno suplementario, ¿qué pasa con su NEWS2?',
+        ['Se suman 2 puntos', 'Se suma 1 punto', 'Se suman 3 puntos', 'No cambia: el oxígeno no se puntúa'],
+        0, category=_NEWS2,
+        explanation='se suman 2 puntos si el paciente recibe oxígeno suplementario [RCP2017].',
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N4 · firmada 2026-11-17 · t1:35
+        'En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?',
+        ['2 puntos (tramo de 111 a 130 lpm)', '0 puntos', '1 punto', '3 puntos'],
+        0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N5 · firmada 2026-11-17 · t1:35
+        'En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?',
+        ['1 punto (tramo de 41 a 50 lpm)', '0 puntos', '2 puntos', '3 puntos'],
+        0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N6 · firmada 2026-11-17 · t1:96
+        '¿Qué significa un 3 en un solo parámetro de NEWS2?',
+        ['Es poco frecuente y motiva una revisión urgente',
+         'Nada mientras el total sea bajo',
+         'Que el paciente recibe oxígeno suplementario',
+         'Que hay que usar la escala 2 de SpO₂'],
+        0, category=_NEWS2,
+        explanation=('un 3 en un solo parámetro (marcado en rojo) es poco frecuente y motiva una revisión urgente '
+                     '[RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N7 · firmada 2026-11-17 · t1:99 (D-N7: sí)
+        'Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?',
+        ['Revisión urgente por un clínico competente en enfermedad aguda',
+         'Vigilancia al menos cada 12 horas',
+         'Valoración por enfermería',
+         'Valoración de emergencia por un equipo con competencia en cuidados críticos'],
+        0, category=_NEWS2,
+        explanation=('total 0: vigilancia al menos cada 12 horas. Total 1–4 (bajo): valoración por enfermería. Total '
+                     '5–6 (medio): revisión urgente por un clínico competente en enfermedad aguda. Total 7 o más '
+                     '(alto): valoración de emergencia por un equipo con competencia en cuidados críticos [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N8 · firmada 2026-11-17 · t1:100
+        '¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?',
+        ['En insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo '
+         'indicación de un clínico',
+         'Siempre que la SpO₂ baje de 92 %',
+         'En todo paciente que recibe oxígeno suplementario',
+         'Nunca: NEWS2 tiene una sola escala de SpO₂'],
+        0, category=_NEWS2,
+        explanation=('la escala 2 de SpO₂ se usa en insuficiencia respiratoria hipercápnica confirmada (por lo general '
+                     'EPOC), con objetivo de 88–92 %, bajo indicación de un clínico. En los demás casos se usa la '
+                     'escala 1 [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N9 · firmada 2026-11-17 · t1:101
+        '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?',
+        ['Porque el gemelo no dispone de presión arterial en todos los casos y no modela temperatura ni consciencia: '
+         'un total sería falso',
+         'Porque el total de NEWS2 no tiene utilidad clínica',
+         'Porque el total solo se calcula en pacientes con oxígeno suplementario',
+         'Porque el total requiere un electrocardiograma de 12 derivaciones'],
+        0, category=_NEWS2,
+        explanation=('el gemelo no dispone de presión arterial en todos los casos, y no modela temperatura ni '
+                     'consciencia. Sin esos parámetros, un total sería falso; por eso la plataforma muestra los '
+                     'puntos de cada parámetro disponible y lista lo que falta.'),
+        source=_REF_RCP2017,
+    ),
+], 'news2')
+
+
+# --- Concepto de cada pregunta (2026-11-17): FIRMADO por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -----------------------
+# Vocabulario: `CONCEPTS` de `app/utils/session_learning.py` (el contrato de Luis; no se inventan otros). Lo usa la
+# calibración de la confianza (`educational/confidence_calibration.py`). Una pregunta que no encaja en ningún
+# concepto del vocabulario NO está aquí y su respuesta no entra al registro de la sesión: quedan fuera 9 preguntas
+# (EEG, PPG, HVI, pericarditis, manejo del IAMCEST y las que describen la propia app). Con la firma entraron la onda T
+# normal (→ ritmo_y_conduccion) y las 18 de EMG y HRV (→ emg / hrv). La pericarditis sigue fuera.
+CONCEPT_BY_PROMPT = {
+    'Por convención docente, la FC del adulto en reposo se toma como normal entre 60 y 100 lpm. ¿Con qué valor define la bradicardia sinusal la guía ACC/AHA/HRS 2018?':
+        'frecuencia_cardiaca',
+    '¿Qué representa el complejo QRS?':
+        'ritmo_y_conduccion',
+    'Durante un infarto con elevación del ST, ¿qué puede significar una depresión del ST en V1 y V2?':
+        'derivaciones_e_isquemia',
+    'En una persona con dolor torácico agudo, ¿qué diagnóstico de trabajo plantea una elevación persistente del ST?':
+        'derivaciones_e_isquemia',
+    '¿Qué mide el intervalo PR?':
+        'ritmo_y_conduccion',
+    '¿Qué es una PVC?':
+        'ritmo_y_conduccion',
+    '¿Cómo se calcula la FC (en lpm) a partir del intervalo RR?':
+        'frecuencia_cardiaca',
+    'Una elevación del ST solo en II, III y aVF puede deberse a la oclusión de:':
+        'derivaciones_e_isquemia',
+    '¿Cuál de estas condiciones causa bradicardia?':
+        'ritmo_y_conduccion',
+    'Un eje del QRS entre −45° y −90°, con qR en aVL y QRS < 120 ms, cumple criterios de:':
+        'ritmo_y_conduccion',
+    '¿Qué patrón corresponde a un bloqueo de rama derecha completo en el adulto?':
+        'ritmo_y_conduccion',
+    '¿Cómo se reconoce la fibrilación auricular en el ECG?':
+        'ritmo_y_conduccion',
+    'Según la AHA/ACCF/HRS 2009, ¿desde qué QTc se considera prolongado el QT de un hombre adulto?':
+        'ritmo_y_conduccion',
+    'Una elevación del ST en V1–V4 orienta a la oclusión de:':
+        'derivaciones_e_isquemia',
+    '¿Qué eje del QRS es criterio de bloqueo fascicular anterior izquierdo?':
+        'ritmo_y_conduccion',
+    '¿Qué patrón es característico del bloqueo de rama derecha completo?':
+        'ritmo_y_conduccion',
+    'PR corto, onda delta y QRS ancho en ritmo sinusal son signos de:':
+        'ritmo_y_conduccion',
+    'Sin ondas P discernibles ni otra actividad auricular regular, y con intervalos RR sin patrón, el ritmo sugiere:':
+        'ritmo_y_conduccion',
+    'Un QTc de 500 ms o más se asocia con mayor riesgo de:':
+        'ritmo_y_conduccion',
+    'Una oclusión proximal de la descendente anterior eleva el ST en:':
+        'derivaciones_e_isquemia',
+    '¿Cuál es el rango habitual del PR en el adulto?':
+        'ritmo_y_conduccion',
+    'Un eje del QRS entre +90° y +180° en un adulto, con rS en I y aVL, qR en III y aVF y QRS < 120 ms, cumple criterios de:':
+        'ritmo_y_conduccion',
+    'Un QRS de 120 ms o más en un adulto, con la morfología típica, indica:':
+        'ritmo_y_conduccion',
+    '¿Dónde se mide habitualmente el desplazamiento del segmento ST?':
+        'derivaciones_e_isquemia',
+    'En un adulto sano (20 años o más), ¿cómo es la onda T en V3–V6?':
+        'ritmo_y_conduccion',  # firmado 2026-11-17: onda T normal
+    '¿Qué registra un electrodo de EMG de superficie?':
+        'emg',  # E1
+    '¿Qué indica una amplitud más alta del EMG de superficie?':
+        'emg',  # E2
+    'El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que las ya activas disparen más rápido. ¿Puede la amplitud del EMG de superficie decir cuánto del aumento se debe a cada una?':
+        'emg',  # E3
+    '¿Por qué se recomienda un filtro pasa-altas de 20 Hz para el EMG de superficie?':
+        'emg',  # E4
+    'Para medir la amplitud de una contracción voluntaria, ¿qué medida se recomienda y por qué?':
+        'emg',  # E5
+    '¿Por qué suele normalizarse la amplitud del EMG, por ejemplo a la contracción voluntaria isométrica máxima?':
+        'emg',  # E6
+    'Durante una contracción sostenida, ¿qué le ocurre al espectro del EMG y qué índice se usa para seguirlo?':
+        'emg',  # E7
+    'Un electrodo sobre un músculo capta también parte de la actividad de los músculos vecinos. ¿Cómo se llama esto y hasta cuánto puede llegar?':
+        'emg',  # E8
+    '¿Cuál de estas conclusiones sí permite, con cautela, un EMG de superficie?':
+        'emg',  # E9
+    'Un ejercicio produce más amplitud de EMG que otro en el mismo músculo. ¿Permite eso afirmar que producirá más hipertrofia?':
+        'emg',  # E10
+    '¿Qué es la variabilidad de la frecuencia cardiaca (HRV)?':
+        'hrv',  # H1
+    '¿Qué afirmación sobre la RMSSD y la SDNN es correcta?':
+        'hrv',  # H2
+    '¿Qué rango ocupa la banda HF y qué la modifica?':
+        'hrv',  # H3
+    '¿Qué afirmación sobre la razón LF/HF (interpretación discutida) es correcta?':
+        'hrv',  # H4
+    'Una estudiante compara la SDNN de un registro de 5 minutos con la de un Holter de 24 horas. ¿Es correcto?':
+        'hrv',  # H5
+    '¿Qué les ocurre a las medidas de HRV del dominio del tiempo con la edad?':
+        'hrv',  # H6
+    'La entropía muestral se diseñó como:':
+        'hrv',  # H7
+    '¿Existe un único «valor normal» de HRV?':
+        'hrv',  # H8
+    '¿Para qué sirve NEWS2?':
+        'news2',  # N1
+    '¿Cuántos parámetros puntúa NEWS2?':
+        'news2',  # N2
+    'Si el paciente recibe oxígeno suplementario, ¿qué pasa con su NEWS2?':
+        'news2',  # N3
+    'En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?':
+        'news2',  # N4
+    'En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?':
+        'news2',  # N5
+    '¿Qué significa un 3 en un solo parámetro de NEWS2?':
+        'news2',  # N6
+    'Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?':
+        'news2',  # N7
+    '¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?':
+        'news2',  # N8
+    '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?':
+        'news2',  # N9
+}

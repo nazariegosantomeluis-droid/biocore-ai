@@ -231,3 +231,133 @@ def test_las_pantallas_que_muestran_una_lectura_traen_sus_puntos_news2(url):
     notes = [c.value for c in at.caption if c.value.startswith("NEWS2 (RCP 2017): ")]
     assert notes, f"{url}: la lectura no trae sus puntos NEWS2"
     assert all("Pulso" in n for n in notes)
+
+
+# ── ECG Monitoreo con la FC del paciente activo (integración, 2026-11-17) ───────────────────────────────────────────
+ECG_SOURCE_KEY = "ecg_monitor_source"
+ECG_PATIENT_SOURCE = "Paciente activo (simulación a su FC)"
+
+
+def _ecg_hr_lines(at):
+    """Las FC que muestra el Monitoreo: `**Frecuencia cardíaca** — N lpm` (`render_metric_explained`)."""
+    return [m.value for m in at.markdown if m.value.startswith("**Frecuencia cardíaca** — ")]
+
+
+def _ecg_hr_metric(at):
+    lines = _ecg_hr_lines(at)
+    assert len(lines) == 1, lines
+    return float(lines[0].split("— ", 1)[1].split()[0].replace(",", "."))
+
+
+def test_ecg_abre_en_el_paciente_activo_con_la_misma_fc_del_banner():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 93.0}})
+    at = _open("ecg", **{PATIENT_KEY: patient_id})
+    assert at.session_state[ECG_SOURCE_KEY] == ECG_PATIENT_SOURCE
+    assert "FC <b>100</b>" in _banner_texts(at)[0]
+    assert abs(_ecg_hr_metric(at) - 100.0) < 1.0, "el trazo debe latir a la FC del UPS, no a la de la demo (72)"
+    assert any("NEWS2 (RCP 2017): Pulso 1 punto" in c.value for c in at.caption), "la FC lleva sus puntos NEWS2"
+    assert any("**Fuente:** simulación a la FC del paciente activo (UPS)" in m.value for m in at.markdown), \
+        "el trazo debe declararse simulación"
+
+
+def test_ecg_del_mismo_paciente_es_siempre_el_mismo_trazo():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    first = _ecg_hr_metric(_open("ecg", **{PATIENT_KEY: patient_id}))
+    second = _ecg_hr_metric(_open("ecg", **{PATIENT_KEY: patient_id}))
+    assert first == second and abs(first - 88.0) < 1.0
+
+
+def test_ecg_sin_paciente_abre_en_la_demo_como_siempre():
+    at = _open("ecg")
+    assert at.session_state[ECG_SOURCE_KEY] == "Demo (sintético)"
+
+
+def test_ecg_paciente_sin_fc_en_el_ups_dice_sin_dato_y_no_cae_en_la_demo():
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 18.0, "spo2": 97.0}})
+    at = _open("ecg", **{PATIENT_KEY: patient_id})
+    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    assert at.exception == []
+    text = " ".join(m.value for m in at.markdown)
+    assert "Sin dato" in text and "FC" in text
+    assert _ecg_hr_lines(at) == [], "no debe dibujar una FC inventada"
+
+
+def test_ecg_con_arritmia_aplicada_dice_ritmo_no_modelado():
+    patient_id = _patient_with({"ecg": {"heart_rate": 130.0}})
+    at = _open("ecg", **{PATIENT_KEY: patient_id, INPUT_SOURCE_KEY: "arritmia Fibrilación auricular (semilla 0)"})
+    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    assert at.exception == []
+    assert "ritmo no modelado" in " ".join(m.value for m in at.markdown)
+    assert _ecg_hr_lines(at) == []
+
+
+def test_ecg_con_fc_fuera_del_rango_validado_dice_sin_dato():
+    patient_id = _patient_with({"ecg": {"heart_rate": 230.0}})
+    at = _open("ecg", **{PATIENT_KEY: patient_id})
+    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    assert at.exception == []
+    assert "rango en que el generador está validado" in " ".join(m.value for m in at.markdown)
+
+
+def test_ecg_del_paciente_no_se_guarda_de_vuelta_al_gemelo():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}})
+    at = _open("ecg", **{PATIENT_KEY: patient_id})
+    assert not any("Guardar" in b.label and "gemelo" in b.label.lower() for b in at.button), \
+        "esa señal nace del UPS: guardarla sería escribir el mismo valor otra vez"
+
+
+# ── Respiratorio y HRV empiezan en el paciente activo (integración, 2026-11-17) ─────────────────────────────────────
+RESP_RR = "Frecuencia Respiratoria (resp/min)"
+RESP_SPO2 = "SpO2 Basal (%)"
+
+
+def _sidebar_number(at, label):
+    return next(n for n in at.sidebar.number_input if n.label == label).value
+
+
+def _sidebar_slider(at, label):
+    return next(s for s in at.sidebar.slider if s.label == label).value
+
+
+def _sidebar_captions(at):
+    return " ".join(c.value for c in at.sidebar.caption)
+
+
+def test_respiratorio_empieza_en_la_fr_y_spo2_del_paciente():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 93.0}})
+    at = _open("respiratorio", **{PATIENT_KEY: patient_id})
+    assert _sidebar_number(at, RESP_RR) == 24 and _sidebar_number(at, RESP_SPO2) == 93
+    notes = _sidebar_captions(at)
+    assert f"`{patient_id[:SHORT_ID_LEN]}`" in notes and "ya es tu simulación" in notes
+
+
+def test_respiratorio_sin_paciente_se_ve_como_siempre():
+    at = _open("respiratorio")
+    assert _sidebar_number(at, RESP_RR) == 15 and _sidebar_number(at, RESP_SPO2) == 98
+    assert "paciente activo" not in _sidebar_captions(at)
+
+
+def test_respiratorio_spo2_fuera_del_rango_del_control_no_se_recorta():
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 22.0, "spo2": 85.0}})
+    at = _open("respiratorio", **{PATIENT_KEY: patient_id})
+    assert _sidebar_number(at, RESP_SPO2) == 98, "85 % no cabe en 90–100: no se recorta a 90 (sería otro paciente)"
+    assert "fuera del rango de este control" in _sidebar_captions(at)
+    assert _sidebar_number(at, RESP_RR) == 22
+
+
+def test_hrv_empieza_en_la_fc_y_fr_del_paciente_y_no_usa_su_hrv():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0, "hrv": 20.0},
+                                "respiratory": {"respiratory_rate": 24.0, "spo2": 93.0}})
+    at = _open("hrv", **{PATIENT_KEY: patient_id})
+    assert _sidebar_slider(at, "FC base (lpm)") == 100
+    assert _sidebar_slider(at, "Frecuencia respiratoria (rpm)") == 24
+    assert _sidebar_slider(at, "Amplitud RSA (lpm)") == 5, "la amplitud no se ajusta al hrv del UPS"
+    assert "sin decir qué índice es" in _sidebar_captions(at)
+
+
+def test_hrv_sin_dato_de_fr_lo_dice():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _open("hrv", **{PATIENT_KEY: patient_id})
+    assert _sidebar_slider(at, "FC base (lpm)") == 88
+    assert _sidebar_slider(at, "Frecuencia respiratoria (rpm)") == 15
+    assert "no tiene FR en el UPS" in _sidebar_captions(at)
