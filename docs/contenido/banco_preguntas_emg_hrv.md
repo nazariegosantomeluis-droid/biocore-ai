@@ -1,10 +1,16 @@
-# Banco de preguntas para BIOCORE: EMG y HRV (borrador para firma, versión 2)
+# Banco de preguntas para BIOCORE: EMG y HRV (FIRMADO, versión 2)
 
-**Estado:** BORRADOR, sin firmar. Versión 2 del 17 de noviembre de 2026, corregida según la revisión de la rama `base-conocimiento-ia`: 5 preguntas corregidas y 10 sacadas de esta hoja.
+**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome. Versión 2 del 17 de noviembre de 2026, con la redacción exacta de la hoja de firma v2 (`docs/contenido/hoja_firma_banco_emg_hrv_v2.md`): E1 tal cual; E2–E10 y H1–H8 con su corrección.
+
+**Firma de Luis (textual):**
+
+> «Firmo todo.» — Luis Nazariego Santome, 17-11-2026.
+
+**Lo que abarca la firma (IDs firmados):** E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, H1, H2, H3, H4, H5, H6, H7, H8. Nada más: los casos clínicos (Parte 3), el apéndice y las decisiones quedan para **después de hoy** y no entran a la app.
 **Uso:** solo las preguntas que Luis marque «firmo» entran a la app, en `educational/quiz_bank.py` como `EMG_QUESTIONS` y `HRV_QUESTIONS`, con la convención de los bancos de ECG-12 y EEG (opción correcta primero, `answer=0`, explicación, fuente y categoría). Sus claves se resuelven contra `app/supermodules/bibliography.py`; las de EMG y HRV llegan con la rama `teoria-emg-hrv`. Una prueba exigirá que toda clave exista en la Bibliografía y que ninguna pregunta sin firmar esté en el banco. Cada respuesta se registra con `log_session_answer` de `app/utils/session_learning.py`: concepto `emg` para E1–E10 y C1–C3, `hrv` para H1–H8 y C4–C6.
 **Regla:** cada pregunta se sostiene en una línea firmada de `teoria_citada_2.md`, citada textual como «t2:N» (N = número de línea). Una afirmación que no está firmada no entra en esta hoja: va al apéndice, para firmarla primero en la teoría.
 
-**Total:** 26 preguntas, 10 de EMG, 8 de HRV y 8 de 6 casos clínicos. Todas tienen línea firmada.
+**Total firmado:** 18 preguntas, 10 de EMG y 8 de HRV, en `educational/quiz_bank.py` (`EMG_QUESTIONS`, `HRV_QUESTIONS`). Los 6 casos clínicos (8 preguntas) quedan para después de hoy.
 
 ---
 
@@ -26,231 +32,213 @@ Las señales de los casos vienen de estas bases. Sus referencias ([IY1996], [SB2
 
 # Parte 1. Preguntas de EMG (10)
 
-**E1 · Qué es el EMG**
+**E1 · Qué es el EMG** *(firmada tal cual)*
 ¿Qué registra un electrodo de EMG de superficie?
 - ✅ La suma de los potenciales de acción de las unidades motoras activas bajo el electrodo
 - La fuerza mecánica que produce el músculo
 - La actividad de un único nervio periférico, aislada
 - El potencial de reposo de las fibras musculares
 
-*Explicación:* el electrodo capta la suma de los potenciales de las unidades motoras que tiene debajo. *Fuente:* [DL1997]
-> **Línea firmada (t2:13):** **Idea.** El EMG de superficie registra, desde la piel, la suma de los potenciales de acción de las unidades motoras que están activas bajo el electrodo [DL1997].
+*Explicación:* el electrodo capta la suma de los potenciales de las unidades motoras que tiene debajo. *Fuente:* [DL1997] · *Línea firmada:* t2:13
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E2 · Amplitud** *(corregida: se retiró el distractor «Mayor riesgo de lesión», que iba contra A9)*
-Una amplitud de EMG de superficie más alta indica sobre todo…
-- ✅ Mayor excitación del músculo, no necesariamente mayor fuerza
+**E2 · Amplitud** *(firmada con la corrección de la hoja v2)*
+¿Qué indica una amplitud más alta del EMG de superficie?
+- ✅ Mayor excitación del músculo, no su fuerza
 - Mayor fuerza muscular, en proporción directa
+- Mayor fuerza muscular, siempre que la señal esté normalizada
 - Mayor masa muscular
-- Un desplazamiento del espectro hacia frecuencias más bajas
 
-*Explicación:* la amplitud refleja la excitación, no la fuerza. El desplazamiento del espectro es otra medida: la que se sigue durante una contracción sostenida (t2:66). *Fuente:* [V2018]
-> **Línea firmada (t2:17):** **Detalle.** La amplitud del EMG de superficie indica la **excitación** del músculo, no su fuerza [V2018].
+*Explicación:* La amplitud del EMG de superficie indica la excitación del músculo, no su fuerza. Incluso normalizada, la amplitud no permite deducir la fuerza del músculo. *Fuente:* [V2018] · *Línea firmada:* t2:17, t2:62
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E3 · Reclutamiento**
-Un músculo aumenta su fuerza reclutando unidades motoras nuevas y haciendo que las activas disparen más rápido. ¿Puede la amplitud del EMG de superficie decir cuál de las dos ocurrió?
-- ✅ No: con la amplitud no se distingue el reclutamiento de la frecuencia de disparo
-- Sí: si la amplitud sube, fue por reclutamiento
-- Sí: si la amplitud sube, fue por frecuencia de disparo
+**E3 · Reclutamiento** *(firmada con la corrección de la hoja v2)*
+El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que las ya activas disparen más rápido. ¿Puede la amplitud del EMG de superficie decir cuánto del aumento se debe a cada una?
+- ✅ No: la amplitud no permite distinguir cuánto se debe a cada una
+- Sí: si la amplitud sube, todo el aumento se debe al reclutamiento
+- Sí: si la amplitud sube, todo el aumento se debe a la frecuencia de disparo
 - Sí, siempre que la señal esté normalizada
 
-*Fuente:* [DL1997] (los dos mecanismos) y [V2018] (no se distinguen)
-> **Líneas firmadas (t2:21):** **Idea.** El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que las ya activas disparen más rápido [DL1997].
-> **(t2:25):** **Detalle.** Con la amplitud del EMG de superficie no se puede distinguir cuánto se debe al reclutamiento y cuánto a la frecuencia de disparo [V2018].
+*Explicación:* Con la amplitud del EMG de superficie no se puede distinguir cuánto se debe al reclutamiento y cuánto a la frecuencia de disparo. *Fuente:* [DL1997][V2018] · *Línea firmada:* t2:25
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E4 · Filtro pasa-altas**
+**E4 · Filtro pasa-altas** *(firmada con la corrección de la hoja v2)*
 ¿Por qué se recomienda un filtro pasa-altas de 20 Hz para el EMG de superficie?
-- ✅ Porque el artefacto de movimiento concentra su energía en frecuencias bajas, y la energía del EMG por debajo de 20 Hz es poca e inestable
+- ✅ Porque el artefacto de movimiento concentra su energía en frecuencias bajas
 - Para eliminar la interferencia de la red eléctrica
-- Porque por debajo de 20 Hz está la mayor parte de la señal muscular
-- Para reducir el tamaño del archivo
+- Porque por debajo de 20 Hz está la mayor parte de la energía de la señal muscular
+- Para eliminar la diafonía de los músculos vecinos
 
-*Fuente:* [DL2010]
-> **Línea firmada (t2:45):** - **Pasa-altas de 20 Hz** (Butterworth, 12 dB/octava) para uso general: el artefacto de movimiento concentra su energía en frecuencias bajas y cae rápidamente por encima de 20 Hz; la energía del EMG por debajo de 20 Hz es poca e inestable.
+*Explicación:* Pasa-altas de 20 Hz (Butterworth, 12 dB/octava) para uso general: el artefacto de movimiento concentra su energía en frecuencias bajas y cae rápidamente por encima de 20 Hz; la energía del EMG por debajo de 20 Hz es poca e inestable. *Fuente:* [DL2010] · *Línea firmada:* t2:45
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E5 · RMS**
+**E5 · RMS** *(firmada con la corrección de la hoja v2)*
 Para medir la amplitud de una contracción voluntaria, ¿qué medida se recomienda y por qué?
 - ✅ El RMS, porque representa la potencia de la señal y tiene un significado físico claro
-- El valor medio rectificado, porque mide la potencia de la señal
+- El valor medio rectificado, porque representa la potencia de la señal y tiene un significado físico claro
 - El valor máximo, porque es el más estable
 - La frecuencia mediana, porque no depende de la amplitud
 
-*Fuente:* [DL1997]
-> **Línea firmada (t2:54):** **Mecanismo.** El RMS representa la potencia de la señal y tiene un significado físico claro; el valor medio rectificado mide el área bajo la señal y no tiene un significado físico específico [DL1997].
+*Explicación:* El RMS representa la potencia de la señal y tiene un significado físico claro; el valor medio rectificado mide el área bajo la señal y no tiene un significado físico específico. *Fuente:* [DL1997] · *Línea firmada:* t2:54
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E6 · Por qué normalizar**
+**E6 · Por qué normalizar** *(firmada con la corrección de la hoja v2)*
 ¿Por qué suele normalizarse la amplitud del EMG, por ejemplo a la contracción voluntaria isométrica máxima?
 - ✅ Porque los microvoltios no se pueden comparar entre personas, músculos o sesiones
 - Porque así la amplitud se vuelve igual a la fuerza
 - Porque así se elimina el artefacto de movimiento
-- Porque los equipos no pueden medir microvoltios
+- Porque así se puede distinguir el reclutamiento de la frecuencia de disparo
 
-*Fuente:* [V2018]
-> **Línea firmada (t2:58):** **Idea.** La amplitud en microvoltios no se puede comparar entre personas, músculos o sesiones; por eso suele normalizarse, por ejemplo a la contracción voluntaria isométrica máxima [V2018].
+*Explicación:* La amplitud en microvoltios no se puede comparar entre personas, músculos o sesiones; por eso suele normalizarse, por ejemplo a la contracción voluntaria isométrica máxima. Incluso normalizada, la amplitud no permite deducir la fuerza del músculo. *Fuente:* [V2018] · *Línea firmada:* t2:58, t2:62
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E7 · Fatiga**
+**E7 · Fatiga** *(firmada con la corrección de la hoja v2)*
 Durante una contracción sostenida, ¿qué le ocurre al espectro del EMG y qué índice se usa para seguirlo?
 - ✅ Se desplaza hacia frecuencias más bajas; se sigue con la frecuencia mediana
-- Se desplaza hacia frecuencias más altas; se sigue con el RMS
+- Se desplaza hacia frecuencias más altas; se sigue con la frecuencia mediana
 - No cambia; solo cambia la amplitud
 - Se desplaza hacia frecuencias más bajas; se sigue con el valor máximo
 
-*Fuente:* [DL1997]
-> **Línea firmada (t2:66):** **Idea.** Durante una contracción sostenida, el espectro del EMG se "comprime" hacia frecuencias más bajas, y la frecuencia mediana es el índice preferido para seguir ese cambio [DL1997].
+*Explicación:* Durante una contracción sostenida, el espectro del EMG se "comprime" hacia frecuencias más bajas, y la frecuencia mediana es el índice preferido para seguir ese cambio. *Fuente:* [DL1997] · *Línea firmada:* t2:66
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E8 · Diafonía**
+**E8 · Diafonía** *(firmada con la corrección de la hoja v2)*
 Un electrodo sobre un músculo capta también parte de la actividad de los músculos vecinos. ¿Cómo se llama esto y hasta cuánto puede llegar?
 - ✅ Diafonía (crosstalk): hasta 17 % de la actividad de los músculos vecinos
-- Artefacto de movimiento: hasta 17 %
+- Artefacto de movimiento: hasta 17 % de la actividad de los músculos vecinos
 - Diafonía: siempre menos de 1 %
 - Fatiga: hasta 50 %
 
-*Fuente:* [DL1997]
-> **Línea firmada (t2:77):** - **Diafonía (crosstalk):** hasta 17 % de la actividad eléctrica de músculos vecinos puede detectarse en el electrodo [DL1997].
+*Explicación:* Diafonía (crosstalk): hasta 17 % de la actividad eléctrica de músculos vecinos puede detectarse en el electrodo. *Fuente:* [DL1997] · *Línea firmada:* t2:77
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E9 · Lo que sí se puede concluir**
-¿Cuál de estas conclusiones **sí** permite, con cautela, un EMG de superficie?
+**E9 · Lo que sí se puede concluir** *(firmada con la corrección de la hoja v2)*
+¿Cuál de estas conclusiones sí permite, con cautela, un EMG de superficie?
 - ✅ Decir si un músculo está «encendido» o «apagado» en intervalos de más de unos 200 ms
 - Calcular la fuerza del músculo en newtons
 - Predecir cuánto crecerá el músculo con el entrenamiento
 - Comparar la fuerza de dos personas por su amplitud en microvoltios
 
-*Fuente:* [V2018]
-> **Línea firmada (t2:89):** - **Sí** permite, con cautela, decir si un músculo está "encendido" o "apagado" en intervalos de más de unos 200 ms, y hacer comparaciones dentro de la misma persona y el mismo músculo si se controlan las condiciones.
+*Explicación:* Sí permite, con cautela, decir si un músculo está "encendido" o "apagado" en intervalos de más de unos 200 ms, y hacer comparaciones dentro de la misma persona y el mismo músculo si se controlan las condiciones. No permite deducir la fuerza muscular. No predice la hipertrofia ni la adaptación a largo plazo. *Fuente:* [V2018] · *Línea firmada:* t2:89, t2:86, t2:87
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**E10 · Hipertrofia**
+**E10 · Hipertrofia** *(firmada con la corrección de la hoja v2)*
 Un ejercicio produce más amplitud de EMG que otro en el mismo músculo. ¿Permite eso afirmar que producirá más hipertrofia?
-- ✅ No: la amplitud del EMG de superficie no predice la hipertrofia ni la adaptación a largo plazo
-- Sí: más amplitud implica más crecimiento
+- ✅ No: la amplitud no predice la hipertrofia
+- Sí: más amplitud implica más hipertrofia a largo plazo
 - Sí, si la diferencia es mayor de 20 %
 - Solo si la señal está normalizada
 
-*Fuente:* [V2018]
-> **Línea firmada (t2:87):** - **No** predice la hipertrofia ni la adaptación a largo plazo.
+*Explicación:* No predice la hipertrofia ni la adaptación a largo plazo. *Fuente:* [V2018] · *Línea firmada:* t2:87
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
 ---
 
 # Parte 2. Preguntas de HRV (8)
 
-**H1 · Definición**
+**H1 · Definición** *(firmada con la corrección de la hoja v2)*
 ¿Qué es la variabilidad de la frecuencia cardiaca (HRV)?
 - ✅ La variación del tiempo entre latidos consecutivos
 - El número de latidos por minuto
 - La diferencia entre la frecuencia cardiaca máxima y la mínima del día
 - La irregularidad causada por arritmias
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:101):** **Idea.** La HRV es la variación del tiempo entre latidos consecutivos [SG2017].
+*Explicación:* La HRV es la variación del tiempo entre latidos consecutivos. Se calcula sobre intervalos NN ("normal a normal"): intervalos entre latidos sinusales de los que se han retirado los artefactos. *Fuente:* [SG2017] · *Línea firmada:* t2:101, t2:103
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H2 · RMSSD** *(corregida: lo firmado solo compara la RMSSD con la SDNN, así que la pregunta compara con la SDNN)*
-¿Qué medida del dominio del tiempo está más influida por el sistema nervioso parasimpático que la SDNN?
-- ✅ RMSSD
-- La frecuencia cardiaca media
-- El número total de latidos
-- La duración del registro
+**H2 · RMSSD** *(firmada con la corrección de la hoja v2)*
+¿Qué afirmación sobre la RMSSD y la SDNN es correcta?
+- ✅ La RMSSD está más influida por el sistema nervioso parasimpático que la SDNN
+- La SDNN está más influida por el sistema nervioso parasimpático que la RMSSD
+- La RMSSD es la desviación estándar de los intervalos NN
+- Las dos están igual de influidas por el sistema nervioso parasimpático
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:111):** - **RMSSD:** está más influida por el sistema nervioso parasimpático que la SDNN.
+*Explicación:* SDNN: desviación estándar de los intervalos NN, en ms. RMSSD: está más influida por el sistema nervioso parasimpático que la SDNN. *Fuente:* [SG2017] · *Línea firmada:* t2:110, t2:111
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H3 · Banda HF**
+**H3 · Banda HF** *(firmada con la corrección de la hoja v2)*
 ¿Qué rango ocupa la banda HF y qué la modifica?
 - ✅ 0.15–0.40 Hz; está influida por la respiración entre 9 y 24 respiraciones por minuto
 - 0.04–0.15 Hz; está influida por la respiración
-- 0.0033–0.04 Hz; está influida por la temperatura
+- 0.0033–0.04 Hz; está influida por la respiración entre 9 y 24 respiraciones por minuto
 - 0.15–0.40 Hz; no depende de la respiración
 
-*Fuente:* [SG2017]
-> **Líneas firmadas (t2:125):** | HF ("banda respiratoria") | 0.15–0.40 Hz |
-> **(t2:127):** - La banda HF está influida por la respiración entre 9 y 24 respiraciones por minuto [SG2017].
+*Explicación:* LF: 0.04–0.15 Hz. HF ("banda respiratoria"): 0.15–0.40 Hz. La banda HF está influida por la respiración entre 9 y 24 respiraciones por minuto. *Fuente:* [SG2017] · *Línea firmada:* t2:124, t2:125, t2:127
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H4 · Razón LF/HF**
-¿Qué afirmación sobre la **razón LF/HF (interpretación discutida)** es correcta?
+**H4 · Razón LF/HF** *(firmada con la corrección de la hoja v2)*
+¿Qué afirmación sobre la razón LF/HF (interpretación discutida) es correcta?
 - ✅ No mide con exactitud el equilibrio entre simpático y parasimpático, porque la potencia LF mezcla varias influencias
 - Mide directamente el impulso simpático cardiaco
 - Un valor alto demuestra predominio simpático
 - Es la medida de referencia del sistema nervioso autónomo
 
-*Fuente:* [B2013][SG2017]
-> **Línea firmada (t2:128):** - **La razón LF/HF es discutida:** la potencia LF no es un índice del impulso simpático cardiaco, sino una mezcla de influencias simpáticas, parasimpáticas y otras no identificadas; por eso la razón LF/HF no mide con exactitud el "equilibrio simpático-vagal" [B2013][SG2017].
+*Explicación:* La razón LF/HF es discutida: la potencia LF no es un índice del impulso simpático cardiaco, sino una mezcla de influencias simpáticas, parasimpáticas y otras no identificadas; por eso la razón LF/HF no mide con exactitud el "equilibrio simpático-vagal". *Fuente:* [B2013][SG2017] · *Línea firmada:* t2:128
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H5 · Duración del registro**
+**H5 · Duración del registro** *(firmada con la corrección de la hoja v2)*
 Una estudiante compara la SDNN de un registro de 5 minutos con la de un Holter de 24 horas. ¿Es correcto?
-- ✅ No: los valores de registros de distinta duración no son intercambiables
+- ✅ No: no es apropiado comparar la SDNN calculada sobre periodos de distinta duración
 - Sí, porque la SDNN no depende de la duración
 - Sí, si se multiplica el valor de 5 minutos por 288
 - Sí, si los dos registros son de la misma persona
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:136):** **Detalle.** Los valores de registros cortos y ultracortos no son intercambiables con los de 24 horas, y no es apropiado comparar métricas como la SDNN calculadas sobre periodos de distinta duración [SG2017].
+*Explicación:* Los valores de registros cortos y ultracortos no son intercambiables con los de 24 horas, y no es apropiado comparar métricas como la SDNN calculadas sobre periodos de distinta duración. *Fuente:* [SG2017] · *Línea firmada:* t2:136
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H6 · Edad**
+**H6 · Edad** *(firmada con la corrección de la hoja v2)*
 ¿Qué les ocurre a las medidas de HRV del dominio del tiempo con la edad?
 - ✅ Disminuyen
 - Aumentan
 - No cambian
-- Solo cambian en mujeres
+- Solo dependen de la duración del registro, no de la edad
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:155):** **Detalle.** La duración del registro, la edad y el sexo influyen en los valores basales; las medidas del dominio del tiempo disminuyen con la edad [SG2017]. La respiración modifica la banda HF (ver B3 y B5) [SG2017].
+*Explicación:* La duración del registro, la edad y el sexo influyen en los valores basales; las medidas del dominio del tiempo disminuyen con la edad. *Fuente:* [SG2017] · *Línea firmada:* t2:155
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H7 · Entropía muestral**
-¿Para qué se diseñó la entropía muestral?
-- ✅ Para medir la regularidad y la complejidad de la señal con menos sesgo y más fiabilidad
-- Para medir la potencia de la banda HF
-- Para detectar latidos ectópicos
-- Para calcular la frecuencia cardiaca media
+**H7 · Entropía muestral** *(firmada con la corrección de la hoja v2)*
+La entropía muestral se diseñó como:
+- ✅ Una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal
+- Una medida de la potencia de la banda HF
+- Un método para detectar latidos ectópicos
+- Una forma de calcular la frecuencia cardiaca media
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:150):** - **Entropía muestral:** se diseñó como una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal.
+*Explicación:* Entropía muestral: se diseñó como una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal. *Fuente:* [SG2017] · *Línea firmada:* t2:150
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
-**H8 · Valores de referencia** *(corregida: se retiró el distractor que daba una cifra de SDNN; B9 dice que no hay cifras hasta verificarlas)*
+**H8 · Valores de referencia** *(firmada con la corrección de la hoja v2)*
 ¿Existe un único «valor normal» de HRV?
 - ✅ No: depende de la duración del registro, la edad y el sexo
-- Sí: el mismo para todas las edades
+- Sí: el mismo para todas las edades, sexos y duraciones del registro
 - Sí, pero solo para registros de 5 minutos
 - Sí, el que calcula el equipo
 
-*Fuente:* [SG2017]
-> **Línea firmada (t2:169):** **Idea.** No hay un único "valor normal": los valores de referencia dependen de la duración del registro, la edad y el sexo, y los de registros cortos no sirven para comparar con los de 24 horas [SG2017].
+*Explicación:* No hay un único "valor normal": los valores de referencia dependen de la duración del registro, la edad y el sexo, y los de registros cortos no sirven para comparar con los de 24 horas. *Fuente:* [SG2017] · *Línea firmada:* t2:169
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmo
 
 ---
 
 # Parte 3. Casos clínicos con señal real (6 casos, 8 preguntas)
+
+> **Después de hoy.** No forma parte de la firma del 2026-11-17: no entra a la app.
 
 > Las viñetas describen personas sanas en contextos de deporte, docencia o investigación. Ninguna plantea un diagnóstico ni una lesión (A9).
 
@@ -371,49 +359,45 @@ Una estudiante compara la SDNN de un registro de 5 minutos con la de un Holter d
 
 # Hoja de firma
 
-| # | Enunciado | Respuesta correcta | Línea firmada | Clave | Estado | Firma de Luis |
+| # | Enunciado | Respuesta correcta | Línea firmada | Clave | Estado | Firma de Luis (2026-11-17) |
 |---|---|---|---|---|---|---|
-| E1 | Qué registra el EMG de superficie | Suma de potenciales de unidades motoras activas | t2:13 | DL1997 | Lista | |
-| E2 | Amplitud más alta indica… | Excitación, no necesariamente fuerza | t2:17 | V2018 | Corregida | |
-| E3 | ¿Distingue reclutamiento de frecuencia de disparo? | No | t2:21, t2:25 | DL1997, V2018 | Lista | |
-| E4 | Por qué un pasa-altas de 20 Hz | Artefacto en bajas; EMG < 20 Hz escaso e inestable | t2:45 | DL2010 | Lista | |
-| E5 | Medida recomendada de amplitud | RMS | t2:54 | DL1997 | Lista | |
-| E6 | Por qué normalizar | µV no comparables entre personas, músculos o sesiones | t2:58 | V2018 | Lista | |
-| E7 | Espectro en contracción sostenida | Baja de frecuencia; se sigue con la mediana | t2:66 | DL1997 | Lista | |
-| E8 | Actividad de músculos vecinos | Diafonía, hasta 17 % | t2:77 | DL1997 | Lista | |
-| E9 | Conclusión defendible | Encendido o apagado en intervalos > ~200 ms | t2:89 | V2018 | Lista | |
-| E10 | ¿Más amplitud = más hipertrofia? | No | t2:87 | V2018 | Lista | |
-| H1 | Qué es la HRV | Variación del tiempo entre latidos | t2:101 | SG2017 | Lista | |
-| H2 | ¿Qué medida, más que la SDNN, refleja el parasimpático? | RMSSD | t2:111 | SG2017 | Corregida | |
-| H3 | Rango de HF y qué la modifica | 0.15–0.40 Hz; respiración de 9 a 24 rpm | t2:125, t2:127 | SG2017 | Lista | |
-| H4 | Razón LF/HF (interpretación discutida) | No mide con exactitud el equilibrio | t2:128 | B2013, SG2017 | Lista | |
-| H5 | SDNN de 5 min frente a Holter de 24 h | No son intercambiables | t2:136 | SG2017 | Lista | |
-| H6 | Medidas temporales con la edad | Disminuyen | t2:155 | SG2017 | Lista | |
-| H7 | Para qué se diseñó la entropía muestral | Regularidad y complejidad, menos sesgo | t2:150 | SG2017 | Lista | |
-| H8 | ¿Un único valor normal? | No: depende de duración, edad y sexo | t2:169 | SG2017 | Corregida | |
-| C1.1 | Inicio frente a final del registro | Baja la frecuencia mediana | t2:66 | DL1997 | Lista | |
-| C2.1 | Normalizados altos con dolor en la prueba máxima | Quedan inflados | t2:60 | V2018 | Lista | |
-| C2.2 | Bíceps frente a tríceps en µV | No se comparan | t2:58 | V2018 | Lista | |
-| C3.1 | Condición para comparar tres días | Electrodos en el mismo sitio | t2:36 | V2018 | Lista | |
-| C3.2 | Comparación más defendible | Misma persona y músculo, condiciones controladas | t2:89 | V2018 | Lista | |
-| C4.1 | RMSSD más baja de ella | La edad y el sexo influyen | t2:155 | SG2017 | Lista | |
-| C5.2 | Sube la razón LF/HF (interpretación discutida) | La respiración cambió la banda | t2:142, t2:128 | SG2017, B2013 | Corregida | |
-| C6.1 | Ectópicos antes de calcular | Tramo limpio, editar o interpolar | t2:165 | SG2017 | Corregida | |
+| E1 | ¿Qué registra un electrodo de EMG de superficie? | La suma de los potenciales de acción de las unidades motoras activas bajo el electrodo | t2:13 | DL1997 | Tal cual | ☑ firmo |
+| E2 | ¿Qué indica una amplitud más alta del EMG de superficie? | Mayor excitación del músculo, no su fuerza | t2:17, t2:62 | V2018 | Corregida (hoja v2) | ☑ firmo |
+| E3 | El músculo aumenta su fuerza de dos maneras: activando unidades motoras nuevas (reclutamiento) y haciendo que las ya activas disparen más rápido. ¿Puede la amplitud del EMG de superficie decir cuánto del aumento se debe a cada una? | No: la amplitud no permite distinguir cuánto se debe a cada una | t2:25 | DL1997, V2018 | Corregida (hoja v2) | ☑ firmo |
+| E4 | ¿Por qué se recomienda un filtro pasa-altas de 20 Hz para el EMG de superficie? | Porque el artefacto de movimiento concentra su energía en frecuencias bajas | t2:45 | DL2010 | Corregida (hoja v2) | ☑ firmo |
+| E5 | Para medir la amplitud de una contracción voluntaria, ¿qué medida se recomienda y por qué? | El RMS, porque representa la potencia de la señal y tiene un significado físico claro | t2:54 | DL1997 | Corregida (hoja v2) | ☑ firmo |
+| E6 | ¿Por qué suele normalizarse la amplitud del EMG, por ejemplo a la contracción voluntaria isométrica máxima? | Porque los microvoltios no se pueden comparar entre personas, músculos o sesiones | t2:58, t2:62 | V2018 | Corregida (hoja v2) | ☑ firmo |
+| E7 | Durante una contracción sostenida, ¿qué le ocurre al espectro del EMG y qué índice se usa para seguirlo? | Se desplaza hacia frecuencias más bajas; se sigue con la frecuencia mediana | t2:66 | DL1997 | Corregida (hoja v2) | ☑ firmo |
+| E8 | Un electrodo sobre un músculo capta también parte de la actividad de los músculos vecinos. ¿Cómo se llama esto y hasta cuánto puede llegar? | Diafonía (crosstalk): hasta 17 % de la actividad de los músculos vecinos | t2:77 | DL1997 | Corregida (hoja v2) | ☑ firmo |
+| E9 | ¿Cuál de estas conclusiones sí permite, con cautela, un EMG de superficie? | Decir si un músculo está «encendido» o «apagado» en intervalos de más de unos 200 ms | t2:89, t2:86, t2:87 | V2018 | Corregida (hoja v2) | ☑ firmo |
+| E10 | Un ejercicio produce más amplitud de EMG que otro en el mismo músculo. ¿Permite eso afirmar que producirá más hipertrofia? | No: la amplitud no predice la hipertrofia | t2:87 | V2018 | Corregida (hoja v2) | ☑ firmo |
+| H1 | ¿Qué es la variabilidad de la frecuencia cardiaca (HRV)? | La variación del tiempo entre latidos consecutivos | t2:101, t2:103 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H2 | ¿Qué afirmación sobre la RMSSD y la SDNN es correcta? | La RMSSD está más influida por el sistema nervioso parasimpático que la SDNN | t2:110, t2:111 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H3 | ¿Qué rango ocupa la banda HF y qué la modifica? | 0.15–0.40 Hz; está influida por la respiración entre 9 y 24 respiraciones por minuto | t2:124, t2:125, t2:127 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H4 | ¿Qué afirmación sobre la razón LF/HF (interpretación discutida) es correcta? | No mide con exactitud el equilibrio entre simpático y parasimpático, porque la potencia LF mezcla varias influencias | t2:128 | B2013, SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H5 | Una estudiante compara la SDNN de un registro de 5 minutos con la de un Holter de 24 horas. ¿Es correcto? | No: no es apropiado comparar la SDNN calculada sobre periodos de distinta duración | t2:136 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H6 | ¿Qué les ocurre a las medidas de HRV del dominio del tiempo con la edad? | Disminuyen | t2:155 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H7 | La entropía muestral se diseñó como: | Una medida menos sesgada y más fiable de la regularidad y la complejidad de la señal | t2:150 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| H8 | ¿Existe un único «valor normal» de HRV? | No: depende de la duración del registro, la edad y el sexo | t2:169 | SG2017 | Corregida (hoja v2) | ☑ firmo |
+| C1.1 | Inicio frente a final del registro | Baja la frecuencia mediana | t2:66 | DL1997 | Lista | después de hoy |
+| C2.1 | Normalizados altos con dolor en la prueba máxima | Quedan inflados | t2:60 | V2018 | Lista | después de hoy |
+| C2.2 | Bíceps frente a tríceps en µV | No se comparan | t2:58 | V2018 | Lista | después de hoy |
+| C3.1 | Condición para comparar tres días | Electrodos en el mismo sitio | t2:36 | V2018 | Lista | después de hoy |
+| C3.2 | Comparación más defendible | Misma persona y músculo, condiciones controladas | t2:89 | V2018 | Lista | después de hoy |
+| C4.1 | RMSSD más baja de ella | La edad y el sexo influyen | t2:155 | SG2017 | Lista | después de hoy |
+| C5.2 | Sube la razón LF/HF (interpretación discutida) | La respiración cambió la banda | t2:142, t2:128 | SG2017, B2013 | Corregida | después de hoy |
+| C6.1 | Ectópicos antes de calcular | Tramo limpio, editar o interpolar | t2:165 | SG2017 | Corregida | después de hoy |
 
 ---
 
 # Apéndice. Fuera de esta hoja: primero hay que firmar la afirmación en la teoría
 
+> **Después de hoy.** No forma parte de la firma del 2026-11-17: no entra a la app.
+
 Estas 10 preguntas usan afirmaciones que no están en `teoria_citada_2.md`. Para recuperarlas, primero se redacta y se firma la afirmación como tema nuevo de la teoría, y después vuelve la pregunta.
 
 | # | Afirmación que habría que firmar | Fuente propuesta | Depende de |
 |---|---|---|---|
-| E11 | Un músculo puede producir fuerza con un EMG de superficie casi nulo, por sus propiedades pasivas | [V2018] | — |
-| E12 | Comparar la amplitud entre ejercicios distintos sin controlar longitud, velocidad y posición del electrodo debe evitarse. Alternativa: reescribirla sobre t2:89 («si se controlan las condiciones») | [V2018] | — |
-| H9 | Registro mínimo por banda: HF 1 min, LF 2 min, ULF al menos 24 h | [SG2017] | — |
-| H10 | Con una frecuencia cardiaca más alta, la HRV tiende a bajar (dependencia de la longitud del ciclo) | [SG2017] | D2 (B7) |
-| H11 | Una HRV más alta no siempre indica buena salud: algunas alteraciones de la conducción la elevan | [SG2017] | — |
-| H12 | La RMSSD se ve menos afectada por la frecuencia respiratoria que la potencia HF | [L2017] | D1 |
 | C1.2 | Un registro a 200 muestras/s no contiene información por encima de 100 Hz (frecuencia de Nyquist) | Definición de muestreo; habría que firmarla | — |
 | C4.2 | Preparación previa al registro: sin comida ni cafeína 2 h antes, sin alcohol 24 h antes y sin ejercicio intenso el día anterior | [L2017] | D1 y D2 (B7) |
 | C5.1 | Respirar entre 4.5 y 7.5 veces por minuto concentra la oscilación cardiaca alrededor de 0.1 Hz, en la banda LF | [SG2017] | — |
@@ -422,6 +406,8 @@ Estas 10 preguntas usan afirmaciones que no están en `teoria_citada_2.md`. Para
 ---
 
 # Decisiones para Luis
+
+> **Después de hoy.** No forma parte de la firma del 2026-11-17: no entra a la app.
 
 | # | Decisión | Opciones |
 |---|---|---|

@@ -107,7 +107,6 @@ def test_la_base_por_defecto_esta_aislada_en_la_suite():
     ("frecuencia cardiaca normal", "2"),                     # sin «variabilidad», sigue siendo el tema 2
     ("CVM con dolor", "A6"),                                 # la teoría dice «contracción voluntaria isométrica máxima»
     ("saturación de oxígeno NEWS2", "6"),                    # la teoría dice «SpO₂»
-    ("tono vagal", "B2"),                                    # la teoría dice «parasimpático»
     ("infarto en la descendente anterior", "5"),
     ("diafonía", "A8"),
 ])
@@ -134,3 +133,23 @@ def test_cada_grupo_de_sinonimos_nombra_algo_que_esta_en_la_teoria_firmada(base)
 def test_los_sinonimos_no_inventan_respuestas(base):
     assert kb.buscar("tratamiento de la diabetes", db_path=base) == []
     assert kb.contexto_para_ia("hipotiroidismo", db_path=base) is None
+
+
+# ── Preguntas de la demo de «Pregunta a BIOCORE» (2026-11-17) ───────────────────────────────────────────────────────
+@pytest.mark.parametrize("pregunta,tema", [
+    ("¿por qué se filtra el EMG a 20 Hz?", "A4"),
+    ("¿qué mide la electromiografía de superficie?", "A1"),
+    ("¿qué es la variabilidad de la frecuencia cardiaca?", "B1"),
+    ("¿la razón LF/HF mide el equilibrio simpático-vagal?", "B3"),
+    ("¿cómo se calcula el NEWS2?", "6"),
+    ("¿qué es la respiración de Cheyne-Stokes?", "7"),
+    ("¿qué es la RMSSD?", "B2"),
+    ("QUE MIDE LA ELECTROMIOGRAFIA DE SUPERFICIE", "A1"),         # sin acentos y en mayúsculas
+])
+def test_las_preguntas_de_la_demo_traen_un_fragmento_firmado_de_su_tema(base, pregunta, tema):
+    assert tema in [r["tema_id"] for r in kb.buscar(pregunta, db_path=base)]
+
+
+def test_una_pregunta_fuera_de_la_teoria_sigue_sin_fragmentos(base):
+    assert kb.buscar("¿cuál es la capital de Francia?", db_path=base) == []
+    assert kb.contexto_para_ia("¿cuál es la capital de Francia?", db_path=base) is None

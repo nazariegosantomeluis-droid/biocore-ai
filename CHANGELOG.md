@@ -1,5 +1,65 @@
 # Changelog
 
+## 2026-11-17 — Banco de preguntas de EMG y HRV firmado (E1–E10, H1–H8) y privacidad de «Pregunta a BIOCORE»
+
+**Contexto (Art. I)**: Luis firmó el banco v2 el 17 de noviembre: «Firmo todo.» Abarca las 18 preguntas E1–E10 y H1–H8, tal como quedan en la hoja de firma v2 (E1 tal cual; E2–E10 y H1–H8 con su corrección). Los casos clínicos, el apéndice y las decisiones quedan para después de hoy.
+
+- **Documentos**:
+  - `docs/contenido/hoja_firma_banco_emg_hrv_v2.md`: la hoja de firma, copiada tal cual.
+  - `docs/contenido/banco_preguntas_emg_hrv.md`: estado «FIRMADO 2026-11-17», la firma textual y la lista explícita de IDs. Las 18 preguntas llevan la redacción exacta de la hoja v2 y la marca «☑ firmo». La Parte 3 (casos), el apéndice y las decisiones quedan marcados «Después de hoy».
+- **`educational/quiz_bank.py`**:
+  - `EMG_QUESTIONS` (E1–E10) y `HRV_QUESTIONS` (H1–H8), dentro de `balance_positions(...)` como los otros bancos: correcta primero, explicación, fuente y categoría.
+  - La fuente es la referencia completa de `teoria_citada_2.md` con su clave.
+  - Cada explicación es una subcadena literal de su línea t2:N, con dos excepciones:
+    - E1 conserva la explicación de la v2, firmada «tal cual».
+    - H4 se corta antes de la segunda mención de «la razón LF/HF», en el límite de la cláusula: termina en «…y otras no identificadas».
+  - Las preguntas se generaron leyendo la hoja (no se volvieron a teclear); los datos de la otra sesión no se commitean.
+  - `CONCEPT_BY_PROMPT`: ya no dice «propuesta» y anota la firma. Suma la onda T normal (→ `ritmo_y_conduccion`) y las 18 preguntas nuevas (→ `emg` / `hrv`). La pericarditis sigue fuera.
+  - La correcta es la opción más larga en 3 de 10 (EMG) y 3 de 8 (HRV), dentro del límite de 40 %.
+- **Quiz de la Academia**: nuevas lecciones «EMG» y «HRV» (`learning_engine.LESSON_CATEGORIES`, `LESSON_BANKS`). Cada respuesta se registra:
+  - con su banco (`emg`/`hrv`) en la mejora continua, vía `log_answer` de `app/utils/learning_log.py` (sin modificar ese archivo);
+  - con su concepto en la sesión, vía `record_quiz_answer`.
+  - `confidence.QUIZ_BANKS` cubre ahora `academia`, `ecg12`, `emg` y `hrv`.
+- **«Pregunta a BIOCORE»** (`app/supermodules/academia/ask.py`):
+  - **P1**: la pregunta y la respuesta viven solo en la sesión del navegador. No pasan por `learning_log` ni por ninguna base; la base de conocimiento solo se lee.
+  - **P2**: sobre el campo, el aviso «No escribas datos personales ni de pacientes: tu pregunta se envía al proveedor de IA configurado para responderla.»
+  - **P3**: sin cambios, porque ya era así. El nivel gratuito de Gemini nunca recibe la pregunta, y sin IA solo se ven los fragmentos firmados.
+- **Pruebas**: `tests/test_banco_emg_hrv.py` (nuevo) comprueba:
+  - letra por letra contra la hoja y contra el documento firmado;
+  - cada explicación dentro de su línea t2:N;
+  - ningún ID fuera de E1–E10/H1–H8;
+  - los dos bancos en `balance_positions`;
+  - la correcta como opción más larga en a lo sumo 40 %;
+  - la regla B3 de LF/HF en las 18;
+  - las 18 registradas en la sesión con `emg`/`hrv` y en la mejora continua con su banco;
+  - «Pregunta a BIOCORE» sin dejar nada en ninguna base y con el aviso a la vista.
+  - Se ampliaron `test_quiz_bank.py` (bancos de EMG y HRV, y sus lecciones) y `test_confidence_calibration.py` (vocabulario y `QUIZ_BANKS`).
+
+## 2026-11-17 — Ajustes de la revisión de los PR #5 y #6: Wilson 1927, sinónimos solo de nombres y preguntas de la demo
+
+**Contexto (Art. I)**: la calibración citaba Wilson 1927 en pantalla, pero la cita no estaba en la Bibliografía ni en los avisos de terceros. Además, la tabla de sinónimos de la búsqueda tenía equivalencias que no son nombres ni siglas.
+
+1. **Wilson 1927.** Metadatos verificados en Crossref (doi:10.1080/01621459.1927.10502953): *J Am Stat Assoc* 1927;22(158):209–212.
+   - Entra a la Bibliografía con la clave **[WILSON1927]**, en un grupo propio, «Métodos que usa la plataforma» (`bibliography.METHODS`). No va en `SIGNED`, que es exactamente la lista de claves de `teoria_citada.md`.
+   - Entra también en `THIRD_PARTY_NOTICES.md`, sección 5.
+   - La pantalla muestra la misma clave: «intervalo de 95 % de Wilson [WILSON1927]» (`confidence_calibration.WILSON_KEY`).
+   - Pruebas: la clave, la referencia y el DOI coinciden en el código, la Bibliografía y los avisos, y la página de Bibliografía la dibuja con su clave.
+2. **Sinónimos solo de nombres y siglas (`knowledge_base.SINONIMOS`)**. Salen tres entradas:
+   - NN ↔ RR: B1 los distingue, porque el intervalo NN es entre latidos sinusales sin artefactos.
+   - parasimpático ↔ vagal ↔ vago: es una equivalencia fisiológica, no un nombre.
+   - «lpm» y «latidos por minuto» como sinónimos de FC: son la unidad, no el nombre.
+   - Con esas entradas sale también la prueba «tono vagal → B2».
+   - Los siete pares pedidos ya estaban en la tabla: electromiografía ↔ EMG, HRV ↔ VFC ↔ variabilidad de la frecuencia cardiaca, ECG, EEG, SpO₂, FR y FC.
+   - No distingue acentos ni mayúsculas: lo hacen el tokenizador `unicode61 remove_diacritics 2` y `_normalizar`.
+3. **Preguntas de la demo** (`tests/test_knowledge_base.py`): las 7 preguntas de «Pregunta a BIOCORE» traen un fragmento firmado de su tema (A4, A1, B1, B3, 6, 7, B2), también escritas sin acentos y en mayúsculas. «¿Cuál es la capital de Francia?» sigue sin fragmentos (no disponible).
+   - Antes de los sinónimos, las 7 ya traían fragmentos, porque la búsqueda usa prefijos. Lo que mejoró es el orden: «electromiografía» abría con temas de HRV y de respiración, y ahora abre con A1; «variabilidad de la frecuencia cardiaca» abría con B3, y ahora abre con B1.
+4. **Respiratorio** (ya hecho en `207d924`): se suma la prueba de contrato. El concepto del cuestionario, `respiracion_y_apnea`, es del vocabulario `CONCEPTS`.
+
+**Pendiente, sin tocar:**
+- Una consulta con «CO2» no encuentra «CO₂»: el índice conserva el subíndice y la consulta lo convierte en «2».
+- En «¿cómo se calcula el NEWS2?», el tema 6 sale 4.º y 5.º: «calcula» pesa más que «NEWS2».
+- El sinónimo LF ↔ «baja frecuencia» trae A8 («artefacto de movimiento: de baja frecuencia») en la pregunta de la razón LF/HF.
+
 ## 2026-11-17 — Sinónimos en la búsqueda de la base de conocimiento
 
 **Contexto**: la búsqueda no tenía sinónimos, así que «electromiografía» no encontraba nada porque la teoría firmada dice «EMG». Los sinónimos solo amplían la búsqueda: no cambian lo que la base contiene ni lo que la IA puede citar.
@@ -24,6 +84,26 @@
 5. **Uso:** las claves se resolverán contra `app/supermodules/bibliography.py` (las de EMG y HRV llegan con la rama `teoria-emg-hrv`); no se crea `clinical/hrv_references.py`. Solo entran a la app, como `EMG_QUESTIONS` y `HRV_QUESTIONS`, las preguntas que Luis marque «firmo». Cada respuesta se registrará con `session_learning` (`emg` o `hrv`).
 
 **Sincronización:** `main` no cambió desde `e3fc423` (ya incluido en esta rama). Cuando `teoria-emg-hrv` entre a `main`, hay que volver a fusionar `main` aquí: chocarán `CHANGELOG.md` y `CLAUDE.md` (conteo de páginas), y se conservan ambas entradas.
+## 2026-11-17 — Calibración de la confianza sobre `session_learning` (Uncertainty Lab, primera pieza)
+
+**Contexto (Art. I)**: el estudiante dice qué tan seguro está antes de ver el resultado y BIOCORE compara esa confianza con su acierto. Se construye sobre el contrato `app/utils/session_learning.py` (sin modificarlo): solo en la sesión, sin base de datos.
+
+1. **`educational/confidence_calibration.py`** (nuevo, sin Streamlit): confianza media frente a acierto, en total, por concepto y por nivel de confianza; lista de los errores con más confianza.
+   - El acierto lleva su intervalo de 95 % de Wilson [Wilson 1927, J Am Stat Assoc 22(158):209–212, doi:10.1080/01621459.1927.10502953].
+   - «Exceso de confianza» solo si la confianza media queda por encima de TODO el intervalo; «falta de confianza», solo por debajo. Dentro del intervalo no se etiqueta. No hay umbrales fijos ni un mínimo de respuestas inventado: con pocas respuestas el intervalo es ancho y el veredicto es «no se detecta».
+   - Sin respuestas con confianza: «No disponible», con el motivo.
+2. **`quiz_bank.CONCEPT_BY_PROMPT`**: **propuesta, pendiente de revisión de Luis.** Asigna uno de los 8 `CONCEPTS` del contrato a 24 preguntas del Quiz de la Academia y del Desafío ECG-12. Las 10 que no encajan en el vocabulario (EEG, PPG, HVI, pericarditis, onda T normal, manejo del IAMCEST y las que describen la app) no se registran. No se inventaron conceptos nuevos.
+3. **`app/utils/confidence.py`** (nuevo):
+   - `render_confidence_input`: selector opcional 25/50/75/100 %, sin valor por defecto.
+   - `record_quiz_answer`: llama a `log_session_answer(..., source="quiz")` una sola vez por intento.
+   - `render_calibration_panel`: el expander «Tu calibración en esta sesión».
+   - Conectado en el Quiz de la Academia (`academia/pages.py`) y en el Desafío ECG-12 (`ecg_12/quiz.py`). El selector va DESPUÉS de las opciones de respuesta, así `at.radio[0]` sigue siendo la respuesta en las pruebas existentes. El panel se monta en las páginas `quiz` y `desafio-ecg`.
+4. **Pruebas**: `tests/test_confidence_calibration.py` (7). Verificado aquí: 6 pasan (Wilson contra su valor de referencia, veredictos, agrupaciones y mapeo contra el vocabulario del contrato, leído sin importar Streamlit). **Falta correr** la prueba AppTest del Desafío ECG-12 y la suite completa en el intérprete de Luis.
+
+5. **Respiratorio** (`respiratory_lab/views.py::render_quiz`): las 5 preguntas (3 conceptuales y 2 sobre la señal simulada) son del concepto `respiracion_y_apnea`. Aquí la respuesta se corrige al elegirla, sin botón «Verificar», así que la confianza se pide ANTES de las opciones (`CONFIDENCE_FIRST_HINT`) y se guarda al responder: cambiarla después, ya con el resultado a la vista, no cuenta (`confidence.record_answer`, un registro por `mark`). Las preguntas de la señal se identifican por su valor correcto (`respiratorio:fr:<n>`, `respiratorio:apneas:<n>`), así que una señal nueva es una pregunta nueva. El panel se monta también en la página `cuestionarios`. El EEG no tiene concepto en el vocabulario y no se registra.
+6. **Pruebas:** `test_respiratorio_guarda_la_confianza_que_habia_al_responder` (AppTest; **falta correrla** en el intérprete de Luis). La lógica de registro se verificó aquí con un sustituto mínimo de Streamlit fuera del repositorio: un registro por respuesta, la confianza que había al responder y nada de las preguntas sin concepto.
+
+**Pendiente:** revisión del mapeo de conceptos por Luis; el EEG no tiene concepto en el vocabulario.
 
 ## 2026-11-17 — Base de conocimiento de la IA: solo lo firmado, todo con cita
 
