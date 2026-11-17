@@ -116,6 +116,38 @@
 
 **Pruebas** (Python 3.13.11 del PATH, en serie): `tests/test_arrhythmia_model_card.py`, `test_arrhythmia_classifier_new.py` y `test_docs_honest_tanda2.py`: 18 passed. Sin `lightgbm` (paquete simulado que lanza `ImportError`): 8 passed, 1 skipped (la prueba de predicción, por `importorskip`). Guardias de `domain/` (`test_ups_body_3d_paridad.py`, `test_ups_derived_contract.py`) con el cambio commiteado: 50 passed. No se corrió la suite completa.
 
+## 2026-11-17 — «¿Qué pasa si…?»: predecir y comprobar contra el motor hemodinámico (Practicar)
+
+**Contexto (Art. I)**: una práctica nueva, sin texto fisiológico nuevo y sin tocar `domain/`. El alumno predice qué le pasa al gemelo hemodinámico (simulado) ante UNA intervención, declara su confianza y se califica contra lo que calcula el motor de lazo cerrado. Rama `luis/what-if`, desde `origin/main`; Python del PATH (3.13.11).
+
+- **Página** `what-if` en Practicar (`app/supermodules/what_if.py`; `render_practice_what_if_page` en `app/main.py`).
+- **Qué intervenciones hay, y por qué solo esas**:
+  - `run_closed_loop(scenario, heart_rate_bpm)` solo deja variar la frecuencia cardiaca y el escenario. La resistencia, el volumen/P_sf, la capacitancia venosa, la ganancia del reflejo y la contractilidad son constantes del módulo. Cambiarlas exigiría parchear variables globales en tiempo de ejecución (afectaría a todas las sesiones a la vez) o reimplementar física fuera de `domain/`; no se ofrecen.
+  - Lista cerrada: sano 72 → 50 y → 120 lpm; hipertensión 85 → 60 y → 130 lpm.
+    - Las FC de partida son los puntos fijos del panel del barorreflejo.
+    - Las de llegada están dentro del barrido validado (40–220 lpm), y se comprobó que el lazo converge sin saturar el reflejo ni el piso de EDV.
+  - **Sepsis excluida**: depende de la capacitancia venosa 2× (Criterio BIOCORE, sin cita, en revisión clínica), de la FC 150 sin cita y de su gasto cardiaco «calculado por el motor — en revisión clínica». La página lo dice. Un caso marcado `in_review` se mostraría con su etiqueta y no se califica ni registra.
+- **Flujo**:
+  1. Antes de enviar, el alumno elige «sube / baja / sin cambio» y su confianza (0–100) para la PAM, el gasto cardiaco (VS × FC, como el panel del barorreflejo) y el volumen sistólico. El motor no se corre y no se ve ningún número suyo.
+  2. Al enviar, el motor corre basal e intervención (determinista, caché por escenario y FC). Los valores llevan «calculado por el motor de lazo cerrado de BIOCORE» y la etiqueta de simulación.
+  3. «Cómo lo calcula el modelo» cita la cadena tal como está escrita en `closed_loop.py` y la nota del brazo cardiaco del panel del barorreflejo (la FC es una entrada; el reflejo no la cambia).
+  - La sistólica y la diastólica no se muestran: heredan la compliancia C pendiente de validación. PAM, gasto y VS no dependen de C.
+- **Calificación**: la respuesta correcta es el signo del cambio que calculó el motor. Umbral de «sin cambio»: `NO_CHANGE_REL` = 2 % del valor basal, rotulado en la página como «Criterio BIOCORE (HEURISTIC)».
+  - Ejemplo del motor: sano 72 → 50 lpm da PAM sin cambio (el reflejo la devuelve a su punto de ajuste), gasto baja y VS sube.
+- **Registro**: cada predicción calificada pasa por `log_session_answer("what_if:<caso>:<salida>", "what_if", "hemodinamica", correcto, confianza)`. Es el primer llamador de `session_learning`.
+  - Una sola vez por intento, con el criterio de `app/utils/confidence.py` (rama `calibracion-confianza`): la marca es (intento, caso) y el intento solo cambia con «Otra predicción». Salir del caso y volver a enviarlo sin pedir otro no registra de nuevo (prueba `test_resending_the_same_case_without_asking_for_another_is_not_logged_again`).
+- **Rótulo junto a la tabla del resultado** (procedencia, no fisiología): «Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real».
+- **Pruebas** (`tests/test_what_if.py`, 9):
+  - con el motor sustituido por uno que da el signo contrario, la calificación se invierte;
+  - antes de enviar el motor no se corre y no hay números;
+  - lo que está en revisión clínica no se califica ni se registra;
+  - lo registrado usa "what_if" y "hemodinamica" con la confianza elegida;
+  - la cadena del modelo es literal del código;
+  - toda la lista cerrada converge.
+  - La navegación (`test_fase1_t1_navegacion.py`) incluye `what-if` en Practicar.
+  - Resultado: 38 pasan (los dos archivos). Por instrucción no se corrió la suite completa.
+  - Tras el registro por intento y el rótulo: `test_what_if.py` + `test_docs_honest_tanda2.py` + `test_fase1_t2_pulido.py` = 55 pasan con el Python del PATH (3.13.11, Streamlit 1.67.0). Sin el guardia, la prueba nueva falla (6 registros en vez de 3).
+
 ## 2026-11-17 — Banco de preguntas EMG y HRV, versión 2: arreglos de la revisión de `base-conocimiento-ia`
 
 **Contexto (Art. I)**: la revisión externa de la rama (suite: 2328 pasan, 8 omitidas, 0 fallos en Linux con Python 3.13.18) pidió que cada pregunta del banco se sostenga en una línea firmada de `teoria_citada_2.md` y que salga de la hoja todo lo que no está firmado. Solo cambia el documento: nada entra a la app.
