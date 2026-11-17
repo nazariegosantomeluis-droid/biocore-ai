@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 import educational.confidence_calibration as cc
-from educational.quiz_bank import ACADEMIA_QUESTIONS, CONCEPT_BY_PROMPT, ECG12_QUESTIONS
+from educational.quiz_bank import ACADEMIA_QUESTIONS, CONCEPT_BY_PROMPT, ECG12_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS
 
 
 def _r(correct, confidence, concept="hrv", item="x"):
@@ -52,8 +52,14 @@ def _conceptos_del_contrato():
 
 
 def test_cada_pregunta_mapeada_existe_y_usa_el_vocabulario_de_luis():
-    enunciados = {q.prompt for q in ACADEMIA_QUESTIONS + ECG12_QUESTIONS}
+    # 2026-11-17: también los bancos de EMG y HRV (firmados), con `emg`/`hrv`; y `QUIZ_BANKS` los cubre.
+    enunciados = {q.prompt for q in ACADEMIA_QUESTIONS + ECG12_QUESTIONS + EMG_QUESTIONS + HRV_QUESTIONS}
     assert set(CONCEPT_BY_PROMPT) <= enunciados
+    assert all(CONCEPT_BY_PROMPT[q.prompt] == "emg" for q in EMG_QUESTIONS)
+    assert all(CONCEPT_BY_PROMPT[q.prompt] == "hrv" for q in HRV_QUESTIONS)
+    arbol = ast.parse(Path("app/utils/confidence.py").read_text(encoding="utf-8"))
+    nodo = next(n for n in arbol.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "QUIZ_BANKS")
+    assert set(ast.literal_eval(nodo.value)) == {"academia", "ecg12", "emg", "hrv"}
     assert set(CONCEPT_BY_PROMPT.values()) <= _conceptos_del_contrato()
     assert set(cc.CONCEPT_LABELS) == _conceptos_del_contrato()
 

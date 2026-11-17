@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-11-17 — Banco de preguntas de EMG y HRV firmado (E1–E10, H1–H8) y privacidad de «Pregunta a BIOCORE»
+
+**Contexto (Art. I)**: Luis firmó el banco v2 el 17 de noviembre: «Firmo todo.» Abarca las 18 preguntas E1–E10 y H1–H8, tal como quedan en la hoja de firma v2 (E1 tal cual; E2–E10 y H1–H8 con su corrección). Los casos clínicos, el apéndice y las decisiones quedan para después de hoy.
+
+- **Documentos**:
+  - `docs/contenido/hoja_firma_banco_emg_hrv_v2.md`: la hoja de firma, copiada tal cual.
+  - `docs/contenido/banco_preguntas_emg_hrv.md`: estado «FIRMADO 2026-11-17», la firma textual y la lista explícita de IDs. Las 18 preguntas llevan la redacción exacta de la hoja v2 y la marca «☑ firmo». La Parte 3 (casos), el apéndice y las decisiones quedan marcados «Después de hoy».
+- **`educational/quiz_bank.py`**:
+  - `EMG_QUESTIONS` (E1–E10) y `HRV_QUESTIONS` (H1–H8), dentro de `balance_positions(...)` como los otros bancos: correcta primero, explicación, fuente y categoría.
+  - La fuente es la referencia completa de `teoria_citada_2.md` con su clave.
+  - Cada explicación es una subcadena literal de su línea t2:N, con dos excepciones:
+    - E1 conserva la explicación de la v2, firmada «tal cual».
+    - H4 se corta antes de la segunda mención de «la razón LF/HF», en el límite de la cláusula: termina en «…y otras no identificadas».
+  - Las preguntas se generaron leyendo la hoja (no se volvieron a teclear); los datos de la otra sesión no se commitean.
+  - `CONCEPT_BY_PROMPT`: ya no dice «propuesta» y anota la firma. Suma la onda T normal (→ `ritmo_y_conduccion`) y las 18 preguntas nuevas (→ `emg` / `hrv`). La pericarditis sigue fuera.
+  - La correcta es la opción más larga en 3 de 10 (EMG) y 3 de 8 (HRV), dentro del límite de 40 %.
+- **Quiz de la Academia**: nuevas lecciones «EMG» y «HRV» (`learning_engine.LESSON_CATEGORIES`, `LESSON_BANKS`). Cada respuesta se registra:
+  - con su banco (`emg`/`hrv`) en la mejora continua, vía `log_answer` de `app/utils/learning_log.py` (sin modificar ese archivo);
+  - con su concepto en la sesión, vía `record_quiz_answer`.
+  - `confidence.QUIZ_BANKS` cubre ahora `academia`, `ecg12`, `emg` y `hrv`.
+- **«Pregunta a BIOCORE»** (`app/supermodules/academia/ask.py`):
+  - **P1**: la pregunta y la respuesta viven solo en la sesión del navegador. No pasan por `learning_log` ni por ninguna base; la base de conocimiento solo se lee.
+  - **P2**: sobre el campo, el aviso «No escribas datos personales ni de pacientes: tu pregunta se envía al proveedor de IA configurado para responderla.»
+  - **P3**: sin cambios, porque ya era así. El nivel gratuito de Gemini nunca recibe la pregunta, y sin IA solo se ven los fragmentos firmados.
+- **Pruebas**: `tests/test_banco_emg_hrv.py` (nuevo) comprueba:
+  - letra por letra contra la hoja y contra el documento firmado;
+  - cada explicación dentro de su línea t2:N;
+  - ningún ID fuera de E1–E10/H1–H8;
+  - los dos bancos en `balance_positions`;
+  - la correcta como opción más larga en a lo sumo 40 %;
+  - la regla B3 de LF/HF en las 18;
+  - las 18 registradas en la sesión con `emg`/`hrv` y en la mejora continua con su banco;
+  - «Pregunta a BIOCORE» sin dejar nada en ninguna base y con el aviso a la vista.
+  - Se ampliaron `test_quiz_bank.py` (bancos de EMG y HRV, y sus lecciones) y `test_confidence_calibration.py` (vocabulario y `QUIZ_BANKS`).
+
 ## 2026-11-17 — Ajustes de la revisión de los PR #5 y #6: Wilson 1927, sinónimos solo de nombres y preguntas de la demo
 
 **Contexto (Art. I)**: la calibración citaba Wilson 1927 en pantalla, pero la cita no estaba en la Bibliografía ni en los avisos de terceros. Además, la tabla de sinónimos de la búsqueda tenía equivalencias que no son nombres ni siglas.

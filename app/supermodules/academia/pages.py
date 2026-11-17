@@ -73,7 +73,7 @@ from app.supermodules.twin_shell.pages import (
 from app.supermodules.twin_shell.ups_body_visual import render_ups_body
 
 try:
-    from educational.learning_engine import LearningEngine, LESSON_CATEGORIES, generate_quiz
+    from educational.learning_engine import BANK_BY_CATEGORY, LearningEngine, LESSON_CATEGORIES, generate_quiz
     LESSONS_AVAILABLE = True
 except ImportError:
     LESSONS_AVAILABLE = False
@@ -227,8 +227,11 @@ def render_quiz_section() -> None:
                 if st.button("Responder", key=f"academia_quiz_submit_{current}", disabled=selected is None):
                     idx = q.choices.index(selected)
                     quiz_state["responses"][current] = idx
-                    log_answer(BANK, q, selected, quiz_state.setdefault("attempt", new_attempt()))
-                    record_quiz_answer(BANK, q, selected, confidence, quiz_state["attempt"])
+                    # 2026-11-17: las preguntas de EMG y HRV se registran con su banco («emg», «hrv»), como pide la
+                    # mejora continua (el identificador de una pregunta es banco + enunciado).
+                    bank = BANK_BY_CATEGORY.get(q.category, BANK)
+                    log_answer(bank, q, selected, quiz_state.setdefault("attempt", new_attempt()))
+                    record_quiz_answer(bank, q, selected, confidence, quiz_state["attempt"])
                     quiz_state["feedback"] = None
                     quiz_state["feedback_error"] = None
                     if narrator_is_configured():
@@ -274,7 +277,7 @@ def render_quiz_section() -> None:
                     st.caption(f"📘 Explicación del banco de preguntas: {q.explanation}")
                 if q.source:
                     st.caption(f"Fuente: {q.source}")
-                render_report_box(BANK, [q], key=f"academia_report_{current}")
+                render_report_box(BANK_BY_CATEGORY.get(q.category, BANK), [q], key=f"academia_report_{current}")
 
                 st.markdown("**Feedback del narrador (fundamentado):**")
                 if quiz_state["feedback"]:
