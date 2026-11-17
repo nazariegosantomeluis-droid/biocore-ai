@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-17 · Ruta de aprendizaje y modo Paciente, fase 0: plan
+
+**Contexto**: rediseño de la Academia como ruta (lecciones cortas, respuesta inmediata, XP, meta y racha) y modo Paciente separado del aprendizaje. Rama `ux-ruta-aprendizaje`, creada desde `main` (`1dfd84a`). Esta tanda no toca código.
+
+1. **Plan**: `docs/plan-ux-ruta.md`. Mapa de pantallas actual y nuevo, los dos modos, componentes, modelo de datos del progreso, flujo de datos de pacientes, límites de Streamlit y decisiones pendientes. Espera visto bueno antes de la fase 1.
+2. **Bloqueos encontrados**:
+   - La rama `biocore-v2` no existe en el remoto.
+   - El kit de marca (`docs/marca/Biocore-Kit-de-marca-v1.1/`) no está en ninguna rama.
+   - `visualization/art/` solo existe en `respaldo-mezcla-20261021`, que lleva aporte externo sin auditar.
+   - physionet.org no responde desde el entorno de la sesión.
+3. **Hallazgos sobre datos de pacientes** (Art. I; se corrigen en la fase 4):
+   - El CSV del Monitoreo del ECG se escribe en la carpeta temporal con su nombre original y no se borra (`app/main.py`, `render_ecg_monitor_page`).
+   - La exportación del ECG escribe en `datasets/exports/`, que `.gitignore` no excluye.
+   - Con clave de Anthropic, los datos de persona o de origen desconocido salen a la nube sin permiso en el momento; `privacy.py` solo bloquea a Gemini gratuito.
+   - La serie RR pegada en HRV se guarda al gemelo como `SIMULACION`, aunque puede ser de una persona.
+   - `pydicom` lee las etiquetas con datos personales del DICOM; la app usa solo la geometría y no las quita.
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
