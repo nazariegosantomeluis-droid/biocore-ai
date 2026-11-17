@@ -63,7 +63,9 @@ from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
-from app.utils.patient_banner import active_source_label, read_active_vitals, render_active_patient_banner
+from app.utils.patient_banner import (
+    active_source_label, patient_start_value, read_active_vitals, render_active_patient_banner,
+)
 from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -2182,7 +2184,7 @@ def render_hrv_page() -> None:
         validation="VALIDATED",
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
-    st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas tiempo-frecuencia y explanation clínica.')
+    st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas de tiempo y frecuencia.')
     # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
     # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
     # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
@@ -2200,13 +2202,23 @@ def render_hrv_page() -> None:
         if ECGAnalyzer is None:
             render_error_state('Motor ECGAnalyzer (detector TKEO) no disponible en este entorno -- sin RR que derivar.')
             return
+        # Integración (2026-11-17): FC base y FR EMPIEZAN en las del paciente activo del UPS (si caben en el control).
+        # La amplitud RSA no: el `hrv` del UPS no dice qué índice es, y ajustar la serie para «dar» ese número sería
+        # inventar la relación entre ambos.
+        hr_start, hr_note = patient_start_value('hr', 40, 140, 72, 'FC base')
+        rr_start, rr_note = patient_start_value('rr', 6, 30, 15, 'Frecuencia respiratoria')
         rsa_params = RsaParams(
-            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, 72)),
+            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, int(hr_start))),
             rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
                 help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
-            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
+            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, int(rr_start),
                 help='La banda HF de la Task Force cubre 9-24 rpm; fuera de ella la RSA no se lee como HF.')),
         )
+        for note in (hr_note, rr_note):
+            if note:
+                st.sidebar.caption(note)
+        if hr_note or rr_note:
+            st.sidebar.caption('La amplitud RSA no sale del paciente: el UPS guarda «hrv» sin decir qué índice es.')
         # 240 s (~290 latidos a 72 lpm): SampEn y DFA α1 necesitan ≥200 latidos; con 120 s
         # (~144) la fuente por defecto declinaría ambas.
         n = st.sidebar.slider('Duración (seg)', 30, 300, 240)

@@ -304,3 +304,60 @@ def test_ecg_del_paciente_no_se_guarda_de_vuelta_al_gemelo():
     at = _open("ecg", **{PATIENT_KEY: patient_id})
     assert not any("Guardar" in b.label and "gemelo" in b.label.lower() for b in at.button), \
         "esa señal nace del UPS: guardarla sería escribir el mismo valor otra vez"
+
+
+# ── Respiratorio y HRV empiezan en el paciente activo (integración, 2026-11-17) ─────────────────────────────────────
+RESP_RR = "Frecuencia Respiratoria (resp/min)"
+RESP_SPO2 = "SpO2 Basal (%)"
+
+
+def _sidebar_number(at, label):
+    return next(n for n in at.sidebar.number_input if n.label == label).value
+
+
+def _sidebar_slider(at, label):
+    return next(s for s in at.sidebar.slider if s.label == label).value
+
+
+def _sidebar_captions(at):
+    return " ".join(c.value for c in at.sidebar.caption)
+
+
+def test_respiratorio_empieza_en_la_fr_y_spo2_del_paciente():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 93.0}})
+    at = _open("respiratorio", **{PATIENT_KEY: patient_id})
+    assert _sidebar_number(at, RESP_RR) == 24 and _sidebar_number(at, RESP_SPO2) == 93
+    notes = _sidebar_captions(at)
+    assert f"`{patient_id[:SHORT_ID_LEN]}`" in notes and "ya es tu simulación" in notes
+
+
+def test_respiratorio_sin_paciente_se_ve_como_siempre():
+    at = _open("respiratorio")
+    assert _sidebar_number(at, RESP_RR) == 15 and _sidebar_number(at, RESP_SPO2) == 98
+    assert "paciente activo" not in _sidebar_captions(at)
+
+
+def test_respiratorio_spo2_fuera_del_rango_del_control_no_se_recorta():
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 22.0, "spo2": 85.0}})
+    at = _open("respiratorio", **{PATIENT_KEY: patient_id})
+    assert _sidebar_number(at, RESP_SPO2) == 98, "85 % no cabe en 90–100: no se recorta a 90 (sería otro paciente)"
+    assert "fuera del rango de este control" in _sidebar_captions(at)
+    assert _sidebar_number(at, RESP_RR) == 22
+
+
+def test_hrv_empieza_en_la_fc_y_fr_del_paciente_y_no_usa_su_hrv():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0, "hrv": 20.0},
+                                "respiratory": {"respiratory_rate": 24.0, "spo2": 93.0}})
+    at = _open("hrv", **{PATIENT_KEY: patient_id})
+    assert _sidebar_slider(at, "FC base (lpm)") == 100
+    assert _sidebar_slider(at, "Frecuencia respiratoria (rpm)") == 24
+    assert _sidebar_slider(at, "Amplitud RSA (lpm)") == 5, "la amplitud no se ajusta al hrv del UPS"
+    assert "sin decir qué índice es" in _sidebar_captions(at)
+
+
+def test_hrv_sin_dato_de_fr_lo_dice():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _open("hrv", **{PATIENT_KEY: patient_id})
+    assert _sidebar_slider(at, "FC base (lpm)") == 88
+    assert _sidebar_slider(at, "Frecuencia respiratoria (rpm)") == 15
+    assert "no tiene FR en el UPS" in _sidebar_captions(at)
