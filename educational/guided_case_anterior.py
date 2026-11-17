@@ -1,4 +1,4 @@
-"""Caso guiado de ECG 2: elevación del ST en V1–V4 (2026-11-17, Art. I). BORRADOR para la firma de Luis.
+"""Caso guiado de ECG 2: elevación del ST en V1–V4 (2026-11-17, Art. I). FIRMADO por Luis el 2026-11-17.
 
 La misma plantilla que el caso 1 (`educational/guided_case.py`): trazado SIMULADO, resultados MEDIDOS por el analizador,
 cada texto con su línea firmada del tema 5 de `teoria_citada.md` («t1:N», [W2009]) y el caso solo se muestra si

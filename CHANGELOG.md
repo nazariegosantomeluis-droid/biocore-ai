@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-17 — Caso guiado 2 firmado: elevación del ST en V1–V4
+
+Luis firmó el caso guiado 2 («Firmo el caso guiado 2»). `docs/contenido/caso_guiado_ecg_2.md` dice FIRMADO con su hoja marcada, y Practicar → «Caso guiado de ECG» muestra los dos casos con un selector. Pruebas: `tests/test_guided_case_2.py` (firmado, los dos casos en la app, registro con `caso_guiado:st_v1_v4:<decisión>`); la prueba de la pantalla sin firma ahora simula que ninguno de los dos está firmado.
+
 ## 2026-11-17 — Hemodinámica firmada con fuentes verificables, banco de NEWS2 corregido y caso guiado 2 para firma (Art. I)
 
 **Contexto**: Luis pidió resolver lo urgente de la evaluación: hemodinámica («firmo todo, pero que salga de referencias verídicas»), la observación del banco de NEWS2 y el siguiente paso (un segundo caso guiado). Los datos de la entidad legal siguen pendientes: no se dieron y no se inventan.

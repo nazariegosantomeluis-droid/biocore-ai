@@ -1,7 +1,7 @@
-# Caso guiado de ECG 2: elevación del ST en V1–V4 (BORRADOR para firma)
+# Caso guiado de ECG 2: elevación del ST en V1–V4 (FIRMADO)
 
-**Estado:** BORRADOR, sin firmar (17 de noviembre de 2026).
-**Uso:** `educational/guided_case_anterior.py` contiene este caso; `app/supermodules/academia/guided_case_view.py` lo muestra en Practicar → «Caso guiado de ECG» junto al caso 1, **solo si este documento dice «FIRMADO»**. Hasta entonces la página dice que hay un caso más pendiente de firma.
+**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome («Firmo el caso guiado 2»): todos los textos de este documento tal como están (C2-D1–D4, C2-P1–P4, C2-DS y C2-C).
+**Uso:** `educational/guided_case_anterior.py` contiene este caso; `app/supermodules/academia/guided_case_view.py` lo muestra en Practicar → «Caso guiado de ECG» junto al caso 1, **solo si este documento dice «FIRMADO»**.
 **Regla:** la misma del caso 1. Todo texto de enseñanza cita su línea firmada del tema 5 de `teoria_citada.md` («t1:N») con [W2009]; los resultados de las pruebas los mide el analizador sobre el trazado simulado; `tests/test_guided_case_2.py` exige que cada texto del código esté en este documento y que cada línea citada exista literal. «Se eleva» = la medición queda por encima de la línea de base al redondear a 0.1 mm (el criterio de signo del caso 1); no es el umbral diagnóstico de la ESC, que aplica el analizador en 12 Derivaciones.
 
 ---
@@ -32,7 +32,7 @@
 
 *Explicación:* El analizador mide la mayor elevación del ST en V1–V4. *Sale de la medición del caso.*
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-D2 · hipotesis_inicial.** Con solo ese dato, ¿hacia qué arteria orienta la tabla firmada?
 - ✅ La descendente anterior; el sitio de la oclusión depende de qué otras derivaciones se eleven
@@ -42,7 +42,7 @@
 
 *Explicación:* Las tres filas de la tabla que tratan las precordiales (oclusión proximal, distal y entre la primera septal y la primera diagonal) son de la descendente anterior [W2009]. *Línea firmada:* t1:78.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-D3 · hipotesis_final.** Con las pruebas que pediste, ¿qué sugiere el trazado sobre el sitio de la oclusión?
 - ✅ Sugiere la descendente anterior, pero el sitio no se puede precisar: falta la elevación en I
@@ -52,7 +52,7 @@
 
 *Explicación:* La oclusión proximal se acompaña de elevación en V1–V4, I, aVL y a menudo aVR; la distal, sobre todo en V3–V6; y entre la primera septal y la primera diagonal, el ST de V1 no se eleva [W2009]. Este trazado no cumple del todo ninguno de los tres. *Línea firmada:* t1:78.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-D4 · limite.** Antes de cerrar: ¿puedes afirmar cuál es la arteria responsable?
 - ✅ No: el ECG orienta hacia la arteria responsable, con menos certeza que hacia la región
@@ -62,7 +62,7 @@
 
 *Explicación:* Los cambios del segmento ST en un grupo de derivaciones orientan hacia la región del ventrículo afectada y, con menos certeza, hacia la arteria responsable [W2009]. *Línea firmada:* t1:72.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 ## 4. Pruebas que el estudiante puede pedir (el motivo correcto va primero)
 
@@ -73,7 +73,7 @@
 
 *Resultado:* V1 +2.0 mm: V1 se eleva.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-P2 · Revisar el ST en I y aVL** (línea firmada t1:78)
 - ✅ Ver si I y aVL se elevan, lo que junto con V1–V4 sugiere oclusión proximal de la descendente anterior
@@ -82,7 +82,7 @@
 
 *Resultado:* I +0.0 mm · aVL +0.4 mm: I no se eleva y aVL se eleva.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-P3 · Revisar el ST en V3–V6** (línea firmada t1:79)
 - ✅ Ver si la elevación está sobre todo en V3–V6, que sugiere oclusión distal de la DA
@@ -91,7 +91,7 @@
 
 *Resultado:* V3 +3.5 mm · V4 +2.5 mm · V5 +0.5 mm · V6 +0.0 mm: V5 y V6 se elevan menos que V3 y V4.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 **C2-P4 · Revisar el ST en aVR** (línea firmada t1:78)
 - ✅ Ver si aVR se eleva, como ocurre a menudo en la oclusión proximal de la descendente anterior
@@ -100,7 +100,7 @@
 
 *Resultado:* aVR +0.3 mm: aVR se eleva.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 ## 5. Desafío a la hipótesis final (revisor crítico, por reglas, sin modelo de lenguaje)
 
@@ -112,7 +112,7 @@
 
 *Líneas firmadas:* t1:78, t1:79 y t1:80.
 
-**Firma de Luis:** ☐ firmo ☐ corregir ☐ quitar
+**Firma de Luis:** ☑ firmado (17-11-2026)
 
 ## 6. Qué se evalúa (además del acierto)
 
@@ -128,17 +128,18 @@ Cada decisión se registra una vez por intento con `log_session_answer(..., "cas
 
 ## 7. Hoja de firma
 
+> Firmo el caso guiado 2. — Luis Nazariego Santome, 17/11/2026
+
 | ID | Decisión de Luis |
 |---|---|
-| C2-D1 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-D2 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-D3 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-D4 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-P1 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-P2 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-P3 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-P4 | ☐ firmo ☐ corregir ☐ quitar |
-| C2-DS (desafíos) | ☐ firmo ☐ corregir ☐ quitar |
-| C2-C (competencias) | ☐ firmo ☐ corregir ☐ quitar |
+| C2-D1 | ☑ firmado (17-11-2026) |
+| C2-D2 | ☑ firmado (17-11-2026) |
+| C2-D3 | ☑ firmado (17-11-2026) |
+| C2-D4 | ☑ firmado (17-11-2026) |
+| C2-P1 | ☑ firmado (17-11-2026) |
+| C2-P2 | ☑ firmado (17-11-2026) |
+| C2-P3 | ☑ firmado (17-11-2026) |
+| C2-P4 | ☑ firmado (17-11-2026) |
+| C2-DS (desafíos) | ☑ firmado (17-11-2026) |
+| C2-C (competencias) | ☑ firmado (17-11-2026) |
 
-Para firmar: cambia la línea «**Estado:**» por «**Estado:** FIRMADO …» (así la reconoce `case_signed()`) y marca la hoja.

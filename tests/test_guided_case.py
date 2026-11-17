@@ -181,7 +181,11 @@ def test_sin_firma_la_pantalla_solo_dice_que_falta_la_firma(monkeypatch):
     pytest.importorskip("streamlit")
     from streamlit.testing.v1 import AppTest
 
-    monkeypatch.setattr(g, "case_signed", lambda doc=None: False)   # AppTest corre en este proceso; se restaura solo
+    import educational.guided_case_anterior as g2
+
+    # AppTest corre en este proceso; se restaura solo. Ningún caso firmado (desde el 2026-11-17 hay dos).
+    monkeypatch.setattr(g, "case_signed", lambda doc=None: False)
+    monkeypatch.setattr(g2, "case_signed", lambda doc=None: False)
 
     def _script():
         from app.supermodules.academia.guided_case_view import render_guided_case

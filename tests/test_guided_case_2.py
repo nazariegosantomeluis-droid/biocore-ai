@@ -1,4 +1,4 @@
-"""Caso guiado de ECG 2: elevación del ST en V1–V4 (2026-11-17), BORRADOR para firma.
+"""Caso guiado de ECG 2: elevación del ST en V1–V4 (2026-11-17), FIRMADO por Luis el 2026-11-17.
 
 Lo mismo que se exige al caso 1: las premisas salen de la medición, cada texto del código está en el documento, cada
 línea citada existe literal, la correcta nunca es la opción más larga, y la página no lo muestra sin firma.
@@ -33,9 +33,10 @@ def _desafios(data):
     return out
 
 
-def test_es_un_borrador_y_no_se_firma_solo():
-    assert DOC.splitlines()[2].startswith("**Estado:** BORRADOR")
-    assert not g.case_signed()
+def test_esta_firmado_con_su_hoja():
+    assert DOC.splitlines()[2].startswith("**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome")
+    assert "> Firmo el caso guiado 2. — Luis Nazariego Santome, 17/11/2026" in DOC and "☐" not in DOC
+    assert g.case_signed()
 
 
 def test_cada_linea_citada_esta_literal_en_la_teoria_firmada():
@@ -94,9 +95,10 @@ def _page():
     render_guided_case()
 
 
-def test_sin_firma_solo_se_ve_el_caso_1_y_se_dice_que_falta_uno():
+def test_sin_firma_solo_se_ve_el_caso_1_y_se_dice_que_falta_uno(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
+    monkeypatch.setattr(g, "case_signed", lambda doc=None: False)    # simula que el caso 2 no estuviera firmado
     at = AppTest.from_function(_page, default_timeout=60)
     at.run()
     assert at.exception == []
@@ -105,10 +107,9 @@ def test_sin_firma_solo_se_ve_el_caso_1_y_se_dice_que_falta_uno():
     assert at.session_state["guided_case_id"] == g1.CASE_ID
 
 
-def test_con_firma_se_elige_y_registra_con_su_id(monkeypatch):
+def test_firmado_se_elige_en_la_pagina_y_registra_con_su_id():
     from streamlit.testing.v1 import AppTest
 
-    monkeypatch.setattr(g, "case_signed", lambda doc=None: True)     # simula la firma; el documento sigue en BORRADOR
     at = AppTest.from_function(_page, default_timeout=60)
     at.run()
     at.selectbox(key="guided_case_pick").set_value(g.CASE_ID).run()
@@ -120,3 +121,15 @@ def test_con_firma_se_elige_y_registra_con_su_id(monkeypatch):
     log = at.session_state["session_learning_log"]
     assert log[-1]["item_id"] == "caso_guiado:st_v1_v4:grupo" and log[-1]["correct"] is True
     assert log[-1]["source"] == "caso_guiado" and log[-1]["concept"] == "derivaciones_e_isquemia"
+
+
+def test_en_la_app_aparecen_los_dos_casos_sin_aviso_de_firma_pendiente():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=240)
+    at.session_state["biocore_start_page"] = "caso-guiado"
+    at.run()
+    assert at.exception == []
+    pick = at.selectbox(key="guided_case_pick")
+    assert list(pick.options) == ["Elevación del ST en II, III y aVF", "Elevación del ST en V1–V4"]
+    assert not any("pendiente" in c.value and "firma" in c.value for c in at.caption)
