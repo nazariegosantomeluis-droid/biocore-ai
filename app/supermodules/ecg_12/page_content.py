@@ -152,6 +152,41 @@ def load_ecg_csv_file(uploaded_file) -> Dict[str, np.ndarray]:
     return result
 
 
+ECG12_FS = 500.0                          # el generador y el registro PTB van a 500 muestras/s [K2007]
+PTB_SOURCE = "Registro real (PTB s0010_re, PhysioNet)"
+PTB_LEADS = {"I": "I", "II": "II", "III": "III", "AVR": "aVR", "AVL": "aVL", "AVF": "aVF",
+             "V1": "V1", "V2": "V2", "V3": "V3", "V4": "V4", "V5": "V5", "V6": "V6"}
+
+
+def _ptb_provenance() -> str:
+    try:
+        from src.signals.reference_recordings import load, source_line
+
+        rec = load("ptb_s0010")
+        return f"{source_line('ptb_s0010')}. {rec.meta['detail']} Primeros 10 s. {rec.citation}"
+    except Exception:
+        return "Registro real PTB s0010_re (PhysioNet): no disponible en este entorno."
+
+
+PTB_PROVENANCE = _ptb_provenance()
+
+
+def load_ptb_reference() -> Dict[str, np.ndarray]:
+    """Los primeros 10 s de las 12 derivaciones del registro real PTB s0010_re (mV, 500 Hz), con su procedencia.
+    Vacío si el archivo no está (la página cae entonces a la señal sintética y lo dice)."""
+    try:
+        from src.signals.reference_recordings import ptb_s0010
+
+        rec = ptb_s0010()
+    except Exception:
+        st.warning("No se encontró el registro PTB s0010_re en data/reference_signals/; se muestra la señal sintética.")
+        return {}
+    n = int(10 * rec["fs"])
+    data = {name: rec["leads"][raw][:n] for raw, name in PTB_LEADS.items()}
+    data["time"] = np.arange(n) / rec["fs"]
+    return data
+
+
 def bandpass_filter_signal(signal: np.ndarray, fs: float, lowcut: float = 0.5, highcut: float = 40.0, order: int = 2) -> np.ndarray:
     if len(signal) < 10 or butter is None or filtfilt is None:
         return signal
@@ -301,7 +336,8 @@ with col1:
             [
                 "Generar señal sintética",
                 "Cargar ECG desde archivo CSV",
-                "Simular captura de dispositivo"
+                "Simular captura de dispositivo",
+                PTB_SOURCE,
             ],
             index=0
         )
@@ -310,10 +346,13 @@ with col1:
             st.session_state.generate_ecg = False
             st.session_state.last_signal_source = signal_source
 
+        # Pulido profesional (2026-11-16): el filtro es un Butterworth de orden 2, 0.5–40 Hz, de fase cero (filtfilt).
+        # Con un corte superior < 150 Hz es de monitoreo, no diagnóstico [K2007]: así se rotula aquí y en el papel.
         apply_filter = st.checkbox(
-            "Aplicar filtro banda (0.5-40 Hz)",
+            "Aplicar el filtro de monitoreo (0.5–40 Hz)",
             value=True,
-            help="Activa un filtro pasa banda para limpiar el ECG antes de mostrar las 12 derivaciones.",
+            help="Pasa-banda de 0.5 a 40 Hz para limpiar el trazo. Es de monitoreo, no diagnóstico: un corte superior "
+                 "de 40 Hz invalida las mediciones de amplitud que se usan para clasificar diagnósticos [K2007].",
         )
 
         uploaded_ecg = None
@@ -330,6 +369,10 @@ with col1:
             st.session_state.generate_ecg = True
             st.info("Se simulará una captura tipo dispositivo (el mismo trazado con más ruido y deriva de la línea "
                     "de base) y se le aplicará el mismo análisis por criterios.")
+        elif signal_source == PTB_SOURCE:
+            st.session_state.generate_ecg = True
+            st.info("Se muestra un registro real de otra persona (PhysioNet), no un escenario: el escenario y los "
+                    "parámetros de arriba no se aplican.")
         elif signal_source == "Cargar ECG desde archivo CSV":
             st.info("Cuando cargue un archivo, el sistema extraerá las derivaciones disponibles y ejecutará el análisis automático de inmediato.")
 
@@ -365,6 +408,10 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
 
     generator_args = dict(qrs_ms=float(qrs_duration), p_amplitude_mv=float(p_amplitude),
                           st_elevation_mv=float(st_elevation))
+    if signal_source == PTB_SOURCE:
+        ecg_data = load_ptb_reference()      # registro real, no generado: ninguna FC del slider aplica
+        from_file = len(ecg_data) > 0
+
     if signal_source == "Simular captura de dispositivo" and len(ecg_data) == 0:
         ecg_data, truth = simulate_device_capture(condition_short, hr, **generator_args)
 
@@ -377,31 +424,38 @@ if st.session_state.generate_ecg or "ecg_data" not in st.session_state:
     # FC del trazado realmente generado (`generation_hr`); `None` si el trazado vino de un archivo.
     st.session_state.heart_rate = None if from_file else hr
     st.session_state.heart_rate_note = None if from_file else declared_range_note(condition_short, heart_rate)
-    st.session_state.signal_source = signal_source
+    # Si el registro PTB no está, se generó la señal sintética: el origen guardado dice lo que se muestra.
+    st.session_state.signal_source = (
+        "Generar señal sintética" if signal_source == PTB_SOURCE and not from_file else signal_source)
 
 # Display ECG if generated
 if "ecg_data" in st.session_state:
     ecg_data = st.session_state.ecg_data
     time = ecg_data['time']
 
-    # clinical.ecg12.plot_ecg_12_leads renders the standard clinical layout
-    # (3x4 sequential leads + rhythm strip on real ECG-paper grid) and
-    # already falls back to Matplotlib internally if Plotly is unavailable.
-    from clinical.ecg12 import plot_ecg_12_leads
+    # Pulido profesional (2026-11-16): el papel ECG único (`app/utils/ecg_paper.py`): formato de 4 columnas (I, II, III ·
+    # aVR, aVL, aVF · V1–V3 · V4–V6) con la tira de ritmo de 10 s de II debajo [K2007], 25 mm/s · 10 mm/mV con
+    # proporción fija y pulso de calibración de 1 mV al inicio de cada fila [MCM]. Antes: `clinical.ecg12`, sin
+    # proporción fija y con el pulso solo en la tira de ritmo.
+    from app.utils import ecg_paper
 
-    leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
-    signals = {lead: ecg_data.get(lead, np.zeros_like(time)) for lead in leads}
+    leads = [lead for column in ecg_paper.TWELVE_LEAD_COLUMNS for lead in column]
     absent = [lead for lead in leads if lead not in ecg_data]
+    signals = {lead: ecg_data[lead] for lead in leads if lead in ecg_data}
+    filtered = 'apply_filter' in locals() and apply_filter
+    if filtered:
+        signals = {lead: bandpass_filter_signal(signal, ECG12_FS) for lead, signal in signals.items()}
+    if st.session_state.get("signal_source") == PTB_SOURCE:
+        st.caption(PTB_PROVENANCE)
+    elif st.session_state.get("ecg_truth") is not None:
+        st.caption(f"{BADGES.tag(BADGES.SIMULATION)} Trazado sintético generado por BIOCORE a {ECG12_FS:g} muestras/s "
+                   "(no es un paciente).")
     if absent:
-        st.caption("No vienen en el registro (se dibujan planas, no son datos): " + ", ".join(absent) + ".")
-    if 'apply_filter' in locals() and apply_filter:
-        signals = {lead: bandpass_filter_signal(signal, 500) for lead, signal in signals.items()}
-
-    fig2 = plot_ecg_12_leads(signals, fs=500, title='ECG de 12 Derivaciones')
-    if hasattr(fig2, 'to_dict'):
-        st.plotly_chart(fig2, use_container_width=True)
-    else:
-        st.pyplot(fig2)
+        st.caption("No vienen en el registro (no se dibujan; no son datos): " + ", ".join(absent) + ".")
+    ecg_paper.render(ecg_paper.twelve_lead_figure(
+        signals, ECG12_FS, missing=absent,
+        filter_label=ecg_paper.MONITOR_FILTER_LABEL if filtered else ecg_paper.NO_FILTER_LABEL,
+    ), key="ecglab_12_paper")
 
     # Analysis section
     st.markdown("---")

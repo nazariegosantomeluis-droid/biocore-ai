@@ -66,28 +66,34 @@ def render_views():
     # de una línea y el detalle (sin cambios) se abre a demanda.
     with st.expander(RESPIRATORY_STATUS_SUMMARY, expanded=False):
         st.info(RESPIRATORY_STATUS_NOTICE, icon="🫁")
-    tabs = st.tabs(["Clínica", "Investigación", "Simulación"])
+    # Pulido profesional (2026-11-16, Art. I): sin pestañas Clínica / Investigación / Simulación. Una sola página: la
+    # vista clínica (trazo y valores) arriba; «Cómo se calcula» (antes Investigación: apneas, tabla y guardar al gemelo),
+    # «Simular» (antes Simulación) y «Teoría» (enlace a Aprender), plegados. Este laboratorio no tiene narrador con IA
+    # (se retiró en la consolidación del 2026-07-13: era una línea estática).
+    render_section_header("Vista Clínica")
+    if os.path.exists(MODULE_EMOJI):
+        try:
+            runpy.run_path(MODULE_EMOJI, run_name='__main__')
+        except VistaClinicaOmitida:
+            pass  # el error ya está junto al control afectado; las otras secciones se siguen dibujando
+        except Exception as e:
+            render_error_state(
+                "No se pudo renderizar la Vista Clínica del Laboratorio respiratorio.",
+                exception=e,
+            )
+    else:
+        st.info("Laboratorio respiratorio no encontrado. Implementación de plantilla.")
 
-    with tabs[0]:
-        render_section_header("Vista Clínica")
-        if os.path.exists(MODULE_EMOJI):
-            try:
-                runpy.run_path(MODULE_EMOJI, run_name='__main__')
-            except VistaClinicaOmitida:
-                pass  # el error ya está junto al control afectado; las otras pestañas se siguen dibujando
-            except Exception as e:
-                render_error_state(
-                    "No se pudo renderizar la Vista Clínica del Laboratorio respiratorio.",
-                    exception=e,
-                )
-        else:
-            st.info("Laboratorio respiratorio no encontrado. Implementación de plantilla.")
+    from app.utils.design_system import LAB_SECTION_HOW, LAB_SECTION_SIMULATE, LAB_SECTION_THEORY
+    from app.utils import navigation as nav
 
-    with tabs[1]:
+    with st.expander(LAB_SECTION_HOW, expanded=False):
         _render_investigacion_tab()
-
-    with tabs[2]:
+    with st.expander(LAB_SECTION_SIMULATE, expanded=False):
         _render_simulacion_tab()
+    with st.expander(LAB_SECTION_THEORY, expanded=False):
+        nav.link("referencias", "Referencias de los laboratorios en Aprender: NEWS2, cómo se mide la respiración, "
+                                "patrones, Cheyne-Stokes, Biot y apnea (con sus fuentes)", icon="📚")
 
 
 def _render_investigacion_tab():

@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, Union
 
@@ -114,6 +115,21 @@ class PALETTE:
     SENSOR_BOARD = "#7f1d1d"
     DIAGRAM_SERIES = (CRITICAL, NEUTRAL, STABLE, WARNING, WIRE_ORANGE, ACCENT_ON_DARK)
 
+    # Papel ECG (pulido profesional, 2026-11-16; `app/utils/ecg_paper.py`). Se midieron dos variantes; queda la de papel
+    # (fondo claro, cuadrícula rojiza, trazo oscuro) porque cumple AA con más margen: trazo/papel 17.99:1,
+    # trazo/línea gruesa 4.96:1, línea gruesa/papel 3.62:1. La oscura (`*_DARK`) también cumple (15.20, 4.62, 3.29) y
+    # queda medida en `CONTRAST_PAIRS` como alternativa. La línea fina (1 mm) subdivide la gruesa y no se lee sola.
+    ECG_PAPER = "#fff8f6"
+    ECG_GRID_MAJOR = "#d0605f"
+    ECG_GRID_MINOR = "#f2c4c4"
+    ECG_TRACE = "#111111"
+    ECG_LABEL = "#7a1f1f"                # nombre de la derivación y rótulo de escala sobre el papel
+    ECG_PAPER_DARK = "#0b1220"
+    ECG_GRID_MAJOR_DARK = "#a14c58"
+    ECG_GRID_MINOR_DARK = "#40283a"
+    ECG_TRACE_DARK = TEXT
+    ECG_LABEL_DARK = "#f2b8b8"
+
 
 # Pares (frente, fondo, mínimo WCAG) que la prueba de contraste exige: 4.5 texto normal, 3.0 objeto gráfico.
 CONTRAST_PAIRS = (
@@ -126,6 +142,12 @@ CONTRAST_PAIRS = (
     ("ON_STATE", "STABLE", 4.5), ("ON_STATE", "WARNING", 4.5), ("ON_STATE", "CRITICAL", 4.5),
     ("ON_STATE", "PRIMARY", 4.5), ("ON_STATE", "ACCENT_ON_DARK", 4.5),     # botón principal: reposo y cursor encima
     ("PRIMARY", "SECONDARY_BACKGROUND", 3.0), ("SERIES_2", "SECONDARY_BACKGROUND", 3.0),
+    # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
+    # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
+    ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
+    ("ECG_GRID_MAJOR", "ECG_PAPER", 3.0), ("ECG_TRACE", "ECG_GRID_MAJOR", 3.0),
+    ("ECG_TRACE_DARK", "ECG_PAPER_DARK", 4.5), ("ECG_LABEL_DARK", "ECG_PAPER_DARK", 4.5),
+    ("ECG_GRID_MAJOR_DARK", "ECG_PAPER_DARK", 3.0), ("ECG_TRACE_DARK", "ECG_GRID_MAJOR_DARK", 3.0),
 )
 
 
@@ -359,24 +381,46 @@ class TheoryTopic:
 
 THEORY_NO_SOURCE = "no citada en el repositorio (contenido pendiente de firma)"
 
+# Pulido profesional (2026-11-16, Parte C): cada laboratorio es UNA página (sin «Capa de Exploración Cognitiva»):
+# arriba el trazo y los valores clave; debajo, plegadas, estas secciones (las que el laboratorio tenga).
+LAB_SECTION_HOW = "Cómo se calcula"
+LAB_SECTION_SIMULATE = "Simular"
+LAB_SECTION_THEORY = "Teoría"
+LAB_SECTION_AI = "Narración con IA (opcional)"
 
-def render_theory_topic(topic: TheoryTopic) -> None:
-    """El ÚNICO componente de teoría: idea (con su imagen si existe) a la vista; mecanismo y detalle a demanda."""
+
+def render_theory_topic(topic: TheoryTopic, inside_expander: bool = False) -> None:
+    """El ÚNICO componente de teoría: idea (con su imagen si existe) a la vista; mecanismo y detalle a demanda.
+    `inside_expander`: el tema ya está dentro de un expander (Streamlit no permite anidarlos); las capas 2 y 3 van
+    seguidas, cada una con su rótulo."""
+    import contextlib
+
+    def layer(label):
+        if inside_expander:
+            st.markdown(f"**{label}**")
+            return contextlib.nullcontext()
+        return st.expander(label)
+
     st.markdown(f"#### {topic.title}")
     if topic.image:
         st.image(topic.image)
     if topic.idea:
         st.markdown(topic.idea)
     if topic.mechanism:
-        with st.expander("¿Cómo funciona? — mecanismo"):
+        with layer("¿Cómo funciona? — mecanismo"):
             st.markdown(topic.mechanism)
     if topic.detail:
-        with st.expander("Detalle y fuente"):
+        with layer("Detalle y fuente"):
             if callable(topic.detail):
                 topic.detail()
             else:
                 st.markdown(topic.detail)
             st.caption(f"Fuente: {topic.source or THEORY_NO_SOURCE}")
+            if topic.source and re.search(r"\[[A-Z0-9]+\]", topic.source):
+                # Pulido profesional: las claves firmadas ([K2007], [MCM]...) enlazan a la página Bibliografía.
+                from app.utils import navigation as nav
+
+                nav.link("bibliografia", "Referencias completas en Bibliografía", icon="📚")
 
 
 def render_section_header(title: str) -> None:
@@ -643,6 +687,11 @@ def resolve_validation_marker(
     return (color, symbol, validation_detail or validation)
 
 
+CONTENT_KEY = "biocore_content"     # clave del contenedor de cada página (app/main.py::main)
+CONTENT_MAX_PX = 1200                # ancho máximo del contenido, centrado (pulido profesional, Parte B)
+MEASURE_CH = 75                      # largo de línea máximo de un párrafo, en caracteres
+
+
 def inject_global_theme() -> None:
     """Estilo global de la app -- Consolidación Visual Tanda 1 (2026-09-20).
     Reemplaza `inject_biocore_css()` (antes en `app/main.py`), que inyectaba
@@ -666,6 +715,12 @@ def inject_global_theme() -> None:
                             {PALETTE.BACKGROUND};
                 color: {PALETTE.TEXT};
             }}
+            /* Pulido profesional (Parte B): el contenido de cada página vive en `st.container(key=CONTENT_KEY)` y se
+               limita a CONTENT_MAX_PX, centrado; los párrafos a MEASURE_CH caracteres. Selector por clave de
+               contenedor (.st-key-*), el que recomienda la guía de Streamlit: no depende de la estructura interna del
+               DOM. Las gráficas (tiras de ECG incluidas) usan todo el ancho del contenedor. */
+            .st-key-{CONTENT_KEY} {{ max-width: {CONTENT_MAX_PX}px; margin-left: auto; margin-right: auto; }}
+            .st-key-{CONTENT_KEY} p, .st-key-{CONTENT_KEY} li {{ max-width: {MEASURE_CH}ch; }}
             /* Tanda 2 de la fase 1: botón principal = texto ON_STATE sobre PRIMARY (5.56:1). Streamlit no expone el
                color del texto del botón en el tema y lo pinta blanco (3.21:1 sobre PRIMARY, no AA). */
             [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] *,

@@ -1,0 +1,192 @@
+"""Bibliografía (Aprender → Bibliografía; pulido profesional, 2026-11-16).
+
+Dos partes:
+1. `SIGNED`: las referencias de `docs/contenido/teoria_citada.md` (firmado por Luis el 2026-11-16), con su clave. Cada
+   bloque de teoría cita su clave ([K2007], [MCM]...) y enlaza aquí. Los metadatos de StatPearls y de Kors 1990 se
+   completaron con el registro de PubMed (decisión adicional 3 de la hoja de firma).
+2. `REPO`: las que la plataforma ya citaba en su código (una sola copia de cada cita en su módulo), en formato uniforme:
+   «Autores. Título. Revista año;volumen:páginas», sin las notas de uso que el código les pega; DOI enlazado si lo hay.
+
+Los datos, ecuaciones y bibliotecas de terceros están en `THIRD_PARTY_NOTICES.md`.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import List, Tuple
+
+PAGE_URL = "bibliografia"
+
+
+@dataclass(frozen=True)
+class Reference:
+    key: str
+    group: str
+    text: str                                     # Markdown, formato uniforme
+    links: Tuple[Tuple[str, str], ...] = ()       # (etiqueta, url)
+    note: str = ""
+
+
+GUIDES, BOOKS, ARTICLES = "Guías y documentos de consenso", "Libros de texto (acceso abierto)", "Artículos originales"
+
+SIGNED: Tuple[Reference, ...] = (
+    Reference("K2007", GUIDES,
+              "Kligfield P, Gettes LS, Bailey JJ, et al. Recommendations for the standardization and interpretation of "
+              "the electrocardiogram: part I: the electrocardiogram and its technology. A scientific statement from the "
+              "AHA Electrocardiography and Arrhythmias Committee, Council on Clinical Cardiology; the ACCF; and the HRS. "
+              "*Circulation*. 2007;115:1306–1324 (publicado también en *Heart Rhythm*. 2007;4:394–412).",
+              (("PDF de la HRS", "https://hrsonline.org/documents/part-i-electrocardiogram-and-its-technologypdf/download"),)),
+    Reference("W2009", GUIDES,
+              "Wagner GS, Macfarlane P, Wellens H, et al. AHA/ACCF/HRS recommendations for the standardization and "
+              "interpretation of the electrocardiogram: part VI: acute ischemia/infarction. *Circulation*. "
+              "2009;119:e262–e270.",
+              (("PDF de la HRS", "https://hrsonline.org/documents/standardization-and-interpretation-electrocardiogram-part-vipdf/download"),)),
+    Reference("RCP2017", GUIDES,
+              "Royal College of Physicians. *National Early Warning Score (NEWS) 2: Standardising the assessment of "
+              "acute-illness severity in the NHS. Updated report of a working party.* Londres: RCP; 2017.",
+              (("Resumen ejecutivo", "https://www.rcp.ac.uk/media/ctulqqbn/news2-executive-summary_0.pdf"),
+               ("Informe completo", "https://www.rcp.ac.uk/media/a4ibkkbf/news2-final-report_0_0.pdf"))),
+    Reference("B2012", GUIDES,
+              "Berry RB, Budhiraja R, Gottlieb DJ, et al. Rules for scoring respiratory events in sleep: update of the "
+              "2007 AASM Manual. *J Clin Sleep Med*. 2012;8(5):597–619."),
+    Reference("E2009", GUIDES,
+              "Epstein LJ, Kristo D, Strollo PJ Jr, et al. Clinical guideline for the evaluation, management and "
+              "long-term care of obstructive sleep apnea in adults. *J Clin Sleep Med*. 2009;5(3):263–276."),
+    Reference("IFCN2017", GUIDES,
+              "Kane N, Acharya J, Beniczky S, et al. A revised glossary of terms most commonly used by clinical "
+              "electroencephalographers and updated proposal for the report format of the EEG findings. Revision 2017. "
+              "*Clin Neurophysiol Pract*. 2017;2:170–185.",
+              (("doi:10.1016/j.cnp.2017.07.002", "https://doi.org/10.1016/j.cnp.2017.07.002"),
+               ("PDF", "https://discovery-pp.ucl.ac.uk/id/eprint/10076640/1/Kane_1-s2.0-S2467981X17300215-main.pdf"))),
+    Reference("MCM", BOOKS,
+              "Sibbald M, Dąbrowski A, Leśniak W. Standard Electrocardiography. En: *McMaster Textbook of Internal "
+              "Medicine*. Cracovia: Medycyna Praktyczna.",
+              (("Capítulo en línea", "https://empendium.com/mcmtextbook/chapter/B31.1269.3.6.1"),)),
+    Reference("CS2023", BOOKS,
+              "Chapa-Rodriguez A, Para K, Sankari A, Bollu PC. Cheyne-Stokes Respirations. En: *StatPearls*. Treasure "
+              "Island (FL): StatPearls Publishing; actualizado el 31 de julio de 2023. NCBI Bookshelf NBK448165; "
+              "PMID 28846350.",
+              (("Capítulo", "https://www.statpearls.com/point-of-care/19395"),
+               ("NCBI Bookshelf", "https://www.ncbi.nlm.nih.gov/books/NBK448165/")),
+              note="Autores tomados del registro de PubMed (PMID 28846350), cuya versión actual es del 17 de agosto de "
+                   "2026; el texto firmado se leyó en la versión del 31 de julio de 2023."),
+    Reference("AR2025", BOOKS,
+              "Whited L, Graham DD. Abnormal Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls "
+              "Publishing; actualizado el 13 de diciembre de 2025. NCBI Bookshelf NBK470309; PMID 29262235.",
+              (("Capítulo", "https://www.statpearls.com/point-of-care/23959"),),
+              note="Pendiente de verificar: el registro de PubMed (PMID 29262235) lista hoy a Porter R y Graham DD como "
+                   "autores; se conserva la autoría de la versión consultada."),
+    Reference("KORS1990", ARTICLES,
+              "Kors JA, van Herpen G, Sittig AC, van Bemmel JH. Reconstruction of the Frank vectorcardiogram from "
+              "standard electrocardiographic leads: diagnostic comparison of different methods. *Eur Heart J*. "
+              "1990;11(12):1083–1092. PMID 2292255.",
+              (("doi:10.1093/oxfordjournals.eurheartj.a059647",
+                "https://doi.org/10.1093/oxfordjournals.eurheartj.a059647"),)),
+    Reference("VZ2014", ARTICLES,
+              "Vozda M, Peterek T, Cerny M. Novel method for deriving vectorcardiographic leads based on artificial "
+              "neural networks. En: *Electrocardiology 2014 – Proceedings of the 41st International Congress on "
+              "Electrocardiology*; 2014:61–64.",
+              (("PDF", "https://www.measurement.sk/ICE2014/proceedings/061.pdf"),)),
+)
+
+SIGNED_KEYS = tuple(r.key for r in SIGNED)
+
+# «Oehler 2014» (auditoría firmada, decisión 2): es una publicación verificable (PubMed 25201032) y sostiene lo que el
+# panel del VCG le atribuye («ángulos amplios se asocian a mayor riesgo»: el resumen la asocia con muerte súbita y
+# mortalidad en estudios observacionales). Por eso se completa, no se sustituye.
+OEHLER_2014 = Reference(
+    "OEHLER2014", ARTICLES,
+    "Oehler A, Feldman T, Henrikson CA, Tereshchenko LG. QRS-T angle: a review. *Ann Noninvasive Electrocardiol*. "
+    "2014;19(6):534–542. PMID 25201032.",
+    (("doi:10.1111/anec.12206", "https://doi.org/10.1111/anec.12206"),),
+)
+
+
+def _uniform(citation: str) -> Tuple[str, Tuple[Tuple[str, str], ...]]:
+    """Quita la nota de uso que el código le pega a una cita entre paréntesis («(eje normal del adulto...)») y separa
+    el DOI como enlace."""
+    doi = re.search(r"doi:\s*(10\.\S+?)\.?(?=\s|$)", citation)
+    year = re.search(r"\b(19|20)\d{2}(?=[;.:]| \(|$)", citation)       # la nota va después del año, el título antes
+    start = year.end() if year else 0
+    note = re.search(r" \((?!publicada)", citation[start:])
+    text = citation[:start + note.start()] if note else citation
+    text = re.sub(r"\.?\s*doi:\s*10\.\S+", "", text).strip().rstrip(".") + "."
+    links = ((f"doi:{doi.group(1)}", f"https://doi.org/{doi.group(1)}"),) if doi else ()
+    return text, links
+
+
+def repo_references() -> List[Reference]:
+    """Las citas que la plataforma ya usaba en su código, sin repetir las de `SIGNED`."""
+    from clinical import calculators as C
+    from clinical import ecg_references as E
+    from clinical import eeg_references as G
+    from src.signals.ecg import vcg
+
+    citations = [
+        E.SURAWICZ_2009, E.RAUTAHARJU_2009, E.DREW_2010, E.AL_KHATIB_2017, E.KUSUMOTO_2018, E.PAGE_2015,
+        E.BYRNE_2023, E.THYGESEN_2012, E.VAN_GELDER_2024, E.SCHULZ_MENGER_2025,
+        C.BAZETT_CITATION, C.FRIDERICIA_CITATION, C.FRAMINGHAM_QTC_CITATION, C.HODGES_CITATION, C.QRS_AXIS_CITATION,
+        C.MAP_TARGET_CITATION, C.SHOCK_INDEX_CITATION,
+        "Mutschler M, Nienaber U, Münzberg M, et al. The Shock Index revisited -- a fast guide to transfusion "
+        "requirement? Crit Care 2013;17:R172",                                   # 2.ª cita de SHOCK_INDEX_CITATION
+        C.FORRESTER_CITATION, C.WHO_BMI_CITATION, C.MOSTELLER_CITATION, C.DUBOIS_CITATION, C.BERLIN_CITATION,
+        C.QSOFA_CITATION.split("; Singer")[0],
+        "Singer M, et al. The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3). "
+        "JAMA 2016;315:801–810",                                                 # 2.ª cita de QSOFA_CITATION
+        C.GCS_CITATION, C.PRQ_REFERENCE,
+        G.SEECK_2017, G.TATUM_2011, vcg.TANGENT_CITATION,
+    ]
+    refs = []
+    for citation in citations:
+        text, links = _uniform(citation)
+        refs.append(Reference("", "Otras referencias que cita la plataforma", text, links))
+    refs.append(OEHLER_2014)
+    try:
+        from src.signals.reference_recordings import load
+
+        for key in ("ptb_s0010", "cap_n16"):
+            rec = load(key)
+            text, links = _uniform(rec.citation)
+            refs.append(Reference("", "Registros reales que muestra la plataforma",
+                                  f"{text} {rec.title} (licencia {rec.license}).", links))
+    except Exception:                                                         # sin los archivos: no se listan
+        pass
+    return refs
+
+
+def cite(key: str) -> str:
+    """La clave entre corchetes, tal como la escribe el texto firmado."""
+    if key not in SIGNED_KEYS:
+        raise KeyError(key)
+    return f"[{key}]"
+
+
+def render_bibliography_page() -> None:
+    import streamlit as st
+
+    from app.utils.design_system import render_module_header, render_section_header
+
+    render_module_header("Bibliografía", icon="📚",
+                         subtitle="Las fuentes de la teoría y de los laboratorios, en un solo lugar.")
+    st.caption("Cada bloque de teoría lleva su clave entre corchetes ([K2007], [MCM]...): aquí está la referencia "
+               "completa. Datos, ecuaciones y bibliotecas de terceros: `THIRD_PARTY_NOTICES.md`.")
+    for group in (GUIDES, BOOKS, ARTICLES):
+        render_section_header(group)
+        for ref in SIGNED:
+            if ref.group == group:
+                _render_reference(st, ref)
+    extra = repo_references()
+    for group in dict.fromkeys(r.group for r in extra):
+        render_section_header(group)
+        for ref in extra:
+            if ref.group == group:
+                _render_reference(st, ref)
+
+
+def _render_reference(st, ref: Reference) -> None:
+    links = " · ".join(f"[{label}]({url})" for label, url in ref.links)
+    head = f"**[{ref.key}]** " if ref.key and ref.key in SIGNED_KEYS else ""
+    st.markdown(f"- {head}{ref.text}" + (f" {links}" if links else ""))
+    if ref.note:
+        st.caption(ref.note)

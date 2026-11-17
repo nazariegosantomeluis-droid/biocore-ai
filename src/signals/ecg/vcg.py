@@ -32,7 +32,7 @@ KORS_CITATION = (
 )
 QRST_ANGLE_CITATION = (
     "Oehler A, Feldman T, Henrikson CA, Tereshchenko LG. QRS-T angle: a review. "
-    "Ann Noninvasive Electrocardiol. 2014;19(6):534-542."
+    "Ann Noninvasive Electrocardiol. 2014;19(6):534-542. doi:10.1111/anec.12206"
 )
 TANGENT_CITATION = (
     "Postema PG, Wilde AAM. The measurement of the QT interval. Curr Cardiol Rev. 2014;10(3):287-294 "
