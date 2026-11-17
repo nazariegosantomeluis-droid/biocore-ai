@@ -35,6 +35,7 @@ from domain.physiology.narrator import (
 from app.utils.ai_session import AI_KEY_HINT, AI_OFF, ai_client, render_settings_link
 from app.utils.confidence import record_quiz_answer, render_confidence_input
 from app.utils.learning_log import log_answer, render_report_box
+from app.utils.legal import SHARED_DATA_NOTICE
 from app.supermodules.academia import improvement
 from educational.learning_analytics import new_attempt
 
@@ -160,6 +161,7 @@ def render_quiz_section() -> None:
         return
 
     student_id = st.text_input("ID del estudiante", value="estudiante_demo", key="academia_student_id")
+    st.caption(SHARED_DATA_NOTICE)       # opción B (2026-11-17): el ID no es una cuenta; en internet, datos compartidos
     rural_mode_enabled = st.checkbox(
         "Modo Rural (offline, guardar progreso localmente)", value=False, key="academia_rural_mode"
     )

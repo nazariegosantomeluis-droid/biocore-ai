@@ -111,7 +111,8 @@ def test_each_explanation_is_a_substring_of_its_signed_t2_lines(qid):
 def test_no_id_outside_the_signed_list_is_in_code():
     src = (ROOT / "educational/quiz_bank.py").read_text(encoding="utf-8")
     ids = re.findall(r"QuizQuestion\(\s*#\s*([A-Z]+\d+(?:\.\d+)?) ·", src)
-    assert ids == SIGNED_IDS
+    # 2026-11-17: N1–N9 (NEWS2, firmado aparte) los vigila tests/test_banco_news2.py.
+    assert [i for i in ids if i[0] in "EH"] == SIGNED_IDS
     unsigned = re.findall(r"^\*\*(C\d\.\d)\*\* (?:\*\([^)]*\)\* )?(.+)$", BANCO, re.M)
     prompts = {q.prompt for q in QB.EMG_QUESTIONS + QB.HRV_QUESTIONS}
     assert unsigned and not any(p in prompts for _, p in unsigned)        # los casos (después de hoy) no están

@@ -31,7 +31,7 @@ PANEL_INTRO = ("Compara qué tan seguro dijiste estar con qué tanto acertaste. 
 _RECORDED = "confidence_recorded_answers"
 _LABELS = "confidence_item_labels"
 # Los bancos que piden confianza; su `question_id` permite mostrar el enunciado en «errores con más confianza».
-QUIZ_BANKS = ("academia", "ecg12", "emg", "hrv")     # emg y hrv: lecciones de la Academia (2026-11-17)
+QUIZ_BANKS = ("academia", "ecg12", "emg", "hrv", "news2")   # emg, hrv y news2: lecciones de la Academia (2026-11-17)
 _PROMPT_BY_ID = {question_id(bank, prompt): prompt for bank in QUIZ_BANKS for prompt in CONCEPT_BY_PROMPT}
 
 

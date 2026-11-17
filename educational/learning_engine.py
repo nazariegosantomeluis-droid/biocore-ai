@@ -6,11 +6,11 @@ from typing import Optional
 
 try:
     from educational import rural_mode
-    from educational.quiz_bank import ACADEMIA_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS, QuizQuestion
+    from educational.quiz_bank import ACADEMIA_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS, NEWS2_QUESTIONS, QuizQuestion
 except Exception:
     # local import path fallback
     from . import rural_mode
-    from .quiz_bank import ACADEMIA_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS, QuizQuestion
+    from .quiz_bank import ACADEMIA_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS, NEWS2_QUESTIONS, QuizQuestion
 
 # 2026-11-14 (Art. I): `QuizQuestion` y el banco de Academia viven en `educational/quiz_bank.py`,
 # cada pregunta con su explicación y su fuente (antes las 14 originales no tenían ni una ni otra, y
@@ -80,12 +80,13 @@ class LearningEngine:
 # preguntas rescatadas que no son específicamente de ECG (una es EEG, la otra
 # PPG) — decidido con el usuario en vez de forzarlas dentro de una categoría
 # a la que no pertenecen.
-LESSON_CATEGORIES = ["ECG Básico", "ECG 12-derivaciones", "Arritmias", "Otras señales", "EMG", "HRV"]
+LESSON_CATEGORIES = ["ECG Básico", "ECG 12-derivaciones", "Arritmias", "Otras señales", "EMG", "HRV", "NEWS2"]
 
 # 2026-11-17: los bancos de EMG y HRV (firmados por Luis el 2026-11-17) entran como dos lecciones más. Cada lección
 # toma su banco; en la base de la mejora continua y en la sesión se registran con su propio nombre de banco.
-LESSON_BANKS: Dict[str, List[QuizQuestion]] = {"EMG": EMG_QUESTIONS, "HRV": HRV_QUESTIONS}
-BANK_BY_CATEGORY: Dict[str, str] = {"EMG": "emg", "HRV": "hrv"}
+# NEWS2 (N1–N9, firmado por Luis el 2026-11-17) se suma igual, con su propio banco.
+LESSON_BANKS: Dict[str, List[QuizQuestion]] = {"EMG": EMG_QUESTIONS, "HRV": HRV_QUESTIONS, "NEWS2": NEWS2_QUESTIONS}
+BANK_BY_CATEGORY: Dict[str, str] = {"EMG": "emg", "HRV": "hrv", "NEWS2": "news2"}
 
 
 def generate_quiz(topic: str = 'ecg_basics', level: str = 'basic', lesson: str = None) -> Dict[int, QuizQuestion]:

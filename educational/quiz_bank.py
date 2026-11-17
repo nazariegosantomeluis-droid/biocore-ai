@@ -723,6 +723,107 @@ HRV_QUESTIONS: List[QuizQuestion] = balance_positions([
 ], 'hrv')
 
 
+# --- NEWS2 (2026-11-17): N1–N9, FIRMADOS por Luis el 2026-11-17 («Firmo todo»; D-N7: sí) ------------------------------
+# Texto exacto de `docs/contenido/banco_preguntas_news2.md`. Cada explicación es la de esa hoja, que sale de la línea
+# «t1:N» de `docs/contenido/teoria_citada.md` (temas 2 y 6). `tests/test_banco_news2.py` vigila todo esto.
+_NEWS2 = "NEWS2"
+_REF_RCP2017 = ('[RCP2017] Royal College of Physicians. National Early Warning Score (NEWS) 2: Standardising the '
+                'assessment of acute-illness severity in the NHS. Updated report of a working party. Londres: RCP; 2017.')
+_NEWS2_PULSE = 'en la escala NEWS2, el pulso puntúa: ≤40 lpm, 3 puntos; 41–50, 1; 51–90, 0; 91–110, 1; 111–130, 2; ≥131, 3 [RCP2017].'
+
+NEWS2_QUESTIONS: List[QuizQuestion] = balance_positions([
+    QuizQuestion(  # N1 · firmada 2026-11-17 · t1:91
+        '¿Para qué sirve NEWS2?',
+        ['Para estandarizar cómo se registran, puntúan y atienden las constantes vitales, y detectar el deterioro agudo',
+         'Para diagnosticar la causa del deterioro de un paciente',
+         'Para sustituir la valoración de un clínico',
+         'Para medir la saturación de oxígeno sin pulsioxímetro'],
+        0, category=_NEWS2,
+        explanation=('NEWS2 es una puntuación agregada que estandariza cómo se registran, puntúan y atienden las '
+                     'constantes vitales para detectar el deterioro agudo [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N2 · firmada 2026-11-17 · t1:94
+        '¿Cuántos parámetros puntúa NEWS2?',
+        ['Seis: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión '
+         'nueva, y temperatura',
+         'Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura',
+         'Cinco: los mismos seis, sin la temperatura',
+         'Tres: pulso, presión arterial y SpO₂'],
+        0, category=_NEWS2,
+        explanation=('puntúa seis parámetros: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel '
+                     'de consciencia o confusión nueva, y temperatura [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N3 · firmada 2026-11-17 · t1:94
+        'Si el paciente recibe oxígeno suplementario, ¿qué pasa con su NEWS2?',
+        ['Se suman 2 puntos', 'Se suma 1 punto', 'Se suman 3 puntos', 'No cambia: el oxígeno no se puntúa'],
+        0, category=_NEWS2,
+        explanation='se suman 2 puntos si el paciente recibe oxígeno suplementario [RCP2017].',
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N4 · firmada 2026-11-17 · t1:35
+        'En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?',
+        ['2 puntos (tramo de 111 a 130 lpm)', '0 puntos', '1 punto', '3 puntos'],
+        0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N5 · firmada 2026-11-17 · t1:35
+        'En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?',
+        ['1 punto (tramo de 41 a 50 lpm)', '0 puntos', '2 puntos', '3 puntos'],
+        0, category=_NEWS2, explanation=_NEWS2_PULSE, source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N6 · firmada 2026-11-17 · t1:96
+        '¿Qué significa un 3 en un solo parámetro de NEWS2?',
+        ['Es poco frecuente y motiva una revisión urgente',
+         'Nada mientras el total sea bajo',
+         'Que el paciente recibe oxígeno suplementario',
+         'Que hay que usar la escala 2 de SpO₂'],
+        0, category=_NEWS2,
+        explanation=('un 3 en un solo parámetro (marcado en rojo) es poco frecuente y motiva una revisión urgente '
+                     '[RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N7 · firmada 2026-11-17 · t1:99 (D-N7: sí)
+        'Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?',
+        ['Revisión urgente por un clínico competente en enfermedad aguda',
+         'Vigilancia al menos cada 12 horas',
+         'Valoración por enfermería',
+         'Valoración de emergencia por un equipo con competencia en cuidados críticos'],
+        0, category=_NEWS2,
+        explanation=('total 0: vigilancia al menos cada 12 horas. Total 1–4 (bajo): valoración por enfermería. Total '
+                     '5–6 (medio): revisión urgente por un clínico competente en enfermedad aguda. Total 7 o más '
+                     '(alto): valoración de emergencia por un equipo con competencia en cuidados críticos [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N8 · firmada 2026-11-17 · t1:100
+        '¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?',
+        ['En insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo '
+         'indicación de un clínico',
+         'Siempre que la SpO₂ baje de 92 %',
+         'En todo paciente que recibe oxígeno suplementario',
+         'Nunca: NEWS2 tiene una sola escala de SpO₂'],
+        0, category=_NEWS2,
+        explanation=('la escala 2 de SpO₂ se usa en insuficiencia respiratoria hipercápnica confirmada (por lo general '
+                     'EPOC), con objetivo de 88–92 %, bajo indicación de un clínico. En los demás casos se usa la '
+                     'escala 1 [RCP2017].'),
+        source=_REF_RCP2017,
+    ),
+    QuizQuestion(  # N9 · firmada 2026-11-17 · t1:101
+        '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?',
+        ['Porque el gemelo no dispone de presión arterial en todos los casos y no modela temperatura ni consciencia: '
+         'un total sería falso',
+         'Porque el total de NEWS2 no tiene utilidad clínica',
+         'Porque el total solo se calcula en pacientes con oxígeno suplementario',
+         'Porque el total requiere un electrocardiograma de 12 derivaciones'],
+        0, category=_NEWS2,
+        explanation=('el gemelo no dispone de presión arterial en todos los casos, y no modela temperatura ni '
+                     'consciencia. Sin esos parámetros, un total sería falso; por eso la plataforma muestra los '
+                     'puntos de cada parámetro disponible y lista lo que falta.'),
+        source=_REF_RCP2017,
+    ),
+], 'news2')
+
+
 # --- Concepto de cada pregunta (2026-11-17): FIRMADO por Luis el 2026-11-17 (bloque de firma del 17-11-2026) -----------------------
 # Vocabulario: `CONCEPTS` de `app/utils/session_learning.py` (el contrato de Luis; no se inventan otros). Lo usa la
 # calibración de la confianza (`educational/confidence_calibration.py`). Una pregunta que no encaja en ningún
@@ -816,4 +917,22 @@ CONCEPT_BY_PROMPT = {
         'hrv',  # H7
     '¿Existe un único «valor normal» de HRV?':
         'hrv',  # H8
+    '¿Para qué sirve NEWS2?':
+        'news2',  # N1
+    '¿Cuántos parámetros puntúa NEWS2?':
+        'news2',  # N2
+    'Si el paciente recibe oxígeno suplementario, ¿qué pasa con su NEWS2?':
+        'news2',  # N3
+    'En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?':
+        'news2',  # N4
+    'En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?':
+        'news2',  # N5
+    '¿Qué significa un 3 en un solo parámetro de NEWS2?':
+        'news2',  # N6
+    'Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?':
+        'news2',  # N7
+    '¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?':
+        'news2',  # N8
+    '¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?':
+        'news2',  # N9
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-17 — Banco de NEWS2 firmado, D1 firmado y opción B: los datos en internet son compartidos y temporales (Art. I)
+
+**Contexto**: Luis firmó todo («Firmo todo»): el banco de NEWS2 (N1–N9, con D-N7: sí) y el consentimiento D1. Para la persistencia eligió la opción B: decir con claridad dónde quedan los datos cuando la app corre en internet, en vez de montar ahora una base con cuentas (opción A, para después).
+
+1. **NEWS2 en el Quiz de la Academia:** lección «NEWS2» con `NEWS2_QUESTIONS` (9 preguntas de los temas 2 y 6 firmados, fuente [RCP2017]), banco `news2` en la mejora continua y concepto `news2` en la sesión y la calibración. El concepto `news2` tenía 0 preguntas de banco. `tests/test_banco_news2.py`: la hoja firmada y el código dicen lo mismo, cada cita es literal y los puntos de pulso coinciden con `news2_pulse_score`. Observación sin cambiar lo firmado: en N1, N2, N8 y N9 la correcta es la opción más larga.
+2. **D1 firmado:** el consentimiento antes de medir las propias señales queda firmado en `docs/legal/textos_legales.md`.
+3. **Opción B (Art. I):** AP1 decía «base local de la computadora donde corre la plataforma» y AP3 «solo en la computadora donde corre BIOCORE AI»; en Streamlit Cloud eso no es cierto: las bases están en el servidor, compartidas entre quienes usan la copia y se borran al reiniciar. Ahora lo dicen, y bajo el «ID del estudiante» del quiz aparece `SHARED_DATA_NOTICE` (el ID es texto libre; quien escriba el mismo ve ese progreso; no uses tu nombre ni tu matrícula).
+
 ## 2026-11-17 — Evaluación de la plataforma, bloque 1: arreglos rápidos (Art. I)
 
 **Contexto**: Luis pidió evaluar la plataforma. La evaluación (por ejecución: las 29 páginas, capturas en computadora y celular, bancos de preguntas, arranque y dependencias) encontró, entre otros: el selector «Nivel» del quiz no cambiaba la dificultad; en el celular el menú tapaba el contenido; el despliegue en la nube quedaba con módulos viejos; diez paquetes de `requirements.txt` que la app no importa. Bloque 1:

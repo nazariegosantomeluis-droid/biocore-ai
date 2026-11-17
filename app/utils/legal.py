@@ -111,11 +111,14 @@ PRIVACY: Tuple[Tuple[str, str, str], ...] = (
     ("AP1", "1. Datos personales recabados",
      "Hoy BIOCORE AI no tiene cuentas: no recaba nombre, correo institucional, matrícula ni rol. El único dato que "
      "puede identificarle es el «ID del estudiante» que usted escribe en la Academia (texto libre), que se guarda con "
-     "sus respuestas en una base local de la computadora donde corre la plataforma. Datos personales sensibles "
+     "sus respuestas en una base de la computadora o del servidor donde corre la plataforma. Datos personales sensibles "
      "(biométricos y fisiológicos): las señales de electrocardiograma (ECG), electromiograma (EMG), fotopletismografía "
      "(PPG), pulso y temperatura corporal obtenidas con el hardware del sistema, y el EEG si se conecta un equipo "
      "externo. Las señales se procesan durante la sesión; si usted pulsa «Guardar al gemelo», se guardan los valores "
-     "calculados (no la señal completa) en una base local, con su procedencia."),
+     "calculados (no la señal completa) en esa misma base, con su procedencia. Si usa BIOCORE AI desde internet (por "
+     "ejemplo, en Streamlit Cloud), esas bases están en el servidor que la aloja: las comparten todas las personas que "
+     "usan esa copia y se borran cuando el servidor se reinicia. Por eso no escriba su nombre ni su matrícula como "
+     "«ID del estudiante»."),
     ("AP2", "2. Finalidad del tratamiento de datos",
      "Los datos personales sensibles recabados se utilizarán única y exclusivamente para: permitir al usuario "
      "visualizar su propio estado fisiológico dentro del gemelo digital con fines de aprendizaje práctico, y procesar "
@@ -125,8 +128,10 @@ PRIVACY: Tuple[Tuple[str, str, str], ...] = (
      "registros clínicos para fines de calificación."),
     ("AP3", "3. Transferencia de datos",
      "Sus datos personales y sensibles no serán transferidos a terceros comerciales, aseguradoras, instituciones "
-     "médicas ni entidades externas ajenas a {universidad}. Hoy se guardan solo en la computadora donde corre BIOCORE "
-     "AI: no hay servidores de BIOCORE AI. Excepción: si usted pega una clave de IA en Ajustes y usa la narración con IA "
+     "médicas ni entidades externas ajenas a {universidad}. Hoy se guardan solo donde corre BIOCORE AI: en la "
+     "computadora que la ejecuta o, si se usa desde internet, en el servidor que la aloja (por ejemplo, Streamlit "
+     "Cloud); BIOCORE AI no tiene servidores propios. Excepción: si usted pega una clave de IA en Ajustes y usa la "
+     "narración con IA "
      "o «Pregunta a BIOCORE», el texto de su pregunta y los datos del contexto se envían al proveedor que eligió "
      "(Anthropic o Google). Con el nivel gratuito de Gemini nunca se envían datos de personas: solo datos simulados o "
      "de bases públicas."),
@@ -178,7 +183,16 @@ SAFETY_BY_KIND: Dict[str, Sequence[str]] = {
     "ecg": ("PS1", "PS2"), "emg": ("PS1", "PS2"), "ppg": ("PS3",), "temp": ("PS2",), "eeg": ("PS4",),
 }
 
-# ── D1: consentimiento antes de medir las propias señales (2026-11-17) ────────────────────────────────────────────
+# ── Opción B (2026-11-17): dónde quedan los datos cuando la app corre en internet ─────────────────────────────────────
+# Va junto al «ID del estudiante» del Quiz de la Academia: es el único dato que alguien podría escribir para
+# identificarse, y en una copia en internet lo ven todas las personas que usan esa copia.
+SHARED_DATA_NOTICE = (
+    "El «ID del estudiante» es un texto libre, no una cuenta. Si usas BIOCORE AI desde internet, tus respuestas y tu "
+    "progreso quedan en el servidor: los comparten todas las personas que usan esa copia (quien escriba el mismo ID ve "
+    "tu progreso) y se borran cuando el servidor se reinicia. No uses tu nombre ni tu matrícula.")
+
+
+# ── D1: consentimiento antes de medir las propias señales (firmado por Luis el 2026-11-17) ────────────────────────────────────────────
 # Se pide una vez por sesión, en la barra lateral de cada fuente en vivo, solo antes de usar un equipo REAL (las
 # prácticas con placa simulada no lo piden). El texto sale del Aviso de privacidad firmado (AP1, AP3) y dice que la
 # base puede estar en la computadora o en el servidor donde corre la plataforma (en la nube, el servidor).

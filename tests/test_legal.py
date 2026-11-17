@@ -253,3 +253,19 @@ def test_las_tres_fuentes_en_vivo_piden_el_consentimiento():
     for path in ("app/supermodules/ecg_live/monitor_source.py", "app/supermodules/biosensors/source.py",
                  "app/supermodules/eeg_neuro_lab/live_source.py"):
         assert "own_signals_consent(" in Path(path).read_text(encoding="utf-8"), path
+
+
+# ── Opción B: dónde quedan los datos cuando la app corre en internet ────────────────────────────────────────────────
+def test_ap1_y_ap3_dicen_que_en_internet_los_datos_estan_en_el_servidor():
+    privacy = dict((i, b) for i, _, b in legal.PRIVACY)
+    assert "base de la computadora o del servidor donde corre la plataforma" in privacy["AP1"]
+    assert "las comparten todas las personas que usan esa copia y se borran cuando el servidor se reinicia" in privacy["AP1"]
+    assert "en el servidor que la aloja (por ejemplo, Streamlit Cloud)" in privacy["AP3"]
+    for text in privacy.values():
+        assert "base local de la computadora" not in text and "solo en la computadora" not in text
+    assert legal.SHARED_DATA_NOTICE in DOC and "OB · Aviso de datos compartidos" in DOC
+
+
+def test_el_quiz_avisa_que_el_id_no_es_una_cuenta_y_los_datos_se_comparten():
+    at = _open("quiz")
+    assert legal.SHARED_DATA_NOTICE in " ".join(c.value for c in at.caption)
