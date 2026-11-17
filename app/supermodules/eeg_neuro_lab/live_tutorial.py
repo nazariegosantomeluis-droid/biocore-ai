@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from app.utils.legal import render_safety_precautions
 from app.supermodules.eeg_neuro_lab import live_service
 from app.supermodules.eeg_neuro_lab.live_source import (MAINS_OPTIONS, SOURCE_LABEL, STATE_ICONS, TUTORIAL_TAB,
                                                         render_simulator_controls)
@@ -263,6 +264,7 @@ def render_live_tutorial() -> None:
 
     with st.expander('2. Seguridad y alcance', expanded=True):
         st.markdown(_bullets(SAFETY))
+        render_safety_precautions('eeg')       # 2026-11-17: precauciones del manual de usuario (`app/utils/legal.py`)
 
     names = [d.name for d in DEVICES]
     device = DEVICES[names.index(st.selectbox('Tu equipo (para las secciones 3 y 4)', names, index=2,

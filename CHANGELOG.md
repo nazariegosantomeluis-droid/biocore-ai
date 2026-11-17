@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-17 — Textos legales en la app: Términos, Aviso de privacidad, aviso clínico de entrada y precauciones del manual (Art. I)
+
+**Contexto**: Luis entregó los Términos y condiciones, el Aviso de privacidad (LFPDPPP), el texto del empaque (NOM-050), las precauciones del manual y el aviso clínico de entrada. Decisiones suyas: los datos faltantes se ven como «[pendiente: …]»; lo que hoy no es cierto se ajusta y queda para su firma; la casilla obligatoria (sin detectar el desplazamiento); el empaque y el manual quedan como documentos y las precauciones también en los tutoriales.
+
+1. **Un solo lugar:** `app/utils/legal.py` (textos de la app, `LEGAL_DATA`, aviso de entrada, pie de página) y `docs/legal/textos_legales.md` (lo que muestra la app, los ajustes con su motivo, los originales tal como se entregaron y la hoja de firma). Una prueba exige que cada texto de la app esté literal en el documento.
+2. **Datos faltantes, sin inventar:** entidad legal, domicilio, correo de privacidad, universidad, dominio, consumo del kit y contacto de soporte se muestran como «[pendiente: …]»; la prueba avisa mientras falte alguno.
+3. **Ajustes (Art. I), pendientes de firma:**
+   - SpO₂: solo del modelo simulado; no se calcula con el sensor de pulso (TC2).
+   - Procedencia de cada valor, con una cuarta categoría (calculado, con su criterio rotulado) (TC3).
+   - Propiedad intelectual con la excepción de los componentes de terceros de THIRD_PARTY_NOTICES (TC4).
+   - Sin cuentas ni Capa Docente hoy (TC5, AP2, AP5).
+   - Datos que se guardan hoy: el «ID del estudiante» y los valores del UPS en bases locales; no la señal completa (AP1).
+   - Sin servidores de BIOCORE AI, con la excepción de la IA: con clave de Anthropic, el contexto puede llevar datos de un sensor real (AP3).
+   - Simulaciones «rotuladas» en vez de «validadas», con la PA de la sepsis en revisión clínica (CW1).
+4. **En la app:** «Términos y condiciones» y «Aviso de privacidad» en Ajustes (29 páginas), enlazadas al pie de cada página con «BIOCORE AI NO ES UN DISPOSITIVO MÉDICO: uso exclusivamente educativo.». El aviso clínico de entrada bloquea la página al iniciar la sesión y al entrar a cada página de caso clínico. Las precauciones PS1–PS4 del manual, tal cual, en «Seguridad» de los tutoriales (ECG: PS1–PS2; EMG: PS1–PS2; pulso: PS3; temperatura: PS2; EEG: PS4); no contradicen lo que ya decían.
+5. **Pruebas:** `tests/test_legal.py`; `tests/conftest.py` apaga el aviso de entrada para las pruebas que abren páginas (marca `aviso_de_entrada` para las suyas).
+
 ## 2026-11-17 — Integración 3: pasaporte de evidencia en main, Detective corregido y un solo criterio de calibración (Art. I)
 
 **Contexto**: `pasaporte-evidencia` (José Miguel) se fusionó sobre `integracion-3` (base de conocimiento, caso guiado firmado e `integracion-1`). Sus commits no traen atribución a Claude: fusión normal, con sus autores.

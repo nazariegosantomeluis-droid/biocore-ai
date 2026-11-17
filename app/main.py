@@ -31,6 +31,7 @@ if ROOT_DIR not in sys.path:
 from app.utils.env_loader import load_dotenv_file
 load_dotenv_file(Path(ROOT_DIR) / ".env")
 
+from app.utils import legal
 from app.utils import navigation as nav
 from app.utils.ai_session import (
     AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_settings_link, render_settings_page,
@@ -2875,6 +2876,9 @@ def _page_specs() -> list:
         ("Explorar", "pacientes", "Flujo de pacientes", "👥", render_patient_pipeline_page),
         ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
         ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_page),
+        # Textos legales (2026-11-17, `app/utils/legal.py`; originales y ajustes en docs/legal/textos_legales.md).
+        ("Ajustes", "terminos", "Términos y condiciones", "📜", legal.render_terms_page),
+        ("Ajustes", "privacidad", "Aviso de privacidad", "🔒", legal.render_privacy_page),
     ]
 
 
@@ -2891,7 +2895,13 @@ def main() -> None:
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()
     with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo
-        current.run()
+        # Aviso clínico y educativo (2026-11-17): al iniciar la sesión y al entrar a una página que carga un caso
+        # clínico, la página no se dibuja hasta marcar la casilla (`legal.clickwrap_pending`).
+        if legal.clickwrap_pending(current.url_path):
+            legal.render_clickwrap(current.url_path)
+        else:
+            current.run()
+        legal.render_legal_footer()
 
 
 if __name__ == '__main__':

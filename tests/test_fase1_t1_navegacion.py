@@ -64,7 +64,7 @@ def test_each_section_holds_what_the_signed_decision_lists():
                                        "casos-simulador", "what-if", "detective", "mi-sesion"]
     assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
                                       "biomarcadores", "calculadoras", "pacientes", "modelo-3d"]
-    assert by_section["Ajustes"] == ["ajustes"] and by_section[""] == ["inicio"]
+    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio"]
 
 
 def test_the_twelve_old_entries_all_map_to_existing_pages():
