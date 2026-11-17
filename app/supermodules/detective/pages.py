@@ -7,16 +7,22 @@ con la confianza que siente y escribe su justificación. Luego la corrección (d
 Art. I — solo lo que el UPS tiene de verdad:
 - Las pistas son exactamente lo que el caso trae: signos vitales (FC, FR, SpO₂) con sus puntos NEWS2 (RCP 2017, la misma
   tabla del gemelo: `clinical.calculators`), HRV (el UPS guarda «hrv, ms» sin decir qué índice es), eventos del UPS y la
-  PA CALCULADA solo donde el modelo hemodinámico está validado (sano, hipertensión, sepsis; en el resto, «no modelada»).
+  PA CALCULADA solo donde el lazo cerrado está habilitado (sano, hipertensión, sepsis; en el resto, «no modelada»). En
+  la sepsis esa PA lleva «en revisión clínica», como en el gemelo: depende de la capacitancia venosa 2× (Criterio
+  BIOCORE, sin cita; `SEPSIS_MODEL_DECLARATION`).
 - NO hay ECG, EEG ni EMG como pista: el UPS guarda escalares, no la onda, y la morfología propia de cada escenario no
   está modelada. Tampoco el índice por hora de sueño (`ahi`: el organismo lo calcula en 0 por defecto, una fachada).
 - La justificación NO se califica (no hay con qué: no existe una explicación clínica por escenario con fuente firmada;
   `CASE_EXPLANATION_PENDING`). Se muestra junto a la evidencia, para que el estudiante la compare él mismo.
 - La corrección es determinista: la respuesta es el escenario que generó el caso. Ninguna IA interviene.
-- El registro de la sesión (`app.utils.session_learning`) es descriptivo: intentos, aciertos y la confianza declarada.
-  No es una medida de dominio ni se compara con ningún umbral.
+- Registro de la sesión (`app.utils.session_learning`): cada diagnóstico, UNA vez por caso, con
+  `log_session_answer("detective:<paciente>", "detective", concepto, correcto, confianza)`. El concepto sale de
+  `SCENARIO_CONCEPT`; un escenario que no encaja en ningún concepto de `CONCEPTS` (convulsión) no se registra: no se
+  inventan conceptos. El resumen de la página es un conteo, no una medida de dominio.
 """
 from __future__ import annotations
+
+from typing import Optional
 
 import streamlit as st
 
@@ -53,7 +59,8 @@ CLUES = (
 )
 
 # Concepto que registra cada escenario en `session_learning.CONCEPTS`. CRITERIO BIOCORE (sin cita; pendiente de la firma
-# de Luis): el concepto con que el escenario se relaciona más de cerca. Una prueba exige que ningún escenario quede sin él.
+# de Luis): el concepto con que el escenario se relaciona más de cerca. None = el escenario no encaja en ningún concepto
+# del vocabulario y el caso NO se registra (2026-11-17: la convulsión estaba en «news2», que no es lo que el caso evalúa).
 SCENARIO_CONCEPT = {
     SimulationScenario.HEALTHY: "frecuencia_cardiaca",
     SimulationScenario.EXERCISE: "frecuencia_cardiaca",
@@ -67,7 +74,7 @@ SCENARIO_CONCEPT = {
     SimulationScenario.APNEA: "respiracion_y_apnea",
     SimulationScenario.COPD: "respiracion_y_apnea",
     SimulationScenario.FATIGUE: "emg",
-    SimulationScenario.SEIZURE: "news2",
+    SimulationScenario.SEIZURE: None,
     SimulationScenario.SEPSIS: "hemodinamica",
     SimulationScenario.HYPERTENSION: "hemodinamica",
 }
@@ -83,7 +90,15 @@ def _descriptors(state) -> dict:
     return {d.name: d for domain in state.all_domains().values() for d in domain.descriptors.values()}
 
 
-def concept_for(scenario: SimulationScenario) -> str:
+# La PA de la sepsis depende de la capacitancia venosa 2× (Criterio BIOCORE, sin cita): el gemelo la declara «en revisión
+# clínica» (`SEPSIS_MODEL_DECLARATION`); aquí, la misma etiqueta y el mismo motivo.
+PA_IN_REVIEW_LABEL = "en revisión clínica"
+SEPSIS_PA_IN_REVIEW = ("En revisión clínica: en la sepsis esta presión depende de la capacitancia venosa 2× (Criterio "
+                       "BIOCORE, sin cita), como declara el gemelo.")
+
+
+def concept_for(scenario: SimulationScenario) -> Optional[str]:
+    """El concepto del caso, o None si no encaja en ninguno de `CONCEPTS` (entonces no se registra)."""
     return SCENARIO_CONCEPT[scenario]
 
 
@@ -99,7 +114,7 @@ def clue_available(clue: str, state, events) -> bool:
     return bool(events)
 
 
-def render_clue(clue: str, state, events, references_pa) -> None:
+def render_clue(clue: str, state, events, references_pa, scenario: Optional[SimulationScenario] = None) -> None:
     d = _descriptors(state)
     if clue == CLUE_VITALS:
         columns = st.columns(len(CASE_EVIDENCE_ROWS))
@@ -126,16 +141,20 @@ def render_clue(clue: str, state, events, references_pa) -> None:
     elif clue == CLUE_PA:
         map_modelo = state.cardiovascular.get("map_modelo")
         if map_modelo is None:
-            render_no_data("Presión arterial", "no modelada para este escenario: el modelo hemodinámico solo está "
-                                               "validado en sano, hipertensión y sepsis")
+            render_no_data("Presión arterial", "no modelada para este escenario: el lazo cerrado hemodinámico solo "
+                                               "está habilitado en sano, hipertensión y sepsis")
         else:
             sys_m = state.cardiovascular.get("systolic_bp_modelo")
             dia_m = state.cardiovascular.get("diastolic_bp_modelo")
             ref_map = next((r for r in (references_pa or []) if r.descriptor == "map"), None)
+            in_review = scenario == SimulationScenario.SEPSIS
             st.markdown(
-                f"**PA calculada ({pa_model_label()}):** {sys_m.value:.0f}/{dia_m.value:.0f} mmHg "
-                f"(PAM {map_modelo.value:.0f} mmHg)"
+                f"**PA calculada ({pa_model_label()})"
+                + (f" — {PA_IN_REVIEW_LABEL}" if in_review else "")
+                + f":** {sys_m.value:.0f}/{dia_m.value:.0f} mmHg (PAM {map_modelo.value:.0f} mmHg)"
                 + (f" — referencia clínica citada: PAM {ref_map.value:.0f} mmHg" if ref_map else ""))
+            if in_review:
+                st.caption(SEPSIS_PA_IN_REVIEW)
             st.caption("CALCULADA por el modelo a partir de la FC del caso: no es una medición. Solo existe en sano, "
                        "hipertensión y sepsis; que en otro caso no aparezca no dice nada sobre el diagnóstico.")
     elif clue == CLUE_EVENTS:
@@ -162,7 +181,7 @@ def _new_case() -> None:
         "patient_id": case.patient_id, "scenario": case.scenario, "state": state,
         "events": _dedupe_events(case.events), "references_pa": references,
         "options": _diagnostic_options(case.scenario), "revealed": [], "answered": False, "selected": None,
-        "confidence": None, "justification": None, "parametros": case.parametros,
+        "confidence": None, "justification": None, "parametros": case.parametros, "logged": False,
     }.items():
         st.session_state[_k(name)] = value
 
@@ -230,7 +249,7 @@ def render_detective_page() -> None:
     for clue in revealed:
         with st.container(border=True):
             st.markdown(f"**{clue_label(clue)}**")
-            render_clue(clue, state, events, references)
+            render_clue(clue, state, events, references, st.session_state[_k("scenario")])
 
     if not answered:
         st.markdown("#### Tu diagnóstico")
@@ -250,7 +269,10 @@ def render_detective_page() -> None:
             st.session_state[_k("confidence")] = confidence
             st.session_state[_k("justification")] = justification.strip()
             st.session_state[_k("answered")] = True
-            log_session_answer(f"{SOURCE}:{patient_id}", SOURCE, concept_for(hidden), choice == hidden, confidence)
+            concept = concept_for(hidden)
+            if concept is not None and not st.session_state.get(_k("logged")):    # UNA vez por caso
+                log_session_answer(f"{SOURCE}:{patient_id}", SOURCE, concept, choice == hidden, confidence)
+                st.session_state[_k("logged")] = True
             st.rerun()
         if not ready and enough:
             st.caption("Elige un diagnóstico y escribe tu justificación para confirmar.")
@@ -282,7 +304,7 @@ def render_detective_page() -> None:
         with st.expander("Pistas que no pediste"):
             for clue in missed:
                 st.markdown(f"**{clue_label(clue)}**")
-                render_clue(clue, state, events, references)
+                render_clue(clue, state, events, references, hidden)
     parametros = st.session_state[_k("parametros")]
     st.caption(f"🧪 Recordatorio: simulación del banco de casos (`{parametros['escenario']}`, horizonte "
                f"`{parametros['horizonte_elegido']}`), no un paciente real.")

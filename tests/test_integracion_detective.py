@@ -2,7 +2,8 @@
 corrección determinista, registro descriptivo de la sesión. Todo con la base de pruebas (`tests/conftest.py`).
 
 Art. I: la pista que el caso no trae se dice «sin dato»; no hay ECG/EEG/EMG ni `ahi`; la justificación no se califica;
-la PA calculada solo existe en los 3 escenarios con modelo validado."""
+la PA calculada solo existe en los 3 escenarios con lazo cerrado habilitado, y en la sepsis va «en revisión clínica».
+Registro: cada diagnóstico UNA vez por caso, con fuente «detective» y un concepto de `CONCEPTS` (o no se registra)."""
 
 import random
 from pathlib import Path
@@ -59,9 +60,11 @@ def _start(monkeypatch, scenario):
     return at
 
 
-def test_todo_escenario_tiene_un_concepto_valido():
+def test_todo_escenario_tiene_un_concepto_valido_o_ninguno():
     assert set(dp.SCENARIO_CONCEPT) == set(available_rich_scenarios()) == set(S)
-    assert set(dp.SCENARIO_CONCEPT.values()) <= set(CONCEPTS)
+    assert set(dp.SCENARIO_CONCEPT.values()) - {None} <= set(CONCEPTS)
+    # La convulsión no encaja en ningún concepto del vocabulario: no se le inventa uno.
+    assert dp.SCENARIO_CONCEPT[S.SEIZURE] is None
 
 
 def test_sin_caso_la_pagina_lo_dice_y_no_hay_pistas():
@@ -130,7 +133,7 @@ def test_correccion_determinista_y_registro_descriptivo(monkeypatch, correct):
     assert "Tu sesión con el Detective" in text and "no una medida de dominio" in text
 
 
-def test_pa_calculada_solo_donde_el_modelo_esta_validado(monkeypatch):
+def test_pa_calculada_solo_donde_el_lazo_cerrado_esta_habilitado(monkeypatch):
     sepsis = _start(monkeypatch, S.SEPSIS)
     _click(sepsis, "Presión arterial")
     assert "PA calculada" in _text(sepsis) and "no es una medición" in _text(sepsis)
@@ -175,4 +178,56 @@ def test_cada_escenario_con_todas_las_pistas_y_su_respuesta_sin_ingles_ni_tratam
     texts = [_without_citations(t) for t in visible_texts(at)]
     assert [(m.group(0), t[:100]) for t in texts for m in [FORBIDDEN.search(t)] if m] == []
     assert [(m.group(0), t[:100]) for t in texts for m in [TREATMENT.search(t)] if m] == []
-    assert at.session_state[LOG_KEY][0]["concept"] == dp.SCENARIO_CONCEPT[scenario]
+    concept = dp.SCENARIO_CONCEPT[scenario]
+    log = at.session_state[LOG_KEY] if LOG_KEY in at.session_state else []
+    assert ([r["concept"] for r in log] == [concept]) if concept else log == []
+
+
+def test_la_pa_de_la_sepsis_lleva_en_revision_clinica_como_en_el_gemelo(monkeypatch):
+    """La PA de la sepsis depende de la capacitancia venosa 2× (Criterio BIOCORE, sin cita): misma etiqueta que el
+    gemelo. En la hipertensión, donde no depende de ella, no la lleva."""
+    from app.supermodules.twin_shell.pages import SEPSIS_MODEL_DECLARATION
+
+    assert "capacitancia venosa 2× — Criterio BIOCORE, sin cita (en revisión clínica)" in SEPSIS_MODEL_DECLARATION
+    sepsis = _start(monkeypatch, S.SEPSIS)
+    _click(sepsis, "Presión arterial")
+    pa_line = next(m.value for m in sepsis.markdown if m.value.startswith("**PA calculada"))
+    assert f"— {dp.PA_IN_REVIEW_LABEL}:**" in pa_line
+    assert dp.SEPSIS_PA_IN_REVIEW in _text(sepsis)
+    _answer(sepsis, S.SEPSIS, True)                       # también en «Pistas» después de responder
+    assert f"— {dp.PA_IN_REVIEW_LABEL}:**" in _text(sepsis)
+
+    hta = _start(monkeypatch, S.HYPERTENSION)
+    _click(hta, "Presión arterial")
+    assert "PA calculada" in _text(hta) and dp.PA_IN_REVIEW_LABEL not in _text(hta)
+
+
+def test_el_registro_es_una_vez_por_caso_con_fuente_y_concepto_validos(monkeypatch):
+    from app.utils.session_learning import SOURCES
+
+    at = _start(monkeypatch, S.HYPERTENSION)
+    _click(at, "Signos vitales")
+    _answer(at, S.HYPERTENSION, True, confidence=70)
+    first_id = at.session_state[dp._k("patient_id")]
+    for _ in range(2):                                    # volver a dibujar no registra otra vez
+        at.run()
+    log = at.session_state[LOG_KEY]
+    assert len(log) == 1
+    entry = log[0]
+    assert entry["item_id"] == f"detective:{first_id}" and entry["source"] == "detective" in SOURCES
+    assert entry["concept"] == "hemodinamica" in CONCEPTS and entry["correct"] is True and entry["confidence"] == 70
+
+    _click(at, "Nuevo caso")                              # otro caso: otro registro, con su propio id
+    _click(at, "Signos vitales")
+    _answer(at, S.HYPERTENSION, False, confidence=40)
+    log = at.session_state[LOG_KEY]
+    assert len(log) == 2 and log[1]["item_id"] != log[0]["item_id"] and log[1]["correct"] is False
+
+
+def test_un_caso_sin_concepto_no_se_registra(monkeypatch):
+    at = _start(monkeypatch, S.SEIZURE)
+    _click(at, "Signos vitales")
+    _answer(at, S.SEIZURE, True)
+    assert "Correcto" in _text(at)
+    log = at.session_state[LOG_KEY] if LOG_KEY in at.session_state else []
+    assert log == []

@@ -1,5 +1,8 @@
 """«Tu aprendizaje en esta sesión» (2026-11-17): aciertos por concepto, tramos de confianza, Brier y el mensaje de
-calibración, con un registro sintético de la sesión. Sin respuestas, la página no muestra ningún número."""
+calibración, con un registro sintético de la sesión. Sin respuestas, la página no muestra ningún número.
+
+Un solo criterio de calibración en pantalla: el veredicto (Wilson 95 %) y el Brier salen de
+`educational/confidence_calibration.py`, los mismos del panel del quiz; ya no hay margen heurístico de 10 puntos."""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ from streamlit.testing.v1 import AppTest
 
 from app.supermodules import session_learning_view as V
 from app.utils import session_learning as SL
+from educational import confidence_calibration as cc
 
 # Registro sintético (las mismas claves que escribe `log_session_answer`).
 LOG = [
@@ -58,25 +62,28 @@ def test_brier_score_is_the_mean_squared_gap_over_answers_with_confidence():
     summary = V.summarize(LOG)
     assert summary.confident_answers == 7
     assert summary.brier == pytest.approx(expected)
-    assert V.brier_score([]) is None
+    assert cc.brier([]) is None
+    assert not hasattr(V, "brier_score")                 # una sola fórmula de Brier: la de confidence_calibration
 
 
-def test_overconfidence_needs_five_answers_with_confidence_and_uses_the_heuristic_margin():
-    summary = V.summarize(LOG)                      # 69.3 de confianza contra 57.1 % de acierto: más de 10 puntos
+def test_the_verdict_is_wilsons_not_a_heuristic_margin():
+    summary = V.summarize(LOG)                      # 69 % de confianza, 4 de 7: dentro del intervalo de Wilson
     assert summary.mean_confidence == pytest.approx(485 / 7)
     assert summary.accuracy_confident == pytest.approx(4 / 7)
-    assert summary.calibration == "exceso"
-    assert V.calibration_message(summary).startswith("Exceso de confianza")
+    assert summary.calibration == cc.calibrar(LOG).total.veredicto == cc.CALIBRADA
+    assert V.calibration_message(summary) == cc.frase(cc.calibrar(LOG).total)
+    assert not hasattr(V, "CALIBRATION_MARGIN_PTS") and not hasattr(V, "calibration_verdict")
+    assert V.summarize([{"concept": "news2", "correct": True, "confidence": None}]).calibration is None
 
-    four = [{"concept": "news2", "correct": False, "confidence": 100}] * 4
-    assert V.summarize(four).calibration is None and V.calibration_message(V.summarize(four)) is None
 
-
-def test_underconfidence_and_within_margin():
-    under = [{"concept": "hrv", "correct": True, "confidence": 50}] * 5
-    assert V.summarize(under).calibration == "falta"
-    near = [{"concept": "hrv", "correct": True, "confidence": 95}] * 5     # 95 contra 100 %: dentro del margen
-    assert V.summarize(near).calibration == "dentro"
+def test_overconfidence_and_underconfidence_follow_the_wilson_interval():
+    over = [{"concept": "news2", "correct": i < 3, "confidence": 100} for i in range(10)]   # 3 de 10 a 100 %
+    assert V.summarize(over).calibration == cc.EXCESO
+    under = [{"concept": "hrv", "correct": True, "confidence": 25}] * 10                     # 10 de 10 a 25 %
+    assert V.summarize(under).calibration == cc.FALTA
+    # Antes, «95 contra 100 %» con 5 respuestas era «dentro del margen»; con Wilson tampoco se detecta nada.
+    near = [{"concept": "hrv", "correct": True, "confidence": 95}] * 5
+    assert V.summarize(near).calibration == cc.CALIBRADA
 
 
 def _page_script():
@@ -114,5 +121,37 @@ def test_page_with_a_synthetic_log_shows_hits_bands_brier_and_the_message():
     assert (top["Respuestas"], top["Confianza promedio"], top["Acierto real"]) == ("2", "92 %", "50 %")
     texts = " ".join(_texts(at))
     assert "Puntaje de Brier de la sesión:** 0.28" in texts
-    assert "Exceso de confianza" in texts and "Heurística" in texts
+    assert cc.frase(cc.calibrar(LOG).total) in texts and "Heurística" not in texts
     assert V.PRIVACY_NOTICE in texts
+
+
+# Registro de 10 respuestas con confianza (exceso de confianza claro: 3 de 10 aciertos con 80–100 %).
+TEN = [{"item_id": f"t{i}", "source": "quiz", "concept": "frecuencia_cardiaca", "correct": i in (0, 4, 7),
+        "confidence": (100, 75, 100, 75, 100, 100, 75, 100, 75, 100)[i]} for i in range(10)]
+
+
+def _quiz_panel_script():
+    from app.utils.confidence import render_calibration_panel
+
+    render_calibration_panel(expanded=True)
+
+
+def test_the_same_ten_answers_give_the_same_verdict_and_brier_on_both_screens():
+    expected_verdict = cc.frase(cc.calibrar(TEN).total)
+    assert cc.calibrar(TEN).total.veredicto == cc.EXCESO == V.summarize(TEN).calibration
+    expected_brier = f"Puntaje de Brier de la sesión:** {cc.brier(TEN):.2f}"
+    assert V.summarize(TEN).brier == pytest.approx(cc.brier(TEN))
+
+    shown = []
+    for script in (_page_script, _quiz_panel_script):
+        at = AppTest.from_function(script, default_timeout=30)
+        at.session_state[SL._KEY] = list(TEN)
+        at.run()
+        assert not at.exception
+        texts = " ".join(_texts(at))
+        assert expected_verdict in texts and expected_brier in texts, script.__name__
+        assert "Heurística" not in texts and "10 puntos" not in texts
+        verdicts = [t for t in _texts(at) if t.startswith("Con 10 respuestas")]
+        briers = [t for t in _texts(at) if "Puntaje de Brier de la sesión" in t]
+        shown.append((verdicts, briers))
+    assert shown[0] == shown[1]                           # el mismo texto en las dos pantallas

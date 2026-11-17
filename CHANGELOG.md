@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-17 — Integración 3: pasaporte de evidencia en main, Detective corregido y un solo criterio de calibración (Art. I)
+
+**Contexto**: `pasaporte-evidencia` (José Miguel) se fusionó sobre `integracion-3` (base de conocimiento, caso guiado firmado e `integracion-1`). Sus commits no traen atribución a Claude: fusión normal, con sus autores.
+
+1. **Fusión**: el banner del paciente activo y Calculadoras conservan los puntos NEWS2 de cada lectura y ganan el pasaporte de evidencia por valor; «Abrir en…» desde el gemelo y la fuente «Paciente activo» de ECG Monitoreo, Respiratorio y HRV quedan como estaban en main. «Tu aprendizaje en esta sesión» (`mi-sesion`) va al final de Practicar: `_page_specs()` declara 27 páginas.
+2. **Un solo criterio de calibración en pantalla.** «Tu aprendizaje en esta sesión» decidía «exceso/falta de confianza» con un margen de 10 puntos HEURISTIC (y solo desde 5 respuestas); el panel del quiz, con el intervalo de Wilson al 95 % [WILSON1927]. Dos veredictos distintos para el mismo registro. Ahora los dos usan `confidence_calibration` (veredicto y frase); se retiraron el margen, `calibration_verdict` y el mínimo de 5 (el intervalo de Wilson ya es ancho con pocas respuestas). La única fórmula de Brier de la sesión (forma binaria [BRIER1950]) pasó a `confidence_calibration.brier`; el panel del quiz la muestra con el mismo texto (`confidence.brier_text`). La de `domain/physiology/ml/arrhythmia_evaluation.py` es la forma multicategoría del clasificador de latidos y no se tocó (`domain/`). Prueba: el mismo registro de 10 respuestas da el mismo veredicto y el mismo Brier en las dos pantallas.
+3. **Detective** (`app/supermodules/detective/pages.py`):
+   - La pista de PA de la sepsis lleva «en revisión clínica» con su motivo (capacitancia venosa 2×, Criterio BIOCORE, sin cita), la misma etiqueta del gemelo (`SEPSIS_MODEL_DECLARATION`). El Detective no muestra el gasto cardiaco.
+   - Registro: cada diagnóstico UNA vez por caso (`logged`), con `log_session_answer("detective:<paciente>", "detective", concepto, correcto, confianza)`. La convulsión estaba en «news2», que no es lo que el caso evalúa: no encaja en ningún concepto de `CONCEPTS` y ya no se registra (no se inventa un concepto).
+   - Texto clínico: no había explicación clínica sin firma (la corrección muestra el diagnóstico del banco y `case_evidence`, como antes). Se corrigió una afirmación de validación: «el modelo hemodinámico solo está validado en sano, hipertensión y sepsis» decía «validado» de un lazo cerrado cuya PA de sepsis está en revisión clínica; ahora «habilitado» (Art. I).
+
 ## 2026-11-17 — Caso guiado de ECG firmado y montado en Practicar; base de conocimiento en main (Art. I)
 
 **Contexto**: Luis firmó el caso guiado de ECG («firmo todo» sobre la hoja de revisión). La rama `caso-guiado-ecg` necesitaba la calibración de la confianza de `base-conocimiento-ia`, que no estaba en main; se fusionó primero y el caso entró encima (solo su commit `be329a3`: los otros 8 de la rama ya estaban en `base-conocimiento-ia`).

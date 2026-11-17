@@ -4,7 +4,8 @@
   Es opcional y empieza sin elegir: una confianza por defecto sería un dato que el estudiante no dio (Art. I).
 - `record_quiz_answer`: guarda la respuesta en el registro de la sesión de Luis (`app/utils/session_learning.py`),
   una sola vez por intento, solo si la pregunta tiene concepto (`quiz_bank.CONCEPT_BY_PROMPT`).
-- `render_calibration_panel`: el veredicto de `educational/confidence_calibration.py` y la tabla de respuestas.
+- `render_calibration_panel`: el veredicto y el puntaje de Brier de `educational/confidence_calibration.py` y la
+  tabla de respuestas (los mismos que muestra «Tu aprendizaje en esta sesión»).
 
 Todo vive en la sesión del navegador; nada se escribe en una base.
 """
@@ -63,6 +64,13 @@ def record_quiz_answer(bank: str, question, selected: str, confidence: Optional[
     return True
 
 
+def brier_text(calibracion: "cc.Calibracion") -> str:
+    """El puntaje de Brier de la sesión, el mismo texto en el panel y en «Tu aprendizaje en esta sesión»."""
+    n = calibracion.total.n
+    return (f"**Puntaje de Brier de la sesión:** {calibracion.brier:.2f} ({n} respuesta{'s' if n != 1 else ''} con "
+            f"confianza). Forma binaria: {cc.BRIER_FORMULA}; va de 0 a 1 y 0 es lo mejor. {cc.BRIER_1950}")
+
+
 def render_calibration_panel(expanded: bool = False) -> None:
     calibracion = cc.calibrar(get_session_log())
     with st.expander(PANEL_TITLE, expanded=expanded):
@@ -70,6 +78,7 @@ def render_calibration_panel(expanded: bool = False) -> None:
         st.markdown(cc.frase(calibracion.total))
         if not calibracion.hay_datos:
             return
+        st.markdown(brier_text(calibracion))
 
         if len(calibracion.por_concepto) > 1:
             st.markdown("**Por concepto**")

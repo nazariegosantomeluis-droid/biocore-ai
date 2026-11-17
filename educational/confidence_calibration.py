@@ -9,11 +9,16 @@ Art. I, sin umbrales inventados:
   si queda POR DEBAJO. Si cae dentro, no se detecta ninguna de las dos: con pocas respuestas el intervalo es ancho y
   el veredicto honesto es «todavía no se puede saber», no una etiqueta.
 - Los errores con más confianza se ordenan de mayor a menor confianza, sin un corte fijo.
+- El puntaje de Brier, en su forma binaria [BRIER1950], es la ÚNICA fórmula de Brier de la sesión: la usan el panel
+  de calibración (`app/utils/confidence.py`) y «Tu aprendizaje en esta sesión» (`session_learning_view.py`), que
+  también toma de aquí el veredicto (2026-11-17: un solo criterio de calibración en pantalla).
 
 No depende de Streamlit: recibe la lista de respuestas y devuelve números y frases.
 
 [WILSON1927] Wilson EB. Probable inference, the law of succession, and statistical inference. J Am Stat Assoc.
 1927;22(158):209–212. doi:10.1080/01621459.1927.10502953
+[BRIER1950] Brier GW. Verification of forecasts expressed in terms of probability. Mon Weather Rev. 1950;78(1):1–3.
+doi:10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2
 """
 from __future__ import annotations
 
@@ -25,6 +30,9 @@ WILSON_KEY = "WILSON1927"   # la misma clave que `bibliography.METHODS` (lo exig
 WILSON_1927 = ("Wilson EB. Probable inference, the law of succession, and statistical inference. J Am Stat Assoc. "
                "1927;22(158):209–212. doi:10.1080/01621459.1927.10502953")
 Z_95 = 1.959963984540054  # cuantil 0.975 de la normal estándar: intervalo de 95 %
+BRIER_1950 = "Brier GW. Verification of forecasts expressed in terms of probability. Mon Weather Rev. 1950;78(1):1–3."
+# Forma binaria (media de (p − o)², de 0 a 1); la formulación original suma las dos categorías y va de 0 a 2.
+BRIER_FORMULA = "promedio de (confianza/100 − acierto)², con acierto = 1 si respondiste bien y 0 si no"
 
 EXCESO, FALTA, CALIBRADA, SIN_DATOS = "exceso", "falta", "calibrada", "sin_datos"
 
@@ -88,6 +96,12 @@ def con_confianza(registro: Iterable[dict]) -> List[dict]:
     return [r for r in registro if r.get("confidence") is not None]
 
 
+def brier(registro: Iterable[dict]) -> Optional[float]:
+    """Puntaje de Brier, forma binaria [BRIER1950], sobre las respuestas con confianza; None si no hay ninguna."""
+    terminos = [(r["confidence"] / 100.0 - (1.0 if r["correct"] else 0.0)) ** 2 for r in con_confianza(registro)]
+    return sum(terminos) / len(terminos) if terminos else None
+
+
 @dataclass
 class Calibracion:
     total: Optional[Grupo]
@@ -95,6 +109,7 @@ class Calibracion:
     por_nivel: Dict[int, Grupo]
     errores_mas_seguros: List[dict]
     sin_confianza: int  # respuestas del registro que no declararon confianza
+    brier: Optional[float] = None  # forma binaria [BRIER1950]; None sin respuestas con confianza
 
     @property
     def hay_datos(self) -> bool:
@@ -116,6 +131,7 @@ def calibrar(registro: Iterable[dict], max_errores: int = 3) -> Calibracion:
         por_nivel={nivel: _grupo(rs) for nivel, rs in sorted(niveles.items())},
         errores_mas_seguros=errores[:max_errores],
         sin_confianza=len(registro) - len(respuestas),
+        brier=brier(respuestas),
     )
 
 
