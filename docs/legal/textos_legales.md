@@ -1,6 +1,6 @@
 # Textos legales de BIOCORE AI
 
-**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los AJUSTES del Art. I tal como están en la sección 3. Queda abierta la decisión D1 y faltan los datos de la sección 1. Los textos originales quedan en la sección 4 para cuando las funciones que describen existan. Ninguno de estos textos es asesoría legal: conviene que los revise un abogado antes de usarlos en contratos.
+**Estado:** FIRMADO 2026-11-17 por Luis Nazariego Santome («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los AJUSTES del Art. I tal como están en la sección 3. D1 (consentimiento) está elaborado y pendiente de firma, y faltan los datos de la sección 1. Los textos originales quedan en la sección 4 para cuando las funciones que describen existan. Ninguno de estos textos es asesoría legal: conviene que los revise un abogado antes de usarlos en contratos.
 **Uso:** `app/utils/legal.py` es la única fuente de los textos en la app. `tests/test_legal.py` exige que cada texto de ese módulo esté literal en este documento, que ningún dato faltante se invente y que el aviso de entrada bloquee la página hasta marcar la casilla.
 
 ---
@@ -121,6 +121,26 @@ Título:
 
 Dónde se muestra cada una: ECG (placa en vivo) PS1 y PS2; EMG PS1 y PS2; pulso (PPG) PS3; temperatura PS2; EEG en vivo PS4.
 
+### D1 · Consentimiento antes de medir las propias señales (elaborado el 2026-11-17, pendiente de firma)
+
+Dónde: en la barra lateral de cada fuente en vivo, una vez por sesión, antes de usar un equipo REAL: la placa ECG (ESP32 + AD8232), la placa de biosensores en modo «Placa real» (EMG, pulso y temperatura) y el EEG con un equipo real o un flujo LSL. Las prácticas con placa simulada y los dos simuladores del EEG no lo piden. Sin aceptar, la fuente no se conecta (`legal.own_signals_consent`).
+
+**D1.1 · Título**
+
+> Antes de medir tus propias señales
+
+**D1.2 · Texto** (sale de AP1 y AP3; dice «computadora o servidor» porque en la nube la base está en el servidor)
+
+> Las señales de un sensor conectado a tu cuerpo (ECG, EMG, pulso, temperatura o EEG) son datos personales sensibles. Se procesan durante la sesión; si pulsas «Guardar al gemelo», se guardan los valores calculados (no la señal completa) en la base de la computadora o del servidor donde corre BIOCORE AI. Si usas la IA con tu clave, el contexto puede ir al proveedor que elegiste. Los detalles están en el Aviso de privacidad.
+
+**D1.3 · Casilla**
+
+> Acepto que BIOCORE AI trate mis señales fisiológicas como lo describe el Aviso de privacidad.
+
+**D1.4 · Si no se acepta**
+
+> Sin aceptar, la fuente en vivo no se conecta. La práctica con placa simulada no lo necesita.
+
 ## 3. Ajustes del Art. I (firmados el 2026-11-17)
 
 | ID | Decía (original) | Dice ahora (propuesta) | Por qué |
@@ -234,4 +254,4 @@ AVISO CLÍNICO Y EDUCATIVO. Estás ingresando al gemelo digital de BIOCORE AI. T
 | CW1 | Aviso de entrada (AJUSTE: simulaciones rotuladas, PA de sepsis en revisión) | ☑ firmado (17-11-2026) |
 | CW2–CW3 | Casilla y botón (tal como se entregó) | ☑ firmado (17-11-2026) |
 | PS1–PS4 | Precauciones del manual (tal como se entregó) | ☑ firmado (17-11-2026) |
-| D1 | ¿Consentimiento antes de medir las propias señales con un sensor? (hoy no existe) | ☐ diseñarlo ☐ todavía no (abierta: «Firmo todo» no la decide) |
+| D1 | Consentimiento antes de medir las propias señales (D1.1–D1.4, elaborado el 2026-11-17 a pedido de Luis: «Elabóralo») | ☐ firmo ☐ corregir |

@@ -32,6 +32,7 @@ from app.utils.env_loader import load_dotenv_file
 load_dotenv_file(Path(ROOT_DIR) / ".env")
 
 from app.utils import legal
+from app.utils import version as app_version
 from app.utils import navigation as nav
 from app.utils.ai_session import (
     AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_settings_link, render_settings_page,
@@ -160,7 +161,9 @@ st.set_page_config(
     page_title="BIOCORE AI — Plataforma Integrada",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    # 2026-11-17: «auto» = abierto en pantallas anchas y cerrado en el celular. Con «expanded», el menú se abría encima
+    # del contenido en el teléfono y tapaba el aviso de entrada hasta cerrarlo.
+    initial_sidebar_state="auto",
     menu_items={
         # "Get Help"/"Report a bug"/"About" son claves reservadas de la API de
         # Streamlit (st.set_page_config) -- Streamlit solo reconoce estos 3
@@ -2846,6 +2849,13 @@ def render_practice_session_learning_page() -> None:
     render_session_learning_page()
 
 
+def render_settings_and_version_page() -> None:
+    """Ajustes: la clave de IA y, al final, qué versión del código corre (`app/utils/version.py`, 2026-11-17)."""
+    render_settings_page()
+    st.markdown("### Versión")
+    st.caption(app_version.version_text())
+
+
 def _page_specs() -> list:
     """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
     return [
@@ -2875,7 +2885,7 @@ def _page_specs() -> list:
         ("Explorar", "calculadoras", "Calculadoras clínicas", "🧮", render_calculators_page),
         ("Explorar", "pacientes", "Flujo de pacientes", "👥", render_patient_pipeline_page),
         ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
-        ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_page),
+        ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_and_version_page),
         # Textos legales (2026-11-17, `app/utils/legal.py`; originales y ajustes en docs/legal/textos_legales.md).
         ("Ajustes", "terminos", "Términos y condiciones", "📜", legal.render_terms_page),
         ("Ajustes", "privacidad", "Aviso de privacidad", "🔒", legal.render_privacy_page),
@@ -2902,6 +2912,7 @@ def main() -> None:
         else:
             current.run()
         legal.render_legal_footer()
+        app_version.render_stale_warning()    # solo si el código cambió después de arrancar el proceso
 
 
 if __name__ == '__main__':

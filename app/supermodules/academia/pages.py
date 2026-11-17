@@ -145,6 +145,12 @@ def render_lessons_quizzes_tab() -> None:
     render_synthetic_case_section()
 
 
+# Lo que de verdad cambia el selector del quiz (2026-11-17): cuántas preguntas salen, no su dificultad.
+QUIZ_SIZE_LABELS = {"basic": "Hasta 5", "intermediate": "Hasta 8", "advanced": "Todas"}
+QUIZ_SIZE_NOTE = ("Esta lección tiene {n} preguntas. Salen en el orden del banco; la dificultad no cambia. Para "
+                  "preguntas a tu medida, usa «Práctica adaptativa».")
+
+
 def render_quiz_section() -> None:
     """Quiz del banco de preguntas (tanda 1 de la fase 1: separado de `render_lessons_quizzes_tab` para que Practicar lo
     monte solo). Contención (Art. I): ninguna opción preseleccionada y «Responder» deshabilitado hasta que se elige una;
@@ -181,8 +187,11 @@ def render_quiz_section() -> None:
 
     with col1:
         lesson = st.selectbox("Lección", LESSON_CATEGORIES, key="academia_lesson")
-        level = st.radio("Nivel", ["basic", "intermediate", "advanced"], key="academia_level",
-                         format_func={"basic": "Básico", "intermediate": "Intermedio", "advanced": "Avanzado"}.get)
+        # 2026-11-17 (Art. I): esto NO cambia la dificultad: solo cuántas preguntas de la lección salen, en el orden del
+        # banco (`generate_quiz`). Antes se rotulaba «Nivel: Básico/Intermedio/Avanzado», que prometía otra cosa.
+        level = st.radio("Cuántas preguntas", ["basic", "intermediate", "advanced"], key="academia_level",
+                         format_func=QUIZ_SIZE_LABELS.get, horizontal=True)
+        st.caption(QUIZ_SIZE_NOTE.format(n=len(generate_quiz(level="advanced", lesson=lesson))))
         if st.button("Iniciar Quiz", key="academia_start_quiz"):
             questions = generate_quiz(topic="ecg_basics", level=level, lesson=lesson)
             st.session_state["academia_quiz"] = _new_quiz(lesson, questions)

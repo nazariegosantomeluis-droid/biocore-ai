@@ -1,0 +1,21 @@
+# Dependencias de desarrollo y pruebas de BIOCORE AI (2026-11-17).
+# La app (y Streamlit Cloud) instala solo requirements.txt; esto suma lo que la app NO importa:
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Cuadernos de Jupyter y gráficas exploratorias (ningún archivo de la app los importa)
+jupyter>=1.0.0
+seaborn>=0.12.0
+
+# Ningún archivo del repo importa `shap` ni `lime` (verificado 2026-11-07 y 2026-11-17); se conservan aquí hasta
+# decidir retirarlos.
+shap>=0.42.0
+lime>=0.2.0
+
+# Pruebas y calidad de código
+pytest>=7.0.0
+pytest-cov>=4.1.0
+mypy>=1.5.0
+pylint>=2.17.0
+black>=23.0.0
+flake8>=6.0.0

@@ -16,6 +16,8 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import streamlit as st
 
+from app.utils.legal import own_signals_consent
+
 from app.supermodules.ecg_live import service as live_service
 from hardware.ecg_plugplay import latest_clean_segment
 
@@ -32,6 +34,9 @@ def render_live_source() -> Optional[Tuple[np.ndarray, float, Dict[str, str]]]:
     fuentes. «demo» en la etiqueta de una placa que se declara simulador hace que
     nunca escriba la FC al gemelo, igual que la fuente Demo.
     """
+    # D1 (2026-11-17): antes de buscar la placa, el consentimiento para medir las propias señales (`app/utils/legal.py`).
+    if not own_signals_consent(st.sidebar):
+        return None
     servicio = live_service.get_live_service()
     if servicio.is_running and st.sidebar.button('⏹ Soltar el puerto (para usar Thonny)',
                                                  key='ecglab_monitor_pp_stop'):

@@ -12,10 +12,10 @@
 # Machine Learning:
 # - scikit-learn: ML models and metrics (LogisticRegression, preprocessing, metrics)
 #
-# Optional (for notebooks):
-# - jupyter: Interactive notebooks
-# - seaborn: Statistical visualization
+# Visualization:
 # - plotly: Interactive plots
+#
+# Notebooks, pruebas y herramientas de desarrollo: requirements-dev.txt (incluye este archivo).
 
 # Core numerical and scientific computing
 numpy>=1.23.0
@@ -34,9 +34,7 @@ matplotlib>=3.7.0
 # - matplotlib>=3.7.0 : required for the clinical-style plotting modules and modern styles
 # - scipy>=1.10.0     : required for signal processing utilities used by the visualization
 
-# Optional for interactive notebooks
-jupyter>=1.0.0
-seaborn>=0.12.0
+# Interactive plots (la app usa plotly; jupyter y seaborn pasaron a requirements-dev.txt el 2026-11-17)
 plotly>=5.10.0
 
 # Interactive Trainer App
@@ -58,11 +56,8 @@ sqlalchemy>=2.0.0
 # no accidente de "instaló lo último".
 fooof==1.1.1
 
-# NINGÚN archivo del repo importa `shap` ni `lime` (verificado 2026-11-07): se conservan
-# declarados hasta decidir retirarlos. Las 'explicaciones' de la app son contribuciones de
-# pesos fijos (src/interpretability.py), no vienen de estas librerías.
-shap>=0.42.0
-lime>=0.2.0
+# `shap` y `lime` (ningún archivo los importa) pasaron a requirements-dev.txt el 2026-11-17. Las 'explicaciones' de
+# la app son contribuciones de pesos fijos (src/interpretability.py), no vienen de estas librerías.
 
 # Laboratorio 3D (2026-10-22, aporte externo auditado) -- src/imaging/volume3d.py:
 # marching cubes y Otsu (scikit-image), lectura NIfTI (nibabel) y DICOM (pydicom).
@@ -86,10 +81,4 @@ fpdf2>=2.7.0
 brainflow>=5.24.0
 pylsl>=1.18.6
 
-# Development tools (optional)
-pytest>=7.0.0
-pytest-cov>=4.1.0
-mypy>=1.5.0
-pylint>=2.17.0
-black>=23.0.0
-flake8>=6.0.0
+# Herramientas de desarrollo y pruebas (pytest, linters): requirements-dev.txt (2026-11-17).

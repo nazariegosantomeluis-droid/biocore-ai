@@ -68,3 +68,14 @@ def _aviso_de_entrada_aceptado(request, monkeypatch):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "aviso_de_entrada: la prueba ve el aviso clínico de entrada (no se apaga)")
+
+
+@pytest.fixture(autouse=True)
+def _consentimiento_de_senales_propias(request, monkeypatch):
+    """D1 (2026-11-17): las pruebas de las fuentes en vivo prueban la fuente, no el consentimiento; se apaga aquí salvo en
+    las pruebas marcadas `aviso_de_entrada` (`tests/test_legal.py`)."""
+    if request.node.get_closest_marker("aviso_de_entrada"):
+        return
+    import app.utils.legal as legal
+
+    monkeypatch.setattr(legal, "CONSENT_ENABLED", False)

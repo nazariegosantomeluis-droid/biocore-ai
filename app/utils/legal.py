@@ -178,7 +178,38 @@ SAFETY_BY_KIND: Dict[str, Sequence[str]] = {
     "ecg": ("PS1", "PS2"), "emg": ("PS1", "PS2"), "ppg": ("PS3",), "temp": ("PS2",), "eeg": ("PS4",),
 }
 
-# Interruptor de la casilla obligatoria: lo apaga `tests/conftest.py` para las pruebas que recorren las páginas (las
+# ── D1: consentimiento antes de medir las propias señales (2026-11-17) ────────────────────────────────────────────
+# Se pide una vez por sesión, en la barra lateral de cada fuente en vivo, solo antes de usar un equipo REAL (las
+# prácticas con placa simulada no lo piden). El texto sale del Aviso de privacidad firmado (AP1, AP3) y dice que la
+# base puede estar en la computadora o en el servidor donde corre la plataforma (en la nube, el servidor).
+CONSENT_TITLE = "Antes de medir tus propias señales"
+CONSENT_TEXT = (
+    "Las señales de un sensor conectado a tu cuerpo (ECG, EMG, pulso, temperatura o EEG) son datos personales "
+    "sensibles. Se procesan durante la sesión; si pulsas «Guardar al gemelo», se guardan los valores calculados (no la "
+    "señal completa) en la base de la computadora o del servidor donde corre BIOCORE AI. Si usas la IA con tu clave, "
+    "el contexto puede ir al proveedor que elegiste. Los detalles están en el Aviso de privacidad.")
+CONSENT_CHECKBOX = "Acepto que BIOCORE AI trate mis señales fisiológicas como lo describe el Aviso de privacidad."
+CONSENT_BLOCKED = "Sin aceptar, la fuente en vivo no se conecta. La práctica con placa simulada no lo necesita."
+CONSENT_ENABLED = True
+_CONSENT_OK = "legal_own_signals_consent_ok"
+
+
+def own_signals_consent(container) -> bool:
+    """True si ya se aceptó en esta sesión (o al marcar la casilla ahora). Dibuja el aviso en `container`."""
+    import streamlit as st
+
+    if not CONSENT_ENABLED or st.session_state.get(_CONSENT_OK):
+        return True
+    container.markdown(f"**{CONSENT_TITLE}**")
+    container.caption(CONSENT_TEXT)
+    if container.checkbox(CONSENT_CHECKBOX, value=False, key="legal_own_signals_consent_box"):
+        st.session_state[_CONSENT_OK] = True
+        return True
+    container.caption(CONSENT_BLOCKED)
+    return False
+
+
+# Interruptor de la casilla obligatoria (y de `CONSENT_ENABLED`): lo apaga `tests/conftest.py` para las pruebas que recorren las páginas (las
 # pruebas del aviso, en `tests/test_legal.py`, lo vuelven a encender). En la app siempre está encendido.
 GATE_ENABLED = True
 _SESSION_OK = "legal_clickwrap_session_ok"

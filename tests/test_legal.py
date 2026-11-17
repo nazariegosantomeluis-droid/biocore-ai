@@ -185,3 +185,71 @@ def test_la_entrada_streamlit_app_no_se_traga_el_redibujado():
     next(b for b in at.button if b.label == legal.CLICKWRAP_BUTTON).click().run()
     assert at.exception == []
     assert legal.FOOTER_NOTICE in _texts(at) and legal.CLICKWRAP_TEXT not in _texts(at)
+
+
+# ── D1: consentimiento antes de medir las propias señales ───────────────────────────────────────────────────────────
+def test_el_texto_del_consentimiento_esta_en_el_documento():
+    for text in (legal.CONSENT_TITLE, legal.CONSENT_TEXT, legal.CONSENT_CHECKBOX, legal.CONSENT_BLOCKED):
+        assert text in DOC, text[:60]
+    assert "D1 · Consentimiento antes de medir las propias señales" in DOC
+
+
+@pytest.mark.aviso_de_entrada
+def test_sin_consentimiento_no_se_conecta_y_al_aceptar_vale_para_la_sesion():
+    def _script():
+        import streamlit as st
+        from app.utils.legal import own_signals_consent
+        st.session_state["ok"] = own_signals_consent(st.sidebar)
+
+    at = AppTest.from_function(_script, default_timeout=30)
+    at.run()
+    assert at.session_state["ok"] is False
+    assert legal.CONSENT_TEXT in " ".join(c.value for c in at.sidebar.caption)
+    at.sidebar.checkbox[0].check().run()
+    assert at.session_state["ok"] is True
+    at.run()
+    assert at.session_state["ok"] is True and not at.sidebar.checkbox        # ya no se vuelve a pedir
+
+
+@pytest.mark.aviso_de_entrada
+@pytest.mark.parametrize("device_key,asks", [("practica", False), ("brainflow_sintetico", False), ("cyton", True),
+                                             ("lsl", True)])
+def test_el_eeg_pide_consentimiento_solo_con_un_equipo_real_o_lsl(device_key, asks):
+    from hardware.eeg_live import DEVICES
+
+    def _script():
+        import streamlit as st
+        from app.supermodules.eeg_neuro_lab.live_source import render_live_source
+        render_live_source(4.0)
+
+    name = next(d.name for d in DEVICES if d.key == device_key)
+    at = AppTest.from_function(_script, default_timeout=60)
+    at.session_state["eeglab_live_device"] = name
+    at.run()
+    assert at.exception == []
+    shown = legal.CONSENT_TEXT in " ".join(c.value for c in at.sidebar.caption)
+    assert shown is asks, device_key
+
+
+@pytest.mark.aviso_de_entrada
+@pytest.mark.parametrize("mode,asks", [(0, True), (1, False)])
+def test_los_biosensores_piden_consentimiento_solo_con_la_placa_real(mode, asks):
+    from app.supermodules.biosensors.source import MODES
+
+    def _script():
+        import streamlit as st
+        from app.supermodules.biosensors.source import render_board_source
+        from hardware.biosensors.sensors import TEMP
+        render_board_source(TEMP, 10.0, "consent_t", 2.0, mains_filter=False)
+
+    at = AppTest.from_function(_script, default_timeout=60)
+    at.session_state["consent_t_mode"] = MODES[mode]
+    at.run()
+    assert at.exception == []
+    assert (legal.CONSENT_TEXT in " ".join(c.value for c in at.sidebar.caption)) is asks
+
+
+def test_las_tres_fuentes_en_vivo_piden_el_consentimiento():
+    for path in ("app/supermodules/ecg_live/monitor_source.py", "app/supermodules/biosensors/source.py",
+                 "app/supermodules/eeg_neuro_lab/live_source.py"):
+        assert "own_signals_consent(" in Path(path).read_text(encoding="utf-8"), path

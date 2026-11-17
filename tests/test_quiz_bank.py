@@ -256,3 +256,21 @@ def test_eeg_quiz_unanswered_scores_zero_and_all_correct_scores_five(temp_ups):
     assert any("Has respondido 5 de 5" in s.value for s in at.success)
     assert sum(1 for c in at.caption if c.value.startswith("Fuente: Kane N")) >= 4
     assert "procesamiento cognitivo integrado" not in " ".join(m.value for m in at.markdown)
+
+
+def test_el_selector_dice_lo_que_hace_cuantas_preguntas_no_la_dificultad():
+    """2026-11-17 (Art. I): «Nivel: Básico/Intermedio/Avanzado» solo cambiaba cuántas preguntas salían, siempre en el
+    orden del banco (en 4 de 6 lecciones los tres niveles daban las mismas). Ahora se rotula así."""
+    from pathlib import Path
+    from streamlit.testing.v1 import AppTest
+    from app.supermodules.academia.pages import QUIZ_SIZE_LABELS
+
+    at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=240)
+    at.session_state["biocore_start_page"] = "quiz"
+    at.run()
+    assert at.exception == []
+    radio = at.radio(key="academia_level")
+    assert radio.label == "Cuántas preguntas" and list(radio.options) == list(QUIZ_SIZE_LABELS.values())
+    texts = " ".join(c.value for c in at.caption)
+    assert "Esta lección tiene 6 preguntas" in texts and "la dificultad no cambia" in texts      # ECG Básico
+    assert not any(r.label == "Nivel" for r in at.radio)

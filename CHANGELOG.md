@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-17 — Evaluación de la plataforma, bloque 1: arreglos rápidos (Art. I)
+
+**Contexto**: Luis pidió evaluar la plataforma. La evaluación (por ejecución: las 29 páginas, capturas en computadora y celular, bancos de preguntas, arranque y dependencias) encontró, entre otros: el selector «Nivel» del quiz no cambiaba la dificultad; en el celular el menú tapaba el contenido; el despliegue en la nube quedaba con módulos viejos; diez paquetes de `requirements.txt` que la app no importa. Bloque 1:
+
+1. **«Nivel» → «Cuántas preguntas» (Art. I):** Básico/Intermedio/Avanzado solo cambiaba cuántas preguntas salían, en el orden del banco; en 4 de las 6 lecciones los tres daban las mismas. Ahora se rotula «Hasta 5 / Hasta 8 / Todas», con cuántas tiene la lección y que la dificultad no cambia.
+2. **Menú en el celular:** `initial_sidebar_state` pasa de «expanded» a «auto»; con «expanded» el menú se abría encima del contenido y tapaba el aviso de entrada.
+3. **Versión y proceso viejo:** `app/utils/version.py`. Ajustes dice qué commit corre y con cuál arrancó el proceso; si difieren, el pie de cada página pide reiniciar la app (la causa del ImportError de hoy en Streamlit Cloud).
+4. **Dependencias:** `requirements.txt` queda con lo que la app importa; jupyter, seaborn, shap, lime, pytest, pytest-cov, mypy, pylint, black y flake8 pasan a `requirements-dev.txt` (que incluye `requirements.txt`). Menos instalación en la nube; el entorno de pruebas no cambia.
+5. **D1, consentimiento antes de medir las propias señales (elaborado, pendiente de firma):** `legal.own_signals_consent`, una vez por sesión, antes de usar un equipo real en las fuentes en vivo de ECG, biosensores y EEG (o un flujo LSL); las prácticas simuladas no lo piden; sin aceptar, la fuente no se conecta. Texto en `docs/legal/textos_legales.md` (D1.1–D1.4), sacado de AP1 y AP3.
+6. **No se hizo:** cargar el narrador con IA bajo demanda (2 s del arranque en frío). `app/main.py` importa `domain.physiology.narrator.privacy`, que carga el paquete entero, y esos 2 s solo se pagan al arrancar el proceso, no en cada visita.
+
 ## 2026-11-17 — Textos legales firmados
 
 Luis firmó los textos legales («Firmo todo»): TC1–TC5, AP0–AP5, CW1–CW3 y PS1–PS4, con los ajustes del Art. I. `docs/legal/textos_legales.md` dice FIRMADO y su hoja de firma está marcada; el aviso arriba de Términos y Aviso de privacidad ya no habla de cláusulas pendientes, solo de los datos de la entidad legal que faltan. Queda abierta la decisión D1 (consentimiento antes de medir las propias señales).
