@@ -25,6 +25,7 @@ import streamlit as st
 from app.utils.design_system import PALETTE
 from app.utils.evidence_passport import render_evidence_passport
 from app.utils.patient_session import _PATIENT_ID_KEY, get_active_session_factory
+from clinical.calculators import news2_partial, news2_points_text
 from domain.physiology.state import Provenance, get_latest_state
 from domain.physiology.state.schema import PhysiologicalDescriptor
 
@@ -56,11 +57,11 @@ PROVENANCE_ES = {
 # El UPS guarda «bpm»; en pantalla va «lpm» (ningún inglés visible).
 UNIT_ES = {"bpm": "lpm"}
 
-# (clave, rótulo, dominio del UPS, nombre del descriptor)
+# (clave, rótulo, dominio del UPS, nombre del descriptor, componente NEWS2 de `news2_partial`)
 VITALS = (
-    ("hr", "FC", "cardiovascular", "heart_rate"),
-    ("rr", "FR", "respiratory", "respiratory_rate"),
-    ("spo2", "SpO₂", "respiratory", "spo2"),
+    ("hr", "FC", "cardiovascular", "heart_rate", "Pulso"),
+    ("rr", "FR", "respiratory", "respiratory_rate", "Frecuencia respiratoria"),
+    ("spo2", "SpO₂", "respiratory", "spo2", "SpO₂ (escala 1)"),
 )
 
 
@@ -93,7 +94,7 @@ def read_active_vitals() -> ActiveVitals:
     if state is None:
         return ActiveVitals(patient_id, dict(empty))
     domains = state.all_domains()
-    values = {key: domains[domain].get(name) for key, _label, domain, name in VITALS}
+    values = {key: domains[domain].get(name) for key, _label, domain, name, _component in VITALS}
     return ActiveVitals(patient_id, values)
 
 
@@ -119,12 +120,13 @@ def provenance_label(descriptor: PhysiologicalDescriptor) -> str:
     return PROVENANCE_ES.get(descriptor.provenance, descriptor.provenance.value)
 
 
-def _value_html(label: str, descriptor: Optional[PhysiologicalDescriptor]) -> str:
+def _value_html(label: str, descriptor: Optional[PhysiologicalDescriptor], news2: Optional[int] = None) -> str:
     if descriptor is None:
         return f"<span style='color:{PALETTE.NEUTRAL};'>{label}: ○ {NO_DATA_TEXT}</span>"
     detail = f" title='{html.escape(descriptor.source_detail, quote=True)}'" if descriptor.source_detail else ""
+    points = f" · NEWS2 {news2_points_text(news2)}" if news2 is not None else ""
     return (f"<span{detail}>{label} <b>{descriptor.value:.0f}</b> {html.escape(UNIT_ES.get(descriptor.unit, descriptor.unit))} "
-            f"<span style='color:{PALETTE.NEUTRAL};'>[{provenance_label(descriptor)}]</span></span>")
+            f"<span style='color:{PALETTE.NEUTRAL};'>[{provenance_label(descriptor)}]</span>{points}</span>")
 
 
 def render_active_patient_banner() -> None:
@@ -138,14 +140,19 @@ def render_active_patient_banner() -> None:
                 unsafe_allow_html=True,
             )
             return
-        parts = " &nbsp;·&nbsp; ".join(_value_html(label, vitals.values[key]) for key, label, _domain, _name in VITALS)
+        raw = {key: (d.value if d is not None else None) for key, d in vitals.values.items()}
+        components = news2_partial(pulse=raw["hr"], respiratory_rate=raw["rr"], spo2=raw["spo2"]).components
+        parts = " &nbsp;·&nbsp; ".join(
+            _value_html(label, vitals.values[key], components.get(component))
+            for key, label, _domain, _name, component in VITALS
+        )
         st.markdown(
             f"🧍 <b>Paciente activo</b> <code>{html.escape(vitals.short_id)}</code> &nbsp;·&nbsp; "
             f"Fuente activa: {html.escape(active_source_label())}<br>{parts}",
             unsafe_allow_html=True,
         )
         # Pasaporte de evidencia (2026-11-17): un botón por valor; el tipo de dato sale de la procedencia guardada.
-        for col, (key, _label, _domain, _name) in zip(st.columns(len(VITALS)), VITALS):
+        for col, (key, *_rest) in zip(st.columns(len(VITALS)), VITALS):
             with col:
                 render_evidence_passport(PASSPORT_FIELDS[key], _passport_value(vitals.values[key]),
                                          procedencia=getattr(vitals.values[key], "provenance", None))

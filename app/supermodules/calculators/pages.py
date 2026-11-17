@@ -283,6 +283,7 @@ def _render_ecg_tab() -> None:
         rate = calc.hr_from_rr_ms(_num("Intervalo RR (ms)", "calc_hrp_rr"))
     _card("hr_paper", "Frecuencia cardiaca", f"{rate:.0f} lpm",
           classification=calc.classify_heart_rate(rate), citation=calc.ECG_PAPER_CITATION)
+    st.caption(calc.news2_reading_note(pulse=rate))     # integración: la FC siempre con sus puntos NEWS2
 
     st.markdown("---")
     st.markdown("#### Eje eléctrico del QRS (DI y aVF)")

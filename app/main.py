@@ -64,6 +64,7 @@ from app.utils.design_system import (
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
 from app.utils.patient_banner import render_active_patient_banner
+from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
     get_active_patient_display_name,
     get_active_patient_id,
@@ -1705,6 +1706,7 @@ def render_ecg_monitor_page() -> None:
     else:
         # La explicación es el tema 2 firmado (docs/contenido/teoria_citada.md); las capas genéricas se retiraron.
         render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm', topic=SIGNED_HEART_RATE)
+        st.caption(news2_reading_note(pulse=hr))     # integración: la FC siempre con sus puntos NEWS2 (misma tabla del gemelo)
     st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs:g} Hz")
 
     st.divider()
@@ -1971,6 +1973,7 @@ def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecor
     render_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
                        provenance=BADGES.HEURISTIC)
     render_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC)
+    st.caption(news2_reading_note(pulse=indices['heart_rate'], spo2=indices['spo2_mean']))   # integración: puntos NEWS2
 
     # ── 2. Plegados ──
     with st.expander(LAB_SECTION_HOW, expanded=False):

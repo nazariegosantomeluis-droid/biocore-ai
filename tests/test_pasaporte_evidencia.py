@@ -67,6 +67,9 @@ def test_every_quote_exists_literally_in_its_file(campo):
         line = int(cita.ubicacion.rsplit(":", 1)[1])
         assert 1 <= line <= len(source.splitlines()), (campo, name, cita.ubicacion)
         assert _norm(cita.texto) in _norm(source), (campo, name, cita.texto[:80])
+        # La cita empieza en la línea declarada (o en las 3 siguientes, si la línea abre un docstring o una llamada).
+        window = _norm(" ".join(source.splitlines()[line - 1:line + 3]))
+        assert _norm(cita.texto)[:20] in window, (campo, name, cita.ubicacion)
 
 
 def test_sources_point_to_the_bibliography():
