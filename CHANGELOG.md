@@ -97,7 +97,7 @@ HRV (ya en expanders desde la tanda 1), EEG y 12 Derivaciones no tenían el sele
   - Según lo firmado, no se sustituye: se completa con su DOI en el panel, en `vcg.py` y en la Bibliografía.
 
 ### Verificación
-- Suite completa en serie: **SUITE**.
+- Suite completa en serie: **2292 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4), 4 avisos, 629 s**.
 - Pruebas nuevas en `tests/test_pulido_profesional.py`:
   - golden de escala, pulso y orden 3×4;
   - demo a 500 Hz;
