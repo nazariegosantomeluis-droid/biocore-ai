@@ -94,7 +94,13 @@ def test_each_question_matches_the_signed_sheet_letter_by_letter(qid):
 def test_each_explanation_is_a_substring_of_its_signed_t2_lines(qid):
     q = BANK[qid]
     if qid == "E1":
-        pytest.skip("E1 se firmó «tal cual» con la explicación de la v2, que resume t2:13 (ver la prueba anterior)")
+        # Excepción explícita, no una omisión: E1 se firmó «tal cual» en la hoja v2, cuya explicación resume t2:13 en
+        # vez de copiarla. Se exige que sea EXACTAMENTE la de la hoja. Allí va entre comillas dentro de una frase; la
+        # app la muestra como oración, con su punto final.
+        signed = re.search(r"^### E1 — FIRMAR TAL CUAL\n.*?la explicación de la v2 \(«([^»]+)»\)", HOJA, re.M | re.S)
+        assert signed, "la hoja v2 debe traer la explicación firmada de E1 entre «»"
+        assert q.explanation == signed.group(1) + ".", (q.explanation, signed.group(1))
+        return
     lines = _hoja(qid)["lines"]
     joined = " ".join(_limpia(T2[n - 1]) for n in lines)
     assert q.explanation in joined, (qid, lines)
