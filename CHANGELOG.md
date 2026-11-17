@@ -9,7 +9,7 @@
 - **Rutas portables.** `arrhythmia_evaluation.py` define `REPO_ROOT` y `CACHE_DIR` = la variable `BIOCORE_CACHE_DIR` o, sin ella, `.cache/biocore` en la raíz del repositorio (`.cache/` ya está en `.gitignore`). El CLI corre sin argumentos: `--mitdb` vale por defecto `CACHE_DIR/mitdb` y `--model` `CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` (antes `--mitdb` era obligatorio y sin `--model` no se guardaba el modelo; ahora el CLI lo guarda siempre). `MODEL_CARD.md` habla de `$BIOCORE_CACHE_DIR` y su «Cómo reproducir» son cuatro pasos (fijar la variable en Git Bash o PowerShell, o no fijarla; descargar `mitdb`; evaluar sin argumentos; correr las pruebas). El SHA-256 del modelo y todas las cifras quedan igual; `results.json` no tenía rutas personales.
 - **Pruebas nuevas (`tests/test_arrhythmia_model_card.py`).** `CACHE_DIR` sale de la variable y, sin ella, es `<raíz>/.cache/biocore` (recarga el módulo y lo deja como estaba); ni `MODEL_CARD.md`, ni `results.json`, ni `arrhythmia_evaluation.py` contienen «C:/Users» ni «luisn».
 
-**Suite:** PENDIENTE
+**Pruebas** (Python 3.13.11 del PATH, en serie): `tests/test_arrhythmia_model_card.py`, `test_arrhythmia_classifier_new.py` y `test_docs_honest_tanda2.py`: 18 passed. Sin `lightgbm` (paquete simulado que lanza `ImportError`): 8 passed, 1 skipped (la prueba de predicción, por `importorskip`). Guardias de `domain/` (`test_ups_body_3d_paridad.py`, `test_ups_derived_contract.py`) con el cambio commiteado: 50 passed. No se corrió la suite completa.
 
 ## 2026-11-17 — Tarjeta del modelo: evaluación honesta del clasificador de arritmias (Art. I)
 
