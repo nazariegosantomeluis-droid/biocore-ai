@@ -32,6 +32,183 @@
   - Resultado: 38 pasan (los dos archivos). Por instrucción no se corrió la suite completa.
   - Tras el registro por intento y el rótulo: `test_what_if.py` + `test_docs_honest_tanda2.py` + `test_fase1_t2_pulido.py` = 55 pasan con el Python del PATH (3.13.11, Streamlit 1.67.0). Sin el guardia, la prueba nueva falla (6 registros en vez de 3).
 
+## 2026-11-17 — Residuos del PR #7: licencia de lightgbm, métodos citados y rutas portables (Art. I)
+
+**Contexto.** Rama `luis/ml-hoy`. La tarjeta del modelo usaba `lightgbm` y dos métodos publicados (con la fuente de donde se leyeron las listas DS1/DS2) sin atribuirlos en `THIRD_PARTY_NOTICES.md`, y dejaba rutas personales («C:/Users/…») en el código y en la tarjeta: nadie más podía reproducirla tal como estaba escrita.
+
+- **Licencia de `lightgbm` (`THIRD_PARTY_NOTICES.md`, sección 4).** Leída de su fuente el 2026-11-17, del paquete instalado (lightgbm 4.6.0, Python 3.13.11 del PATH): `LICENSE` del paquete «The MIT License (MIT) / Copyright (c) Microsoft Corporation»; metadatos `License: The MIT License (MIT)` y clasificador `License :: OSI Approved :: MIT License`; página https://github.com/microsoft/LightGBM. Lo usan solo la evaluación (`domain/physiology/ml/arrhythmia_evaluation.py`) y `requirements_arrhythmia.txt`; la app no lo importa al correr y sigue fuera de `requirements.txt` a propósito (las pruebas que lo necesitan se omiten sin él). Se sacó de la nota de paquetes sin licencia leída y del pendiente 4; `kaleido`, `xgboost`, `pytz`, `scikit-plot` y `optuna` siguen pendientes.
+- **Métodos citados (`THIRD_PARTY_NOTICES.md`, sección 5).** División DS1/DS2 y clases AAMI: de Chazal 2004, *IEEE Trans Biomed Eng* 51(7):1196–1206, doi:10.1109/TBME.2004.827359, PMID 15248536 (verificada en PubMed). Puntaje de Brier: Brier 1950, *Monthly Weather Review* 78(1):1–3 (verificada en Crossref; no está en PubMed). Las listas DS1/DS2 se leyeron en Farag 2023, *Sensors* 23(3):1365, PMC9919183, tabla 2 (verificada en PubMed); la tabla de de Chazal no se leyó (es de pago). La MIT-BIH ya estaba atribuida y no se duplicó.
+- **Rutas portables.** `arrhythmia_evaluation.py` define `REPO_ROOT` y `CACHE_DIR` = la variable `BIOCORE_CACHE_DIR` o, sin ella, `.cache/biocore` en la raíz del repositorio (`.cache/` ya está en `.gitignore`). El CLI corre sin argumentos: `--mitdb` vale por defecto `CACHE_DIR/mitdb` y `--model` `CACHE_DIR/models/lgbm-8rasgos-ds1-v1.joblib` (antes `--mitdb` era obligatorio y sin `--model` no se guardaba el modelo; ahora el CLI lo guarda siempre). `MODEL_CARD.md` habla de `$BIOCORE_CACHE_DIR` y su «Cómo reproducir» son cuatro pasos (fijar la variable en Git Bash o PowerShell, o no fijarla; descargar `mitdb`; evaluar sin argumentos; correr las pruebas). El SHA-256 del modelo y todas las cifras quedan igual; `results.json` no tenía rutas personales.
+- **Pruebas nuevas (`tests/test_arrhythmia_model_card.py`).** `CACHE_DIR` sale de la variable y, sin ella, es `<raíz>/.cache/biocore` (recarga el módulo y lo deja como estaba); ni `MODEL_CARD.md`, ni `results.json`, ni `arrhythmia_evaluation.py` contienen «C:/Users» ni «luisn».
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): `tests/test_arrhythmia_model_card.py`, `test_arrhythmia_classifier_new.py` y `test_docs_honest_tanda2.py`: 18 passed. Sin `lightgbm` (paquete simulado que lanza `ImportError`): 8 passed, 1 skipped (la prueba de predicción, por `importorskip`). Guardias de `domain/` (`test_ups_body_3d_paridad.py`, `test_ups_derived_contract.py`) con el cambio commiteado: 50 passed. No se corrió la suite completa.
+
+## 2026-11-17 — Tarjeta del modelo: evaluación honesta del clasificador de arritmias (Art. I)
+
+**Contexto (Art. I: ninguna cifra sin decir cómo se calculó).** Rama `luis/ml-hoy`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, lightgbm 4.6.0, scikit-learn 1.9.0, NumPy 2.4.6, wfdb 4.3.1.
+
+**Inventario.** El «clasificador LightGBM» es `biomedical/arrhythmia_classifier.py`, no `domain/physiology/ml/`. Lo que había:
+- 8 rasgos de amplitud del segmento, sin RR.
+- RandomForest siempre; XGBoost y LightGBM solo si están instalados.
+- Ningún modelo entrenado, ninguna métrica guardada y ninguna pantalla que lo use.
+
+**Fuga de datos, con evidencia.** `ArrhythmiaClassifier.train` separa entrenamiento y prueba con `train_test_split` **por latido**. Medido con ese mismo protocolo sobre MIT-BIH (DS1 y DS2 juntos):
+- Los 44 de 44 registros quedan a la vez en entrenamiento y en prueba.
+- La exactitud sale 0.944 y el F1 macro 0.531.
+- Entre pacientes (entrenamiento DS1, evaluación DS2; de Chazal 2004) bajan a 0.843 y 0.299.
+- La sensibilidad de S cae de 0.424 a 0.007.
+
+**Qué se hizo:**
+1. `domain/physiology/ml/arrhythmia_evaluation.py`. Usa los rasgos de la clase y `LGBMClassifier` con sus parámetros por defecto. Añade `deterministic=True`: sin él, dos corridas iguales dieron sensibilidad de N de 0.9047 y de 0.9003. Entrena con DS1 y evalúa con DS2:
+   - clases AAMI N, S, V, F y Q;
+   - matriz de confusión;
+   - sensibilidad, valor predictivo positivo y F1 por clase;
+   - F1 macro;
+   - exactitud, con la advertencia de desbalance: un modelo que siempre dijera N tendría 0.890, más que este;
+   - Brier multicategoría y curva de confiabilidad.
+   
+   Predice con un `DataFrame` que tiene los mismos nombres de columna que el ajuste, sin el aviso «X does not have valid feature names». Escribe `docs/validation/arrhythmia_classifier/results.json` (fecha, versión `lgbm-8rasgos-ds1-v1`, registros, SHA-256 del modelo) y dos PNG. El modelo se guarda fuera de git, en `biocore_cache`. No había modelo anterior que conservar.
+2. Listas DS1 y DS2 verificadas en texto completo de PMC: Farag 2023, PMC9919183, tabla 2. Coinciden con García 2017 y Zou 2022. La tabla del artículo de de Chazal no se leyó (es de pago).
+3. `MODEL_CARD.md`: uso educativo, no apto para diagnóstico; datos, separación, métricas, calibración, limitaciones y cómo reproducir.
+4. ECG → Monitoreo → «Cómo se calcula»: panel «Tarjeta del modelo» (`render_arrhythmia_model_card`, `app/main.py`).
+   - **Lee** `results.json`; ninguna cifra está escrita en el código.
+   - El modelo se rotula «En evaluación»: S, V, F y Q tienen sensibilidad menor que 0.80, umbral que es Criterio BIOCORE sin cita.
+   - Sin el archivo, el panel dice «Sin dato» y explica el motivo.
+5. Pruebas en `tests/test_arrhythmia_model_card.py`:
+   - golden test: el panel muestra exactamente las cifras de `results.json`;
+   - los registros de evaluación no están entre los de entrenamiento;
+   - métricas y Brier en un caso conocido;
+   - predicción sin aviso de nombres de columna;
+   - el panel funciona sin `results.json`.
+
+**Pendiente:**
+- `lightgbm` no está en `requirements.txt` ni en THIRD_PARTY_NOTICES con su licencia.
+- RandomForest y XGBoost no se evaluaron.
+- La propia clase (`biomedical/`, fuera del alcance de esta tanda) sigue emitiendo el aviso «X does not have valid feature names» en `tests/test_arrhythmia_classifier_new.py`. La ruta de evaluación nueva no lo emite.
+
+**Suite**, en serie con el intérprete del PATH, sobre la rama commiteada: **2303 passed, 8 skipped, 0 failed** (24 min). Las omitidas son de entorno: pseudo-terminal en Windows y la base de desarrollo, que no existe en el worktree.
+
+La primera corrida dio 4 fallos en `test_ecg_hr_detector_consolidation.py`. Su guardia del «220 lpm» fijo busca la cadena «220» en el markdown de la página, y el panel listaba el registro 220 de MIT-BIH. Se corrigió: el panel da cuántos registros hay y remite a `MODEL_CARD.md` para la lista.
+
+## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
+
+- **`src/signals/ecg/rsa.py`.**
+  - `RSA_CITATION`, que es la cita de la tarjeta «Potencia HF», se atribuía a la Task Force. Ahora dice lo firmado en B3 y B5: «Banda HF (0.15-0.40 Hz), la "banda respiratoria": está influida por la respiración entre 9 y 24 respiraciones por minuto, y la arritmia sinusal respiratoria está mediada por el nervio vago [SG2017]».
+  - La regla de los «10 periodos» se queda, sin atribuirla a ninguna fuente: «Criterio BIOCORE (HEURISTIC): al menos 10 periodos de la frecuencia más baja de la banda».
+  - El motivo «respiración fuera de la banda HF» ya no nombra a la Task Force: cita la «banda respiratoria» [SG2017].
+  - Los comentarios del módulo dicen lo mismo.
+  - [TF1996] sigue solo en la Bibliografía, con su nota.
+- **Carga cognitiva: se quitó la cita de Holm 2009.**
+  - **La referencia existe.** Holm A, Lukander K, Korpela J, Sallinen M, Müller KMI. Estimating brain load from the EEG. *ScientificWorldJournal*. 2009;9:639–651. doi:10.1100/tsw.2009.83. PMID 19618092, PMC5823228 (verificada en PubMed el 2026-11-17).
+  - **Solo se leyó el resumen:** PMC no tiene el texto completo legible.
+  - **No respalda la ayuda.** El resumen describe la razón **theta Fz / alpha Pz**, que aumenta con las tareas simultáneas y con el tiempo despierto. No respalda la escala 0.5–4.0, ni el peso 0.7, ni una razón θ/α sin canales, que es lo que calcula BIOCORE.
+  - **Queda como Criterio BIOCORE:** la ayuda dice «Razón θ/α 0.5-4.0 (límites de la escala del índice, no valores de referencia) y su peso (0.7)», sin cita.
+- **Guardia (`tests/test_validado_requiere_clave.py`), ampliada:**
+  - ninguna ayuda ni archivo de `app/` dice «cita sin verificar»;
+  - ningún texto visible del laboratorio de HRV atribuye nada a la Task Force. Lo comprueba con AppTest sobre las dos fuentes, la simulación del acoplamiento cardiopulmonar y la «Serie RR manual», y con los dos motivos con que la RSA declina: registro corto y respiración fuera de la banda HF.
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia, las de rsa y HRV (`test_rsa_cardiopulmonary`, `test_hrv_nonlinear`, `test_teoria_emg_hrv`) y las de Biomarcadores (`test_biomarkers_plv`, `test_visual_migration_main_inline`, `test_visual_consolidation_tanda_final`, `test_cierre_pulido`, `test_fase1_t1_contencion`): 136 passed, 1 skipped (de entorno: sin base de desarrollo). El recorrido de idioma y contención de las páginas `hrv` y `biomarcadores` (`test_fase1_t2_pulido`, `test_integracion_contencion`, `test_pulido_profesional`): 50 passed. No se corrió la suite completa.
+
+## 2026-11-17 — Residuos del PR #8: insignias de Biomarcadores, firma de la HRV y cita de [DL2010]
+
+**Contexto (Art. I)**: tras la Teoría citada 2 quedaban textos que presentaban como «Validado por fuente» lo que no tiene una fuente de la Bibliografía, y textos que atribuían las métricas de la HRV a la Task Force ESC/NASPE ([TF1996]), a la que no se le atribuye ninguna afirmación (no se leyó su texto completo). Solo se bajan insignias; ninguna sube.
+
+- **Firma de Biomarcadores** (`_BIOMARKERS_VALIDATION_DETAIL`, `app/main.py`): nombraba el «Estrés» (ya no se muestra desde B3) y decía «de literatura base». Ahora nombra solo los índices que la página calcula: Carga cognitiva, Índice de recuperación y Resiliencia fisiológica, «derivados analíticamente, sin calibración de dispositivo médico». La Disposición para el aprendizaje no se nombra: depende del PLV neurocardíaco y en la práctica sale «no disponible» (lo detectó `test_visual_migration_main_inline.py`, que busca la tarjeta por su nombre).
+- **Ayudas de Biomarcadores** (`_BIOMARKER_HELP`), de «Validado por fuente» a «Criterio BIOCORE» (Art. I):
+  - **Resiliencia fisiológica**: citaba los «marcadores dorados de resiliencia cardiovascular» (dictamen interno del validador, sin fuente publicada). SDNN 15-150 ms y recuperación de la FC 15-50 lpm/min se rotulan «límites de la escala del índice, no valores de referencia». Se retiró la constante `BIOMARKER_SOURCE_RESILIENCE_GOLD` y la frase del material sin montar (`_biomarkers_ghost_history`).
+  - **Índice de estrés** (la ayuda ya no se monta, pero no debe mentir): citaba «Task Force ESC/NASPE 1996». Ahora «razón LF/HF (interpretación discutida) [B2013]» (decisión B3), con 0.5–5.0 como límites de la escala. Se retiró `BIOMARKER_SOURCE_ESC_NASPE`; el material sin montar y el docstring de `calculate_stress_index()` (`biomarkers.py`) ya no dicen que el score esté citado por la Task Force.
+  - **Carga cognitiva**: citaba a Holm et al. 2009 («índice EEG robusto y validado»), que no está en la Bibliografía. Queda «Holm et al., 2009 (cita sin verificar; no está en la Bibliografía)», sin los adjetivos, y la razón θ/α 0.5–4.0 como límites de la escala.
+  - Constante nueva `BIOMARKER_SCALE_LIMITS`; `BIOMARKER_SOURCE_RMSSD` se arma con ella (mismo texto).
+- **HRV**: la firma del laboratorio (`_HRV_VALIDATION_DETAIL`) dice «Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017].» y la ayuda de «Frecuencia respiratoria (rpm)» dice «La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.» (B2/B3). `src/signals/ecg/rsa.py` no se tocó: sus textos visibles que citan a la Task Force quedan para decisión aparte.
+- **Guardia nueva** `tests/test_validado_requiere_clave.py` (sin hardware ni AppTest): todo segmento de `_BIOMARKER_HELP` con «Validado por fuente» lleva una clave de la Bibliografía distinta de [TF1996]; «marcadores dorados» no aparece en ningún `.py` de `app/`; la firma de la HRV cita [SG2017] y no la Task Force.
+- **Pruebas actualizadas**: `tests/test_visual_consolidation_tanda_final.py` (firmas de HRV y Biomarcadores) y `tests/test_visual_migration_main_inline.py` (el fragmento de la firma de HRV pasa de «Task Force» a «[SG2017]»).
+
+**[DL2010]: corrección de cita** (volumen 43(8), verificado en PubMed, PMID 20206934), sin cambio de contenido: `app/supermodules/bibliography.py` y `docs/contenido/teoria_citada_2.md` decían «2010;43:1573–1579»; ahora «2010;43(8):1573–1579».
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia nueva `test_validado_requiere_clave.py` (con una prueba de que rechaza lo que debe) y las de teoría, pulido y contención que ya tocaba el PR (`test_teoria_emg_hrv`, `test_fase1_t2_teoria`, `test_fase1_t2_pulido`, `test_pulido_profesional`, `test_containment_facades_tanda1`, `test_integracion_contencion`, `test_ecg12_rhythm_labels`, `test_twelve_lead_measure`), más `test_visual_consolidation_tanda_final`, `test_visual_migration_main_inline` y `test_biomarkers_plv`: 290 passed. No se corrió la suite completa.
+
+## 2026-11-17 — Teoría citada 2 (EMG y HRV) y coherencia con la teoría firmada
+
+**Contexto (Art. I)**: Luis firmó `docs/contenido/teoria_citada_2.md` (EMG A1–A9 y HRV B1–B9, con restricciones en cada tema). Junto con `teoria_citada.md`, es la única fuente de texto médico nuevo de esta tanda. Varias etiquetas de la app contradecían lo firmado:
+- la razón LF/HF leída como «balance simpático/vagal» y como «estrés»;
+- el RMS del EMG presentado como medida de cuánto se contrae;
+- factores de la HRV y una cifra de normalidad sin fuente;
+- escenarios STEMI nombrados por pared y arteria.
+
+Rama `teoria-emg-hrv`, desde `main`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, NumPy 2.4.6, SciPy 1.17.1, pylsl 1.18.7. En el paso 0, la suite completa dio 2299 pasan, 0 fallan y 6 omitidas.
+
+### Parte A — Teoría de EMG y HRV
+- **18 temas firmados** en la teoría en capas (`learn_theory.py`: `SIGNED_EMG_A1…A9`, `SIGNED_HRV_B1…B9`). Cada línea está tal cual en el documento; la prueba literal (`test_fase1_t2_teoria.py`) ahora también lo busca en `teoria_citada_2.md`.
+  - **En Aprender** → Referencias de los laboratorios, con los encabezados «EMG de superficie» y «Variabilidad de la frecuencia cardiaca (HRV)».
+  - **En la «Teoría» de cada laboratorio**: EMG, A1–A9; HRV, B1–B9, en un expander nuevo dentro de «Aprender y explicar».
+  - **Lo que el documento lista como «sin fuente verificada» no se escribe**: el ECG en los músculos del tronco, las dimensiones SENIAM, la postura, los fármacos, el ejercicio y las cifras de referencia. Una prueba lo vigila.
+- **«¿Qué significa…?» solo con texto firmado**:
+  - RMS del EMG: A5. Frecuencia mediana: A7.
+  - SDNN, RMSSD y pNN50: su línea de B2.
+  - La «Activación muscular» no tiene tema firmado y conserva solo la definición del cálculo.
+  - Un tema firmado sin capa de detalle ahora también muestra su fuente y el enlace a la Bibliografía.
+- **Bibliografía**: las 7 referencias nuevas ([DL1997], [DL2010], [V2018], [H2000], [SG2017], [B2013], [TF1996]). [TF1996] lleva la nota de que no se le atribuye ninguna afirmación directamente.
+
+### Parte B — Etiquetas que contradecían lo firmado
+1. **Razón LF/HF** (B3, decisión de Luis: «razón LF/HF (interpretación discutida)» con [B2013], nunca «balance simpático-vagal»):
+   - **HRV, espectro**: decía «LF/HF: 0.85». Ahora dice «razón LF/HF (interpretación discutida) [B2013]: 0.85», con la explicación firmada debajo. La pestaña «Espectro (LF/HF)» pasa a «Espectro (bandas LF y HF)».
+   - **HRV, narrador**: el hallazgo `lf_hf_ratio` decía «Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.». Ahora lleva el rótulo y la explicación firmada de B3.
+   - **Biomarcadores**: el «Índice de Estrés» era la razón LF/HF normalizada a 0–100, con la etiqueta «Validado por fuente» (Task Force). Leer LF/HF como estrés es leerla como equilibrio simpático-vagal: ya no se muestra.
+     - Queda «Índice de estrés: no disponible», con el motivo firmado.
+     - La razón se muestra con su rótulo.
+     - La entrada «Ratio LF/HF» pasa a «Razón LF/HF (interpretación discutida) [B2013]».
+     - `calculate_stress_index()` sigue en `biomarkers.py`, sin mostrarse.
+   - **Prueba**: el recorrido de todas las páginas y fuentes (`test_fase1_t2_pulido.py`, `lf_hf_offenders`) exige que todo texto con «LF/HF» lleve el rótulo, o sea el texto firmado que explica por qué es discutida, y que nunca diga «balance», «dominancia» ni «proxy».
+2. **EMG** (A1, A6, A9):
+   - Vista del laboratorio: decía «Para saber cuánto contraes, mira el RMS: crece con la contracción». Ahora: «La amplitud del EMG de superficie indica la **excitación** del músculo, no su fuerza [V2018]».
+   - Guía del sensor (`hardware/biosensors/sensors.py`): decía «Para saber cuánto contraes, mira el RMS en mV». Ahora, la misma frase firmada.
+   - Práctica con la placa simulada: decía «El RMS sube con la fuerza que elijas». Ahora: «sube con el nivel que elijas (así está programada la placa simulada)», más la frase firmada.
+   - No se encontró ningún texto que hablara de hipertrofia, diagnóstico o lesión a partir de la amplitud. «No es %MVC: no mide cuánto contraes» se queda: es una negación correcta.
+3. **HRV** (B7, B9):
+   - «¿Qué afecta la HRV?» decía «Un mayor tono vagal eleva la RMSSD y el pNN50» y «La enfermedad crónica y la edad tienden a bajar el SDNN». Ahora es el tema B7 (solo edad, sexo, duración del registro y respiración).
+   - Los significados que recibe el narrador («aproximación del tono parasimpático», «indicador vagal») se cambiaron por las líneas de B2.
+   - Biomarcadores: «RMSSD 10-100ms: rango fisiológico correcto (dictamen del validador)» con etiqueta «Validado por fuente» era una cifra de normalidad sin fuente publicada. Ahora: «RMSSD normalizada entre 10 y 100 ms: límites de la escala del índice, no valores de referencia», con etiqueta «Criterio BIOCORE».
+4. **Escenarios de 12 Derivaciones**: se nombran por lo que se ve en el trazado construido (elevación del ST ≥ 1 mm a la magnitud de referencia, medida en `truth.st_j_mv`):
+
+   | Antes | Ahora |
+   |---|---|
+   | «🔴 STEMI Anterior - Infarto anterior (DA)» | «🔴 STEMI con elevación del ST en V1–V4» |
+   | «🔴 STEMI Inferior - Infarto inferior (CD o Cx)» | «🔴 STEMI con elevación del ST en II, III y aVF» |
+   | «🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)» | «🔴 STEMI con elevación del ST en I, aVL, V5–V6» |
+
+   La interpretación pasa al expander «Corrección del caso: qué sugiere el trazado y arteria probable (tema 5)». Muestra en qué derivaciones construyó el generador la elevación y el descenso del ST, y la tabla firmada del tema 5 con su advertencia.
+
+### Verificación
+- Suite completa en serie: **2332 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4). Corrida en una worktree aparte porque el directorio de trabajo cambió de rama durante la tanda: 2330 pasan y 8 omitidas; las 2 de más leen la base de desarrollo y sus respaldos, y con una copia en la worktree pasan las 2**.
+- Pruebas nuevas en `tests/test_teoria_emg_hrv.py`:
+  - 18 temas integrados, en Aprender y en cada laboratorio;
+  - nada «sin fuente verificada»;
+  - [TF1996] sin afirmaciones;
+  - «¿Qué significa…?» firmado;
+  - LF/HF rotulada en HRV, Biomarcadores y el narrador;
+  - EMG sin deducir fuerza;
+  - HRV sin postura, fármacos ni ejercicio, ni cifras de normalidad;
+  - nombres STEMI comprobados contra el trazado construido.
+- La guardia de LF/HF entra al recorrido de todas las páginas.
+- Excepciones nuevas, por texto exacto y exigiendo que estén en el documento firmado:
+  - tres frases de A3 y A4 que el patrón amplio de tratamientos atrapaba («Recomendación clásica…», «recomendaciones de colocación…», «coincide con esta recomendación»);
+  - el título del artículo de [B2013] en la Bibliografía;
+  - la línea firmada de B6 sobre la entropía muestral en la guardia de «Entropía» de la contención de la tanda 1 (que buscaba el botón falso de «complejidad»).
+- Base de desarrollo intacta (1/7/53/0).
+
+### Sin tocar
+- **Código con LF/HF como «balance» que ninguna página monta**:
+  - `src/advanced_hrv.py`, `src/risk_analysis.py` y `src/feature_extraction.py` (sin llamador en la app);
+  - `src/ecg_education.py` (solo lo usa `app/ecg_trainer.py`, que no está en el menú);
+  - `src/interpretability.py` (solo lo usa el clasificador de `domain/`, oculto desde la contención).
+  - Si alguno se vuelve a montar, tiene que pasar la guardia.
+- **Twin OS**: «Balance simpático/parasimpático: no modelado». No lo atribuye a LF/HF; se queda.
+- **Biomarcadores**:
+  - La firma del módulo sigue diciendo «Índices compuestos (Estrés, Carga Cognitiva)».
+  - La ayuda de Resiliencia («SDNN 15-150ms… marcadores dorados», etiqueta «Validado por fuente») no es una cifra de normalidad, pero tampoco tiene fuente publicada.
+- **HRV**: la firma del laboratorio y la ayuda del control de respiración atribuyen las bandas a la Task Force, a la que el documento no permite atribuirle afirmaciones; las mismas bandas están firmadas con [SG2017].
+- **EMG**: los botones de la práctica «Contraer suave (30 %)» y «Contraer fuerte (80 %)» son niveles del simulador, no %MVC.
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:

@@ -140,8 +140,11 @@ EMG = BioSensor(
         'que pasa de 500 Hz se dobla hacia abajo. Si bajas el muestreo, la frecuencia mediana pierde sentido.',
         '**Los mV son aproximados**: suponen la ganancia de 200 y un MyoWare a 3.3 V, y el ADC del ESP32 no está '
         'calibrado.',
+        # Teoría citada 2 (2026-11-17, Art. I): decía «Para saber cuánto contraes, mira el RMS en mV»; la amplitud no
+        # dice la fuerza (A1, A9 de docs/contenido/teoria_citada_2.md).
         '**«Activación muscular» del laboratorio no es el porcentaje de la contracción máxima (%MVC)**: es el '
-        'cociente entre el promedio y el pico del EMG rectificado. Para saber cuánto contraes, mira el RMS en mV.',
+        'cociente entre el promedio y el pico del EMG rectificado. La amplitud del EMG de superficie indica la '
+        '**excitación** del músculo, no su fuerza [V2018].',
     ),
     sources=(MYOWARE_GUIDE, MYOWARE_ADVANCED, MESIN_2009),
 )

@@ -36,10 +36,11 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.signal import csd, welch
 
+# Residuos del PR #8 (2026-11-17): se atribuía a la Task Force ([TF1996]), a la que no se le atribuye ninguna
+# afirmación (no se leyó su texto completo). Lo firmado es [SG2017] (B3 y B5 de teoria_citada_2.md).
 RSA_CITATION: str = (
-    "Task Force of the ESC and NASPE (1996). Heart rate variability: standards of measurement, "
-    "physiological interpretation and clinical use. Circulation 93(5):1043-1065 -- la potencia HF "
-    "(0.15-0.40 Hz) refleja la modulación vagal respiratoria (RSA)"
+    "Banda HF (0.15-0.40 Hz), la «banda respiratoria»: está influida por la respiración entre 9 y 24 "
+    "respiraciones por minuto, y la arritmia sinusal respiratoria está mediada por el nervio vago [SG2017]"
 )
 
 RSA_SCOPE_NOTE: str = (
@@ -48,15 +49,15 @@ RSA_SCOPE_NOTE: str = (
     "paciente."
 )
 
-# Bandas y remuestreo del HRV Lab (Task Force 1996) -- una sola definición,
+# Bandas del HRV Lab ([SG2017], B3) y remuestreo -- una sola definición,
 # la usan `rr_spectrum()` aquí y `render_hrv_page()`.
 LF_BAND_HZ: Tuple[float, float] = (0.04, 0.15)
 HF_BAND_HZ: Tuple[float, float] = (0.15, 0.40)
 RR_INTERP_FS_HZ: float = 4.0
 _RR_WELCH_NPERSEG: int = 256
 
-# Task Force 1996: la ventana debe durar al menos 10 veces el periodo del
-# límite inferior de la banda -- 10/0.15 Hz ≈ 67 s para HF.
+# Criterio BIOCORE (HEURISTIC), sin fuente: la ventana debe durar al menos 10 periodos de
+# la frecuencia más baja de la banda -- 10/0.15 Hz ≈ 67 s para HF.
 MIN_RSA_DURATION_S: float = 10.0 / HF_BAND_HZ[0]
 
 # Latidos por ciclo respiratorio mínimos: la serie RR muestrea la respiración
@@ -163,8 +164,8 @@ def detect_rsa(
 
     - frecuencia respiratoria: pico del espectro de la respiración; debe
       caer en la banda HF (fuera de ella la RSA migra a LF y la lectura
-      HF deja de ser la de la Task Force -> declina);
-    - `hf_power_ms2`: potencia RR en 0.15-0.40 Hz (Task Force);
+      HF deja de ser la «banda respiratoria» de [SG2017] -> declina);
+    - `hf_power_ms2`: potencia RR en 0.15-0.40 Hz ([SG2017]);
     - `rsa_amplitude_bpm`: amplitud de la oscilación de la FC instantánea
       (60/RR) en f_resp: A = sqrt(2·∫PSD) alrededor del pico;
     - `hf_peak_fraction`: fracción de la varianza RR (>= 0.04 Hz) que cae
@@ -204,7 +205,7 @@ def detect_rsa(
     if duration_s < MIN_RSA_DURATION_S:
         return declined(
             f"{duration_s:.0f}s de latidos -- la banda HF necesita al menos {MIN_RSA_DURATION_S:.0f}s "
-            "(10 periodos de 0.15 Hz, Task Force 1996)",
+            "(Criterio BIOCORE (HEURISTIC): al menos 10 periodos de la frecuencia más baja de la banda)",
             beat_times_s=beat_times, beat_hr_bpm=beat_hr,
         )
 
@@ -214,8 +215,8 @@ def detect_rsa(
     if not HF_BAND_HZ[0] <= resp_freq <= HF_BAND_HZ[1]:
         return declined(
             f"frecuencia respiratoria {resp_freq * 60:.1f} rpm fuera de la banda HF "
-            f"({HF_BAND_HZ[0] * 60:.0f}-{HF_BAND_HZ[1] * 60:.0f} rpm) -- la RSA cae fuera de la banda que la "
-            "Task Force asocia a la modulación respiratoria",
+            f"({HF_BAND_HZ[0] * 60:.0f}-{HF_BAND_HZ[1] * 60:.0f} rpm) -- la RSA cae fuera de la banda HF, "
+            "la «banda respiratoria» [SG2017]",
             respiratory_freq_hz=resp_freq, beat_times_s=beat_times, beat_hr_bpm=beat_hr,
         )
 
