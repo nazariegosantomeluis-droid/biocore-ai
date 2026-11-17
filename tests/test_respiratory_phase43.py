@@ -76,11 +76,14 @@ def lab_texts(tmp_path_factory):
         for opt in quiz_options:
             next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value(opt).run()
             collect(at, f"{pattern}/quiz:{opt}")
-            answers = [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")]
+            # los radios de confianza (key _confidence) no son opciones de respuesta
+            answers = [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")
+               and not str(r.key).endswith("_confidence")]
             if not answers:
                 continue
             for o in list(answers[0].options):
-                [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")][0].set_value(o).run()
+                [r for r in at.radio if r.key not in ("edu_sidebar",) and not r.label.startswith("Seleccionar")
+               and not str(r.key).endswith("_confidence")][0].set_value(o).run()
                 collect(at, f"{pattern}/quiz:{opt}/{o}")
         next(r for r in at.radio if r.label.startswith("Seleccionar Tipo de Pregunta")).set_value(quiz_options[0]).run()
     assert at.exception == []
