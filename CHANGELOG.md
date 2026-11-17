@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-17 · Rediseño Duolingo + Apple: Inicio como tablero, «Temas» y «Comparar pacientes»
+
+**Contexto**: bocetos de José Miguel sobre capturas de Duolingo y de apple.com. Rama `ui-inicio-temas-comparar`, apilada sobre `pasaporte-evidencia` (PR #9).
+
+1. **Inicio** (`app/supermodules/ui_home.py`):
+   - franja «Monitoreo del paciente activo» con el último estado del UPS. No es una señal en vivo y lo dice; el monitoreo en vivo enlaza al laboratorio de ECG;
+   - selector de órganos con íconos Material;
+   - al centro, el gemelo con los valores del UPS de ese órgano y su procedencia, la ruta del órgano en nodos y «Información» con un registro real (PTB s0010 o CAP n16) o «sin registro real»;
+   - a la derecha, las tres puertas de la decisión 2 como tarjetas: Aprender (concepto firmado y ficha de estudio con pista), Practicar (avance de la sesión) y Clinical Hub (expediente).
+2. **Temas** (`ui_topic.py`, Aprender): ficha estilo Apple de cada tema firmado.
+   - Carrusel: Explicación, Teoría, Hallazgos y Quiz final.
+   - El quiz registra en `session_learning` con la confianza declarada o «sin declarar», nunca 50.
+   - A la derecha: la calculadora del tema, con campos vacíos por defecto, y el paciente activo, con «Usar en la calculadora».
+3. **Comparar pacientes** (`ui_compare.py`, Clinical Hub): hasta tres estados guardados del UPS (pacientes distintos o el mismo paciente en el tiempo), filas por sistema y cada valor con su procedencia. Solo lee la base.
+4. **Menú**: «Explorar» pasa a llamarse «Clinical Hub», como en los bocetos, y los íconos son símbolos Material en lugar de emoji. Son 25 páginas. **Decisión para Luis**: cambia el nombre de una sección de la tanda 1 de la fase 1 y la composición de Inicio de la decisión 2; las tres puertas se conservan como tarjetas.
+5. **Color**: `PALETTE.TRAZO` (#22d3ee) es el acento.
+   - Es **provisional**: el kit de marca v1.1 no está en el repositorio, y el valor sale de `visualization/art/tokens.py` de la rama de respaldo.
+   - Contraste medido en `CONTRAST_PAIRS`: 9.88:1 sobre el fondo, 7.88:1 sobre el panel y 9.88:1 con texto oscuro encima.
+   - El CSS no usa el borde izquierdo de 3 px, que es la firma del marcador de validación.
+6. **Pruebas**: `tests/test_ui_duolingo_apple.py` (catálogo, filas del comparativo, columnas por defecto, Inicio, quiz que registra en la sesión, calculadora vacía, comparativo). Se actualizaron las pruebas del menú, de Calculadoras y del modelo 3D por el nombre de la sección.
+
 ## 2026-11-17 · Pasaporte de evidencia y «Tu aprendizaje en esta sesión»
 
 **Contexto (Art. I)**: el estudiante ve un valor (en el banner del paciente activo, en Calculadoras, en el gemelo) y no tiene a la mano de dónde sale. Rama `pasaporte-evidencia`, creada desde `Integration` (banner del paciente activo) con `main` fusionada (contrato `session_learning`). Paso 0: 2318 pasan, 8 omitidas, 0 fallan.
