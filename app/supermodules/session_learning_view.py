@@ -22,6 +22,7 @@ from app.utils.session_learning import CONCEPTS
 PAGE_TITLE = "Tu aprendizaje en esta sesión"
 PRIVACY_NOTICE = "Se borra al cerrar la sesión; no se guarda ningún dato personal"
 EMPTY_MESSAGE = "Todavía no hay respuestas registradas en esta sesión"
+EMPTY_ACTION = "aparecen aquí en cuanto respondes un ejercicio conectado al registro de la sesión"
 
 # Rótulos en pantalla de los conceptos del contrato (las claves no se traducen; una prueba exige las 8).
 CONCEPT_LABELS = {
@@ -155,7 +156,7 @@ def render_session_learning_page() -> None:
 
     summary = summarize(get_session_log())
     if summary.total == 0:
-        render_empty_state(EMPTY_MESSAGE)
+        render_empty_state(EMPTY_MESSAGE, action=EMPTY_ACTION)
         return
 
     st.markdown("#### Aciertos por concepto")

@@ -727,6 +727,9 @@ def inject_global_theme() -> None:
             [data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] * {{
                 color: {PALETTE.ON_STATE} !important;
             }}
+            /* Pasaporte de evidencia (2026-11-17): el botón de cada valor mide al menos 44 px de alto (WCAG 2.5.5, tamaño
+               del objetivo), igual con el dedo que con el cursor. Selector por clave del popover (.st-key-*). */
+            [class*="st-key-passport_"] button {{ min-height: 44px; }}
             /* Al pasar el cursor Streamlit oscurece el fondo (#0b5fef: 3.31:1 con texto oscuro). Se usa ACCENT_ON_DARK. */
             [data-testid="stBaseButton-primary"]:hover, [data-testid="stBaseButton-primary"]:active,
             [data-testid="stBaseButton-primary"]:focus-visible,

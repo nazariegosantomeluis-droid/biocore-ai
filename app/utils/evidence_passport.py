@@ -165,8 +165,10 @@ def passport_view(campo: str, valor: Any, procedencia: Any = None) -> Optional[P
 # ───────────────────────────── dibujo ─────────────────────────────
 
 def _quote_html(texto: str) -> str:
-    return (f"<div class='biocore-passport-quote' style='border-left:3px solid {PALETTE.NEUTRAL}; padding:2px 10px; "
-            f"color:{PALETTE.TEXT}; white-space:pre-wrap;'>{html.escape(texto)}</div>")
+    # Recuadro de 1 px: distinto del marcador de validación (borde izquierdo de 3 px) y de la insignia (píldora), para que
+    # una cita literal no se lea como un juicio de validez.
+    return (f"<div class='biocore-passport-quote' style='border:1px solid {PALETTE.NEUTRAL}; border-radius:6px; "
+            f"padding:4px 10px; color:{PALETTE.TEXT}; white-space:pre-wrap;'>{html.escape(texto)}</div>")
 
 
 def _render_cita(cita: Optional[Cita]) -> None:
