@@ -52,7 +52,7 @@ Rama `teoria-emg-hrv`, desde `main`. Intérprete del PATH: Python 3.13.11, Strea
    La interpretación pasa al expander «Corrección del caso: qué sugiere el trazado y arteria probable (tema 5)». Muestra en qué derivaciones construyó el generador la elevación y el descenso del ST, y la tabla firmada del tema 5 con su advertencia.
 
 ### Verificación
-- Suite completa en serie: **SUITE**.
+- Suite completa en serie: **2332 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4). Corrida en una worktree aparte porque el directorio de trabajo cambió de rama durante la tanda: 2330 pasan y 8 omitidas; las 2 de más leen la base de desarrollo y sus respaldos, y con una copia en la worktree pasan las 2**.
 - Pruebas nuevas en `tests/test_teoria_emg_hrv.py`:
   - 18 temas integrados, en Aprender y en cada laboratorio;
   - nada «sin fuente verificada»;
