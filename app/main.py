@@ -555,10 +555,13 @@ def render_respiratory_lab_page() -> None:
 BIOMARKER_HEURISTIC_LABEL = "ponderación heurística de BIOCORE, no derivada de estudio de cohorte"
 
 # Residuos del PR #8 (2026-11-17, Art. I): estas eran «citas del validador» con la insignia «Validado por fuente»
-# sin una fuente de la Bibliografía detrás (Holm 2009 no está en ella; a [TF1996] no se le atribuye ninguna
-# afirmación; la de la resiliencia era un dictamen interno). Las insignias bajaron a «Criterio BIOCORE» y los
-# rangos se rotulan como límites de la escala del índice. `tests/test_validado_requiere_clave.py` lo vigila.
-BIOMARKER_SOURCE_HOLM_THETA_ALPHA = "Holm et al., 2009 (cita sin verificar; no está en la Bibliografía)"
+# sin una fuente de la Bibliografía detrás (a [TF1996] no se le atribuye ninguna afirmación; la de la resiliencia
+# era un dictamen interno). Las insignias bajaron a «Criterio BIOCORE» y los rangos se rotulan como límites de la
+# escala del índice. `tests/test_validado_requiere_clave.py` lo vigila.
+# Holm et al. 2009 (ScientificWorldJournal 9:639-651, doi:10.1100/tsw.2009.83, PMID 19618092) existe, pero solo
+# se pudo leer su resumen: habla de la razón theta Fz / alpha Pz, que sube con la carga y con el tiempo despierto.
+# No respalda la escala 0.5-4.0, el peso 0.7 ni una razón θ/α sin canales, que es lo que calcula BIOCORE: se quitó
+# la cita y la ayuda queda como Criterio BIOCORE (2026-11-17).
 BIOMARKER_SCALE_LIMITS = "límites de la escala del índice, no valores de referencia"
 # Teoría citada 2, B9 (2026-11-17): decía «rango fisiológico correcto», una cifra de normalidad sin fuente publicada.
 # Son los límites de la escala del índice, no valores de referencia (no hay un único «valor normal» [SG2017]).
@@ -581,8 +584,7 @@ _BIOMARKER_HELP = {
         f"{BIOMARKER_HEURISTIC_LABEL}"
     ),
     "Carga cognitiva": (
-        f"{BADGES.tag(BADGES.METHOD)} Razón θ/α 0.5-4.0 ({BIOMARKER_SCALE_LIMITS}) y su peso (0.7); mención: "
-        f"{BIOMARKER_SOURCE_HOLM_THETA_ALPHA} · "
+        f"{BADGES.tag(BADGES.METHOD)} Razón θ/α 0.5-4.0 ({BIOMARKER_SCALE_LIMITS}) y su peso (0.7) · "
         f"{BADGES.tag(BADGES.HEURISTIC)} componente HR surge (peso 0.3, rango 0-30): {BIOMARKER_HEURISTIC_LABEL}"
     ),
     "Resiliencia fisiológica": (

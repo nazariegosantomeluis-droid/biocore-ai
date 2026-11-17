@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
+
+- **`src/signals/ecg/rsa.py`.**
+  - `RSA_CITATION`, que es la cita de la tarjeta «Potencia HF», se atribuía a la Task Force. Ahora dice lo firmado en B3 y B5: «Banda HF (0.15-0.40 Hz), la "banda respiratoria": está influida por la respiración entre 9 y 24 respiraciones por minuto, y la arritmia sinusal respiratoria está mediada por el nervio vago [SG2017]».
+  - La regla de los «10 periodos» se queda, sin atribuirla a ninguna fuente: «Criterio BIOCORE (HEURISTIC): al menos 10 periodos de la frecuencia más baja de la banda».
+  - El motivo «respiración fuera de la banda HF» ya no nombra a la Task Force: cita la «banda respiratoria» [SG2017].
+  - Los comentarios del módulo dicen lo mismo.
+  - [TF1996] sigue solo en la Bibliografía, con su nota.
+- **Carga cognitiva: se quitó la cita de Holm 2009.**
+  - **La referencia existe.** Holm A, Lukander K, Korpela J, Sallinen M, Müller KMI. Estimating brain load from the EEG. *ScientificWorldJournal*. 2009;9:639–651. doi:10.1100/tsw.2009.83. PMID 19618092, PMC5823228 (verificada en PubMed el 2026-11-17).
+  - **Solo se leyó el resumen:** PMC no tiene el texto completo legible.
+  - **No respalda la ayuda.** El resumen describe la razón **theta Fz / alpha Pz**, que aumenta con las tareas simultáneas y con el tiempo despierto. No respalda la escala 0.5–4.0, ni el peso 0.7, ni una razón θ/α sin canales, que es lo que calcula BIOCORE.
+  - **Queda como Criterio BIOCORE:** la ayuda dice «Razón θ/α 0.5-4.0 (límites de la escala del índice, no valores de referencia) y su peso (0.7)», sin cita.
+- **Guardia (`tests/test_validado_requiere_clave.py`), ampliada:**
+  - ninguna ayuda ni archivo de `app/` dice «cita sin verificar»;
+  - ningún texto visible del laboratorio de HRV atribuye nada a la Task Force. Lo comprueba con AppTest sobre las dos fuentes, la simulación del acoplamiento cardiopulmonar y la «Serie RR manual», y con los dos motivos con que la RSA declina: registro corto y respiración fuera de la banda HF.
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia, las de rsa y HRV (`test_rsa_cardiopulmonary`, `test_hrv_nonlinear`, `test_teoria_emg_hrv`) y las de Biomarcadores (`test_biomarkers_plv`, `test_visual_migration_main_inline`, `test_visual_consolidation_tanda_final`, `test_cierre_pulido`, `test_fase1_t1_contencion`): 136 passed, 1 skipped (de entorno: sin base de desarrollo). El recorrido de idioma y contención de las páginas `hrv` y `biomarcadores` (`test_fase1_t2_pulido`, `test_integracion_contencion`, `test_pulido_profesional`): 50 passed. No se corrió la suite completa.
+
 ## 2026-11-17 — Residuos del PR #8: insignias de Biomarcadores, firma de la HRV y cita de [DL2010]
 
 **Contexto (Art. I)**: tras la Teoría citada 2 quedaban textos que presentaban como «Validado por fuente» lo que no tiene una fuente de la Bibliografía, y textos que atribuían las métricas de la HRV a la Task Force ESC/NASPE ([TF1996]), a la que no se le atribuye ninguna afirmación (no se leyó su texto completo). Solo se bajan insignias; ninguna sube.
