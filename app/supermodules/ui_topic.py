@@ -49,6 +49,10 @@ def _dots(active: str) -> str:
 # ───────────────────────────── diapositivas ─────────────────────────────
 
 def _slide_explanation(topic: C.Topic) -> None:
+    from app.supermodules.ui_home import icon_html
+
+    # Dibujo acompañante: el ícono de órgano del kit (decorativo).
+    st.markdown(icon_html(C.ORGAN_BY_KEY[topic.organ].icon_file), unsafe_allow_html=True)
     st.markdown(f"### {topic.theory.idea or 'Sin idea firmada para este tema.'}")
     if topic.theory.source:
         st.caption(f"Fuente: {topic.theory.source}")
@@ -128,7 +132,12 @@ def _slide_quiz(topic: C.Topic) -> None:
             done = st.session_state.get(f"{base}_done")
             if done:
                 ok = q.is_correct(done[0])
-                st.markdown("**Correcto.**" if ok else f"**Todavía no.** La respuesta es: {q.correct_choice}")
+                from app.utils.design_system import PALETTE
+
+                # Manual de marca: acierto = Núcleo + palomita + «Correcto»; error = tinta-2 + ícono + «Todavía no».
+                st.markdown(f"<span style='color:{PALETTE.PRIMARY}; font-weight:700;'>✓ Correcto.</span>" if ok else
+                            f"<span style='color:{PALETTE.TINTA_2}; font-weight:700;'>↻ Todavía no.</span> "
+                            f"La respuesta es: {q.correct_choice}", unsafe_allow_html=True)
                 if q.explanation:
                     st.caption(q.explanation)
                 if q.source:
@@ -205,7 +214,7 @@ def _render_patient_variability(topic: C.Topic) -> None:
             st.markdown(f"**{label}** · " + (NO_DATA_TEXT if d is None else
                         f"{d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} · {provenance_label(d)}"))
         if topic.calculator:
-            st.button("Usar en la calculadora", key=f"bc_use_patient_{topic.key}", icon=":material/input:",
+            st.button("Usar en la calculadora", key=f"bc_use_patient_{topic.key}",
                       on_click=_use_patient, args=(topic.calculator,))
 
 
@@ -220,9 +229,12 @@ def render_topic_page() -> None:
 
     st.markdown(f"<span class='bc-eyebrow'>{organ.label}</span><div class='bc-hero'>{topic.theory.title}</div>",
                 unsafe_allow_html=True)
-    chips = [f"<span class='bc-chip'><b>●</b> Teoría firmada{f' · {topic.theory.source}' if topic.theory.source else ''}</span>",
-             f"<span class='bc-chip'><b>●</b> {'Registro real' if organ.recording else 'Sin registro real'}</span>",
-             f"<span class='bc-chip'><b>●</b> {'Calculadora' if topic.calculator else 'Sin calculadora'}</span>"]
+    from app.supermodules.ui_home import seal_html
+
+    chips = [f"<span class='bc-chip'>{seal_html('referencia-citada', 'Teoría firmada')}"
+             f"{f' · {topic.theory.source}' if topic.theory.source else ''}</span>",
+             f"<span class='bc-chip'>{seal_html('registro-real', 'Registro real') if organ.recording else seal_html('no-disponible', 'Sin registro real')}</span>",
+             f"<span class='bc-chip'>{'Calculadora' if topic.calculator else 'Sin calculadora'}</span>"]
     st.markdown("".join(chips), unsafe_allow_html=True)
 
     left, right = st.columns([2, 1], gap="large")
@@ -235,9 +247,9 @@ def render_topic_page() -> None:
              "Quiz final": _slide_quiz}[slide](topic)
             st.markdown(_dots(slide), unsafe_allow_html=True)
             prev, _, nxt = st.columns([1, 2, 1])
-            prev.button("Anterior", key=f"bc_prev_{topic.key}", icon=":material/chevron_left:",
+            prev.button("Anterior", key=f"bc_prev_{topic.key}",
                         on_click=_step, args=(topic.key, -1))
-            nxt.button("Siguiente", key=f"bc_next_{topic.key}", icon=":material/chevron_right:",
+            nxt.button("Siguiente", key=f"bc_next_{topic.key}",
                        on_click=_step, args=(topic.key, 1))
     with right:
         _render_calculator(topic)
@@ -245,4 +257,4 @@ def render_topic_page() -> None:
         if topic.lab:
             from app.utils import navigation as nav
 
-            nav.link(topic.lab, "Abrir el laboratorio del tema", icon=":material/arrow_forward:")
+            nav.link(topic.lab, "Abrir el laboratorio del tema")

@@ -18,17 +18,17 @@ from app.supermodules import learn_theory as LT
 class Organ:
     key: str
     label: str
-    icon: str                      # ícono Material de Streamlit (sin emoji)
+    icon_file: str                 # ícono de órgano del kit de marca (app/static/marca/iconos/biocore-icono-*-monitor.svg)
     domain: Optional[str]          # dominio del UPS; None = el UPS no tiene ese dominio
     recording: Optional[str]       # registro real de data/reference_signals para la sección «Información»
 
 
 ORGANS: Tuple[Organ, ...] = (
-    Organ("corazon", "Corazón", ":material/cardiology:", "cardiovascular", "ptb_s0010"),
-    Organ("respiracion", "Respiración", ":material/pulmonology:", "respiratory", None),
-    Organ("cerebro", "Cerebro", ":material/neurology:", "neurological", "cap_n16"),
-    Organ("musculo", "Músculo", ":material/exercise:", "muscular", None),
-    Organ("autonomo", "Sistema autónomo", ":material/monitor_heart:", None, None),
+    Organ("corazon", "Corazón", "organo-corazon", "cardiovascular", "ptb_s0010"),
+    Organ("respiracion", "Respiración", "organo-pulmones", "respiratory", None),
+    Organ("cerebro", "Cerebro", "organo-cerebro", "neurological", "cap_n16"),
+    Organ("musculo", "Músculo", "organo-musculo", "muscular", None),
+    Organ("autonomo", "Sistema autónomo", "organo-sistema-autonomo", None, None),
 )
 ORGAN_BY_KEY = {o.key: o for o in ORGANS}
 
@@ -69,7 +69,7 @@ PATHS = {
                     ("Cuestionarios de los laboratorios", "pagina", "cuestionarios")),
     "cerebro": (("Bandas del EEG", "tema", "eeg_bandas"), ("Laboratorio de EEG", "pagina", "eeg")),
     "musculo": (("Laboratorio de EMG", "pagina", "emg"),),
-    "autonomo": (("Variabilidad cardíaca", "pagina", "hrv"), ("Gemelo digital", "pagina", "gemelo")),
+    "autonomo": (("Variabilidad cardiaca", "pagina", "hrv"), ("Gemelo digital", "pagina", "gemelo")),
 }
 
 SELECTED_ORGAN_KEY = "bc_selected_organ"
