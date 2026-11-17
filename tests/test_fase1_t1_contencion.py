@@ -181,14 +181,28 @@ def test_layered_explanations_show_only_layers_written_for_that_number():
                    "Un cambio significativo sugiere intervención", "parasympathetic tone proxy", "neurogenic factors"):
         assert filler not in src, filler
 
+    # Pulido profesional (2026-11-16, extendida): las capas ya no se pueden escribir a mano en cada llamada; solo salen de
+    # un tema firmado con su fuente, y sin tema no hay expander. Además, el texto genérico de la frecuencia cardiaca
+    # (sustituido por el tema 2 firmado) no puede volver.
+    for filler in ("Principal indicador de estado cardiovascular", "Ejercicio, arritmias, fármacos, volumen intravascular",
+                   "Afecta perfusión, demanda metabólica", "Cambios bruscos pueden indicar arritmia o shock",
+                   "Frecuencia cardíaca derivada del ECG."):
+        assert filler not in src, filler
+
     def _script():
         from app.main import render_metric_explained
-        render_metric_explained("pNN50", "45.8", unit="%", meaning="Porcentaje de diferencias NN>50ms — indicador vagal.")
+        from app.supermodules.learn_theory import SIGNED_HEART_RATE
+
+        render_metric_explained("pNN50", "45.8", unit="%")
+        render_metric_explained("Frecuencia cardíaca", "72", unit="lpm", topic=SIGNED_HEART_RATE)
 
     at = AppTest.from_function(_script, default_timeout=60)
     at.run()
-    text = " ".join(m.value for m in at.markdown)
-    assert "¿Qué significa?" in text and "¿Por qué importa?" not in text and "¿Qué pasaría si cambia?" not in text
+    assert at.exception == []
+    assert [e.label for e in at.expander] == ["¿Qué significa Frecuencia cardíaca?"]      # pNN50 sin tema: sin capas
+    text = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+    assert "Fuente: [MCM] · [RCP2017]" in text
+    assert "¿Por qué importa?" not in text and "¿Qué pasaría si cambia?" not in text
 
 
 def test_multisensor_has_no_health_score_anywhere():

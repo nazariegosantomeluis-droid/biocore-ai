@@ -14,6 +14,13 @@ import numpy as np
 from enum import Enum
 
 
+# Cierre del pulido (2026-11-16): los casos se generan a 500 muestras/s, como la demo del Monitoreo: lo que pide [K2007]
+# (Kligfield 2007) para un corte superior de 150 Hz con error de amplitud < 1 %. Antes, 250. Los generadores están
+# definidos en segundos (intervalos RR, anchos de QRS, desniveles del ST), así que el contenido clínico no cambia: solo
+# cuántas muestras hay por segundo.
+CASE_FS = 500
+
+
 class ArrhythmiaType(Enum):
     """Specific arrhythmia classifications."""
     NORMAL_SINUS = "NSR"
@@ -60,7 +67,7 @@ class ClinicalCase:
     risk_factors: List[str] = field(default_factory=list)
     clinical_history: str = ""
     ecg_signal: np.ndarray = None
-    fs: int = 250
+    fs: int = CASE_FS
     duration_sec: float = 10.0
     lead_type: str = "MLII"  # Predominant lead
     key_findings: Dict[str, Any] = field(default_factory=dict)
@@ -101,7 +108,7 @@ class CaseDatabase:
 
 def generate_nsr_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
     """Normal sinus rhythm baseline case."""
-    signal = _generate_nsr_signal(duration=10.0, fs=250, hr=75)
+    signal = _generate_nsr_signal(duration=10.0, fs=CASE_FS, hr=75)
     return ClinicalCase(
         case_id=f"NSR_{patient_id}",
         patient_id=patient_id,
@@ -109,7 +116,7 @@ def generate_nsr_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
         primary_diagnosis=ArrhythmiaType.NORMAL_SINUS,
         clinical_history=f"{sex}-year-old {age}M patient with no cardiac history. Presents for routine check-up.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'heart_rate': 75,
             'pr_interval_ms': 160,
@@ -124,7 +131,7 @@ def generate_nsr_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
 
 def generate_afib_case(patient_id: str, age: int, sex: str, rate: int = 110) -> ClinicalCase:
     """Atrial fibrillation case."""
-    signal = _generate_afib_signal(duration=10.0, fs=250, ventricular_rate=rate)
+    signal = _generate_afib_signal(duration=10.0, fs=CASE_FS, ventricular_rate=rate)
     risk_factors = ['Hypertension', 'Age >65'] if age > 65 else []
     return ClinicalCase(
         case_id=f"AFib_{patient_id}",
@@ -134,7 +141,7 @@ def generate_afib_case(patient_id: str, age: int, sex: str, rate: int = 110) -> 
         risk_factors=risk_factors + ['Paroxysmal AFib'],
         clinical_history=f"{age}-year-old {sex} presenting with palpitations, dyspnea. History of hypertension. Irregular pulse on exam.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'heart_rate': rate,
             'rhythm': 'Irregularly irregular',
@@ -149,7 +156,7 @@ def generate_afib_case(patient_id: str, age: int, sex: str, rate: int = 110) -> 
 
 def generate_pvc_case(patient_id: str, age: int, sex: str, pvc_rate: int = 5) -> ClinicalCase:
     """Premature ventricular contraction case."""
-    signal = _generate_pvc_signal(duration=10.0, fs=250, pvc_per_minute=pvc_rate)
+    signal = _generate_pvc_signal(duration=10.0, fs=CASE_FS, pvc_per_minute=pvc_rate)
     return ClinicalCase(
         case_id=f"PVC_{patient_id}",
         patient_id=patient_id,
@@ -158,7 +165,7 @@ def generate_pvc_case(patient_id: str, age: int, sex: str, pvc_rate: int = 5) ->
         risk_factors=['Structural heart disease'] if pvc_rate > 10 else [],
         clinical_history=f"{age}-year-old {sex} with frequent palpitations. ECG shows frequent PVCs.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'pvc_rate': pvc_rate,
             'coupled_intervals': True,
@@ -172,7 +179,7 @@ def generate_pvc_case(patient_id: str, age: int, sex: str, pvc_rate: int = 5) ->
 
 def generate_vt_case(patient_id: str, age: int, sex: str, sustained: bool = False) -> ClinicalCase:
     """Ventricular tachycardia case."""
-    signal = _generate_vt_signal(duration=10.0, fs=250, vt_rate=150, sustained=sustained)
+    signal = _generate_vt_signal(duration=10.0, fs=CASE_FS, vt_rate=150, sustained=sustained)
     diagnosis = ArrhythmiaType.VENTRICULAR_TACHYCARDIA
     return ClinicalCase(
         case_id=f"VT_{patient_id}",
@@ -182,7 +189,7 @@ def generate_vt_case(patient_id: str, age: int, sex: str, sustained: bool = Fals
         risk_factors=['Prior MI', 'LV dysfunction', 'ICM'],
         clinical_history=f"{age}-year-old {sex} with syncope/presyncope. {'Sustained' if sustained else 'Non-sustained'} VT on ECG.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'rate': 150,
             'sustained': sustained,
@@ -197,7 +204,7 @@ def generate_vt_case(patient_id: str, age: int, sex: str, sustained: bool = Fals
 
 def generate_av_block_case(patient_id: str, age: int, sex: str, degree: int = 2) -> ClinicalCase:
     """AV block case (degree 1, 2, or 3)."""
-    signal = _generate_av_block_signal(duration=10.0, fs=250, block_degree=degree)
+    signal = _generate_av_block_signal(duration=10.0, fs=CASE_FS, block_degree=degree)
     degree_names = {1: "First", 2: "Second", 3: "Third"}
     diagnosis_map = {
         1: ArrhythmiaType.FIRST_DEGREE_AV_BLOCK,
@@ -213,7 +220,7 @@ def generate_av_block_case(patient_id: str, age: int, sex: str, degree: int = 2)
         risk_factors=['Lyme disease', 'Rheumatic disease'] if degree > 1 else [],
         clinical_history=f"{age}-year-old {sex} with {degree_names[degree]}-degree AV block.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'block_degree': degree,
             'pr_interval_ms': 250 if degree == 1 else 200,
@@ -226,7 +233,7 @@ def generate_av_block_case(patient_id: str, age: int, sex: str, degree: int = 2)
 
 def generate_bundle_branch_case(patient_id: str, age: int, sex: str, block_type: str = 'RBBB') -> ClinicalCase:
     """RBBB or LBBB case."""
-    signal = _generate_bundle_branch_signal(duration=10.0, fs=250, block_type=block_type)
+    signal = _generate_bundle_branch_signal(duration=10.0, fs=CASE_FS, block_type=block_type)
     diagnosis = ArrhythmiaType.RIGHT_BUNDLE_BRANCH_BLOCK if block_type == 'RBBB' else ArrhythmiaType.LEFT_BUNDLE_BRANCH_BLOCK
     
     return ClinicalCase(
@@ -237,7 +244,7 @@ def generate_bundle_branch_case(patient_id: str, age: int, sex: str, block_type:
         risk_factors=['Structural heart disease', 'Hypertension'] if block_type == 'LBBB' else [],
         clinical_history=f"{age}-year-old {sex} with {block_type} on ECG.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'qrs_duration_ms': 120,
             'block_type': block_type,
@@ -250,7 +257,7 @@ def generate_bundle_branch_case(patient_id: str, age: int, sex: str, block_type:
 
 def generate_stemi_case(patient_id: str, age: int, sex: str, location: str = 'anterior') -> ClinicalCase:
     """STEMI case (anterior, inferior, lateral)."""
-    signal = _generate_stemi_signal(duration=10.0, fs=250, location=location)
+    signal = _generate_stemi_signal(duration=10.0, fs=CASE_FS, location=location)
     
     return ClinicalCase(
         case_id=f"STEMI_{location}_{patient_id}",
@@ -261,7 +268,7 @@ def generate_stemi_case(patient_id: str, age: int, sex: str, location: str = 'an
         risk_factors=['Chest pain', 'Dyspnea', f'{location.title()} chest pain'],
         clinical_history=f"{age}-year-old {sex} with acute {location} chest pain x{np.random.randint(1, 6)} hours. Elevated troponin.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'st_elevation_location': location,
             'st_elevation_mv': 2.5,
@@ -275,7 +282,7 @@ def generate_stemi_case(patient_id: str, age: int, sex: str, location: str = 'an
 
 def generate_longqt_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
     """Long QT syndrome case."""
-    signal = _generate_longqt_signal(duration=10.0, fs=250)
+    signal = _generate_longqt_signal(duration=10.0, fs=CASE_FS)
     return ClinicalCase(
         case_id=f"LongQT_{patient_id}",
         patient_id=patient_id,
@@ -284,7 +291,7 @@ def generate_longqt_case(patient_id: str, age: int, sex: str) -> ClinicalCase:
         risk_factors=['Family history of sudden cardiac death', 'Syncope with stress/emotion'],
         clinical_history=f"{age}-year-old {sex} with history of syncope, family history of SCD. Genetic testing pending.",
         ecg_signal=signal,
-        fs=250,
+        fs=CASE_FS,
         key_findings={
             'qtc_ms': 500,
             'qt_prolongation': True,

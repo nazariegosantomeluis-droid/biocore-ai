@@ -27,9 +27,11 @@ from app.utils.design_system import PALETTE
 # en cada aserción -- fuente única DENTRO del test también.
 
 VALIDATED_SIGNATURES = {
+    # Pulido profesional (2026-11-16, Art. I): la firma decía «(Sensibilidad >99%). Filtros estándar AHA.»; ninguna de
+    # las dos se sostenía (informe de la cohorte: 0.941; filtro de 0.5–40 Hz = de monitoreo [K2007]). Texto nuevo:
     "ECG Lab": (
-        "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database "
-        "(Sensibilidad >99%). Filtros estándar AHA."
+        "Detección QRS (detector TKEO) revisada en 6 rondas contra registros de la MIT-BIH Arrhythmia Database "
+        "(informe: docs/validation/ecg_hr_detector_bank/). Filtro de monitoreo de 0.5–40 Hz, no diagnóstico [K2007]."
     ),
     "Respiratory Lab": (
         "Cálculo de AHI y estratificación de severidad conformes a los manuales de puntuación de la "
@@ -281,9 +283,7 @@ def test_ecg_export_shows_validated_mark_multisensor_export_shows_heuristic(repo
 
     at_ecg = AppTest.from_function(_script_ecg)
     at_ecg.run(timeout=30)
-    radio = next(r for r in at_ecg.main.radio if r.label == "Capa de Exploración Cognitiva")
-    radio.set_value("Investigación")
-    at_ecg.run(timeout=30)
+    # Pulido profesional: sin selector de vistas; el export está en «Cómo se calcula», en la misma página.
     btn = next(b for b in at_ecg.main.button if "Exportar segmento" in b.label)
     btn.click()
     at_ecg.run(timeout=30)
@@ -303,9 +303,7 @@ def test_ecg_export_shows_validated_mark_multisensor_export_shows_heuristic(repo
 
     at_multi = AppTest.from_function(_script_multi)
     at_multi.run(timeout=30)
-    radio2 = next(r for r in at_multi.main.radio if r.label == "Capa de Exploración Cognitiva")
-    radio2.set_value("Investigación")
-    at_multi.run(timeout=30)
+    # Pulido profesional: sin selector de vistas; el export está en «Cómo se calcula», en la misma página.
     btn2 = next(b for b in at_multi.main.button if "Exportar multisensor" in b.label)
     btn2.click()
     at_multi.run(timeout=30)
@@ -350,9 +348,7 @@ def test_emg_export_now_carries_its_signed_heuristic_mark(reports_dir, monkeypat
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    radio = next(r for r in at.main.radio if r.label == "Capa de Exploración Cognitiva")
-    radio.set_value("Investigación")
-    at.run(timeout=30)
+    # Pulido profesional: sin selector de vistas; el export está en «Cómo se calcula», en la misma página.
     btn = next(b for b in at.main.button if b.label == "Exportar EMG para investigación")
     btn.click()
     at.run(timeout=30)

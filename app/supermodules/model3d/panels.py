@@ -38,7 +38,9 @@ def _vcg_metrics(result) -> None:
                    help="Desde que el vector empieza a moverse rápido hasta que se detiene (velocidad espacial).")
     cols[3].metric("Ángulo QRS-T espacial", f"{m.qrs_t_angle_deg:.0f}°",
                    help="Ángulo entre los vectores medios de despolarización (QRS) y repolarización (T). "
-                        "Ángulos amplios se asocian a mayor riesgo cardiovascular (Oehler et al., 2014).")
+                        "Ángulos amplios se asocian a mayor riesgo cardiovascular (Oehler et al., 2014: "
+                        "Oehler A, Feldman T, Henrikson CA, Tereshchenko LG. QRS-T angle: a review. Ann Noninvasive "
+                        "Electrocardiol 2014;19(6):534-542. doi:10.1111/anec.12206).")
     with st.expander("Todas las mediciones del asa"):
         st.table({k: [v] for k, v in measures_table(m).items()})
 

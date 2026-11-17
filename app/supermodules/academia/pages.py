@@ -77,13 +77,6 @@ try:
 except ImportError:
     LESSONS_AVAILABLE = False
 
-try:
-    from educational.ecg_academy import lead_explanations
-    THEORY_AVAILABLE = True
-except ImportError:
-    THEORY_AVAILABLE = False
-
-
 def render_theory_section(expanded: bool = False) -> None:
     """Teoría — capa de teoría del módulo de aprendizaje (2026-07-14).
 
@@ -108,33 +101,14 @@ def render_theory_section(expanded: bool = False) -> None:
     tarjetas "🚧 en desarrollo" que quedaron tras esta limpieza) se retiró
     por completo del Learning Hub -- ver CHANGELOG.md. Esta función y su
     contenido no cambiaron."""
-    with st.expander("📖 Teoría — Las 12 derivaciones del ECG", expanded=expanded):
-        if not THEORY_AVAILABLE:
-            st.warning("El módulo de teoría (`educational.ecg_academy`) no está disponible.")
-            return
+    # Pulido profesional (2026-11-16, decisión de Luis en el tema 5 de `docs/contenido/teoria_citada.md`): la tabla de
+    # 12 derivaciones (`lead_explanations()`, «qué pared» y «qué arteria» por derivación, sin cita) se sustituyó por la
+    # tabla de isquemia firmada, con su advertencia: la AHA/ACCF/HRS desaconseja rotular derivaciones sueltas por pared.
+    from app.supermodules.learn_theory import SIGNED_ISCHEMIA
+    from app.utils.design_system import render_theory_topic
 
-        st.caption(
-            "Fuente: `educational.ecg_academy.lead_explanations()` — tabla real ya "
-            "existente en el código, mostrada aquí tal cual (nada generado ni inventado "
-            "para esta lección)."
-        )
-        leads = lead_explanations()
-        rows = [
-            {
-                "Derivación": name,
-                "Qué observa": info["observes"],
-                "Pared": info["wall"],
-                "Arteria típica": info["artery"],
-            }
-            for name, info in leads.items()
-        ]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        st.caption(
-            f"{len(rows)} derivaciones documentadas. Esta es, hoy, la única lección de "
-            "teoría con contenido real en el módulo de aprendizaje — ampliar a otros temas "
-            "(EEG, EMG, respiratorio, interpretación clínica integrada) requiere escribir "
-            "contenido nuevo; no está hecho en esta tanda."
-        )
+    with st.expander("📖 Teoría — Derivaciones e isquemia", expanded=expanded):
+        render_theory_topic(SIGNED_ISCHEMIA, inside_expander=True)
 
 
 def render_lessons_quizzes_tab() -> None:

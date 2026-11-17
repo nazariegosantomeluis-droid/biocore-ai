@@ -320,7 +320,8 @@ def _click(at, label, where='sidebar'):
 def _open_view(sensor_title, mode='Medir'):
     at = AppTest.from_function(_page)
     at.run(timeout=60)
-    next(r for r in at.radio if 'Clínica' in r.options).set_value('Sensores en vivo').run(timeout=60)
+    # Pulido profesional (2026-11-16): «Sensores en vivo» es una pestaña de Multisensor (se dibuja siempre).
+    assert 'Sensores en vivo' in [t.label for t in at.tabs]
     at.radio(key='msl_live_sensor').set_value(sensor_title).run(timeout=60)
     at.radio(key='msl_live_mode').set_value(mode).run(timeout=60)
     return at

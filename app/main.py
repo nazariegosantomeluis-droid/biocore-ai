@@ -213,28 +213,24 @@ def init_state() -> None:
 # la usa ya (ver render_patient_pipeline_page()). El archivo
 # clinical_states.db se conserva sin borrar, solo deja de inicializarse.
 
-def render_metric_explained(title: str, value: Any, unit: str = '', meaning: Optional[str] = None,
-                            importance: Optional[str] = None, affects: Optional[str] = None,
-                            relations: Optional[str] = None, consequences: Optional[str] = None) -> None:
+def render_metric_explained(title: str, value: Any, unit: str = '', topic=None) -> None:
+    """El número y, a demanda, «¿Qué significa…?» con las capas de un tema FIRMADO y su fuente.
+
+    Pulido profesional (2026-11-16, Art. I): la explicación ya no se escribe a mano en cada llamada. Antes cada llamador
+    pasaba sus propias capas («¿Por qué importa?», «¿Qué la afecta?»...), sin fuente; en la frecuencia cardiaca eran
+    genéricas. Ahora una capa solo existe si viene de un `TheoryTopic` de `learn_theory.py` (texto de
+    `docs/contenido/teoria_citada.md`, firmado por Luis, con su clave de cita). Sin tema, no hay expander."""
+    from app.utils.design_system import render_theory_topic
+
     try:
         display_value = f"{value} {unit}" if unit else f"{value}"
     except Exception:
         display_value = str(value)
 
     st.markdown(f"**{title}** — {display_value}")
-    # Tanda 1 de la fase 1 (2026-11-15, Art. I): solo se muestran las capas que el llamador escribió PARA ESTE número.
-    # Antes cada capa faltante se rellenaba con un texto genérico («Permite priorizar decisiones clínicas...», «Fármacos,
-    # estado hemodinámico...») que se leía como explicación específica sin serlo: relleno. Sin ninguna capa, no hay
-    # expander.
-    layers = [
-        ("¿Qué significa?", meaning), ("¿Por qué importa?", importance), ("¿Qué la afecta?", affects),
-        ("¿Cómo se relaciona con otros sistemas?", relations), ("¿Qué pasaría si cambia?", consequences),
-    ]
-    layers = [(q, text) for q, text in layers if text]
-    if layers:
+    if topic is not None:
         with st.expander(f"¿Qué significa {title}?", expanded=False):
-            for question, text in layers:
-                st.markdown(f"- **{question}** {text}")
+            render_theory_topic(topic, inside_expander=True)
 
 
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
@@ -339,18 +335,9 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
             render_error_state(AI_CALL_FAILED, exception=exc)
 
 
-def render_view_selector(view_id: str = None, views: Optional[List[str]] = None) -> str:
-    import inspect
-    if view_id is None:
-        caller_frame = inspect.currentframe().f_back
-        view_id = caller_frame.f_code.co_name
-    options = views or ['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación', 'Gemelo Digital']
-    return st.radio(
-        'Capa de Exploración Cognitiva',
-        options,
-        horizontal=True,
-        key=f"view_selector_{view_id}"
-    )
+# Pulido profesional (2026-11-16): `render_view_selector()` («Capa de Exploración Cognitiva») se retiró: cada
+# laboratorio es una sola página con sus secciones plegadas (`LAB_SECTION_*`). Tabla de vistas antiguas → nuevas en
+# CHANGELOG.md; `tests/test_pulido_profesional.py` comprueba que ninguna función se perdió.
 
 def render_twin_shell_page() -> None:
     from app.supermodules.twin_shell.pages import run as run_twin_shell
@@ -394,10 +381,39 @@ def render_ecg_12_page() -> None:
 # parafrasean, no se resumen. Reemplazan el texto provisional de Tanda 1
 # (ECG/Multisensor) que describía el nivel en términos propios de esta
 # app, no en el lenguaje formal que el experto firmó.
+# Pulido profesional (2026-11-16, Art. I): la firma decía «Detección QRS validada en 6 rondas contra MIT-BIH
+# Arrhythmia Database (Sensibilidad >99%). Filtros estándar AHA.». Dos afirmaciones no se sostenían:
+# - «Sensibilidad >99%»: el informe del repositorio (docs/validation/ecg_hr_detector_bank/round6_robustez/
+#   cohort_results.json, 25 registros) da 0.941 ponderada por latidos y solo 14 de 25 registros llegan a 0.99. Se retira
+#   la cifra; queda el enlace al informe.
+# - «Filtros estándar AHA»: lo implementado es un pasa-banda de 0.5–40 Hz (12 Derivaciones y la placa en vivo) o ningún
+#   filtro (demo, casos, MIT-BIH, PTB-XL, CSV). Con un corte superior < 150 Hz es un filtro de MONITOREO [K2007].
 _ECG_VALIDATION_DETAIL = (
-    "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database "
-    "(Sensibilidad >99%). Filtros estándar AHA."
+    "Detección QRS (detector TKEO) revisada en 6 rondas contra registros de la MIT-BIH Arrhythmia Database "
+    "(informe: docs/validation/ecg_hr_detector_bank/). Filtro de monitoreo de 0.5–40 Hz, no diagnóstico [K2007]."
 )
+ECG_DEMO_FS = 500   # muestras/s de la demo: lo que pide [K2007] para un corte de 150 Hz con error de amplitud < 1 %
+
+# Las cuatro secciones plegadas de cada laboratorio (pulido profesional, Parte C: sin selector de vistas).
+from app.utils.design_system import (  # noqa: E402
+    CONTENT_KEY, LAB_SECTION_AI, LAB_SECTION_HOW, LAB_SECTION_SIMULATE, LAB_SECTION_THEORY,
+)
+
+# Ganancia de la tira por fuente: solo es «10 mm/mV» si la amplitud está en mV.
+_ECG_GAIN_NOTES = {
+    'CSV local': 'unidades del archivo, no verificadas en mV',
+    'Hardware ESP32 en vivo': 'mV aproximados: ganancia del AD8232 y ADC sin calibrar',
+}
+
+
+def _ecg_monitor_filter_label(source: str) -> str:
+    """Qué filtro tiene la señal que se dibuja (Parte A): la placa en vivo pasa por el filtro de monitoreo de
+    `hardware/ecg_plugplay` (0.5–40 Hz y 60 Hz); las demás fuentes se dibujan tal como vienen."""
+    from app.utils import ecg_paper
+
+    if source == 'Hardware ESP32 en vivo':
+        return ecg_paper.MONITOR_FILTER_LABEL + " y notch de 60 Hz"
+    return ecg_paper.NO_FILTER_LABEL
 # NOTA: Respiratory Lab NO tiene constante de validación (Tanda 1, 2026-11-05):
 # su insignia se retiró y NO se reactivó tras la reparación del detector (fase 3, 2026-11-07);
 # ver `RESPIRATORY_STATUS_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
@@ -435,7 +451,7 @@ def render_ecg_lab_page() -> None:
     `ecg_12/page_content.py`) recibieron `key=` explícita namespaced por
     pestaña (`ecglab_monitor_*` / `ecglab_12_*`) — un futuro cambio de
     label ya no puede convertirlos en un `StreamlitDuplicateElementId`.
-    Ninguna otra key se tocó: `render_view_selector()` (usado por ECG
+    Ninguna otra key se tocó: `render_view_selector` (usado por ECG
     Monitor) ya namespacea su key por el nombre de la función llamadora, y
     el resto de los widgets de ambos flujos no compartía label con nada del
     otro lado.
@@ -585,6 +601,38 @@ _BIOMARKER_HELP = {
         f"atenuación beta (1-10) y pesos (0.4/0.4/0.2): {BIOMARKER_HEURISTIC_LABEL}"
     ),
 }
+
+
+def _biomarkers_ghost_history() -> None:  # pragma: no cover -- SIN MONTAR, a propósito
+    """Historia de las entradas sin fuente de señal real de Biomarcadores, retirada de la vista del estudiante en el
+    cierre del pulido (2026-11-16): estaba rotulada «[Sin fuente]». Fuente que haría falta para volver a mostrar la
+    Estabilidad autonómica: una señal real de presión arterial y de tiempo de tránsito del pulso (PPG-PTT) en el
+    pipeline, más una cita para la fórmula de `calculate_autonomic_stability_score()`."""
+    with st.expander("Fantasmas [Sin fuente] — entradas sin fuente de señal real"):
+        st.markdown(
+            "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
+            "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
+            "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
+            "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
+            ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
+            "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
+            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
+            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
+            "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
+            "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
+            "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
+            "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
+            "-- Theta Frontomedial (4-8Hz) vs. banda HF-HRV (0.15-0.40Hz), ≥180s de señal simultánea. "
+            "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
+            "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
+            "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
+            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 entradas tienen "
+            "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
+            "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
+            "(a diferencia de NeuroCardiac→PLV) — la función `calculate_autonomic_stability_score()` "
+            "queda latente en `biomarkers.py`, sin llamarse desde la UI, por si algún día hay "
+            "instrumentación real de PA/PPG-PTT."
+        )
 
 
 def render_biomarkers_page() -> None:
@@ -836,37 +884,16 @@ def render_biomarkers_page() -> None:
     with col3:
         render_metric_card(
             "Estabilidad autonómica", None,
+            # Cierre del pulido (2026-11-16): sin la etiqueta «[Sin fuente]» (ninguna página la muestra); el motivo es el mismo.
             unavailable_reason=(
-                f"{BADGES.tag(BADGES.GHOST)} Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
-                "existen en el pipeline (ver «Fantasmas» abajo)."
+                "No disponible: requiere presión arterial y tiempo de tránsito del pulso (PPG-PTT), señales que hoy no "
+                "existen en el pipeline."
             ),
         )
 
-    with st.expander("Fantasmas [Sin fuente] — entradas sin fuente de señal real"):
-        st.markdown(
-            "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
-            "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
-            "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
-            "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
-            ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
-            "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
-            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
-            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
-            "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
-            "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
-            "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
-            "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
-            "-- Theta Frontomedial (4-8Hz) vs. banda HF-HRV (0.15-0.40Hz), ≥180s de señal simultánea. "
-            "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
-            "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
-            "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
-            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 entradas tienen "
-            "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
-            "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
-            "(a diferencia de NeuroCardiac→PLV) — la función `calculate_autonomic_stability_score()` "
-            "queda latente en `biomarkers.py`, sin llamarse desde la UI, por si algún día hay "
-            "instrumentación real de PA/PPG-PTT."
-        )
+    # Cierre del pulido (2026-11-16, Art. I): el expander «Fantasmas [Sin fuente]» (historia de las entradas retiradas por el
+    # dictamen del validador) ya no se monta: ninguna página muestra «[Sin fuente]». Queda en
+    # `_biomarkers_ghost_history()`, sin llamar; su historia completa está en CHANGELOG.md.
 
     st.markdown("---")
     st.subheader("📝 Notas del Sistema de Razonamiento")
@@ -929,74 +956,55 @@ def render_emg_page() -> None:
         signal = generate_demo_emg_signal(fs, duration, pattern)
         time_arr = np.arange(len(signal)) / fs
 
-    # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — era un
-    # "Muscle Fatigue Index" de np.random.uniform(10,80), redundante y desconectado
-    # del gemelo real (Digital Twin OS / DigitalTwinOrganism). Ver CHANGELOG.md.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación',
-                                       emg_live.TUTORIAL_VIEW])
-    if view == emg_live.TUTORIAL_VIEW:
+    # Pulido profesional (2026-11-16, Art. I): sin el selector «Capa de Exploración Cognitiva». El tutorial del sensor en
+    # vivo queda en su pestaña (como en el ECG y el EEG) y el laboratorio en una sola página: el trazo y los valores
+    # clave arriba; «Cómo se calcula» (antes Investigación), «Simular» (antes Simulación), «Teoría» y «Narración con IA
+    # (opcional)» (antes IA), plegados. La vista Educativa era el mismo trazo dos veces: queda el trazo de arriba.
+    tab_lab, tab_tutorial = st.tabs(["Laboratorio", emg_live.TUTORIAL_VIEW])
+    with tab_tutorial:
         emg_live.render_emg_tutorial()
-        return
+    with tab_lab:
+        _render_emg_lab(signal, time_arr, fs, source, live, emg_live)
 
+
+def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
     if signal is None:
         # Origen=CSV sin archivo, o sensor en vivo sin placa transmitiendo (la fuente ya dijo por qué).
-        # Antes esto crasheaba en las vistas Clínica/IA (preprocess_emg(None)).
         render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Demo.")
         _render_emg_save_to_twin(fs, source, None)  # declara "sin señal", no finge guardar
         return
 
     emg_analysis = EmgAnalyzer(fs).analyze(signal)
 
-    if view == 'Clínica':
-        st.markdown('### Vista Clínica')
-        activation = emg_analysis.activation_pct
-        st.write('Activación muscular y patrones de contracción')
-        # 2026-11-14 (Art. I): los textos decían «nivel de activación», «riesgo de fatiga» y «riesgo de lesión»,
-        # pero `activation_pct` es media/máximo del EMG rectificado: casi igual en reposo y en contracción.
-        render_metric_explained('Activación muscular', f'{activation:.1f}', unit='%',
-                    meaning='Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz).',
-                    importance='Describe la forma de la señal. No es el porcentaje de la contracción máxima (%MVC).',
-                    affects='Cuánto dura la contracción dentro de la ventana y qué tan picuda es la señal.',
-                    relations='Para saber cuánto contraes, mira el RMS: crece con la contracción.',
-                    consequences='En reposo y en una contracción sostenida da valores parecidos: no lo uses para '
-                                 'decir esfuerzo, fatiga ni riesgo.')
-        rms_value = emg_live.rms_mv(emg_live.prepare(signal, fs, None), fs)
-        render_metric_card(
-            'RMS del EMG (20-450 Hz)',
-            None if rms_value is None else (f'{rms_value:.3f} mV' if live is not None else f'{rms_value:.3f} (unidades de la señal)'),
-            provenance=BADGES.METHOD,
-            unavailable_reason=None if rms_value is not None else 'señal demasiado corta para filtrar',
-        )
-        if live is not None:
-            st.caption('mV en la piel aproximados: ganancia 200 del MyoWare y ADC del ESP32 sin calibrar.')
-        # Tanda 1 de contención (2026-11-05, Art. I): 'Capa de Descubrimiento Científico' retirada
-        # (su botón no medía lo que decía); detalle en CHANGELOG.md.
+    # ── 1. El trazo y los valores clave ──
+    st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(x=time_arr, y=signal, name='EMG cruda')),
+                    use_container_width=True, key='emg_lab_trace')
+    activation = emg_analysis.activation_pct
+    # 2026-11-14 (Art. I): `activation_pct` es media/máximo del EMG rectificado: casi igual en reposo y en contracción.
+    # Pulido profesional: ya no va como «¿Qué significa…?» (capas sin fuente); es la definición del cálculo, con su
+    # etiqueta de método, y conserva sus advertencias.
+    render_metric_card('Activación muscular', f'{activation:.1f} %', provenance=BADGES.METHOD)
+    st.caption('Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz). Describe la forma de '
+               'la señal: no es el porcentaje de la contracción máxima (%MVC). En reposo y en una contracción sostenida '
+               'da valores parecidos: no lo uses para decir esfuerzo, fatiga ni riesgo. Para saber cuánto contraes, '
+               'mira el RMS: crece con la contracción.')
+    rms_value = emg_live.rms_mv(emg_live.prepare(signal, fs, None), fs)
+    render_metric_card(
+        'RMS del EMG (20-450 Hz)',
+        None if rms_value is None else (f'{rms_value:.3f} mV' if live is not None else f'{rms_value:.3f} (unidades de la señal)'),
+        provenance=BADGES.METHOD,
+        unavailable_reason=None if rms_value is not None else 'señal demasiado corta para filtrar',
+    )
+    if live is not None:
+        st.caption('mV en la piel aproximados: ganancia 200 del MyoWare y ADC del ESP32 sin calibrar.')
+    _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
-    elif view == 'Educativa':
-        st.markdown('### Vista Educativa')
-        st.write('Visualiza activación, rectificación y aprende sobre fatiga muscular.')
-        st.line_chart(signal)
-        st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='EMG cruda')), use_container_width=True)
-
-    elif view == 'Investigación':
-        st.markdown('### Vista Investigación')
+    # ── 2. Plegados ──
+    with st.expander(LAB_SECTION_HOW, expanded=False):
         median_freq = emg_analysis.median_frequency_hz
-        # Consolidación Visual Tanda 3 (2026-09-21): antes un st.write() sin
-        # ninguna honestidad de procedencia. HEURISTIC -- mismo criterio ya
-        # usado un poco más abajo para el export de esta misma vista (Tanda
-        # 2): cálculo real sobre señal filtrada, sin cita/umbral clínico
-        # propio en este repo (no existe classify_emg()).
+        # HEURISTIC: cálculo real sobre señal filtrada, sin cita/umbral clínico propio en este repo.
         render_metric_card('Frecuencia mediana', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
         if st.button('Exportar EMG para investigación'):
-            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
-            # {'median_freq': median_freq} desnudo -- un número sin
-            # procedencia. HEURISTIC (no CLINICAL): es un cálculo real
-            # sobre señal filtrada (EmgAnalyzer), pero sin cita/umbral
-            # clínico propio en este repo (confirmado: no existe
-            # classify_emg() ni una constante *_CITATION para EMG).
-            # Tanda Final (2026-09-22): EMG Muscle Lab ya tiene nivel de
-            # validación firmado por el experto (HEURISTIC) -- el export
-            # lo hereda igual que ya hacían ECG/Multisensor.
             honesty_cards = [
                 resolve_metric_card(
                     'Frecuencia mediana', f'{median_freq:.1f} Hz',
@@ -1011,8 +1019,16 @@ def render_emg_page() -> None:
             if p:
                 st.success(f'Exportado: {p}')
 
-    elif view == 'IA':
-        st.markdown('### Vista IA — Narrador clínico')
+    with st.expander(LAB_SECTION_SIMULATE, expanded=False):
+        # NOTA (2026-08-19, Art. I): sin el slider placebo «Fuerza simulada» ni el `render_discovery_lab` inalcanzable;
+        # el patrón se elige en la barra lateral («Patrón») y regenera la señal demo.
+        st.write('Simulación de contracción isométrica con diferente reclutamiento: elige el patrón en la barra lateral.')
+        st.line_chart(signal)
+
+    with st.expander(LAB_SECTION_THEORY, expanded=False):
+        render_no_data('Teoría del EMG', 'todavía no hay un tema firmado con fuente para el EMG en Aprender')
+
+    with st.expander(LAB_SECTION_AI, expanded=False):
         render_findings_narrator('EMG Muscle Lab', [
             ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Cociente entre el promedio y el pico del EMG rectificado (señal filtrada 20-450 Hz); no es %MVC.'),
             ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
@@ -1027,23 +1043,6 @@ def render_emg_page() -> None:
             ('signal_source', live.label if live is not None else source,
              'Origen de la señal: demo sintética, CSV cargado, o placa en vivo (real o simulada).'),
         ], origin=_emg_data_origin(source, live))
-
-    elif view == 'Simulación':
-        st.markdown('### Vista Simulación')
-        # NOTA (2026-08-19, Art. I): se retiraron el slider "Fuerza simulada"
-        # (se definía y nunca se volvía a leer -- no influía en `signal` ni
-        # en ningún cálculo, placebo de interacción) y la llamada a
-        # `render_discovery_lab('EMG Gemelo', {'EMG': signal})` (inalcanzable
-        # por diseño: esa función exige >=2 señales para calcular algo, EMG
-        # solo pasaba 1, así que siempre caía en "Se requieren al menos 2
-        # señales" sin hacer nada). `render_discovery_lab()` en sí no se
-        # tocó -- sigue en uso real en otros laboratorios con 2+ señales. Se
-        # conserva la vista con el patrón EMG actualmente simulado para que
-        # no quede una pestaña vacía. Ver CHANGELOG.md.
-        st.write('Simulación de contracción isométrica con diferente reclutamiento.')
-        st.line_chart(signal)
-
-    _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
 
 CSV_SAVE_BLOCKER = "archivo sin procedencia verificable (un CSV cargado no dice de quién ni de qué equipo viene)"
@@ -1650,6 +1649,9 @@ def render_ecg_monitor_page() -> None:
         # ignoraba `hr` (QRS con ciclo fijo `t % 1`); este respeta el HR
         # pedido (validado por TKEO, error <0.2bpm en todo el rango 40-200,
         # ver CHANGELOG.md).
+        # Pulido profesional (2026-11-16): la demo se genera a 500 muestras/s, lo que pide [K2007] para un corte
+        # superior de 150 Hz con error de amplitud < 1 % (antes 250).
+        fs = ECG_DEMO_FS
         signal = DynamicECGGenerator(fs=fs).generate(duration=20, hr=hr_demo)
         metadata['source'] = 'demo'
 
@@ -1658,140 +1660,70 @@ def render_ecg_monitor_page() -> None:
         render_error_state(msg)
         return
 
-    # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
-    # gemelo real ya existe en Digital Twin OS (DigitalTwinOrganism); esta pestaña
-    # era una animación 3D decorativa y un "Contractility Index" ad-hoc,
-    # desconectados de ese gemelo real. Ver CHANGELOG.md.
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
-    # Bug 2 del ECG (2026-09-26, ver CHANGELOG.md): las 6 fuentes de esta
-    # página ahora miden con el mismo detector TKEO (`_measure_ecg_heart_
-    # rate_tkeo()`, el motor que ya usaba solo la fuente demo desde Fase 5B).
-    # `estimate_ecg_heart_rate()` -- naive, sin distancia mínima, contaba el
-    # par R+T del mismo latido como dos latidos, saturaba en 220bpm --
-    # retirada por completo; seguía viva para MIT-BIH/PTB-XL/CSV/hardware,
-    # que hasta esta tanda mostraban un HR de relleno sobre señal de
-    # paciente REAL, no solo sobre la demo sintética. Sigue siendo una
-    # MEDICIÓN, nunca el `hr_demo` pedido repetido tal cual en la fuente
-    # demo. `hr is None` (sin detección fiable) se declara "no disponible"
-    # en las 3 vistas que lo consumen abajo -- nunca un número inventado.
+    # Pulido profesional (2026-11-16, Art. I): se retiró el selector «Capa de Exploración Cognitiva» (Clínica / Educativa /
+    # Investigación / IA / Simulación). Una sola página: arriba el trazo en papel ECG y los valores clave; debajo, plegados,
+    # «Cómo se calcula» (antes Investigación), «Teoría» (antes Educativa: el enlace a Aprender) y «Narración con IA
+    # (opcional)» (antes IA). Cierre del pulido: «Simular» y el material de Educativa estaban rotulados «[Sin fuente]» (y
+    # los controles de Simular no movían nada); se retiraron de la vista, su código queda sin montar en
+    # `_ecg_monitor_unsourced_material()`.
+    # Bug 2 del ECG (2026-09-26): las 6 fuentes miden con el mismo detector TKEO; `hr is None` se declara «no disponible».
     hr = _measure_ecg_heart_rate_tkeo(signal, fs, ECGAnalyzer)
     vm = np.arange(len(signal)) / fs
 
-    def show_anatomy(part: str):
-        explanations = {
-            'SA Node': 'Nodo SA: marcapasos natural que inicia la despolarización atrial (ondas P).',
-            'AV Node': 'Nodo AV: retraso fisiológico para permitir llenado ventricular antes de la contracción.',
-            'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
-            'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
-        }
-        st.markdown(f"**{part}**: {explanations.get(part, '')}")
+    # ── 1. El trazo (papel ECG, 25 mm/s · 10 mm/mV) y los valores clave ──
+    from app.utils import ecg_paper
+    from app.supermodules.learn_theory import SIGNED_HEART_RATE
 
-    if view == 'Clínica':
-        st.markdown('### Vista Clínica')
-        # Tanda 2 de la fase 1: el trazo primero (antes empezaba a ~950 px, bajo la FC y «Guardar al gemelo»).
-        if PLOTLY_OK:
-            try:
-                fig = PLOTLY_GO.Figure()
-                fig.add_trace(PLOTLY_GO.Scatter(x=vm, y=signal, name='ECG', mode='lines'))
-                fig.update_layout(template='plotly_dark', height=360, title='ECG — Señal')
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception:
-                st.line_chart(signal)
-        else:
-            st.line_chart(signal)
+    duration_s = len(signal) / fs
+    strip_start = 0.0
+    if duration_s > ecg_paper.STRIP_S + 0.5:
+        strip_start = st.slider('Inicio de la tira de 10 s (s)', 0.0, float(np.floor(duration_s - ecg_paper.STRIP_S)),
+                                0.0, step=1.0, key='ecg_monitor_strip_start')
+    ecg_paper.render(ecg_paper.strip_figure(
+        signal, fs, lead=str(metadata.get('lead') or 'ECG'), start_s=strip_start,
+        filter_label=_ecg_monitor_filter_label(source),
+        gain_note=_ECG_GAIN_NOTES.get(source),
+    ), key='ecg_monitor_paper')
 
-        if hr is None:
-            render_no_data(
-                'Frecuencia cardíaca',
-                'el detector TKEO no encontró suficientes picos R fiables en esta señal (señal corta, sin QRS '
-                'reconocible en 5-15 Hz, ritmo no evaluable o motor ECGAnalyzer no disponible). Prueba con otra '
-                'fuente o una señal más larga.',
-            )
-        else:
-            render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm',
-                        meaning='Frecuencia cardíaca derivada del ECG.',
-                        importance='Principal indicador de estado cardiovascular y esfuerzo.',
-                        affects='Ejercicio, arritmias, fármacos, volumen intravascular.',
-                        relations='Afecta perfusión, demanda metabólica y sincronía con respiración.',
-                        consequences='Cambios bruscos pueden indicar arritmia o shock.')
-        st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs} Hz")
+    if hr is None:
+        render_no_data(
+            'Frecuencia cardíaca',
+            'el detector TKEO no encontró suficientes picos R fiables en esta señal (señal corta, sin QRS '
+            'reconocible en 5-15 Hz, ritmo no evaluable o motor ECGAnalyzer no disponible). Prueba con otra '
+            'fuente o una señal más larga.',
+        )
+    else:
+        # La explicación es el tema 2 firmado (docs/contenido/teoria_citada.md); las capas genéricas se retiraron.
+        render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm', topic=SIGNED_HEART_RATE)
+    st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs:g} Hz")
 
-        st.divider()
-        _render_ecg_save_to_twin(signal, fs, metadata, ECGAnalyzer)
+    st.divider()
+    _render_ecg_save_to_twin(signal, fs, metadata, ECGAnalyzer)
 
-        if loaded_case is not None:
-            with st.expander(f"📋 Detalle del caso {loaded_case.case_id}", expanded=False):
-                st.write(f"**Paciente:** {loaded_case.age} años, sexo {loaded_case.sex}")
-                st.write(f"**Diagnóstico primario:** {loaded_case.primary_diagnosis.value}")
-                if loaded_case.secondary_diagnoses:
-                    st.write(
-                        "**Diagnósticos secundarios:** "
-                        + ", ".join(d.value for d in loaded_case.secondary_diagnoses)
-                    )
-                if loaded_case.risk_factors:
-                    st.write("**Factores de riesgo:** " + ", ".join(loaded_case.risk_factors))
-                if loaded_case.clinical_history:
-                    st.write(f"**Historia clínica:** {loaded_case.clinical_history}")
-                st.write(f"**Dificultad:** {loaded_case.difficulty.value}")
-                # Contención (2026-11-16, Art. I): sin «Acción clínica recomendada» ni «Riesgo de mortalidad
-                # estimado» (indicaciones de tratamiento y una cifra por diagnóstico, sin cita; ver case_database.py).
+    if loaded_case is not None:
+        with st.expander(f"📋 Detalle del caso {loaded_case.case_id}", expanded=False):
+            st.write(f"**Paciente:** {loaded_case.age} años, sexo {loaded_case.sex}")
+            st.write(f"**Diagnóstico primario:** {loaded_case.primary_diagnosis.value}")
+            if loaded_case.secondary_diagnoses:
+                st.write(
+                    "**Diagnósticos secundarios:** "
+                    + ", ".join(d.value for d in loaded_case.secondary_diagnoses)
+                )
+            if loaded_case.risk_factors:
+                st.write("**Factores de riesgo:** " + ", ".join(loaded_case.risk_factors))
+            if loaded_case.clinical_history:
+                st.write(f"**Historia clínica:** {loaded_case.clinical_history}")
+            st.write(f"**Dificultad:** {loaded_case.difficulty.value}")
+            # Contención (2026-11-16, Art. I): sin «Acción clínica recomendada» ni «Riesgo de mortalidad
+            # estimado» (indicaciones de tratamiento y una cifra por diagnóstico, sin cita; ver case_database.py).
 
-        st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
-        seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
-        if seg == 'P':
-            st.write('- Evento eléctrico: despolarización atrial (onda P).')
-            st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
-            st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
-        elif seg == 'QRS':
-            st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
-            st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
-            st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
-        else:
-            st.write('- Evento eléctrico: repolarización ventricular (onda T).')
-            st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
-
-        st.markdown('#### Diagnóstico diferencial (ejemplo)')
-        st.write('Si observa elevación persistente de ST en derivaciones contiguas:')
-        st.write('- Hallazgos: elevación del ST en V2-V4')
-        st.write('- Posibles diagnósticos: Infarto agudo de miocardio anterior (LAD).')
-        st.write('- Justificación: correlación con territorios coronarios y síntomas clínicos.')
-
-    elif view == 'Educativa':
-        st.markdown('### Vista Educativa — Anatomía interactiva')
-        cols = st.columns(4)
-        if cols[0].button('Nodo SA'):
-            show_anatomy('SA Node')
-        if cols[1].button('Nodo AV'):
-            show_anatomy('AV Node')
-        if cols[2].button('Haz de His'):
-            show_anatomy('His Bundle')
-        if cols[3].button('Fibras Purkinje'):
-            show_anatomy('Purkinje')
-
-        st.markdown('### Timeline fisiológica')
-        st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
-        st.markdown('Pasa por cada etapa usando los controles:')
-        step = st.slider('Etapa', 0, 4, 0)
-        steps = ['Despolarización', 'Contracción', 'Eyección', 'Relajación', 'Llenado']
-        st.info(steps[step])
-
-    elif view == 'Investigación':
-        st.markdown('### Vista Investigación')
-        st.write('Genera series temporales, compara cohortes y exporta datos para análisis científico.')
+    # ── 2. Plegados ──
+    with st.expander(LAB_SECTION_HOW, expanded=False):
+        st.write('Exporta el segmento y la frecuencia medida, o genera un notebook reproducible con esta misma señal.')
         if st.button('Exportar segmento para investigación'):
-            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
-            # {'length': len(signal)} desnudo -- ni siquiera un valor
-            # clínico, solo metadata. `hr` (ya medido arriba, TKEO sobre las
-            # 6 fuentes desde el cierre del Bug 2, 2026-09-26) SÍ es un valor
-            # clínico real -- HEURISTIC, no CLINICAL: esta lectura NO pasó
-            # por la compuerta de calidad (pRRx/metrónomo/Vpp) que sí exige
-            # `_render_ecg_save_to_twin()` antes de escribir al gemelo --
-            # llamarla "validada" aquí sería la fachada que el diagnóstico
-            # de Tanda 1 advirtió. `validation` reusa el mismo nivel que
-            # `render_ecg_lab_page()` ya declaró para todo el módulo -- este
-            # segmento vive dentro de ECG Lab, no es un módulo aparte con su
-            # propio nivel. `hr is None` (sin detección fiable) exporta con
-            # `unavailable_reason` -- nunca un número inventado.
+            # Consolidación Visual Tanda 2 (2026-09-21): `hr` es HEURISTIC, no CLINICAL: esta lectura NO pasó por la
+            # compuerta de calidad (pRRx/metrónomo/Vpp) que sí exige `_render_ecg_save_to_twin()`. `hr is None`
+            # exporta con `unavailable_reason` -- nunca un número inventado.
             if hr is not None:
                 honesty_cards = [
                     resolve_metric_card('Frecuencia cardíaca', f'{hr:.0f} lpm', provenance=BADGES.HEURISTIC),
@@ -1811,9 +1743,7 @@ def render_ecg_monitor_page() -> None:
             if path:
                 st.success(f'Exportado: {path}')
 
-        # Rescatado (Tanda de rescate — Joya 1/3, 2026-07-13) de
-        # app/supermodules/ecg_monitor/pages.py — usa la señal/fs/metadata realmente
-        # cargadas arriba (cualquiera sea la fuente activa), no un script aparte.
+        # Rescatado (Tanda de rescate — Joya 1/3, 2026-07-13): usa la señal/fs/metadata cargadas arriba.
         if st.button('📓 Generar notebook reproducible desde esta señal'):
             try:
                 csv_path = _ecg_export_signal_csv(signal, fs, prefix='ecg_for_notebook')
@@ -1840,18 +1770,23 @@ def render_ecg_monitor_page() -> None:
         corr_ecg_spo2 = float(np.corrcoef(signal[:len_min], spo2_demo[:len_min])[0, 1]) if len_min > 1 else 0.0
         st.write(f'ECG ↔ Respiración: {corr_ecg_resp:.2f} — ECG ↔ SpO₂: {corr_ecg_spo2:.2f}')
 
-    elif view == 'IA':
-        st.markdown('### Vista IA — Narrador clínico')
+    # Cierre del pulido (2026-11-16, Art. I): el material sin fuente («[Sin fuente]») ya no se monta. «Simular» se fue con
+    # él: sus 4 controles (FC, PR, QRS, QT) no movían nada (nadie leía su valor), solo acompañaban ese texto. El código
+    # queda, sin montar, en `_ecg_monitor_unsourced_material()` (abajo), con la fuente que le haría falta.
+    with st.expander(LAB_SECTION_THEORY, expanded=False):
+        nav.link('teoria', 'Teoría del ECG en Aprender: el papel, la frecuencia, las ondas, las 12 derivaciones y la '
+                           'isquemia (con sus fuentes)', icon='📖')
+        # El «Diagnóstico diferencial (ejemplo)» que vivía en la vista Clínica (elevación del ST en V2-V4 = «infarto
+        # anterior (LAD)», sin cita) se retiró: lo sustituye la tabla de isquemia firmada (tema 5), con su advertencia.
+
+    with st.expander(LAB_SECTION_AI, expanded=False):
         try:
             if src_ok and 'interpret_ecg' in src_modules:
                 result = src_modules['interpret_ecg'](signal, fs)
                 intervals = result.get('intervals', {})
                 flags = result.get('flags', {})
                 st.caption(result.get('description', ''))
-                # Consolidación, Tanda 1 (2026-07-13): el finding 'qtc_s' se quitó —
-                # dependía de un QT inventado (0.36s fijo), nunca medido de la señal
-                # (ver src/clinical/ecg_interpreter.py). No se narra un QTc que no se
-                # midió de verdad.
+                # Consolidación, Tanda 1 (2026-07-13): sin 'qtc_s' (dependía de un QT fijo, nunca medido).
                 findings = [
                     ('heart_rate_bpm', f"{intervals.get('bpm', float('nan')):.1f}", 'Frecuencia cardíaca estimada por detección de picos R.'),
                 ]
@@ -1867,28 +1802,71 @@ def render_ecg_monitor_page() -> None:
         except Exception as e:
             st.warning(f'El análisis de ECG falló: {e}')
 
-    elif view == 'Simulación':
-        st.markdown('### Vista Simulación — Modo Exploración')
-        st.write('Ajusta parámetros y observa efectos en ECG y explicaciones asociadas.')
-        # Keys explícitas (Fusión ECG Lab, 2026-07-14): estos dos labels son
-        # "near-miss" de dos widgets equivalentes en ecg_12/page_content.py
-        # (difieren solo en mayúscula/redacción) — con ambos flujos ahora en
-        # la misma página, la key ya no depende de que el texto siga distinto.
-        # Bug 2 del ECG (2026-09-26): `hr` puede ser `None` (sin detección
-        # fiable) o, ahora que el detector ya no está roto, un valor real
-        # fuera del rango 30-160 del slider (p.ej. taquicardia real de un
-        # registro MIT-BIH) -- `int(None)`/un default fuera de rango
-        # rompería este slider de exploración educativa. Se recorta al
-        # rango del slider (sandbox de "qué pasaría si", no un valor
-        # reportado) y cae a 72 sin medición.
-        fc_default = min(160, max(30, int(hr))) if hr is not None else 72
-        fc = st.slider('Frecuencia cardíaca (lpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
-        pr = st.slider('PR (ms)', 80, 300, 160)
-        qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
-        qt = st.slider('QT (ms)', 200, 500, 360)
-        st.markdown('#### Qué cambiaría si...')
-        st.write('- Aumenta FC: reduce intervalo RR, puede disminuir tiempo de llenado ventricular.')
-        st.write('- QRS ancho: sugiere bloqueo de rama o conducción aberrante, afecta sincronía ventricular.')
+
+def _ecg_monitor_unsourced_material(hr) -> None:  # pragma: no cover -- SIN MONTAR, a propósito
+    """Material del Monitoreo del ECG retirado de la vista del estudiante (cierre del pulido, 2026-11-16, Art. I): estaba
+    rotulado «[Sin fuente]». No lo llama nadie; se conserva para cuando haya texto firmado en
+    `docs/contenido/teoria_citada.md`. Fuente que haría falta:
+
+    - Anatomía del sistema de conducción (nodo SA, nodo AV, haz de His, fibras de Purkinje): un capítulo de fisiología
+      con cita verificada (p. ej. Hall JE, Hall ME. Guyton and Hall Textbook of Medical Physiology, 14.ª ed., capítulos
+      de electrocardiografía; teoria_citada.md lo deja como «lectura complementaria: verificar capítulo y página»).
+    - Línea de tiempo eléctrica → mecánica y «Fisiología dinámica» (eventos mecánicos y hemodinámicos de P, QRS y T): la
+      misma fuente de fisiología; el evento eléctrico de cada onda ya está firmado (tema 3, [MCM]).
+    - «Qué cambiaría si…» (FC y tiempo de llenado ventricular; QRS ancho y bloqueo de rama): una fuente para cada frase
+      (para el QRS ancho, Surawicz 2009, ya citado en 12 Derivaciones). Sus controles FC/PR/QRS/QT no movían nada: si se
+      vuelve a montar, deben regenerar el trazo o no deben existir."""
+    def show_anatomy(part: str):
+        explanations = {
+            'SA Node': 'Nodo SA: marcapasos natural que inicia la despolarización atrial (ondas P).',
+            'AV Node': 'Nodo AV: retraso fisiológico para permitir llenado ventricular antes de la contracción.',
+            'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
+            'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
+        }
+        st.markdown(f"**{part}**: {explanations.get(part, '')}")
+
+    st.write('Ajusta parámetros y observa efectos en ECG y explicaciones asociadas.')
+    # Keys explícitas (Fusión ECG Lab, 2026-07-14): near-miss con widgets de ecg_12/page_content.py. `hr` puede ser
+    # `None` o salir del rango del slider: se recorta (sandbox de «qué pasaría si», no un valor reportado).
+    fc_default = min(160, max(30, int(hr))) if hr is not None else 72
+    fc = st.slider('Frecuencia cardíaca (lpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
+    pr = st.slider('PR (ms)', 80, 300, 160)
+    qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
+    qt = st.slider('QT (ms)', 200, 500, 360)
+    st.markdown('#### Qué cambiaría si...')
+    st.write('- Aumenta FC: reduce intervalo RR, puede disminuir tiempo de llenado ventricular.')
+    st.write('- QRS ancho: sugiere bloqueo de rama o conducción aberrante, afecta sincronía ventricular.')
+
+    st.markdown('#### Anatomía interactiva')
+    cols = st.columns(4)
+    if cols[0].button('Nodo SA'):
+        show_anatomy('SA Node')
+    if cols[1].button('Nodo AV'):
+        show_anatomy('AV Node')
+    if cols[2].button('Haz de His'):
+        show_anatomy('His Bundle')
+    if cols[3].button('Fibras Purkinje'):
+        show_anatomy('Purkinje')
+
+    st.markdown('#### Línea de tiempo fisiológica')
+    st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
+    step = st.slider('Etapa', 0, 4, 0)
+    steps = ['Despolarización', 'Contracción', 'Eyección', 'Relajación', 'Llenado']
+    st.info(steps[step])
+
+    st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
+    seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
+    if seg == 'P':
+        st.write('- Evento eléctrico: despolarización atrial (onda P).')
+        st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
+        st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
+    elif seg == 'QRS':
+        st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
+        st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
+        st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
+    else:
+        st.write('- Evento eléctrico: repolarización ventricular (onda T).')
+        st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
 
 
 def _build_multisensor_record(channels: dict, BiosignalChannel, MultisensoralRecord):
@@ -1955,46 +1933,40 @@ def render_multisensor_page() -> None:
     # Proxy" (promedio crudo de PPG), desconectado de ese gemelo real.
     # «Sensores en vivo» (2026-11-16): pulso por luz y temperatura con la placa ESP32, y sus tutoriales
     # (`app/supermodules/biosensors/live_view.py`). No usa `demo_channels`.
+    # Pulido profesional (2026-11-16, Art. I): sin el selector «Capa de Exploración Cognitiva». «Sensores en vivo» queda
+    # en su pestaña; los canales demo en una sola página: los trazos (antes Educativa) y los valores (antes Clínica)
+    # arriba; «Cómo se calcula» (antes Investigación), «Simular» (antes Simulación), «Teoría» y «Narración con IA
+    # (opcional)» (antes IA), plegados.
     from app.supermodules.biosensors.live_view import VIEW as LIVE_SENSORS_VIEW, render_live_sensors_view
-    view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación', LIVE_SENSORS_VIEW])
 
-    if view == LIVE_SENSORS_VIEW:
+    tab_demo, tab_live = st.tabs(["Canales demo", LIVE_SENSORS_VIEW])
+    with tab_live:
         render_live_sensors_view()
+    with tab_demo:
+        _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecord)
 
-    elif view == 'Clínica':
-        st.markdown('### Vista Clínica')
-        record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
-        indices = record.compute_physiological_indices()
-        # Decisión 8 (tanda 1 de la fase 1, 2026-11-15, Art. I): el «Health Score 74.2/100» se retiró -- índice
-        # compuesto sin cita, igual que los índices de salud retirados del organismo en la fase 0.
-        st.write('Signos detectados sobre los canales demo (señales generadas, no un paciente).')
-        render_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
-                           provenance=BADGES.HEURISTIC)
-        render_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC)
 
-    elif view == 'Educativa':
-        st.markdown('### Vista Educativa')
-        st.write('Interactivo multisensor: seleccione canales para aprender sobre acoplamiento cardiorrespiratorio y oxigenación.')
-        ch = st.multiselect('Canales', list(demo_channels.keys()), default=['ECG','SpO2'],
-                            format_func=lambda c: {'Respiration': 'Respiración'}.get(c, c))
-        for c in ch:
-            st.line_chart(demo_channels[c])
+def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecord) -> None:
+    # ── 1. Los trazos y los valores clave ──
+    st.write('Canales demo (señales generadas, no un paciente): elige cuáles ver para estudiar el acoplamiento '
+             'cardiorrespiratorio y la oxigenación.')
+    ch = st.multiselect('Canales', list(demo_channels.keys()), default=['ECG', 'SpO2'],
+                        format_func=lambda c: {'Respiration': 'Respiración'}.get(c, c))
+    for c in ch:
+        st.line_chart(demo_channels[c])
+    record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
+    indices = record.compute_physiological_indices()
+    # Decisión 8 (tanda 1 de la fase 1, 2026-11-15, Art. I): sin «Health Score» (índice compuesto sin cita).
+    render_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
+                       provenance=BADGES.HEURISTIC)
+    render_metric_card('SpO₂ (canal demo)', f"{indices['spo2_mean']:.1f} %", provenance=BADGES.HEURISTIC)
 
-    elif view == 'Investigación':
-        st.markdown('### Vista Investigación')
-        st.write('Exporta registros sincronizados y calcula correlaciones avanzadas.')
+    # ── 2. Plegados ──
+    with st.expander(LAB_SECTION_HOW, expanded=False):
+        st.write('Exporta los índices de los canales demo con su procedencia. La FC sale del detector sobre el ECG demo; '
+                 'la SpO₂ es el promedio del canal demo.')
         if st.button('Exportar multisensor para investigación'):
-            # Consolidación Visual Tanda 2 (2026-09-21): antes exportaba
-            # {'channels': [...]} desnudo -- nombres de canal, ni un solo
-            # valor clínico. Se calculan aquí los MISMOS índices reales que
-            # ya usa la Vista Clínica de este mismo módulo
-            # (`_build_multisensor_record()` + `compute_physiological_
-            # indices()`/`health_score()`, sin recalcular nada nuevo) para
-            # que el export lleve algo más que metadata. HEURISTIC en los
-            # tres -- `validation="HEURISTIC"` (Tanda Final: texto verbatim
-            # de la firma del experto, ver `_MULTISENSOR_VALIDATION_DETAIL`).
-            record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
-            indices = record.compute_physiological_indices()
+            # Consolidación Visual Tanda 2 (2026-09-21): los MISMOS índices de arriba, HEURISTIC.
             honesty_cards = [
                 resolve_metric_card('Frecuencia cardíaca (detectada del ECG demo)', f"{indices['heart_rate']:.0f} lpm",
                                     provenance=BADGES.HEURISTIC),
@@ -2008,17 +1980,7 @@ def render_multisensor_page() -> None:
             if p:
                 st.success(f'Exportado: {p}')
 
-    elif view == 'IA':
-        st.markdown('### Vista IA — Narrador clínico')
-        record = _build_multisensor_record(demo_channels, BiosignalChannel, MultisensoralRecord)
-        indices = record.compute_physiological_indices()
-        render_findings_narrator('Multisensor Fusion Lab', [
-            ('frecuencia_cardiaca_lpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG demo.'),
-            ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO₂ demo.'),
-        ], origin=DataOrigin.SIMULADO)  # canales demo
-
-    elif view == 'Simulación':
-        st.markdown('### Vista Simulación')
+    with st.expander(LAB_SECTION_SIMULATE, expanded=False):
         st.write('Ajusta la FC y la SpO₂ de los canales demo y mira lo que el detector recalcula sobre las señales regeneradas.')
 
         hr = st.slider('FC (lpm)', 40, 160, 72)
@@ -2049,19 +2011,22 @@ def render_multisensor_page() -> None:
                                provenance=BADGES.HEURISTIC, unavailable_reason='el canal SpO₂ no dio un promedio')
 
         st.caption(
-            '**FC y SpO₂ son controles activos de esta pestaña**: regeneran las señales demo y el detector recalcula '
-            'sobre ellas en el mismo instante (misma ruta que la Vista Clínica: `compute_physiological_indices()`). '
-            'La FR queda fija: ninguna métrica de esta vista la usa, así que dejarla arrastrable sería un control '
-            'placebo.'
+            '**FC y SpO₂ son controles activos de esta sección**: regeneran las señales demo y el detector recalcula '
+            'sobre ellas en el mismo instante (misma ruta que los valores de arriba: `compute_physiological_indices()`). '
+            'La FR queda fija: ninguna métrica la usa, así que dejarla arrastrable sería un control placebo.'
         )
+    # Fuera de «Simular»: el laboratorio de descubrimiento es su propio expander (Streamlit no los anida).
+    render_discovery_lab('Multisensor Gemelo', sim_channels)
 
-        render_discovery_lab('Multisensor Gemelo', sim_channels)
+    with st.expander(LAB_SECTION_THEORY, expanded=False):
+        nav.link('referencias', 'Referencias de los laboratorios en Aprender (NEWS2, respiración, patrones)', icon='📚')
+        nav.link('teoria', 'Teoría del ECG y frecuencia cardiaca en Aprender', icon='📖')
 
-
-# NOTA (2026-07-03): la vieja render_respiratory_page() inline (un patrón fijo,
-# RR crudo, sin apnea/AHI) fue eliminada — ver render_respiratory_lab_page()
-# arriba, que delega al supermódulo. Tanda 1 (2026-11-05): ese análisis de
-# apnea/AHI NO es fiable todavía y está marcado así en pantalla.
+    with st.expander(LAB_SECTION_AI, expanded=False):
+        render_findings_narrator('Multisensor Fusion Lab', [
+            ('frecuencia_cardiaca_lpm', f"{indices['heart_rate']:.0f}", 'Frecuencia cardíaca estimada del canal ECG demo.'),
+            ('spo2_pct', f"{indices['spo2_mean']:.1f}%", 'Saturación de oxígeno promedio del canal SpO₂ demo.'),
+        ], origin=DataOrigin.SIMULADO)  # canales demo
 
 
 def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
@@ -2188,16 +2153,14 @@ def render_hrv_page() -> None:
     mean_nn = float(np.mean(rr_ms))
 
     st.markdown('### Vista Clínica')
-    render_metric_explained('SDNN', f'{sdnn:.1f}', unit='ms',
-                meaning='Desviación estándar entre intervalos NN (variabilidad global).',
-                importance='Indicador general de variabilidad autonómica.',
-                affects='Estrés, edad, enfermedades cardiacas y medicamentos.',
-                relations='Relacionada con RMSSD y balance autonómico.',
-                consequences='Bajos valores asociados a mayor riesgo cardiovascular.')
-    render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms',
-                meaning='Raíz cuadrática media de las diferencias sucesivas entre intervalos NN — aproximación del tono parasimpático.')
-    render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%',
-                meaning='Porcentaje de diferencias NN>50ms — indicador vagal.')
+    # Pulido profesional (2026-11-16, Art. I): las capas de «¿Qué significa…?» de SDNN/RMSSD/pNN50 no tenían fuente
+    # («Indicador general de variabilidad autonómica», «Bajos valores asociados a mayor riesgo cardiovascular»...) y
+    # no hay tema firmado de HRV: se retiran. Queda la definición de cada cálculo (método, no una afirmación clínica).
+    render_metric_explained('SDNN', f'{sdnn:.1f}', unit='ms')
+    render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms')
+    render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%')
+    st.caption('Cómo se calcula: SDNN = desviación estándar de los intervalos NN; RMSSD = raíz cuadrática media de las '
+               'diferencias sucesivas entre intervalos NN; pNN50 = porcentaje de diferencias sucesivas mayores de 50 ms.')
 
     # Tanda 2 de la fase 1: ≤ 5 paneles al abrir. Lo demás, en pestañas (a demanda), sin cambiar ningún cálculo; el
     # espectro va primero porque es un solo gráfico.
@@ -2369,10 +2332,9 @@ def render_patient_pipeline_page() -> None:
     if patient_label != get_active_patient_display_name():
         rename_active_patient(patient_label)
 
-    view = render_view_selector(views=['Clínica', 'IA'])
-
-    if view == 'Clínica':
-        st.markdown('### Vista Clínica')
+    # Pulido profesional (2026-11-16): sin el selector «Capa de Exploración Cognitiva»: la vista Clínica es la página y
+    # la narración (antes la vista IA) queda plegada debajo, como en los laboratorios.
+    with st.container():
         st.caption(f"Paciente UPS: `{patient_id}` (nombre: {patient_label})")
 
         st.markdown('#### Registrar estado fisiológico')
@@ -2460,15 +2422,14 @@ def render_patient_pipeline_page() -> None:
                     with st.expander(f"{imp.category.value} — {imp.emitted_at.isoformat()} (autor: {imp.author})"):
                         st.write(imp.notes or "_(sin notas)_")
 
-    else:  # view == 'IA'
-        st.markdown('### Vista IA — Narrador clínico')
+    with st.expander(LAB_SECTION_AI, expanded=False):
         with session_factory() as session:
             latest_state = get_latest_state(session, patient_id)
 
         if latest_state is None:
             render_empty_state(
                 "No hay ningún estado guardado todavía para este paciente",
-                action="guarda uno primero en la Vista Clínica para poder narrarlo aquí",
+                action="guarda uno primero arriba («Guardar nuevo estado») para poder narrarlo aquí",
             )
         else:
             with session_factory() as session:
@@ -2586,6 +2547,12 @@ def render_learn_ecg3d_page() -> None:
     render_vcg_panel("aprender_vcg")
 
 
+def render_learn_bibliography_page() -> None:
+    from app.supermodules.bibliography import render_bibliography_page
+
+    render_bibliography_page()
+
+
 def render_practice_quiz_page() -> None:
     from app.supermodules.academia.pages import render_quiz_section
 
@@ -2634,6 +2601,7 @@ def _page_specs() -> list:
         ("Aprender", "teoria", "Teoría (Academia)", "📖", render_learn_theory_page),
         ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
         ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
+        ("Aprender", "bibliografia", "Bibliografía", "📚", render_learn_bibliography_page),
         ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
         ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
         ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
@@ -2666,7 +2634,8 @@ def main() -> None:
     nav.register(pages, sections)
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()
-    current.run()
+    with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo
+        current.run()
 
 
 if __name__ == '__main__':

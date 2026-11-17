@@ -43,13 +43,27 @@ CITED_TITLES_AND_PROPER_NAMES = (
     "Heart Rhythm 20",                                             # revista (Page 2015)
     "Artifact and recording concepts in EEG",                     # Tatum 2011, J Clin Neurophysiol
     "Lab Streaming Layer",                                        # nombre propio del protocolo LSL
+    "*Heart Rhythm*",                                             # revista de [K2007] en la Bibliografía (pulido)
+)
+
+# Pulido profesional (2026-11-16): frases del documento FIRMADO (`docs/contenido/teoria_citada.md`) que el patrón amplio
+# de tratamientos atrapa sin ser una indicación de tratamiento. Se quitan por su texto EXACTO y una prueba exige que
+# sigan estando, tal cual, en el documento firmado; cualquier otra aparición sigue fallando.
+SIGNED_NON_TREATMENT = (
+    "la recomendación es una frecuencia de corte superior de al menos 150 Hz",   # tema 1 [K2007]: filtro del equipo
 )
 
 
 def _without_citations(text):
-    for name in CITED_TITLES_AND_PROPER_NAMES:
+    for name in CITED_TITLES_AND_PROPER_NAMES + SIGNED_NON_TREATMENT:
         text = text.replace(name, "")
     return text
+
+
+def test_every_signed_exemption_is_literally_in_the_signed_document():
+    doc = Path("docs/contenido/teoria_citada.md").read_text(encoding="utf-8")
+    for phrase in SIGNED_NON_TREATMENT:
+        assert phrase in doc and TREATMENT.search(phrase), phrase       # firmada, y de verdad la atrapaba el patrón
 
 
 def _strip(html):
@@ -112,28 +126,27 @@ def test_no_bpm_and_no_listed_english_term_reaches_the_student(url):
     at.run()
     assert at.exception == [], at.exception
     texts = visible_texts(at)
-    radios = [r for r in at.main.radio if r.label == VIEW_RADIO]
-    if radios:                                                  # cada vista del laboratorio
-        for view in list(radios[0].options)[1:]:
-            next(r for r in at.main.radio if r.label == VIEW_RADIO).set_value(view).run()
-            assert at.exception == [], (view, at.exception)
-            texts.extend(visible_texts(at))
-            # Integración con main: cada sensor × cada modo de la vista «Sensores en vivo» (pulso por luz y
-            # temperatura; medir y tutorial).
-            if any(r.label == "Sensor" for r in at.main.radio):
-                sensors = list(next(r for r in at.main.radio if r.label == "Sensor").options)
-                modes = list(next(r for r in at.main.radio if r.label == "Qué quieres hacer").options)
-                for sensor in sensors:
-                    for mode in modes:
-                        next(r for r in at.main.radio if r.label == "Sensor").set_value(sensor).run()
-                        next(r for r in at.main.radio if r.label == "Qué quieres hacer").set_value(mode).run()
-                        assert at.exception == [], (view, sensor, mode, at.exception)
-                        texts.extend(visible_texts(at))
+    # Pulido profesional (2026-11-16): ya no hay selector de vistas (`VIEW_RADIO`); las secciones de cada laboratorio
+    # están en la misma página (plegadas: AppTest lee su contenido igual) y las pestañas se dibujan todas.
+    assert not [r for r in at.main.radio if r.label == VIEW_RADIO], url
+    # Integración con main: cada sensor × cada modo de «Sensores en vivo» (pulso por luz y temperatura; medir y
+    # tutorial), ahora una pestaña de Multisensor.
+    if any(r.label == "Sensor" for r in at.main.radio):
+        sensors = list(next(r for r in at.main.radio if r.label == "Sensor").options)
+        modes = list(next(r for r in at.main.radio if r.label == "Qué quieres hacer").options)
+        for sensor in sensors:
+            for mode in modes:
+                next(r for r in at.main.radio if r.label == "Sensor").set_value(sensor).run()
+                next(r for r in at.main.radio if r.label == "Qué quieres hacer").set_value(mode).run()
+                assert at.exception == [], (sensor, mode, at.exception)
+                texts.extend(visible_texts(at))
     texts = [_without_citations(t) for t in texts]
     offenders = sorted({(m.group(0), t[:120]) for t in texts for m in [FORBIDDEN.search(t)] if m})
     assert offenders == [], offenders
     treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
     assert treatments == [], treatments
+    # Cierre del pulido (2026-11-16): el material rotulado «[Sin fuente]» ya no se monta en ninguna página.
+    assert not [t[:120] for t in texts if "[Sin fuente]" in t], url
 
 
 # Integración con main: las fuentes de cada laboratorio que no son la de inicio (sin red ni puerto: MIT-BIH/PTB-XL
@@ -162,6 +175,7 @@ def test_no_bpm_and_no_listed_english_term_in_the_other_sources(url, label, opti
     assert offenders == [], offenders
     treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
     assert treatments == [], treatments
+    assert not [t[:120] for t in texts if "[Sin fuente]" in t], (url, option)      # cierre del pulido
 
 
 def test_the_citation_exemption_removes_only_the_exact_title():

@@ -1,5 +1,187 @@
 # Changelog
 
+## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
+
+**Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
+- una autoría por verificar;
+- material «[Sin fuente]» a la vista del estudiante;
+- 12 Derivaciones rotulando derivaciones por pared;
+- casos clínicos a 250 muestras/s.
+
+Rama `cierre-pulido`, apilada sobre `pulido-profesional`: esa rama no está fusionada en `main` (su PR no se llegó a abrir). Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0. En el paso 0, la suite completa dio 2292 pasan, 0 fallan y 6 omitidas.
+
+1. **[AR2025]**: autores según PubMed (PMID 29262235): «Porter R, Graham DD». Se retira «Whited L».
+   - La referencia lleva el NBK470309, el PMID y el enlace a NCBI Bookshelf.
+   - `teoria_citada.md` lleva la nota «Autores corregidos según PubMed el 16 de noviembre de 2026».
+2. **Material «[Sin fuente]» fuera de la vista del estudiante**. El código queda en el repositorio, sin montar, con la fuente que le haría falta en su docstring.
+   - **ECG · Monitoreo**: anatomía interactiva (nodo SA, nodo AV, His, Purkinje), línea de tiempo fisiológica, «Fisiología dinámica» y «Qué cambiaría si…».
+     - «Simular» se retiró con ellos: sus controles FC, PR, QRS y QT no movían nada (nadie leía su valor), así que sin ese texto eran un control placebo.
+     - Todo vive en `_ecg_monitor_unsourced_material()` (`app/main.py`).
+     - Fuente que haría falta: un capítulo de fisiología con cita verificada (Guyton y Hall, que el documento deja como lectura por verificar) y una fuente por frase de «Qué cambiaría si…».
+   - **Biomarcadores**: el expander «Fantasmas [Sin fuente]» vive en `_biomarkers_ghost_history()`. Fuente que haría falta: presión arterial y PPG-PTT reales en el pipeline, más una cita de la fórmula. La tarjeta «Estabilidad autonómica» conserva su motivo («No disponible: requiere presión arterial y tiempo de tránsito del pulso…»), sin la etiqueta.
+   - El recorrido de todas las páginas y fuentes (`test_fase1_t2_pulido.py`) exige ahora que ninguna muestre «[Sin fuente]».
+3. **12 Derivaciones alineado con el tema 5**:
+   - **Introducción**: decía «una elevación del ST en V1-V4 apunta a la arteria descendente anterior (cara anterior); solo en II, III y aVF, a la coronaria derecha o a la circunfleja (cara inferior)». Ahora es, tal cual, la idea de los temas 4 y 5 firmados, con el enlace a Teoría.
+   - **Lista «Territorios Vasculares»** («DA, cara anterior», «II, III y aVF solos (cara inferior)»…): la sustituye el tema 5 completo (grupo de derivaciones → qué sugiere → arteria probable y advertencias), con la advertencia de la AHA/ACCF/HRS [W2009].
+   - **Desafío 3**: «Localiza territorios vasculares» pasa a «Con la tabla de isquemia, di qué sugieren los cambios del ST de cada grupo de derivaciones».
+4. **Casos clínicos del Monitoreo a 500 muestras/s** (`CASE_FS` en `src/clinical/case_database.py`) [K2007].
+   - Los generadores están definidos en segundos, así que el contenido clínico no cambia.
+   - Golden: los 61 casos a ≥ 500 Hz y 10 s, mismos identificadores, diagnósticos, dificultad y derivación que a 250 Hz; un caso sinusal sigue midiendo 75 lpm con el detector TKEO.
+
+### Para Luis: teoría que falta firmar (EMG y HRV)
+- **EMG**:
+  1. Qué es el EMG de superficie: de dónde sale la señal (potenciales de acción de unidades motoras).
+  2. Unidad motora y reclutamiento: por qué la amplitud crece con la fuerza.
+  3. Colocación de electrodos y referencia.
+  4. Filtrado (por qué 20–450 Hz) y ruido de la red.
+  5. Rectificación, envolvente y RMS: qué miden.
+  6. Normalización a la contracción voluntaria máxima (%MVC): por qué sin ella no hay «porcentaje de esfuerzo».
+  7. Fatiga: el desplazamiento de la frecuencia mediana hacia abajo.
+  8. Artefactos: movimiento, ECG en músculos del tronco y diafonía.
+  9. Qué no puede concluir un EMG de superficie: fuerza, lesión, diagnóstico.
+- **HRV**:
+  1. Qué es la HRV y qué son los intervalos NN.
+  2. Dominio del tiempo: qué significan SDNN, RMSSD y pNN50, y su relación con el tono vagal.
+  3. Dominio de la frecuencia: VLF, LF, HF y por qué la razón LF/HF es discutida.
+  4. Duración del registro: 5 min frente a 24 h, y por qué no se comparan.
+  5. Arritmia sinusal respiratoria: su relación con la frecuencia y la profundidad respiratorias.
+  6. No lineales: Poincaré (SD1, SD2), entropía muestral y DFA α1.
+  7. Factores que la modifican: edad, respiración, postura, fármacos y ejercicio.
+  8. Calidad de la serie: latidos ectópicos y edición NN.
+  9. Valores de referencia y límites de interpretación.
+
+### Verificación
+- Suite completa en serie: **2299 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4), 4 avisos, 671 s**.
+- Pruebas nuevas: `tests/test_cierre_pulido.py`. El recorrido de idioma y tratamientos ahora también vigila «[Sin fuente]».
+- Adaptadas sin debilitarse:
+  - la alcanzabilidad del Monitoreo (ya no exige el material sin fuente ni «Simular»);
+  - el motivo verbatim de «Estabilidad autonómica».
+- Base de desarrollo intacta (1/7/53/0).
+- **Sin tocar**: los nombres de los escenarios de 12 Derivaciones («STEMI Anterior - Infarto anterior (DA)», «STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)»…) siguen nombrando el infarto por cara; no estaban en el alcance.
+
+## 2026-11-16 — Pulido profesional: ECG con estándar clínico, ancho, vistas unificadas y teoría citada
+
+**Contexto (Art. I)**: tras la contención, la plataforma se veía poco profesional:
+- el ECG parecía sintético y no respetaba el estándar de registro;
+- el contenido ocupaba todo el ancho de las pantallas grandes;
+- cada laboratorio se partía en 5 vistas con «Capa de Exploración Cognitiva»;
+- varias explicaciones eran genéricas o no tenían fuente.
+
+Luis firmó `docs/contenido/teoria_citada.md` (temas 1 a 10 y las cuatro decisiones de la hoja de firma). Es la ÚNICA fuente de texto médico nuevo de esta tanda.
+
+Rama `pulido-profesional`, desde `main`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, NumPy 2.4.6, SciPy 1.17.1, pylsl 1.18.7 (`requirements.txt` instalado). En el paso 0, la suite completa dio 2253 pasan, 0 fallan y 6 omitidas.
+
+### Parte A — ECG con estándar clínico
+- **Papel ECG, un solo componente** (`app/utils/ecg_paper.py`), para el Monitoreo y para 12 Derivaciones:
+  - Cuadrícula de 1 mm (0.04 s, 0.1 mV) y de 5 mm (0.2 s, 0.5 mV) a 25 mm/s y 10 mm/mV [MCM].
+  - Un solo eje con proporción fija (`scaleratio` = 10/25): 0.04 s en horizontal ocupa lo mismo que 0.1 mV en vertical.
+    - Medido en el navegador: 4.43 px/mm en los dos ejes a 1440 y 1920 px, y 1.31 a 390 px.
+    - Con `constrain="range"` Plotly estiraba el papel al redibujar (la tira de 10 s quedaba en 17.9 s), por eso va `constrain="domain"`.
+  - Pulso de calibración de 1 mV (10 mm × 5 mm) al inicio de cada fila.
+  - Cada tira lleva el rótulo «25 mm/s · 10 mm/mV · muestras/s · filtro».
+  - Si la amplitud no está en mV (CSV, placa en vivo), lo dice.
+- **12 Derivaciones** en el formato tradicional de 4 columnas (I, II, III · aVR, aVL, aVF · V1–V3 · V4–V6), con la tira de ritmo de 10 s de II debajo y el nombre en cada segmento [K2007].
+  - Antes: `clinical.ecg12`, sin proporción fija y con el pulso solo en la tira de ritmo.
+  - Una derivación que no viene en el registro se rotula «no viene»; ya no se dibuja plana.
+- **Estilo**: se midieron dos variantes y las dos cumplen AA.
+  - Papel claro: trazo/papel 17.99:1, trazo/línea gruesa 4.96:1, línea gruesa/papel 3.62:1.
+  - Oscura: 15.20, 4.62 y 3.29.
+  - Queda la de papel, por margen y por convención clínica. Tokens `ECG_*` en `PALETTE`, con sus pares en `CONTRAST_PAIRS`.
+- **Muestreo**:
+  - La demo del Monitoreo pasa de 250 a 500 muestras/s (`ECG_DEMO_FS`) [K2007].
+  - 12 Derivaciones (ya a 500) rotula su trazo como sintético.
+  - Nueva fuente «Registro real (PTB s0010_re, PhysioNet)»: el registro que ya trae el repositorio, primeros 10 s de las 12 derivaciones, con su procedencia, cita y licencia.
+- **Filtro real**:
+  - 12 Derivaciones: Butterworth de orden 2, 0.5–40 Hz, de fase cero (opcional, activo por defecto).
+  - Placa en vivo: causal 0.5–40 Hz más notch de 60 Hz.
+  - Demo, casos, MIT-BIH, PTB-XL y CSV: sin filtro.
+  - El TKEO filtra 5–15 Hz solo para detectar.
+  - Con el corte superior < 150 Hz es de monitoreo: se rotula «filtro de monitoreo 0.5–40 Hz, no diagnóstico [K2007]». Las demás fuentes, «sin filtro de BIOCORE».
+- **Firma del ECG Lab**: decía «Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database (Sensibilidad >99%). Filtros estándar AHA.».
+  - El informe del repositorio (`docs/validation/ecg_hr_detector_bank/round6_robustez/cohort_results.json`, 25 registros) da una sensibilidad del TKEO de 0.941 ponderada por latidos; solo 14 de 25 registros llegan a 0.99. Se retira la cifra.
+  - Texto nuevo: «Detección QRS (detector TKEO) revisada en 6 rondas contra registros de la MIT-BIH Arrhythmia Database (informe: docs/validation/ecg_hr_detector_bank/). Filtro de monitoreo de 0.5–40 Hz, no diagnóstico [K2007].»
+
+### Parte B — Ancho y lectura
+- Cada página corre en `st.container(key="biocore_content")`. `inject_global_theme` lo limita a 1200 px centrado y los párrafos a 75 caracteres, con el selector por clave (`.st-key-biocore_content`) que recomienda la guía de Streamlit.
+- Medido:
+  - 1200 px de contenido a 1440 (con el menú plegado) y a 1920.
+  - Párrafo más ancho, 596 px (≈ 75 caracteres a 14 px).
+  - A 390 px, 348 px con 16 px de margen.
+- Las tiras de ECG usan todo el ancho del contenedor.
+
+### Parte C — Vistas unificadas
+Se retiró `render_view_selector` («Capa de Exploración Cognitiva»). Cada laboratorio queda en una página: arriba el trazo y los valores clave; debajo, plegadas, «Cómo se calcula», «Simular», «Teoría» y «Narración con IA (opcional)» (las que tenga).
+
+| Laboratorio | Vista antigua | Dónde quedó |
+|---|---|---|
+| ECG · Monitoreo | Clínica | Arriba: papel ECG, FC (con el tema 2 firmado), fuente y muestreo, «Guardar al gemelo», detalle del caso |
+| | Clínica · «Fisiología dinámica» | «Teoría», rotulada [Sin fuente] |
+| | Clínica · «Diagnóstico diferencial (ejemplo)» | Retirado («ST en V2–V4 = infarto anterior (LAD)», sin cita); lo sustituye la tabla de isquemia firmada, enlazada desde «Teoría» |
+| | Educativa (anatomía, línea de tiempo) | «Teoría», rotulada [Sin fuente], con el enlace a Aprender |
+| | Investigación | «Cómo se calcula» (exportar, notebook, correlaciones) |
+| | Simulación | «Simular» («Qué cambiaría si…» rotulado [Sin fuente]) |
+| | IA | «Narración con IA (opcional)» |
+| EMG | Clínica | Arriba: trazo, activación (definición y advertencias como texto del método; ya no como «¿Qué significa…?»), RMS, «Guardar al gemelo» |
+| | Educativa (el mismo trazo dos veces) | El trazo de arriba |
+| | Investigación / Simulación / IA | «Cómo se calcula» / «Simular» / «Narración con IA (opcional)» |
+| | Sensor en vivo (tutorial) | Pestaña «Sensor en vivo (tutorial)» |
+| Multisensor | Clínica y Educativa | Arriba: canales y valores |
+| | Investigación / Simulación / IA | «Cómo se calcula» / «Simular» (con el laboratorio de descubrimiento justo debajo: Streamlit no anida expanders) / «Narración con IA (opcional)» |
+| | Sensores en vivo | Pestaña «Sensores en vivo» |
+| Respiratorio | Pestañas Clínica / Investigación / Simulación | Arriba / «Cómo se calcula» / «Simular»; «Teoría» enlaza a Referencias |
+| Flujo de pacientes | Clínica / IA | La página / «Narración con IA (opcional)» |
+
+HRV (ya en expanders desde la tanda 1), EEG y 12 Derivaciones no tenían el selector.
+
+### Parte D — Teoría citada y explicaciones
+- **Temas firmados** en la teoría en capas (`learn_theory.py`, `SIGNED_*`). Cada línea está tal cual en el documento firmado (`tests/test_fase1_t2_teoria.py` lo verifica) y cada bloque lleva su clave enlazada a la Bibliografía.
+  - Teoría: 1 papel ECG, 2 frecuencia cardiaca, 3 ondas e intervalos, 4 las 12 derivaciones, 5 isquemia, 6 NEWS2.
+  - Referencias: 7 Cheyne-Stokes y Biot (la atáxica queda como descripción de la simulación, sin fisiopatología), 8 la idea de las bandas del EEG, 10 la idea de cómo se mide la respiración.
+  - ECG en 3D: tema 9.
+  - Los diez temas estaban firmados; ninguno se dejó fuera.
+- **Tabla de 12 derivaciones** («qué pared», «qué arteria», sin cita): sustituida en Aprender y en la Academia por la tabla de isquemia del tema 5, con su advertencia (la AHA/ACCF/HRS desaconseja rotular derivaciones sueltas por pared [W2009]).
+- **«¿Qué significa…?»**:
+  - `render_metric_explained(title, value, unit, topic)` solo acepta un tema firmado; ya no admite capas escritas a mano.
+  - Frecuencia cardiaca: el tema 2.
+  - SDNN/RMSSD/pNN50: sin tema firmado, se retiraron sus capas sin fuente (entre ellas «Bajos valores asociados a mayor riesgo cardiovascular»). Queda la definición de cada cálculo.
+  - EMG: la definición y las advertencias de la activación siguen visibles, como texto del método.
+  - La prueba de relleno de la tanda 1 (`test_fase1_t1_contencion.py`) se extendió.
+- **Bibliografía** (página nueva, Aprender): las 11 referencias firmadas con su clave, más las 33 que ya citaba el código (incluidos Oehler 2014 y los dos registros reales), en formato uniforme y con DOI enlazado.
+  - Metadatos completados con PubMed:
+    - CS2023: Chapa-Rodriguez A, Para K, Sankari A, Bollu PC; PMID 28846350.
+    - KORS1990: PMID 2292255.
+  - AR2025: PubMed lista hoy a Porter R y Graham DD, no a Whited L. Se conserva lo firmado y se marca para verificar.
+- **«Oehler 2014»**: el repositorio la citaba como «Oehler et al., 2014» en el panel del VCG (`app/supermodules/model3d/panels.py`) y en la teoría. La cita completa vive en `src/signals/ecg/vcg.py` (`QRST_ANGLE_CITATION`): Oehler A, Feldman T, Henrikson CA, Tereshchenko LG. QRS-T angle: a review. Ann Noninvasive Electrocardiol 2014;19(6):534–542.
+  - Es verificable (PubMed 25201032, doi:10.1111/anec.12206) y su resumen sostiene lo que el panel le atribuye.
+  - Según lo firmado, no se sustituye: se completa con su DOI en el panel, en `vcg.py` y en la Bibliografía.
+
+### Verificación
+- Suite completa en serie: **2292 pasan, 0 fallan, 6 omitidas (pseudo-terminal en Windows: `test_ecg_plugplay_serial` ×1, `test_biosensors_emg` ×1, `test_biosensors_ppg_temp` ×4), 4 avisos, 629 s**.
+- Pruebas nuevas en `tests/test_pulido_profesional.py`:
+  - golden de escala, pulso y orden 3×4;
+  - demo a 500 Hz;
+  - firma sin «AHA» ni «99»;
+  - ancho;
+  - alcanzabilidad (`REACHABLE`);
+  - tema 2;
+  - Bibliografía.
+- Adaptadas sin debilitarse:
+  - el recorrido de idioma y tratamientos, que ya no recorre vistas (todo está en la página);
+  - las pruebas que pulsaban «Investigación», que siguen pulsando el mismo botón de exportar;
+  - la firma del ECG en las pruebas de consolidación visual;
+  - el orden trazo → FC → guardar;
+  - el tutorial del EMG, ahora pestaña;
+  - Aprender, que ahora tiene «bibliografia».
+- Capturas de antes y después fuera del repositorio (ECG Monitoreo, 12 Derivaciones, EMG y Teoría a 1440 y 390 px, más la propuesta de las dos variantes de papel).
+- Base de desarrollo intacta (1/7/53/0).
+
+### Para Luis
+- **Sin fuente, rotulado y sin tocar**: el material interactivo antiguo del ECG (anatomía, línea de tiempo, «Fisiología dinámica», «Qué cambiaría si…»). Necesita tu firma o retirarse.
+- **Sin teoría firmada**: el EMG («Teoría» dice «sin dato») y la HRV.
+- **Casos clínicos del Monitoreo**: siguen a 250 muestras/s; solo la demo pasó a 500.
+- **Resto de la app**: el texto introductorio de 12 Derivaciones («una elevación del ST en V1–V4 apunta a la arteria descendente anterior (cara anterior)…», citado a la parte VI) y su lista «Territorios Vasculares» siguen asignando caras. Lo pide la advertencia del tema 5, pero no estaba en el alcance.
+- **AR2025**: confirmar los autores (ver arriba).
+
 ## 2026-11-16 — Contención antes de la prueba con estudiantes
 
 **Contexto (Art. I)**: con la integración ya en `main`, el diagnóstico encontró fachadas clínicas visibles que no podían llegar a la prueba de uso:
