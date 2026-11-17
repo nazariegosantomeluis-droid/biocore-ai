@@ -96,7 +96,7 @@ SIGNED: Tuple[Reference, ...] = (
               (("PDF", "https://people.stfx.ca/smackenz/Courses/HK474/Readings/THE%20USE%20OF%20SURFACE%20ELECTROMYOGRAPHY.pdf"),)),
     Reference("DL2010", ARTICLES,
               "De Luca CJ, Gilmore LD, Kuznetsov M, Roy SH. Filtering the surface EMG signal: movement artifact and "
-              "baseline noise contamination. *J Biomech*. 2010;43:1573–1579.",
+              "baseline noise contamination. *J Biomech*. 2010;43(8):1573–1579.",
               (("doi:10.1016/j.jbiomech.2010.01.027", "https://doi.org/10.1016/j.jbiomech.2010.01.027"),
                ("PDF", "https://www.bu.edu/nmrc/files/2010/06/103.pdf"))),
     Reference("V2018", ARTICLES,

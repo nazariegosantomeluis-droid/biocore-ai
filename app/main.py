@@ -417,18 +417,22 @@ def _ecg_monitor_filter_label(source: str) -> str:
 # NOTA: Respiratory Lab NO tiene constante de validación (Tanda 1, 2026-11-05):
 # su insignia se retiró y NO se reactivó tras la reparación del detector (fase 3, 2026-11-07);
 # ver `RESPIRATORY_STATUS_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
+# Residuos del PR #8 (2026-11-17): la firma atribuía las métricas a la Task Force ESC/NASPE ([TF1996]), a la que no se
+# le atribuye ninguna afirmación (no se leyó su texto completo); las definiciones vienen de [SG2017] (B2/B3).
 _HRV_VALIDATION_DETAIL = (
-    "Métricas de dominio temporal (SDNN, RMSSD) calculadas bajo los estándares de la Task Force "
-    "de la European Society of Cardiology (ESC/NASPE)."
+    "Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017]."
 )
 _MULTISENSOR_VALIDATION_DETAIL = (
     # Tanda 1 de la fase 1 (2026-11-15, decisión 8): la firma anterior describía el «Health Score» (índice
     # compuesto sin cita, retirado). Lo que queda es la detección heurística de FC y SpO₂ sobre canales demo.
     "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto."
 )
+# Residuos del PR #8 (2026-11-17, Art. I): nombraba el Índice de estrés, que ya no se muestra (B3), y decía «de
+# literatura base», que ninguno de los índices sostiene con una fuente de la Bibliografía. Nombra solo los que se
+# calculan en la página.
 _BIOMARKERS_VALIDATION_DETAIL = (
-    "Índices compuestos (Estrés, Carga Cognitiva) derivados analíticamente de literatura base sin "
-    "calibración de dispositivo médico."
+    "Índices compuestos (Carga cognitiva, Índice de recuperación y Resiliencia fisiológica) derivados "
+    "analíticamente, sin calibración de dispositivo médico."
 )
 _EMG_VALIDATION_DETAIL = (
     "Activación RMS fisiológica; el índice de fatiga muscular (fatigue_index) opera bajo umbrales "
@@ -550,18 +554,15 @@ def render_respiratory_lab_page() -> None:
 # uso más abajo cambia, solo de dónde viene el literal.
 BIOMARKER_HEURISTIC_LABEL = "ponderación heurística de BIOCORE, no derivada de estudio de cohorte"
 
-# Citas del validador (verbatim, Nivel 1 del dictamen) -- cada una se usa
-# solo donde el rango en `biomarkers.py` coincide exactamente con lo citado.
-BIOMARKER_SOURCE_HOLM_THETA_ALPHA = (
-    "Holm et al., 2009 — \"el candidato más fuerte, índice EEG robusto y "
-    "validado para carga mental\"; peso 0.7 al EEG también validado "
-    "(latencia ms vs. hemodinámica)"
-)
+# Residuos del PR #8 (2026-11-17, Art. I): estas eran «citas del validador» con la insignia «Validado por fuente»
+# sin una fuente de la Bibliografía detrás (Holm 2009 no está en ella; a [TF1996] no se le atribuye ninguna
+# afirmación; la de la resiliencia era un dictamen interno). Las insignias bajaron a «Criterio BIOCORE» y los
+# rangos se rotulan como límites de la escala del índice. `tests/test_validado_requiere_clave.py` lo vigila.
+BIOMARKER_SOURCE_HOLM_THETA_ALPHA = "Holm et al., 2009 (cita sin verificar; no está en la Bibliografía)"
+BIOMARKER_SCALE_LIMITS = "límites de la escala del índice, no valores de referencia"
 # Teoría citada 2, B9 (2026-11-17): decía «rango fisiológico correcto», una cifra de normalidad sin fuente publicada.
 # Son los límites de la escala del índice, no valores de referencia (no hay un único «valor normal» [SG2017]).
-BIOMARKER_SOURCE_RMSSD = "límites de la escala del índice, no valores de referencia (no hay un único «valor normal» [SG2017])"
-BIOMARKER_SOURCE_ESC_NASPE = "Task Force ESC/NASPE 1996"
-BIOMARKER_SOURCE_RESILIENCE_GOLD = "\"marcadores dorados de resiliencia cardiovascular\" (dictamen del validador)"
+BIOMARKER_SOURCE_RMSSD = f"{BIOMARKER_SCALE_LIMITS} (no hay un único «valor normal» [SG2017])"
 BIOMARKER_SOURCE_PLV_CRITERION = (
     "Phase-Locking Value entre Theta Frontomedial (4-8Hz, EEG) y banda HF-HRV (0.15-0.40Hz, "
     "tacograma R-R), mínimo 180s de señal simultánea -- criterio del validador, 2026-08-19"
@@ -569,8 +570,8 @@ BIOMARKER_SOURCE_PLV_CRITERION = (
 
 _BIOMARKER_HELP = {
     "Índice de estrés": (
-        f"{BADGES.tag(BADGES.CLINICAL)} Recortado (2026-08-15) a su único componente real: LF/HF "
-        f"0.5-5.0, normalizado directo a 0-100, sin pesos: {BIOMARKER_SOURCE_ESC_NASPE}. Los "
+        f"{BADGES.tag(BADGES.METHOD)} Recortado (2026-08-15) a su único componente real: razón LF/HF "
+        f"(interpretación discutida) [B2013], 0.5-5.0 normalizada directo a 0-100, sin pesos: {BIOMARKER_SCALE_LIMITS}. Los "
         "componentes EDA (picos SCR, conductancia tónica) se retiraron — no hay módulo de señal "
         "EDA en el repo, eran constantes de preset sin sensor detrás."
     ),
@@ -580,11 +581,13 @@ _BIOMARKER_HELP = {
         f"{BIOMARKER_HEURISTIC_LABEL}"
     ),
     "Carga cognitiva": (
-        f"{BADGES.tag(BADGES.CLINICAL)} Ratio θ/α 0.5-4.0 y su peso (0.7): {BIOMARKER_SOURCE_HOLM_THETA_ALPHA} · "
+        f"{BADGES.tag(BADGES.METHOD)} Razón θ/α 0.5-4.0 ({BIOMARKER_SCALE_LIMITS}) y su peso (0.7); mención: "
+        f"{BIOMARKER_SOURCE_HOLM_THETA_ALPHA} · "
         f"{BADGES.tag(BADGES.HEURISTIC)} componente HR surge (peso 0.3, rango 0-30): {BIOMARKER_HEURISTIC_LABEL}"
     ),
     "Resiliencia fisiológica": (
-        f"{BADGES.tag(BADGES.CLINICAL)} SDNN 15-150ms y HR Recovery Rate 15-50: {BIOMARKER_SOURCE_RESILIENCE_GOLD} · "
+        f"{BADGES.tag(BADGES.METHOD)} SDNN 15-150 ms: {BIOMARKER_SOURCE_RMSSD}; recuperación de la FC 15-50 lpm/min: "
+        f"{BIOMARKER_SCALE_LIMITS} · "
         f"{BADGES.tag(BADGES.HEURISTIC)} pesos renormalizados (0.5625/0.4375): {BIOMARKER_HEURISTIC_LABEL}. "
         "Eficiencia metabólica (RER, rango fisiológicamente imposible) se retiró (2026-08-15) — "
         "pesos originales 0.45/0.35 renormalizados sobre 0.80."
@@ -616,11 +619,11 @@ def _biomarkers_ghost_history() -> None:  # pragma: no cover -- SIN MONTAR, a pr
             "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
             "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
             "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
-            ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
-            "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
+            ">1.5). El score quedó solo sobre HRR + SDNN, pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
             "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
-            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
-            "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
+            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre la razón LF/HF "
+            "(interpretación discutida) [B2013], normalizada directo a 0-100; desde la Teoría citada 2 (B3) ya no "
+            "se muestra.\n"
             "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
             "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
             "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
@@ -643,9 +646,10 @@ def render_biomarkers_page() -> None:
     # <h1 style='color:#1f77b4'> a mano (uno de los 52 hex sin fuente única
     # que encontró el recon) por el sistema de diseño compartido.
     # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
-    # los índices compuestos (Estrés, Carga Cognitiva, etc.) son
-    # derivación analítica sin calibración de dispositivo médico,
-    # `validation="HEURISTIC"`. Texto verbatim -- coherente con el badge
+    # los índices compuestos son derivación analítica sin calibración de
+    # dispositivo médico, `validation="HEURISTIC"` (residuos del PR #8,
+    # 2026-11-17: la firma nombra solo los índices que se calculan aquí;
+    # el de estrés ya no se muestra). Texto verbatim -- coherente con el badge
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
     render_module_header(
@@ -2128,8 +2132,10 @@ def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
 
 def render_hrv_page() -> None:
     # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
-    # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
-    # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
+    # SDNN/RMSSD (dominio temporal) y las bandas de frecuencia se definen
+    # según [SG2017] (B2/B3 de teoria_citada_2.md), `validation="VALIDATED"`.
+    # Residuos del PR #8 (2026-11-17): antes se atribuían a la Task Force
+    # ESC/NASPE 1996 ([TF1996]), a la que no se le atribuye ninguna afirmación.
     render_module_header(
         "Variabilidad de la frecuencia cardíaca (HRV)", icon="📈",
         validation="VALIDATED",
@@ -2158,7 +2164,8 @@ def render_hrv_page() -> None:
             rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
                 help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
             respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, 15,
-                help='La banda HF de la Task Force cubre 9-24 rpm; fuera de ella la RSA no se lee como HF.')),
+                help='La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones '
+                     'por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.')),
         )
         # 240 s (~290 latidos a 72 lpm): SampEn y DFA α1 necesitan ≥200 latidos; con 120 s
         # (~144) la fuente por defecto declinaría ambas.

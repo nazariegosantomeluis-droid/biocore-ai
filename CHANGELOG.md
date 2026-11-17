@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-17 — Residuos del PR #8: insignias de Biomarcadores, firma de la HRV y cita de [DL2010]
+
+**Contexto (Art. I)**: tras la Teoría citada 2 quedaban textos que presentaban como «Validado por fuente» lo que no tiene una fuente de la Bibliografía, y textos que atribuían las métricas de la HRV a la Task Force ESC/NASPE ([TF1996]), a la que no se le atribuye ninguna afirmación (no se leyó su texto completo). Solo se bajan insignias; ninguna sube.
+
+- **Firma de Biomarcadores** (`_BIOMARKERS_VALIDATION_DETAIL`, `app/main.py`): nombraba el «Estrés» (ya no se muestra desde B3) y decía «de literatura base». Ahora nombra solo los índices que la página calcula: Carga cognitiva, Índice de recuperación y Resiliencia fisiológica, «derivados analíticamente, sin calibración de dispositivo médico». La Disposición para el aprendizaje no se nombra: depende del PLV neurocardíaco y en la práctica sale «no disponible» (lo detectó `test_visual_migration_main_inline.py`, que busca la tarjeta por su nombre).
+- **Ayudas de Biomarcadores** (`_BIOMARKER_HELP`), de «Validado por fuente» a «Criterio BIOCORE» (Art. I):
+  - **Resiliencia fisiológica**: citaba los «marcadores dorados de resiliencia cardiovascular» (dictamen interno del validador, sin fuente publicada). SDNN 15-150 ms y recuperación de la FC 15-50 lpm/min se rotulan «límites de la escala del índice, no valores de referencia». Se retiró la constante `BIOMARKER_SOURCE_RESILIENCE_GOLD` y la frase del material sin montar (`_biomarkers_ghost_history`).
+  - **Índice de estrés** (la ayuda ya no se monta, pero no debe mentir): citaba «Task Force ESC/NASPE 1996». Ahora «razón LF/HF (interpretación discutida) [B2013]» (decisión B3), con 0.5–5.0 como límites de la escala. Se retiró `BIOMARKER_SOURCE_ESC_NASPE`; el material sin montar y el docstring de `calculate_stress_index()` (`biomarkers.py`) ya no dicen que el score esté citado por la Task Force.
+  - **Carga cognitiva**: citaba a Holm et al. 2009 («índice EEG robusto y validado»), que no está en la Bibliografía. Queda «Holm et al., 2009 (cita sin verificar; no está en la Bibliografía)», sin los adjetivos, y la razón θ/α 0.5–4.0 como límites de la escala.
+  - Constante nueva `BIOMARKER_SCALE_LIMITS`; `BIOMARKER_SOURCE_RMSSD` se arma con ella (mismo texto).
+- **HRV**: la firma del laboratorio (`_HRV_VALIDATION_DETAIL`) dice «Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017].» y la ayuda de «Frecuencia respiratoria (rpm)» dice «La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.» (B2/B3). `src/signals/ecg/rsa.py` no se tocó: sus textos visibles que citan a la Task Force quedan para decisión aparte.
+- **Guardia nueva** `tests/test_validado_requiere_clave.py` (sin hardware ni AppTest): todo segmento de `_BIOMARKER_HELP` con «Validado por fuente» lleva una clave de la Bibliografía distinta de [TF1996]; «marcadores dorados» no aparece en ningún `.py` de `app/`; la firma de la HRV cita [SG2017] y no la Task Force.
+- **Pruebas actualizadas**: `tests/test_visual_consolidation_tanda_final.py` (firmas de HRV y Biomarcadores) y `tests/test_visual_migration_main_inline.py` (el fragmento de la firma de HRV pasa de «Task Force» a «[SG2017]»).
+
+**[DL2010]: corrección de cita** (volumen 43(8), verificado en PubMed, PMID 20206934), sin cambio de contenido: `app/supermodules/bibliography.py` y `docs/contenido/teoria_citada_2.md` decían «2010;43:1573–1579»; ahora «2010;43(8):1573–1579».
+
+**Pruebas** (Python 3.13.11 del PATH, en serie): la guardia nueva `test_validado_requiere_clave.py` (con una prueba de que rechaza lo que debe) y las de teoría, pulido y contención que ya tocaba el PR (`test_teoria_emg_hrv`, `test_fase1_t2_teoria`, `test_fase1_t2_pulido`, `test_pulido_profesional`, `test_containment_facades_tanda1`, `test_integracion_contencion`, `test_ecg12_rhythm_labels`, `test_twelve_lead_measure`), más `test_visual_consolidation_tanda_final`, `test_visual_migration_main_inline` y `test_biomarkers_plv`: 290 passed. No se corrió la suite completa.
+
 ## 2026-11-17 — Teoría citada 2 (EMG y HRV) y coherencia con la teoría firmada
 
 **Contexto (Art. I)**: Luis firmó `docs/contenido/teoria_citada_2.md` (EMG A1–A9 y HRV B1–B9, con restricciones en cada tema). Junto con `teoria_citada.md`, es la única fuente de texto médico nuevo de esta tanda. Varias etiquetas de la app contradecían lo firmado:
