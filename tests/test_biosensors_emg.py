@@ -384,7 +384,8 @@ def test_tutorial_view_renders_and_runs_the_practice(ups, boards):
     practice, _, _ = boards
     at = _apptest(ups)
     at.run(timeout=60)
-    next(r for r in at.radio if 'Clínica' in r.options).set_value('Sensor en vivo (tutorial)').run(timeout=60)
+    # Pulido profesional (2026-11-16): el tutorial ya no es una vista del selector sino una pestaña del laboratorio.
+    assert 'Sensor en vivo (tutorial)' in [t.label for t in at.tabs]
     assert at.exception == []
     labels = [e.label for e in at.expander]
     for title in ('1. Qué necesitas', '3. Conecta MyoWare 2.0 a la ESP32', '4. Carga el firmware en la ESP32',

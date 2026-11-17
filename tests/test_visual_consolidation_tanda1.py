@@ -127,7 +127,8 @@ def test_ecg_lab_shows_validated_confidence_marker():
     markers = [md.value for md in at.main.markdown if "MIT-BIH" in md.value and "border-left" in md.value]
     assert len(markers) == 1
     assert PALETTE.STABLE in markers[0], "el marco de un módulo validado debe usar STABLE, no un color de alarma"
-    assert "AHA" in markers[0]
+    # Pulido profesional (2026-11-16, Art. I): «Filtros estándar AHA» se retiró (el filtro es de monitoreo [K2007]).
+    assert "AHA" not in markers[0] and "Filtro de monitoreo" in markers[0] and "[K2007]" in markers[0]
     assert "✓" in markers[0]
 
 

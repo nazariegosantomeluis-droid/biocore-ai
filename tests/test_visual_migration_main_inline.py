@@ -39,9 +39,9 @@ from app.utils.design_system import BADGES, PALETTE
 
 
 def _click_view(at, view_label):
-    radio = next(r for r in at.main.radio if r.label == "Capa de Exploración Cognitiva")
-    radio.set_value(view_label)
-    at.run(timeout=30)
+    """Pulido profesional (2026-11-16): ya no hay selector «Capa de Exploración Cognitiva»; lo de cada vista vive en
+    la misma página (secciones plegadas), así que no hay nada que cambiar. `tests/test_pulido_profesional.py`
+    comprueba que cada función de las vistas viejas sigue en la página."""
     return at
 
 
@@ -198,7 +198,9 @@ def test_ecg_lab_and_multisensor_validation_assignments_signed_by_expert():
     Se actualiza para confirmar la firma vigente, no la de Tanda 1."""
     import pathlib
     src = pathlib.Path("app/main.py").read_text(encoding="utf-8")
-    assert "Detección QRS validada en 6 rondas contra MIT-BIH Arrhythmia Database" in src
+    # Pulido profesional (2026-11-16): la firma del ECG perdió «Sensibilidad >99%» y «Filtros estándar AHA» (no se
+    # sostenían); la frase vigente:
+    assert "Detección QRS (detector TKEO) revisada en 6 rondas contra registros de la MIT-BIH Arrhythmia Database" in src
     assert "Detección heurística de FC y SpO₂ sobre canales demo (señales generadas, no un paciente); no validado contra cohorte clínica y sin índice compuesto." in src
     assert "Health Score propietario" not in src          # decisión 8: retirado
     assert 'validation="VALIDATED",' in src

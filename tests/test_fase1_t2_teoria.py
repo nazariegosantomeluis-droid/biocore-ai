@@ -24,7 +24,9 @@ def _norm(text):
 
 @pytest.mark.parametrize("topic", ALL_TOPICS, ids=lambda t: t.title)
 def test_every_layer_is_text_that_already_existed_in_its_origin_file(topic):
-    origin = _norm(Path(LT.ORIGINS[topic.title]).read_text(encoding="utf-8"))
+    # Pulido profesional: un tema puede salir de su archivo del repositorio y/o del documento firmado por Luis
+    # (`docs/contenido/teoria_citada.md`); cada línea tiene que estar, literal, en alguno de ellos.
+    origin = " || ".join(_norm(Path(f).read_text(encoding="utf-8")) for f in LT.ORIGINS[topic.title])
     for layer in (topic.idea, topic.mechanism, topic.detail if isinstance(topic.detail, str) else None):
         if not layer:
             continue
@@ -45,7 +47,7 @@ def test_no_layer_is_filler_and_every_detail_names_its_source_or_says_it_has_non
 
 
 def test_the_three_learn_pages_use_the_single_component_and_open_layers_on_demand():
-    for url, n_topics in (("teoria", 1), ("referencias", 6), ("ecg-3d", 1)):
+    for url, n_topics in (("teoria", 6), ("referencias", 8), ("ecg-3d", 1)):
         at = AppTest.from_file(MAIN, default_timeout=240)
         at.session_state["biocore_start_page"] = url
         at.run()
@@ -79,5 +81,30 @@ def test_the_learn_pages_keep_every_citation_they_had():
 
     sources = " ".join(t.source or "" for t in ALL_TOPICS)
     assert NEWS2_CITATION in sources and EDUCATION_CITATION in sources and "Berry RB et al." in sources
-    assert "Kors et al., 1990" in sources and "Oehler et al., 2014" in sources
-    assert isinstance(LT.TWELVE_LEADS, TheoryTopic) and "lead_explanations" in LT.TWELVE_LEADS.source
+    # Pulido profesional (2026-11-16): el VCG cita ahora [VZ2014] y [KORS1990] (firmados); Oehler 2014 se auditó y
+    # quedó con su referencia completa en el panel del VCG y en la Bibliografía.
+    assert "[KORS1990]" in sources and "[VZ2014]" in sources
+    from app.supermodules.bibliography import OEHLER_2014
+    from src.signals.ecg.vcg import QRST_ANGLE_CITATION
+
+    assert "Oehler A, Feldman T" in QRST_ANGLE_CITATION and "doi:10.1111/anec.12206" in OEHLER_2014.links[0][0]
+
+
+def test_signed_topics_cite_only_keys_that_the_bibliography_lists_and_nothing_unsigned_remains():
+    """Pulido profesional: todo tema nuevo sale del documento firmado y cada clave que cita existe en la Bibliografía.
+    La tabla de 12 derivaciones sin cita (lead_explanations) ya no se muestra en Aprender ni en la Academia."""
+    import re as _re
+
+    from app.supermodules.bibliography import SIGNED_KEYS
+
+    signed_doc = Path(LT.SIGNED_DOC).read_text(encoding="utf-8")
+    assert "☑ firmado" in signed_doc and "☐" not in signed_doc                 # la hoja de firma, entera
+    for t in ALL_TOPICS:
+        text = " ".join(x for x in (t.idea, t.mechanism, t.detail if isinstance(t.detail, str) else "", t.source) if x)
+        for key in _re.findall(r"\[([A-Z][A-Z0-9]+)\]", text):
+            assert key in SIGNED_KEYS, (t.title, key)
+        assert ("[" in (t.source or "")) or LT.SIGNED_DOC not in LT.ORIGINS[t.title] or t.title in (
+            LT.HOW_MEASURED.title, LT.EEG_BANDS.title), t.title
+    assert not hasattr(LT, "TWELVE_LEADS")
+    src = Path("app/supermodules/academia/pages.py").read_text(encoding="utf-8")
+    assert "leads = lead_explanations()" not in src and "SIGNED_ISCHEMIA" in src

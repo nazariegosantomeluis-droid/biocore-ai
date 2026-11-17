@@ -61,9 +61,10 @@ def test_the_ecg_trace_comes_before_the_heart_rate_and_the_save_panel():
     import app.main as m
 
     src = inspect.getsource(m.render_ecg_monitor_page)
-    clinical = src[src.index("if view == 'Clínica':"):src.index("elif view == 'Educativa':")]
-    assert clinical.index("st.plotly_chart") < clinical.index("render_metric_explained('Frecuencia cardíaca'")
-    assert clinical.index("st.plotly_chart") < clinical.index("_render_ecg_save_to_twin(")
+    # Pulido profesional (2026-11-16): sin vistas; el trazo es el papel ECG (`ecg_paper.render`) y va primero en la página.
+    top = src[:src.index("with st.expander(LAB_SECTION_HOW")]
+    assert top.index("ecg_paper.render(") < top.index("render_metric_explained('Frecuencia cardíaca'")
+    assert top.index("ecg_paper.render(") < top.index("_render_ecg_save_to_twin(")
     assert 'render_section_header("Monitoreo")' not in src                         # ya lo dice la pestaña
 
 

@@ -29,9 +29,9 @@ def _emg(view, source="Demo"):
     at.session_state["biocore_start_page"] = "emg"          # menú por intención (tanda 1 de la fase 1)
     at.run()
     [r for r in at.sidebar.radio if r.label == "Origen EMG"][0].set_value(source).run()
-    radios = [r for r in list(at.radio) + list(at.sidebar.radio) if view in r.options]
-    assert radios, "no se encontró el selector de vista"
-    radios[0].set_value(view).run()
+    # Pulido profesional (2026-11-16): sin selector de vistas; Clínica está arriba e IA en «Narración con IA
+    # (opcional)», en la misma página. `view` queda como nombre de lo que se mira.
+    assert not [r for r in list(at.radio) + list(at.sidebar.radio) if "Investigación" in r.options], view
     assert at.exception == [], at.exception
     return at
 

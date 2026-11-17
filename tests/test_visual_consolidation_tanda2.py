@@ -217,9 +217,9 @@ def _isolated_reports_dir(tmp_path, monkeypatch):
 
 
 def _click_view(at, view_label):
-    radio = next(r for r in at.main.radio if r.label == "Capa de Exploración Cognitiva")
-    radio.set_value(view_label)
-    at.run(timeout=30)
+    """Pulido profesional (2026-11-16): ya no hay selector «Capa de Exploración Cognitiva»; lo de cada vista vive en
+    la misma página (secciones plegadas), así que no hay nada que cambiar. `tests/test_pulido_profesional.py`
+    comprueba que cada función de las vistas viejas sigue en la página."""
     return at
 
 
