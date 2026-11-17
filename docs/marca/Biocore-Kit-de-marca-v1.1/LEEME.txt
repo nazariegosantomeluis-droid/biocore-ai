@@ -1,0 +1,93 @@
+﻿BIOCORE
+Paquete de marca e identidad · versión 1.1 · noviembre de 2026
+
+Empieza por el manual: Biocore-Manual-de-marca-e-identidad-v1.1.pdf
+El manual tiene las reglas. Las carpetas tienen los archivos.
+
+
+QUÉ HAY EN CADA CARPETA
+
+01-Logos
+  SVG          Vector para web, app, Figma y Canva.
+  PDF          Vector para imprenta.
+  EPS          Vector para imprentas o programas que no abren PDF.
+  PNG          Fondo transparente. El número del nombre es el ancho en px.
+  JPG          Sobre fondo blanco, para Word, PowerPoint y correo.
+  Redes        Avatar de 1080 px e ícono de 1024 px.
+  Web-favicon  favicon.ico, íconos para iPhone y Android, site.webmanifest
+               y head-snippet.html con el código para el <head> del sitio.
+
+  Cómo leer los nombres de archivo:
+  logotipo             la palabra completa
+  logotipo-descriptor  con «Laboratorio digital de fisiología» debajo
+  isotipo              solo la b
+  isotipo-pequeno      corte para tamaños de 16 a 48 px
+  icono-app, avatar    para espacios cuadrados o redondos
+  color-papel          a color, para fondos claros
+  color-monitor        a color, para fondos oscuros
+  tinta                una tinta Monitor (#0f172a), para pantalla
+  negro, blanco        una tinta, para impresión, grabado o bordado
+  nucleo               una tinta Núcleo (#0e7490)
+
+02-Tipografias
+  Figtree (títulos, valores y logotipo) y Noto Sans (texto).
+  Estaticas-TTF  Instala estas para Word, PowerPoint y Canva.
+  Variable       Todos los pesos en un archivo, para diseño y desarrollo.
+  Web-WOFF2      Para sitios web.
+  OFL.txt        La licencia: SIL Open Font License 1.1, uso libre y gratis,
+                 también en piezas comerciales.
+
+  Para instalarlas:
+  Windows  clic derecho en el .ttf, luego «Instalar para todos los usuarios».
+  Mac      doble clic en el .ttf, luego «Instalar tipo de letra».
+  Canva    súbelas desde el kit de marca (Brand Kit), si tu plan lo permite.
+
+03-Color
+  biocore-paleta.ase   Muestras para Illustrator, Photoshop e InDesign.
+  biocore-paleta.gpl   Muestras para GIMP e Inkscape.
+  biocore-paleta.txt   HEX, RGB, CMYK y Pantone aproximado de cada color.
+  biocore-tokens.css   Variables CSS de los temas Monitor y Papel.
+  biocore-tokens.json  Los mismos tokens, para código.
+
+04-Elementos-graficos
+  Tira               ECG real sobre papel milimétrico, y la línea sola
+                     con fondo transparente.
+  Tira-multisistema  ECG, presión y respiración del mismo paciente,
+                     con rótulos y sin ellos.
+  Reticula           Fondo de papel milimétrico de 1920 × 1080 px y un
+                     mosaico de 300 px que se repite sin costuras.
+  Sellos             Los 12 sellos de procedencia, en SVG y en PNG.
+  Iconos             11 íconos de módulo y 5 de órgano, en SVG y en PNG
+                     de 192 px.
+  El texto de estos archivos va convertido a curvas: se abren igual
+  aunque no tengas las fuentes instaladas.
+
+05-Imagenes
+  Renders de anatomía reconstruida de tomografías reales, en PNG con
+  fondo transparente. Lee CREDITOS.txt antes de publicarlos.
+
+06-Plantillas
+  Ejemplos de post 4:5, portada de presentación 16:9 e informe A4.
+  La portada sin texto sirve de fondo para tus presentaciones.
+
+
+MONITOR Y PAPEL
+  Si el nombre dice «monitor», el archivo es para fondos oscuros (#0f172a).
+  Si dice «papel», es para fondos claros (#f7f9fb o blanco).
+
+
+ANTES DE IMPRIMIR O REGISTRAR
+  1. Busca «Biocore» en el IMPI (MARCia), en las clases 9, 41 y 42.
+     Otras empresas registraron BIOCORE en Estados Unidos y Australia.
+     Este paquete no es asesoría legal.
+  2. Pide una prueba de color a la imprenta y confirma el Pantone con la
+     guía física. Los Pantone del manual son aproximados.
+  3. A la imprenta mándale el PDF o el EPS del logo, nunca un PNG.
+
+
+CRÉDITOS Y LICENCIAS
+  Figtree      SIL Open Font License 1.1 · The Figtree Project Authors
+  Noto Sans    SIL Open Font License 1.1 · The Noto Project Authors
+  Señales      PhysioNet · Open Data Commons Attribution License 1.0
+               (detalle en 04-Elementos-graficos/FUENTES.txt)
+  Renders      Detalle en 05-Imagenes/CREDITOS.txt

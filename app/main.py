@@ -158,8 +158,8 @@ PLOTLY_GO, _, PLOTLY_OK = safe_import_plotly()
 st.set_page_config(
     # Fase 1 (idioma, 2026-08-30): título de la pestaña del navegador --
     # única cadena de este bloque que no es una clave reservada de Streamlit.
-    page_title="BIOCORE AI — Plataforma Integrada",
-    page_icon="🧬",
+    page_title="Biocore · Laboratorio digital de fisiología",      # manual de marca v1.1, p. 7: sin «AI» en público
+    page_icon=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "favicon-48.png"),
     layout="wide",
     # 2026-11-17: «auto» = abierto en pantallas anchas y cerrado en el celular. Con «expanded», el menú se abría encima
     # del contenido en el teléfono y tapaba el aviso de entrada hasta cerrarlo.
@@ -172,7 +172,7 @@ st.set_page_config(
         # VALOR de "About" sí es nuestro y se traduce.
         "Get Help": "https://github.com",
         "Report a bug": "https://github.com/issues",
-        "About": "BIOCORE AI — Sistema Operativo de Inteligencia Biomédica",
+        "About": "Biocore · Laboratorio digital de fisiología. Cada dato declara su procedencia.",
     },
 )
 
@@ -2707,24 +2707,12 @@ def render_patient_pipeline_page() -> None:
 # ==================== NAVEGACIÓN POR INTENCIÓN (fase 1, tanda 1) ====================
 
 def render_home_page() -> None:
-    """Inicio (decisión 2): tres puertas, cada una con una línea que dice qué hace. La clave de IA ya no es la
-    primera pantalla: vive en Ajustes."""
-    render_module_header(
-        "BIOCORE AI", icon="🧬",
-        subtitle="Plataforma educativa de fisiología. El gemelo digital es una simulación y se declara como tal.",
-    )
-    doors = (
-        ("teoria", "📖", "Aprender", "Teoría, referencias de los laboratorios y el ECG en 3D: entender antes de medir."),
-        ("cuestionarios", "✍️", "Practicar", "Cuestionarios y casos clínicos: respondes tú y solo entonces se corrige."),
-        ("gemelo", "🔬", "Explorar", "El gemelo digital (simulado) y los laboratorios de señales: cambia algo y mira qué pasa."),
-    )
-    for col, (url, icon, title, line) in zip(st.columns(3), doors):
-        with col.container(border=True):
-            st.markdown(f"### {icon} {title}")
-            st.write(line)
-            nav.link(url, f"Ir a {title}", icon="➡️")
-    st.caption("La IA (narrador y explicaciones) es opcional: sin clave, todo lo demás funciona igual.")
-    nav.link("ajustes", "Ajustes: clave de IA", icon="⚙️")
+    """Inicio (decisión 2, rediseño Duolingo + Apple del 2026-11-17): las tres puertas (Aprender, Practicar, Clinical
+    Hub) son las tarjetas de la derecha del tablero; arriba, el monitoreo del paciente activo y los órganos; al centro,
+    el gemelo, la ruta del órgano y un registro real. La clave de IA sigue en Ajustes."""
+    from app.supermodules.ui_home import render_home_dashboard
+
+    render_home_dashboard()
 
 
 def _render_learn_topics(url: str) -> None:
@@ -2829,6 +2817,19 @@ def render_practice_simulator_cases_page() -> None:
     twin.render_clinical_case_mode(st.session_state.twin_shell_organism, expanded=True)
 
 
+def render_learn_topics_page() -> None:
+    from app.supermodules.ui_topic import render_topic_page
+
+    render_topic_page()
+
+
+def render_compare_patients_page() -> None:
+    from app.supermodules.ui_compare import render_compare_page
+
+    render_active_patient_banner()   # I2: el mismo paciente en todas las páginas de Explorar
+    render_compare_page()
+
+
 def render_practice_what_if_page() -> None:
     from app.supermodules.what_if import render_what_if_page
 
@@ -2849,6 +2850,9 @@ def render_practice_session_learning_page() -> None:
     render_session_learning_page()
 
 
+CLINICAL_HUB = "Explorar"   # la sección conserva su nombre (decisión de José Miguel, 2026-11-17); títulos del manual, p. 7
+
+
 def render_settings_and_version_page() -> None:
     """Ajustes: la clave de IA y, al final, qué versión del código corre (`app/utils/version.py`, 2026-11-17)."""
     render_settings_page()
@@ -2857,38 +2861,42 @@ def render_settings_and_version_page() -> None:
 
 
 def _page_specs() -> list:
-    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
+    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado). Sin ícono en `st.Page`
+    (manual de marca v1.1: sin emoji ni librerías genéricas de íconos); los íconos dibujados del kit los pone el CSS de
+    `inject_global_theme` en el menú. Títulos con los nombres de la página 7 del manual."""
     return [
-        ("", "inicio", "Inicio", "🏠", render_home_page),
-        ("Aprender", "teoria", "Teoría (Academia)", "📖", render_learn_theory_page),
-        ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
-        ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
-        ("Aprender", "bibliografia", "Bibliografía", "📚", render_learn_bibliography_page),
-        ("Aprender", "pregunta", "Pregunta a BIOCORE", "💬", render_learn_ask_page),
-        ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
-        ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
-        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
-        ("Practicar", "caso-guiado", "Caso guiado de ECG", "🧭", render_practice_guided_case_page),
-        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
-        ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
-        ("Practicar", "what-if", "¿Qué pasa si…?", "🔀", render_practice_what_if_page),
-        ("Practicar", "detective", "Detective fisiológico", "🔎", render_practice_detective_page),
-        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", "📊", render_practice_session_learning_page),
-        ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
-        ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
-        ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),
-        ("Explorar", "respiratorio", "Respiratorio", "💨", render_respiratory_lab_page),
-        ("Explorar", "eeg", "EEG", "🧠", render_eeg_neuro_lab_page),
-        ("Explorar", "emg", "EMG", "🦾", render_emg_page),
-        ("Explorar", "hrv", "Variabilidad cardíaca (HRV)", "📈", render_hrv_page),
-        ("Explorar", "biomarcadores", "Biomarcadores", "🧪", render_biomarkers_page),
-        ("Explorar", "calculadoras", "Calculadoras clínicas", "🧮", render_calculators_page),
-        ("Explorar", "pacientes", "Flujo de pacientes", "👥", render_patient_pipeline_page),
-        ("Explorar", "modelo-3d", "Crea tu modelo 3D", "🧊", render_model3d_page),
-        ("Ajustes", "ajustes", "Ajustes", "⚙️", render_settings_and_version_page),
+        ("", "inicio", "Inicio", None, render_home_page),
+        ("Aprender", "temas", "Temas", None, render_learn_topics_page),
+        ("Aprender", "teoria", "Teoría (Academia)", None, render_learn_theory_page),
+        ("Aprender", "referencias", "Referencias de los laboratorios", None, render_learn_references_page),
+        ("Aprender", "ecg-3d", "ECG en 3D", None, render_learn_ecg3d_page),
+        ("Aprender", "bibliografia", "Bibliografía", None, render_learn_bibliography_page),
+        ("Aprender", "pregunta", "Pregunta a BIOCORE", None, render_learn_ask_page),
+        ("Practicar", "quiz", "Quiz de la Academia", None, render_practice_quiz_page),
+        ("Practicar", "caso-ciego", "Caso ciego", None, render_practice_blind_case_page),
+        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", None, render_practice_ecg_challenge_page),
+        ("Practicar", "caso-guiado", "Caso guiado de ECG", None, render_practice_guided_case_page),
+        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", None, render_practice_lab_quizzes_page),
+        ("Practicar", "casos-simulador", "Casos clínicos del simulador", None, render_practice_simulator_cases_page),
+        ("Practicar", "what-if", "¿Qué pasa si…?", None, render_practice_what_if_page),
+        ("Practicar", "detective", "Detective fisiológico", None, render_practice_detective_page),
+        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", None, render_practice_session_learning_page),
+        (CLINICAL_HUB, "gemelo", "Gemelo digital", None, render_twin_shell_page),
+        (CLINICAL_HUB, "ecg", "ECG", None, render_ecg_lab_page),
+        (CLINICAL_HUB, "multisensor", "Fusión de sensores", None, render_multisensor_page),
+        (CLINICAL_HUB, "respiratorio", "Respiración", None, render_respiratory_lab_page),
+        (CLINICAL_HUB, "eeg", "EEG", None, render_eeg_neuro_lab_page),
+        (CLINICAL_HUB, "emg", "EMG", None, render_emg_page),
+        (CLINICAL_HUB, "hrv", "Variabilidad cardiaca", None, render_hrv_page),
+        (CLINICAL_HUB, "biomarcadores", "Biomarcadores", None, render_biomarkers_page),
+        (CLINICAL_HUB, "calculadoras", "Calculadoras clínicas", None, render_calculators_page),
+        (CLINICAL_HUB, "pacientes", "Pacientes", None, render_patient_pipeline_page),
+        (CLINICAL_HUB, "comparar", "Comparar pacientes", None, render_compare_patients_page),
+        (CLINICAL_HUB, "modelo-3d", "Taller 3D", None, render_model3d_page),
+        ("Ajustes", "ajustes", "Ajustes", None, render_settings_and_version_page),
         # Textos legales (2026-11-17, `app/utils/legal.py`; originales y ajustes en docs/legal/textos_legales.md).
-        ("Ajustes", "terminos", "Términos y condiciones", "📜", legal.render_terms_page),
-        ("Ajustes", "privacidad", "Aviso de privacidad", "🔒", legal.render_privacy_page),
+        ("Ajustes", "terminos", "Términos y condiciones", None, legal.render_terms_page),
+        ("Ajustes", "privacidad", "Aviso de privacidad", None, legal.render_privacy_page),
     ]
 
 
@@ -2902,6 +2910,9 @@ def main() -> None:
         pages[url], sections[url] = page, section or "Inicio"
         menu.setdefault(section, []).append(page)
     nav.register(pages, sections)
+    st.logo(os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-logotipo-color-monitor-512px.png"),
+            icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-isotipo-color-monitor-256px.png"),
+            size="large")
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()
     with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo

@@ -1,0 +1,54 @@
+BIOCORE · PALETA DE COLOR (v1.1, noviembre de 2026)
+
+CMYK calculado con el perfil Coated FOGRA39 (offset, papel estucado), intención colorimétrica relativa.
+Pantone: referencia aproximada en pantalla; confírmala con la guía física antes de imprimir.
+
+PALETA PRINCIPAL
+
+Monitor      HEX #0f172a   RGB  15  23  42   CMYK  97  69   8  92   Pantone 5395 C
+             Fondo de marca: app, pantallas, portadas. Tinta de texto en Papel.
+Trazo        HEX #22d3ee   RGB  34 211 238   CMYK  60   0  14   0   Pantone —
+             Color firma sobre fondos oscuros: la señal, la b del logo, lo activo.
+Trazo Papel  HEX #0891b2   RGB   8 145 178   CMYK  78  13  13  19   Pantone 3135 C
+             Color firma sobre fondos claros e impresos.
+Núcleo       HEX #0e7490   RGB  14 116 144   CMYK  84  28  21  29   Pantone 3145 C
+             Botones y controles en Papel; logo a una tinta de color.
+Papel        HEX #f7f9fb   RGB 247 249 251   CMYK   4   2   2   0   Pantone —
+             Fondo claro de impresos, informes y documentos.
+Tinta clara  HEX #f1f5ff   RGB 241 245 255   CMYK   6   4   2   0   Pantone —
+             Títulos y «iocore» del logo sobre Monitor.
+
+TOKENS DE COLOR (tema Monitor / tema Papel)
+
+fondo-pagina     Monitor #0f172a                  Papel #f7f9fb
+fondo-panel      Monitor #111d36                  Papel #ffffff
+fondo-consola    Monitor #1a2a4a                  Papel #edf2f7
+fondo-vidrio     Monitor #0b1426                  Papel #ffffff
+tinta-titulo     Monitor #f1f5ff                  Papel #0f172a
+tinta-1          Monitor #e0e7ff                  Papel #1b2537
+tinta-2          Monitor #b6c2e2                  Papel #3c4a63
+tinta-3          Monitor #94a3c8                  Papel #56647d
+borde            Monitor #5d6b92                  Papel #7d8ba3
+borde-suave      Monitor rgba(148,163,209,0.18)   Papel rgba(15,23,42,0.12)
+borde-dibujo     Monitor #5d6b92                  Papel #a3b1c6
+trazo            Monitor #22d3ee                  Papel #0891b2
+trazo-suave      Monitor #67e8f9                  Papel #0e7490
+trazo-resalte    Monitor rgba(34,211,238,0.14)    Papel rgba(8,145,178,0.12)
+nucleo           Monitor #099fbd                  Papel #0e7490
+nucleo-sobre     Monitor #0f172a                  Papel #ffffff
+enlace           Monitor #22d3ee                  Papel #0e7490
+foco             Monitor #22d3ee                  Papel #0e7490
+reticula-menor   Monitor rgba(34,211,238,0.07)    Papel rgba(8,145,178,0.10)
+reticula-mayor   Monitor rgba(34,211,238,0.16)    Papel rgba(8,145,178,0.22)
+estado-estable   Monitor #39d98a                  Papel #147a3a
+estado-alerta    Monitor #ffc542                  Papel #975b06
+estado-critico   Monitor #ff4d4d                  Papel #c81e1e
+estado-neutral   Monitor #64748b                  Papel #5e6e85
+serie-1          Monitor #3987e5                  Papel #2a78d6
+serie-2          Monitor #d95926                  Papel #eb6834
+serie-3          Monitor #199e70                  Papel #1baf7a
+serie-4          Monitor #c98500                  Papel #eda100
+serie-5          Monitor #d55181                  Papel #e87ba4
+serie-6          Monitor #008300                  Papel #008300
+serie-7          Monitor #9085e9                  Papel #6250d6
+serie-8          Monitor #e66767                  Papel #e34948

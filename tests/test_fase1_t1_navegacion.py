@@ -58,12 +58,13 @@ def test_each_section_holds_what_the_signed_decision_lists():
     for section, url, *_ in _specs():
         by_section.setdefault(section, []).append(url)
     # Pulido profesional (2026-11-16): Bibliografía, pedida en la tanda (todas las referencias, con enlaces).
-    assert by_section["Aprender"] == ["teoria", "referencias", "ecg-3d", "bibliografia", "pregunta"]
+    # Rediseño Duolingo + Apple (2026-11-17): «Temas» en Aprender y «Comparar pacientes» en Explorar.
+    assert by_section["Aprender"] == ["temas", "teoria", "referencias", "ecg-3d", "bibliografia", "pregunta"]
     # 2026-11-17: «Tu aprendizaje en esta sesión» (solo la sesión del navegador; no es «Mi progreso»).
     assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "caso-guiado", "cuestionarios",
                                        "casos-simulador", "what-if", "detective", "mi-sesion"]
     assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
-                                      "biomarcadores", "calculadoras", "pacientes", "modelo-3d"]
+                                      "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
     assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio"]
 
 
@@ -81,8 +82,8 @@ def test_every_old_entry_is_reachable_and_renders(url):
     assert len(at.main.markdown) + len(at.main.get("tabs")) > 0, title
 
 
-@pytest.mark.parametrize("url", ["inicio", "referencias", "ecg-3d", "desafio-ecg", "cuestionarios", "casos-simulador", "what-if",
-                                 "ajustes"])
+@pytest.mark.parametrize("url", ["inicio", "temas", "comparar", "referencias", "ecg-3d", "desafio-ecg", "cuestionarios",
+                                 "casos-simulador", "what-if", "ajustes"])
 def test_the_new_pages_render(url):
     _open(url)
 
@@ -90,8 +91,8 @@ def test_the_new_pages_render(url):
 def test_home_has_three_doors_with_one_line_each_and_no_key_gate():
     at = _open()
     links = _links(at.main)
-    doors = [(p, l) for p, l in links if p in ("teoria", "cuestionarios", "gemelo")]
-    assert [p for p, _ in doors] == ["teoria", "cuestionarios", "gemelo"]
+    # Rediseño del 2026-11-17: las tres puertas son las tarjetas Aprender, Practicar y Laboratorios del tablero.
+    assert {"teoria", "cuestionarios", "gemelo"} <= {p for p, _ in links}
     text = " ".join(m.value for m in at.main.markdown)
     for word in ("Aprender", "Practicar", "Explorar"):
         assert f"### " in text and word in text
