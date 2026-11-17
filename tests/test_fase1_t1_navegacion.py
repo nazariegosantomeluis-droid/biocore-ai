@@ -59,8 +59,9 @@ def test_each_section_holds_what_the_signed_decision_lists():
         by_section.setdefault(section, []).append(url)
     # Pulido profesional (2026-11-16): Bibliografía, pedida en la tanda (todas las referencias, con enlaces).
     assert by_section["Aprender"] == ["teoria", "referencias", "ecg-3d", "bibliografia", "pregunta"]
+    # 2026-11-17: «Tu aprendizaje en esta sesión» (solo la sesión del navegador; no es «Mi progreso»).
     assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "caso-guiado", "cuestionarios",
-                                       "casos-simulador", "what-if", "detective"]
+                                       "casos-simulador", "what-if", "detective", "mi-sesion"]
     assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
                                       "biomarcadores", "calculadoras", "pacientes", "modelo-3d"]
     assert by_section["Ajustes"] == ["ajustes"] and by_section[""] == ["inicio"]

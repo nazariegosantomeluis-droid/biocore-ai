@@ -38,6 +38,7 @@ from app.utils.design_system import (
     render_module_header,
     resolve_metric_card,
 )
+from app.utils.evidence_passport import render_evidence_passport
 from app.utils.patient_banner import CALC_LOAD_PATIENT_KEY, read_active_vitals
 from clinical import calculators as calc
 
@@ -121,6 +122,7 @@ def _card(report_id: str, label: str, value: Optional[str], *, classification=No
     kwargs = dict(provenance=provenance, classification=classification, citation=citation,
                   unavailable_reason=unavailable_reason)
     render_metric_card(label, value, **kwargs)
+    render_evidence_passport(f"calculadoras.{report_id}", value, key=f"passport_calc_{report_id}")
     st.session_state.setdefault(_REPORT_KEY, {})[report_id] = resolve_metric_card(label, value, **kwargs)
 
 
@@ -192,12 +194,14 @@ def _render_patient_news2_points() -> None:
             with column:
                 descriptor = vitals.values[key]
                 points = partial.components.get(component)
+                shown = None if points is None else f"{points} {'punto' if points == 1 else 'puntos'} ({short} {descriptor.value:.0f} {unit})"
                 render_metric_card(
                     f"{component} NEWS2",
-                    None if points is None else f"{points} {'punto' if points == 1 else 'puntos'} ({short} {descriptor.value:.0f} {unit})",
+                    shown,
                     provenance=BADGES.CLINICAL,
                     unavailable_reason=f"el paciente activo no tiene {short} en el UPS",
                 )
+                render_evidence_passport(f"calculadoras.news2_paciente_{key}", shown, key=f"passport_calc_news2_{key}")
         st.caption(
             f"Paciente `{vitals.short_id}`: valores del UPS (no son mediciones de un paciente si su procedencia es "
             f"Simulación). Cada componente con su tabla ({calc.NEWS2_CITATION}). No hay total: faltan "

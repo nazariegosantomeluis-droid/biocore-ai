@@ -2839,6 +2839,12 @@ def render_practice_detective_page() -> None:
     render_detective_page()
 
 
+def render_practice_session_learning_page() -> None:
+    from app.supermodules.session_learning_view import render_session_learning_page
+
+    render_session_learning_page()
+
+
 def _page_specs() -> list:
     """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
     return [
@@ -2856,6 +2862,7 @@ def _page_specs() -> list:
         ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
         ("Practicar", "what-if", "¿Qué pasa si…?", "🔀", render_practice_what_if_page),
         ("Practicar", "detective", "Detective fisiológico", "🔎", render_practice_detective_page),
+        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", "📊", render_practice_session_learning_page),
         ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
         ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
         ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),
