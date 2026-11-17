@@ -2714,6 +2714,14 @@ def render_practice_simulator_cases_page() -> None:
     twin.render_clinical_case_mode(st.session_state.twin_shell_organism, expanded=True)
 
 
+def render_practice_what_if_page() -> None:
+    from app.supermodules.what_if import render_what_if_page
+
+    render_module_header("¿Qué pasa si…?", icon="🔀",
+                         subtitle="Predice qué le pasa al gemelo hemodinámico (simulado) y compáralo con el motor.")
+    render_what_if_page()
+
+
 def _page_specs() -> list:
     """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado)."""
     return [
@@ -2727,6 +2735,7 @@ def _page_specs() -> list:
         ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
         ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", "❓", render_practice_lab_quizzes_page),
         ("Practicar", "casos-simulador", "Casos clínicos del simulador", "🩺", render_practice_simulator_cases_page),
+        ("Practicar", "what-if", "¿Qué pasa si…?", "🔀", render_practice_what_if_page),
         ("Explorar", "gemelo", "Gemelo digital (Digital Twin OS)", "🧬", render_twin_shell_page),
         ("Explorar", "ecg", "ECG", "🫀", render_ecg_lab_page),
         ("Explorar", "multisensor", "Multisensor", "🔗", render_multisensor_page),
