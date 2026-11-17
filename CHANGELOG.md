@@ -1,5 +1,87 @@
 # Changelog
 
+## 2026-11-17 — Teoría citada 2 (EMG y HRV) y coherencia con la teoría firmada
+
+**Contexto (Art. I)**: Luis firmó `docs/contenido/teoria_citada_2.md` (EMG A1–A9 y HRV B1–B9, con restricciones en cada tema). Junto con `teoria_citada.md`, es la única fuente de texto médico nuevo de esta tanda. Varias etiquetas de la app contradecían lo firmado:
+- la razón LF/HF leída como «balance simpático/vagal» y como «estrés»;
+- el RMS del EMG presentado como medida de cuánto se contrae;
+- factores de la HRV y una cifra de normalidad sin fuente;
+- escenarios STEMI nombrados por pared y arteria.
+
+Rama `teoria-emg-hrv`, desde `main`. Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0, NumPy 2.4.6, SciPy 1.17.1, pylsl 1.18.7. En el paso 0, la suite completa dio 2299 pasan, 0 fallan y 6 omitidas.
+
+### Parte A — Teoría de EMG y HRV
+- **18 temas firmados** en la teoría en capas (`learn_theory.py`: `SIGNED_EMG_A1…A9`, `SIGNED_HRV_B1…B9`). Cada línea está tal cual en el documento; la prueba literal (`test_fase1_t2_teoria.py`) ahora también lo busca en `teoria_citada_2.md`.
+  - **En Aprender** → Referencias de los laboratorios, con los encabezados «EMG de superficie» y «Variabilidad de la frecuencia cardiaca (HRV)».
+  - **En la «Teoría» de cada laboratorio**: EMG, A1–A9; HRV, B1–B9, en un expander nuevo dentro de «Aprender y explicar».
+  - **Lo que el documento lista como «sin fuente verificada» no se escribe**: el ECG en los músculos del tronco, las dimensiones SENIAM, la postura, los fármacos, el ejercicio y las cifras de referencia. Una prueba lo vigila.
+- **«¿Qué significa…?» solo con texto firmado**:
+  - RMS del EMG: A5. Frecuencia mediana: A7.
+  - SDNN, RMSSD y pNN50: su línea de B2.
+  - La «Activación muscular» no tiene tema firmado y conserva solo la definición del cálculo.
+  - Un tema firmado sin capa de detalle ahora también muestra su fuente y el enlace a la Bibliografía.
+- **Bibliografía**: las 7 referencias nuevas ([DL1997], [DL2010], [V2018], [H2000], [SG2017], [B2013], [TF1996]). [TF1996] lleva la nota de que no se le atribuye ninguna afirmación directamente.
+
+### Parte B — Etiquetas que contradecían lo firmado
+1. **Razón LF/HF** (B3, decisión de Luis: «razón LF/HF (interpretación discutida)» con [B2013], nunca «balance simpático-vagal»):
+   - **HRV, espectro**: decía «LF/HF: 0.85». Ahora dice «razón LF/HF (interpretación discutida) [B2013]: 0.85», con la explicación firmada debajo. La pestaña «Espectro (LF/HF)» pasa a «Espectro (bandas LF y HF)».
+   - **HRV, narrador**: el hallazgo `lf_hf_ratio` decía «Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.». Ahora lleva el rótulo y la explicación firmada de B3.
+   - **Biomarcadores**: el «Índice de Estrés» era la razón LF/HF normalizada a 0–100, con la etiqueta «Validado por fuente» (Task Force). Leer LF/HF como estrés es leerla como equilibrio simpático-vagal: ya no se muestra.
+     - Queda «Índice de estrés: no disponible», con el motivo firmado.
+     - La razón se muestra con su rótulo.
+     - La entrada «Ratio LF/HF» pasa a «Razón LF/HF (interpretación discutida) [B2013]».
+     - `calculate_stress_index()` sigue en `biomarkers.py`, sin mostrarse.
+   - **Prueba**: el recorrido de todas las páginas y fuentes (`test_fase1_t2_pulido.py`, `lf_hf_offenders`) exige que todo texto con «LF/HF» lleve el rótulo, o sea el texto firmado que explica por qué es discutida, y que nunca diga «balance», «dominancia» ni «proxy».
+2. **EMG** (A1, A6, A9):
+   - Vista del laboratorio: decía «Para saber cuánto contraes, mira el RMS: crece con la contracción». Ahora: «La amplitud del EMG de superficie indica la **excitación** del músculo, no su fuerza [V2018]».
+   - Guía del sensor (`hardware/biosensors/sensors.py`): decía «Para saber cuánto contraes, mira el RMS en mV». Ahora, la misma frase firmada.
+   - Práctica con la placa simulada: decía «El RMS sube con la fuerza que elijas». Ahora: «sube con el nivel que elijas (así está programada la placa simulada)», más la frase firmada.
+   - No se encontró ningún texto que hablara de hipertrofia, diagnóstico o lesión a partir de la amplitud. «No es %MVC: no mide cuánto contraes» se queda: es una negación correcta.
+3. **HRV** (B7, B9):
+   - «¿Qué afecta la HRV?» decía «Un mayor tono vagal eleva la RMSSD y el pNN50» y «La enfermedad crónica y la edad tienden a bajar el SDNN». Ahora es el tema B7 (solo edad, sexo, duración del registro y respiración).
+   - Los significados que recibe el narrador («aproximación del tono parasimpático», «indicador vagal») se cambiaron por las líneas de B2.
+   - Biomarcadores: «RMSSD 10-100ms: rango fisiológico correcto (dictamen del validador)» con etiqueta «Validado por fuente» era una cifra de normalidad sin fuente publicada. Ahora: «RMSSD normalizada entre 10 y 100 ms: límites de la escala del índice, no valores de referencia», con etiqueta «Criterio BIOCORE».
+4. **Escenarios de 12 Derivaciones**: se nombran por lo que se ve en el trazado construido (elevación del ST ≥ 1 mm a la magnitud de referencia, medida en `truth.st_j_mv`):
+
+   | Antes | Ahora |
+   |---|---|
+   | «🔴 STEMI Anterior - Infarto anterior (DA)» | «🔴 STEMI con elevación del ST en V1–V4» |
+   | «🔴 STEMI Inferior - Infarto inferior (CD o Cx)» | «🔴 STEMI con elevación del ST en II, III y aVF» |
+   | «🔴 STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)» | «🔴 STEMI con elevación del ST en I, aVL, V5–V6» |
+
+   La interpretación pasa al expander «Corrección del caso: qué sugiere el trazado y arteria probable (tema 5)». Muestra en qué derivaciones construyó el generador la elevación y el descenso del ST, y la tabla firmada del tema 5 con su advertencia.
+
+### Verificación
+- Suite completa en serie: **SUITE**.
+- Pruebas nuevas en `tests/test_teoria_emg_hrv.py`:
+  - 18 temas integrados, en Aprender y en cada laboratorio;
+  - nada «sin fuente verificada»;
+  - [TF1996] sin afirmaciones;
+  - «¿Qué significa…?» firmado;
+  - LF/HF rotulada en HRV, Biomarcadores y el narrador;
+  - EMG sin deducir fuerza;
+  - HRV sin postura, fármacos ni ejercicio, ni cifras de normalidad;
+  - nombres STEMI comprobados contra el trazado construido.
+- La guardia de LF/HF entra al recorrido de todas las páginas.
+- Excepciones nuevas, por texto exacto y exigiendo que estén en el documento firmado:
+  - tres frases de A3 y A4 que el patrón amplio de tratamientos atrapaba («Recomendación clásica…», «recomendaciones de colocación…», «coincide con esta recomendación»);
+  - el título del artículo de [B2013] en la Bibliografía;
+  - la línea firmada de B6 sobre la entropía muestral en la guardia de «Entropía» de la contención de la tanda 1 (que buscaba el botón falso de «complejidad»).
+- Base de desarrollo intacta (1/7/53/0).
+
+### Sin tocar
+- **Código con LF/HF como «balance» que ninguna página monta**:
+  - `src/advanced_hrv.py`, `src/risk_analysis.py` y `src/feature_extraction.py` (sin llamador en la app);
+  - `src/ecg_education.py` (solo lo usa `app/ecg_trainer.py`, que no está en el menú);
+  - `src/interpretability.py` (solo lo usa el clasificador de `domain/`, oculto desde la contención).
+  - Si alguno se vuelve a montar, tiene que pasar la guardia.
+- **Twin OS**: «Balance simpático/parasimpático: no modelado». No lo atribuye a LF/HF; se queda.
+- **Biomarcadores**:
+  - La firma del módulo sigue diciendo «Índices compuestos (Estrés, Carga Cognitiva)».
+  - La ayuda de Resiliencia («SDNN 15-150ms… marcadores dorados», etiqueta «Validado por fuente») no es una cifra de normalidad, pero tampoco tiene fuente publicada.
+- **HRV**: la firma del laboratorio y la ayuda del control de respiración atribuyen las bandas a la Task Force, a la que el documento no permite atribuirle afirmaciones; las mismas bandas están firmadas con [SG2017].
+- **EMG**: los botones de la práctica «Contraer suave (30 %)» y «Contraer fuerte (80 %)» son niveles del simulador, no %MVC.
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:

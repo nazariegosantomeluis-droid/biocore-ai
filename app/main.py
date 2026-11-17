@@ -557,7 +557,9 @@ BIOMARKER_SOURCE_HOLM_THETA_ALPHA = (
     "validado para carga mental\"; peso 0.7 al EEG también validado "
     "(latencia ms vs. hemodinámica)"
 )
-BIOMARKER_SOURCE_RMSSD = "rango fisiológico correcto (dictamen del validador: \"absolutamente correcto\")"
+# Teoría citada 2, B9 (2026-11-17): decía «rango fisiológico correcto», una cifra de normalidad sin fuente publicada.
+# Son los límites de la escala del índice, no valores de referencia (no hay un único «valor normal» [SG2017]).
+BIOMARKER_SOURCE_RMSSD = "límites de la escala del índice, no valores de referencia (no hay un único «valor normal» [SG2017])"
 BIOMARKER_SOURCE_ESC_NASPE = "Task Force ESC/NASPE 1996"
 BIOMARKER_SOURCE_RESILIENCE_GOLD = "\"marcadores dorados de resiliencia cardiovascular\" (dictamen del validador)"
 BIOMARKER_SOURCE_PLV_CRITERION = (
@@ -573,7 +575,7 @@ _BIOMARKER_HELP = {
         "EDA en el repo, eran constantes de preset sin sensor detrás."
     ),
     "Índice de recuperación": (
-        f"{BADGES.tag(BADGES.CLINICAL)} RMSSD 10-100ms: {BIOMARKER_SOURCE_RMSSD} · "
+        f"{BADGES.tag(BADGES.METHOD)} RMSSD normalizada entre 10 y 100 ms: {BIOMARKER_SOURCE_RMSSD} · "
         f"{BADGES.tag(BADGES.HEURISTIC)} HR de reposo, horas de sueño y pesos (0.40/0.45/0.15): "
         f"{BIOMARKER_HEURISTIC_LABEL}"
     ),
@@ -746,7 +748,7 @@ def render_biomarkers_page() -> None:
             sdnn_val = c3.number_input("HRV SDNN (ms)", value=50.0, step=1.0)
             
             c4, c5, c6 = st.columns(3)
-            lfhf_val = c4.number_input("Ratio LF/HF", value=1.5, step=0.1)
+            lfhf_val = c4.number_input("Razón LF/HF (interpretación discutida) [B2013]", value=1.5, step=0.1)
             hf_val = c5.number_input("Potencia HF (ms², sin efecto)", value=350.0, step=10.0)
             hrr_val = c6.number_input("Recuperación de la FC (lpm/min)", value=25.0, step=1.0)
 
@@ -764,8 +766,8 @@ def render_biomarkers_page() -> None:
 
         with tab_eda:
             st.caption(
-                "⚠️ Picos EDA y Conductancia Base ya no alimentan ningún score (Índice de estrés se "
-                "recortó a solo LF/HF, 2026-08-15) -- no hay módulo de señal EDA real en el repo. "
+                "⚠️ Picos EDA y Conductancia Base no alimentan ningún índice -- no hay módulo de señal EDA "
+                "real en el repo (el Índice de estrés tampoco se muestra: dependía solo de la razón LF/HF). "
                 "Se dejan visibles sin efecto; el aumento cognitivo de la FC sí se sigue usando (Carga cognitiva)."
             )
             e1, e2, e3 = st.columns(3)
@@ -830,7 +832,21 @@ def render_biomarkers_page() -> None:
     # (que las compara textualmente). Mismo principio que `MODES` en
     # twin_shell/pages.py -- ver CHANGELOG.md.
     with col1:
-        st.metric(label="Índice de Estrés", value=f"{resultados['Índice de estrés']['score']}/100", delta=resultados['Índice de estrés']['status'], delta_color="inverse" if resultados['Índice de estrés']['score'] > 50 else "normal", help=_BIOMARKER_HELP["Índice de estrés"])
+        # Teoría citada 2, B3 (2026-11-17, Art. I): el «Índice de estrés» era la razón LF/HF normalizada a 0-100 y se
+        # mostraba como estrés, con la etiqueta «Validado por fuente». Leer LF/HF como estrés es leerla como equilibrio
+        # simpático-vagal, lo que [B2013] refuta: el índice no se muestra; la razón sí, con su rótulo obligatorio.
+        # (`calculate_stress_index()` sigue en biomarkers.py, sin mostrarse.)
+        from app.supermodules.learn_theory import LF_HF_DISCUSSED, LF_HF_LABEL
+
+        render_metric_card(
+            "Índice de estrés", None,
+            unavailable_reason=("No disponible: se calculaba solo con la razón LF/HF, y la razón LF/HF no mide con "
+                                "exactitud el \"equilibrio simpático-vagal\" [B2013][SG2017]."),
+        )
+        render_metric_card(
+            LF_HF_LABEL[0].upper() + LF_HF_LABEL[1:], f"{datos_sensores['hrv_lf_hf_ratio']:.2f}",
+            citation="Dato de entrada de este panel. " + LF_HF_DISCUSSED.replace("**", ""),
+        )
         st.metric(label="Carga Cognitiva", value=f"{resultados['Carga cognitiva']['score']}/100", delta=resultados['Carga cognitiva']['status'], delta_color="inverse" if resultados['Carga cognitiva']['score'] > 65 else "normal", help=_BIOMARKER_HELP["Carga cognitiva"])
 
     with col2:
@@ -968,6 +984,9 @@ def render_emg_page() -> None:
 
 
 def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
+    from app.supermodules.learn_theory import EMG_TOPICS, SIGNED_EMG_A1, SIGNED_EMG_A5, SIGNED_EMG_A7
+    from app.utils.design_system import render_theory_topic
+
     if signal is None:
         # Origen=CSV sin archivo, o sensor en vivo sin placa transmitiendo (la fuente ya dijo por qué).
         render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Demo.")
@@ -986,8 +1005,10 @@ def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
     render_metric_card('Activación muscular', f'{activation:.1f} %', provenance=BADGES.METHOD)
     st.caption('Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz). Describe la forma de '
                'la señal: no es el porcentaje de la contracción máxima (%MVC). En reposo y en una contracción sostenida '
-               'da valores parecidos: no lo uses para decir esfuerzo, fatiga ni riesgo. Para saber cuánto contraes, '
-               'mira el RMS: crece con la contracción.')
+               'da valores parecidos: no lo uses para decir esfuerzo, fatiga ni riesgo.')
+    # Teoría citada 2 (2026-11-17, Art. I): decía «Para saber cuánto contraes, mira el RMS: crece con la contracción»,
+    # es decir, deducía la fuerza de la amplitud. Lo firmado (A1, A9) dice lo contrario:
+    st.caption(SIGNED_EMG_A1.detail)
     rms_value = emg_live.rms_mv(emg_live.prepare(signal, fs, None), fs)
     render_metric_card(
         'RMS del EMG (20-450 Hz)',
@@ -997,6 +1018,8 @@ def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
     )
     if live is not None:
         st.caption('mV en la piel aproximados: ganancia 200 del MyoWare y ADC del ESP32 sin calibrar.')
+    with st.expander('¿Qué significa RMS del EMG?', expanded=False):        # tema A5 firmado
+        render_theory_topic(SIGNED_EMG_A5, inside_expander=True)
     _render_emg_save_to_twin(fs, source, emg_analysis, live)
 
     # ── 2. Plegados ──
@@ -1004,6 +1027,8 @@ def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
         median_freq = emg_analysis.median_frequency_hz
         # HEURISTIC: cálculo real sobre señal filtrada, sin cita/umbral clínico propio en este repo.
         render_metric_card('Frecuencia mediana', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
+        st.markdown('**¿Qué significa la frecuencia mediana?**')                # tema A7 firmado
+        render_theory_topic(SIGNED_EMG_A7, inside_expander=True)
         if st.button('Exportar EMG para investigación'):
             honesty_cards = [
                 resolve_metric_card(
@@ -1026,7 +1051,10 @@ def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
         st.line_chart(signal)
 
     with st.expander(LAB_SECTION_THEORY, expanded=False):
-        render_no_data('Teoría del EMG', 'todavía no hay un tema firmado con fuente para el EMG en Aprender')
+        # Teoría citada 2 (2026-11-17): los temas A1–A9 firmados (también en Aprender → Referencias de los laboratorios).
+        nav.link('referencias', 'Teoría del EMG y de la HRV en Aprender (con sus fuentes)', icon='📚')
+        for topic in EMG_TOPICS:
+            render_theory_topic(topic, inside_expander=True)
 
     with st.expander(LAB_SECTION_AI, expanded=False):
         render_findings_narrator('EMG Muscle Lab', [
@@ -2156,16 +2184,21 @@ def render_hrv_page() -> None:
     # Pulido profesional (2026-11-16, Art. I): las capas de «¿Qué significa…?» de SDNN/RMSSD/pNN50 no tenían fuente
     # («Indicador general de variabilidad autonómica», «Bajos valores asociados a mayor riesgo cardiovascular»...) y
     # no hay tema firmado de HRV: se retiran. Queda la definición de cada cálculo (método, no una afirmación clínica).
-    render_metric_explained('SDNN', f'{sdnn:.1f}', unit='ms')
-    render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms')
-    render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%')
+    # Teoría citada 2 (2026-11-17): «¿Qué significa…?» con la línea firmada de B2 de cada valor ([SG2017]).
+    from app.supermodules.learn_theory import (HRV_TOPICS, LF_HF_DISCUSSED, LF_HF_LABEL, SIGNED_HRV_B7,
+                                               SIGNED_HRV_PNN50, SIGNED_HRV_RMSSD, SIGNED_HRV_SDNN)
+    from app.utils.design_system import render_theory_topic
+
+    render_metric_explained('SDNN', f'{sdnn:.1f}', unit='ms', topic=SIGNED_HRV_SDNN)
+    render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms', topic=SIGNED_HRV_RMSSD)
+    render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%', topic=SIGNED_HRV_PNN50)
     st.caption('Cómo se calcula: SDNN = desviación estándar de los intervalos NN; RMSSD = raíz cuadrática media de las '
                'diferencias sucesivas entre intervalos NN; pNN50 = porcentaje de diferencias sucesivas mayores de 50 ms.')
 
     # Tanda 2 de la fase 1: ≤ 5 paneles al abrir. Lo demás, en pestañas (a demanda), sin cambiar ningún cálculo; el
     # espectro va primero porque es un solo gráfico.
     tab_spectrum, tab_rsa, tab_nonlinear, tab_learn, tab_save = st.tabs(
-        ["Espectro (LF/HF)", "RSA", "No lineal", "Aprender y explicar", "Guardar al gemelo"])
+        ["Espectro (bandas LF y HF)", "RSA", "No lineal", "Aprender y explicar", "Guardar al gemelo"])
     # RSA: con la fuente manual no hay respiración simultánea -> declina con motivo.
     if r_peak_times_s is None:
         r_peak_times_s = np.concatenate([[0.0], np.cumsum(rr_ms) / 1000.0])
@@ -2198,7 +2231,10 @@ def render_hrv_page() -> None:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.line_chart(pxx)
-            st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — LF/HF: {lf_hf if lf_hf is not None else "n/a"}')
+            # Teoría citada 2, B3 (decisión de Luis): la razón va rotulada «interpretación discutida» con [B2013].
+            lf_hf_txt = f'{lf_hf:.2f}' if lf_hf is not None else 'no disponible (potencia HF nula)'
+            st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — {LF_HF_LABEL} [B2013]: {lf_hf_txt}')
+            st.caption(LF_HF_DISCUSSED)
         except ValueError as exc:
             st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
 
@@ -2209,21 +2245,30 @@ def render_hrv_page() -> None:
     # placebo: «Clínica» e «Investigación» no cambiaban nada (las dos vistas ya se muestran arriba, siempre). Se retiró;
     # las tres secciones que sí dependían de él (educativa, IA y simulación) quedan como expanders, sin perder contenido.
     with tab_learn:
+        # Teoría citada 2 (2026-11-17, Art. I): decía «Un mayor tono vagal eleva la RMSSD y el pNN50» y «La enfermedad
+        # crónica y la edad tienden a bajar el SDNN», sin fuente; la enfermedad crónica no está entre los factores que
+        # Luis firmó (B7: solo edad, sexo, duración y respiración). Queda el tema B7, y la serie RR que ya se mostraba.
         with st.expander('📘 ¿Qué afecta la HRV?', expanded=False):
-            st.write('- Un mayor tono vagal eleva la RMSSD y el pNN50.')
-            st.write('- La enfermedad crónica y la edad tienden a bajar el SDNN.')
+            render_theory_topic(SIGNED_HRV_B7, inside_expander=True)
+            st.caption('Serie RR de este análisis (ms):')
             st.line_chart(rr_ms)
+        with st.expander(LAB_SECTION_THEORY, expanded=False):
+            nav.link('referencias', 'Teoría del EMG y de la HRV en Aprender (con sus fuentes)', icon='📚')
+            for topic in HRV_TOPICS:
+                render_theory_topic(topic, inside_expander=True)
         with st.expander('🤖 Explicación con IA de estos valores', expanded=False):
             findings = [
-                ('sdnn_ms', f'{sdnn:.1f} ms', 'Desviación estándar de los intervalos NN — variabilidad global.'),
-                ('rmssd_ms', f'{rmssd:.1f} ms', 'Raíz cuadrática media de las diferencias sucesivas — aproximación del tono parasimpático.'),
-                ('pnn50_pct', f'{pnn50:.1f}%', 'Porcentaje de diferencias NN mayores a 50ms — indicador vagal.'),
+                # Teoría citada 2 (B2, [SG2017]): el significado que recibe el narrador es la línea firmada.
+                ('sdnn_ms', f'{sdnn:.1f} ms', 'SDNN: desviación estándar de los intervalos NN, en ms [SG2017].'),
+                ('rmssd_ms', f'{rmssd:.1f} ms', 'RMSSD: está más influida por el sistema nervioso parasimpático que la SDNN [SG2017].'),
+                ('pnn50_pct', f'{pnn50:.1f}%', 'pNN50: se correlaciona estrechamente con la actividad parasimpática [SG2017].'),
             ]
             if lf_power is not None and hf_power is not None:
+                # Teoría citada 2, B3 (Art. I): decía «proxy de balance simpático/vagal», lo que [B2013] refuta.
                 findings.append((
                     'lf_hf_ratio',
-                    f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'n/a',
-                    'Razón de potencia espectral de baja (LF) a alta frecuencia (HF) — proxy de balance simpático/vagal.',
+                    f'{(lf_power / hf_power):.2f}' if hf_power > 0 else 'no disponible',
+                    f'{LF_HF_LABEL} [B2013]. ' + LF_HF_DISCUSSED.replace('**', ''),
                 ))
             render_findings_narrator('HRV Analysis', findings, origin=(
                 DataOrigin.SIMULADO if source == rsa_panel.RSA_SOURCE_LABEL else DataOrigin.DESCONOCIDO))
@@ -2520,10 +2565,12 @@ def render_home_page() -> None:
 def _render_learn_topics(url: str) -> None:
     """Teoría en capas (tanda 2 de la fase 1): los temas de `app/supermodules/learn_theory.py`, cada uno con el
     componente único `render_theory_topic` (idea a la vista; mecanismo y detalle con su fuente a demanda)."""
-    from app.supermodules.learn_theory import LEARN_TOPICS
+    from app.supermodules.learn_theory import LEARN_TOPICS, SECTION_BEFORE
     from app.utils.design_system import render_theory_topic
 
     for topic in LEARN_TOPICS[url]:
+        if topic.title in SECTION_BEFORE:                       # teoría citada 2: EMG y HRV con su propio encabezado
+            render_section_header(SECTION_BEFORE[topic.title])
         render_theory_topic(topic)
 
 
