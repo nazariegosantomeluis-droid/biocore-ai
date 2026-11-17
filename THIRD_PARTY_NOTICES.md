@@ -111,6 +111,18 @@ Los dos registros de PhysioNet de la tabla fueron remuestreados y cuantizados (v
 
 ---
 
+### Kit de marca Biocore v1.1 (`docs/marca/Biocore-Kit-de-marca-v1.1/`, y lo que usa la app en `app/static/marca/`)
+
+Tomado de `LEEME.txt`, `04-Elementos-graficos/FUENTES.txt` y `05-Imagenes/CREDITOS.txt` del propio kit.
+
+| Elemento | Fuente y licencia | Dónde se usa |
+|---|---|---|
+| Figtree (títulos y valores) | The Figtree Project Authors · SIL Open Font License 1.1 (`OFL-Figtree.txt`) | `app/static/marca/fuentes/`, `.streamlit/config.toml` |
+| Noto Sans (texto) | The Noto Project Authors · SIL Open Font License 1.1 (`OFL-NotoSans.txt`) | `app/static/marca/fuentes/`, `.streamlit/config.toml` |
+| Tira de ECG (`biocore-tira-ecg-*`, `biocore-trazo-ecg-solo-*`) | Registro 100 de la MIT-BIH Arrhythmia Database, derivación MLII, segundos 7 a 19 · PhysioNet, ODC-By 1.0. Moody G. B., Mark R. G. The impact of the MIT-BIH Arrhythmia Database. IEEE Engineering in Medicine and Biology, 2001; Goldberger A. L. et al. PhysioBank, PhysioToolkit, and PhysioNet. Circulation, 2000 | Vista previa del monitoreo en Inicio, con el rótulo «Registro real: MIT-BIH 100, MLII · PhysioNet, ODC-By 1.0» |
+| Tira multisistema (`biocore-tira-multisistema-*`) | Registro 037 de la MIMIC Database · PhysioNet, ODC-By 1.0. Moody G. B., Mark R. G. A database to support development and evaluation of intelligent intensive care monitoring. Computers in Cardiology, 1996 | Solo en el kit (`docs/marca`) |
+| Renders de anatomía (`05-Imagenes`) | TotalSegmentator dataset v2, sujeto s1397 (Wasserthal J. et al., Radiology: Artificial Intelligence, 2023) · CC BY 4.0; el crédito va a la vista al publicarlos | Solo en el kit (`docs/marca`) |
+
 ## 4. Librerías de Python (dependencias directas de `requirements.txt`)
 
 Versión y licencia leídas de los metadatos instalados en el entorno de desarrollo el 2026-11-07. La columna «Declarado» es el rango que pide `requirements.txt`. Donde el metadato no trae una licencia corta se muestra el clasificador de PyPI (en esta fecha todas las dependencias tenían una de las dos). Es información de licencia de cada paquete, no una opinión legal sobre su combinación.
