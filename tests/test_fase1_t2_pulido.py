@@ -192,9 +192,16 @@ def test_the_sweep_would_catch_what_it_was_written_for():
 
 # ------------------------------------------------------------------------------------------------- PRIMARY como texto
 def test_primary_is_never_a_text_color_on_the_panel():
-    assert contrast_ratio(PALETTE.PRIMARY, PALETTE.SECONDARY_BACKGROUND) < 4.5          # la razón: 4.44:1
+    # Kit de marca v1.1 (2026-11-17): PRIMARY es el Núcleo (#099fbd), que ya llega a 4.5:1 sobre los tres fondos (antes,
+    # el azul #4f8ef7 daba 4.44:1). La regla sigue por marca: el Núcleo es para lo que se toca, no para texto. Única
+    # excepción, también de marca: el «Correcto» de la retroalimentación del quiz (ui_topic.py).
+    for bg in (PALETTE.BACKGROUND, PALETTE.SECONDARY_BACKGROUND, PALETTE.PANEL):
+        assert contrast_ratio(PALETTE.PRIMARY, bg) >= 4.5
+    allowed = {Path("app/supermodules/ui_topic.py")}
     text_use = re.compile(r"(?<![-\w])color\s*:\s*\{PALETTE\.PRIMARY\}|font(?:_color)?\s*=\s*(?:dict\()?\s*(?:color\s*=\s*)?PALETTE\.PRIMARY")
     for path in Path("app").rglob("*.py"):
+        if path in allowed:
+            continue
         code = "\n".join(l for l in path.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#"))
         assert not text_use.search(code), path
     import tomllib

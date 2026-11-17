@@ -271,7 +271,7 @@ def test_lab3d_is_in_the_navigation():
     import app.main as m
 
     assert m.LEGACY_ENTRIES["🧊 Crea tu modelo 3D"] == ("modelo-3d",)       # tanda 1 de la fase 1: en Explorar
-    assert any(s[:2] == ("Clinical Hub", "modelo-3d") and s[4] is m.render_model3d_page for s in m._page_specs())
+    assert any(s[:2] == ("Laboratorios", "modelo-3d") and s[4] is m.render_model3d_page for s in m._page_specs())
 
 
 # --- Lo rechazado NO entró ------------------------------------------------------

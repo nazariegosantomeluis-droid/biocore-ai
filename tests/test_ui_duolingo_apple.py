@@ -92,7 +92,7 @@ def test_home_is_the_dashboard_with_monitoring_organs_and_three_doors():
     at = _open("inicio")
     text = " ".join(m.value for m in at.main.markdown)
     assert "Monitoreo del paciente activo" in text and "Equivócate aquí." in text
-    assert all(f"### {door}" in text for door in ("Aprender", "Practicar", "Clinical Hub"))
+    assert all(f"### {door}" in text for door in ("Aprender", "Practicar", "Laboratorios"))
     assert at.main.get("button_group"), "el selector de órganos (st.pills)"
 
 
@@ -107,7 +107,7 @@ def test_topic_quiz_logs_to_the_session_without_inventing_confidence():
     log = at.session_state["session_learning_log"]
     assert len(log) == 1 and log[0]["concept"] == "frecuencia_cardiaca" and log[0]["correct"] is True
     assert log[0]["confidence"] is None and log[0]["source"] == "quiz"
-    assert any(m.value.startswith("**Correcto.**") for m in at.main.markdown)
+    assert any("✓ Correcto." in m.value for m in at.main.markdown)
 
 
 def test_an_empty_calculator_calculates_nothing():

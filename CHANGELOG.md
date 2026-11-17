@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-11-17 · Kit de marca v1.1 en la app: tokens, tipografía, logo, íconos, sellos y nombres del manual
+
+**Contexto**: llegó el kit de marca (zip y manual). El kit completo vive en `docs/marca/Biocore-Kit-de-marca-v1.1/`, y lo que usa la app en `app/static/marca/` (servido con `server.enableStaticServing`). Además, los bocetos de José Miguel sobre el Inicio y Temas.
+
+1. **Color** (tokens Monitor):
+   - `PRIMARY` pasa a `nucleo` (#099fbd), para lo que se toca.
+   - `ACCENT_ON_DARK` pasa a `trazo` (#22d3ee), para enlaces, foco y la primera serie de gráficas.
+   - Se suman `TINTA_TITULO`, `TINTA_2` y `PANEL`, con sus pares en `CONTRAST_PAIRS`.
+   - Dos tokens del kit no llegan a 4.5:1 como texto y no se usan:
+     - `estado-neutral` (#64748b, 3.75:1): `NEUTRAL` pasa a `tinta-3` (#94a3c8, 7.08:1).
+     - `estado-critico` (#ff4d4d, 4.36:1 sobre la consola): se conserva #ff6464.
+   - La prueba de «PRIMARY nunca como texto» sigue por regla de marca, con una excepción: el «Correcto» del quiz.
+2. **Tipografía**: Figtree en títulos y Noto Sans en texto, en WOFF2, servidas en local (`[[theme.fontFaces]]`). La prueba exige que cada archivo exista bajo `app/static/`.
+3. **Nombres** (manual, p. 7):
+   - la sección «Clinical Hub» pasa a «Laboratorios»;
+   - en el menú: Gemelo digital, Fusión de sensores, Respiración, Variabilidad cardiaca, Pacientes y Taller 3D;
+   - sin «AI» ni «OS» en el título de la pestaña ni en «Acerca de».
+4. **Logo e íconos**:
+   - `st.logo` con el logotipo y el isotipo; el favicon es el del kit.
+   - El manual pide «sin emoji ni librerías genéricas de íconos»: el menú ya no usa íconos Material, y los íconos dibujados del kit los pone el CSS junto a cada página que tiene uno.
+   - El menú lateral va en píldoras.
+5. **Inicio**:
+   - logo y lema «Equivócate aquí.» en píldora, con el descriptor del manual;
+   - el monitoreo lleva a cada valor su sello de procedencia (`PROVENANCE_SEAL`) y una vista previa con la tira del kit (registro real MIT-BIH 100, con su rótulo), que enlaza al laboratorio de ECG completo;
+   - al bajar, el logo y los signos suben a una barra compacta. Es una animación ligada al scroll, solo CSS; sin soporte o con movimiento reducido, la barra se queda visible;
+   - el gemelo lleva como dibujo acompañante el ícono del órgano;
+   - una sola tira por vista (manual, p. 19): el registro del órgano se queda en «Hallazgos» de Temas.
+6. **Temas**: dibujo acompañante en la explicación, chips con sello, y la retroalimentación del quiz con la regla de marca («✓ Correcto.» en Núcleo y «↻ Todavía no.» en tinta-2).
+7. **Lema**: el boceto decía «Entrena aquí», pero el manual fija «Equivócate aquí.». Queda el del manual; cambiarlo es decisión de marca.
+
 ## 2026-11-17 · Rediseño Duolingo + Apple: Inicio como tablero, «Temas» y «Comparar pacientes»
 
 **Contexto**: bocetos de José Miguel sobre capturas de Duolingo y de apple.com. Rama `ui-inicio-temas-comparar`, apilada sobre `pasaporte-evidencia` (PR #9).
