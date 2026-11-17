@@ -9,9 +9,9 @@
 **N1 · Para qué sirve NEWS2**
 ¿Para qué sirve NEWS2?
 - ✅ Para estandarizar cómo se registran, puntúan y atienden las constantes vitales, y detectar el deterioro agudo
-- Para diagnosticar la causa del deterioro de un paciente
-- Para sustituir la valoración de un clínico
-- Para medir la saturación de oxígeno sin pulsioxímetro
+- Para diagnosticar la causa del deterioro de un paciente a partir de sus constantes vitales y de su historia clínica
+- Para sustituir la valoración de un clínico cuando las constantes vitales se registran de forma automática en la sala
+- Para medir la saturación de oxígeno sin pulsioxímetro, a partir de la frecuencia respiratoria y del pulso del paciente
 
 *Explicación:* NEWS2 es una puntuación agregada que estandariza cómo se registran, puntúan y atienden las constantes vitales para detectar el deterioro agudo [RCP2017].
 *Línea firmada:* t1:91 — «**Idea.** NEWS2 es una puntuación agregada que estandariza cómo se registran, puntúan y atienden las constantes vitales para detectar el deterioro agudo [RCP2017].»
@@ -21,9 +21,9 @@
 **N2 · Los parámetros**
 ¿Cuántos parámetros puntúa NEWS2?
 - ✅ Seis: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión nueva, y temperatura
-- Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura
-- Cinco: los mismos seis, sin la temperatura
-- Tres: pulso, presión arterial y SpO₂
+- Cuatro: frecuencia respiratoria, SpO₂, pulso y temperatura; la presión arterial y la consciencia se anotan aparte, sin puntos
+- Cinco: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso y nivel de consciencia o confusión nueva, sin temperatura
+- Tres: pulso, presión arterial sistólica y SpO₂; la frecuencia respiratoria, la consciencia y la temperatura solo se describen
 
 *Explicación:* puntúa seis parámetros: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión nueva, y temperatura [RCP2017].
 *Línea firmada:* t1:94 — «- Puntúa seis parámetros: frecuencia respiratoria, SpO₂, presión arterial sistólica, pulso, nivel de consciencia o confusión nueva, y temperatura. Se suman 2 puntos si el paciente recibe oxígeno suplementario.»
@@ -45,9 +45,9 @@ Si el paciente recibe oxígeno suplementario, ¿qué pasa con su NEWS2?
 **N4 · Pulso de 120 lpm**
 En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?
 - ✅ 2 puntos (tramo de 111 a 130 lpm)
-- 0 puntos
-- 1 punto
-- 3 puntos
+- 0 puntos (tramo de 51 a 90 lpm)
+- 1 punto (tramo de 91 a 110 lpm)
+- 3 puntos (tramo de 131 lpm o más alto)
 
 *Explicación:* en la escala NEWS2, el pulso puntúa: ≤40 lpm, 3 puntos; 41–50, 1; 51–90, 0; 91–110, 1; 111–130, 2; ≥131, 3 [RCP2017].
 *Línea firmada:* t1:35 — «**Detalle con fuente.** En la escala NEWS2, el pulso puntúa: ≤40 lpm, 3 puntos; 41–50, 1; 51–90, 0; 91–110, 1; 111–130, 2; ≥131, 3 [RCP2017]. (Ya implementado en `news2_pulse_score`.)»
@@ -58,9 +58,9 @@ En NEWS2, ¿cuántos puntos da un pulso de 120 lpm?
 **N5 · Pulso de 45 lpm**
 En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?
 - ✅ 1 punto (tramo de 41 a 50 lpm)
-- 0 puntos
-- 2 puntos
-- 3 puntos
+- 0 puntos (tramo de 51 a 90 lpm)
+- 2 puntos (tramo de 111 a 130 lpm)
+- 3 puntos (tramo de 40 lpm o menos)
 
 *Explicación:* la misma tabla de N4 [RCP2017].
 *Línea firmada:* t1:35 (la misma de N4).
@@ -71,9 +71,9 @@ En NEWS2, ¿cuántos puntos da un pulso de 45 lpm?
 **N6 · Un 3 en un solo parámetro**
 ¿Qué significa un 3 en un solo parámetro de NEWS2?
 - ✅ Es poco frecuente y motiva una revisión urgente
-- Nada mientras el total sea bajo
-- Que el paciente recibe oxígeno suplementario
-- Que hay que usar la escala 2 de SpO₂
+- Nada, mientras el total de NEWS2 siga en el tramo bajo, de 1 a 4 puntos
+- Que el paciente recibe oxígeno suplementario y por eso se le suman puntos
+- Que a partir de ahí hay que usar la escala 2 de SpO₂ en vez de la escala 1
 
 *Explicación:* un 3 en un solo parámetro (marcado en rojo) es poco frecuente y motiva una revisión urgente [RCP2017].
 *Línea firmada:* t1:96 — «- Un 3 en un solo parámetro (marcado en rojo) es poco frecuente y motiva una revisión urgente.»
@@ -96,9 +96,9 @@ Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?
 **N8 · Escala 2 de SpO₂**
 ¿Cuándo se usa la escala 2 de SpO₂ de NEWS2?
 - ✅ En insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo indicación de un clínico
-- Siempre que la SpO₂ baje de 92 %
-- En todo paciente que recibe oxígeno suplementario
-- Nunca: NEWS2 tiene una sola escala de SpO₂
+- Siempre que la SpO₂ baje de 92 % en cualquier paciente adulto, sin necesidad de un diagnóstico previo ni de indicación de un clínico
+- En todo paciente que recibe oxígeno suplementario, para que esos 2 puntos extra no se cuenten dos veces dentro del total de NEWS2
+- Nunca: NEWS2 tiene una sola escala de SpO₂ para todos los pacientes, con o sin insuficiencia respiratoria hipercápnica confirmada
 
 *Explicación:* la escala 2 de SpO₂ se usa en insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo indicación de un clínico. En los demás casos se usa la escala 1 [RCP2017].
 *Línea firmada:* t1:100 — «- La escala 2 de SpO₂ se usa en insuficiencia respiratoria hipercápnica confirmada (por lo general EPOC), con objetivo de 88–92 %, bajo indicación de un clínico. En los demás casos se usa la escala 1.»
@@ -108,9 +108,9 @@ Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?
 **N9 · Por qué BIOCORE no da el total**
 ¿Por qué BIOCORE muestra los puntos de cada parámetro de NEWS2 y no el total?
 - ✅ Porque el gemelo no dispone de presión arterial en todos los casos y no modela temperatura ni consciencia: un total sería falso
-- Porque el total de NEWS2 no tiene utilidad clínica
-- Porque el total solo se calcula en pacientes con oxígeno suplementario
-- Porque el total requiere un electrocardiograma de 12 derivaciones
+- Porque el total de NEWS2 no tiene utilidad clínica y solo se deben mirar los puntos de cada parámetro por separado, uno por uno
+- Porque el total solo se calcula en pacientes que reciben oxígeno suplementario, y en ningún caso del gemelo se simula el oxígeno
+- Porque el total requiere un electrocardiograma de 12 derivaciones completo, además de las seis constantes vitales del paciente
 
 *Explicación:* el gemelo no dispone de presión arterial en todos los casos, y no modela temperatura ni consciencia. Sin esos parámetros, un total sería falso; por eso la plataforma muestra los puntos de cada parámetro disponible y lista lo que falta.
 *Línea firmada:* t1:101 — «- **Por qué BIOCORE no calcula el total:** el gemelo no dispone de presión arterial en todos los casos, y no modela temperatura ni consciencia. Sin esos parámetros, un total sería falso; por eso la plataforma muestra los puntos de cada parámetro disponible y lista lo que falta.»
@@ -140,4 +140,4 @@ Un total de NEWS2 de 5 o 6 (riesgo medio), ¿qué respuesta indica?
 | N8 | t1:100 | ☑ firmado (17-11-2026) |
 | N9 | t1:101 | ☑ firmado (17-11-2026) |
 
-**Observación para una revisión futura (no cambia lo firmado):** en N1, N2, N8 y N9 la opción correcta es la más larga; los bancos de EMG y HRV cuidan que eso pase en 40 % de las preguntas o menos, para que la longitud no delate la respuesta.
+**Corrección de la observación (17-11-2026, a pedido de Luis: «resuelve lo de la observación del banco»):** en N1, N2, N4, N5, N6, N8 y N9 la opción correcta era la más larga y la longitud podía delatarla (la observación original contó solo cuatro). Se alargaron solo los distractores de esas siete preguntas; en N4 y N5 cada distractor nombra el tramo de la tabla firmada que le corresponde (t1:35), que no es el del pulso de la pregunta (siguen siendo falsos según su línea firmada); ninguna respuesta correcta ni explicación cambió. Ahora en ninguna de las 9 la correcta es la más larga; `tests/test_banco_news2.py` lo vigila.

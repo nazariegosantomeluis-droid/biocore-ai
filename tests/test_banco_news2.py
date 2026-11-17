@@ -104,3 +104,10 @@ def test_en_el_codigo_estan_exactamente_los_ids_firmados():
     src = (ROOT / "educational/quiz_bank.py").read_text(encoding="utf-8")
     ids = re.findall(r"QuizQuestion\(\s*#\s*(N\d+) ·", src)
     assert ids == [f"N{i}" for i in range(1, 10)]
+
+
+def test_la_correcta_no_es_la_opcion_mas_larga():
+    """Observación del 17-11-2026, corregida a pedido de Luis: la longitud no debe delatar la respuesta."""
+    for q in NEWS2_QUESTIONS:
+        assert max(q.choices, key=len) != q.choices[q.answer], q.prompt
+        assert len(set(q.choices)) == 4
