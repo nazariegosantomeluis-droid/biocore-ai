@@ -4,7 +4,7 @@ El alumno elige un caso de una lista CERRADA, predice para cada salida si sube, 
 confianza (0–100) sin ver ningún número del motor. Al enviar, el motor de lazo cerrado de BIOCORE
 (`domain.physiology.hemodynamics.run_closed_loop`) se corre dos veces (basal e intervención) y la respuesta correcta
 es el SIGNO del cambio que calculó el motor. Cada predicción calificada se registra en la sesión
-(`app/utils/session_learning.py`, fuente "what_if", concepto "hemodinamica").
+(`app/utils/session_learning.py`, fuente "what_if", concepto "hemodinamica"), una sola vez por intento.
 
 Qué intervenciones hay, y por qué solo esas (Art. I, sin tocar `domain/`):
 - `run_closed_loop(scenario, heart_rate_bpm)` solo deja variar la frecuencia cardiaca (barrido validado 40–220 lpm)
@@ -28,6 +28,7 @@ from typing import Dict, Optional, Tuple
 import streamlit as st
 
 PROVENANCE = "calculado por el motor de lazo cerrado de BIOCORE"
+GRADED_AGAINST = "Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real."
 
 # Criterio BIOCORE (HEURISTIC): por debajo de este cambio relativo respecto al valor basal, la salida cuenta como «sin
 # cambio». Sin cita: es un valor de ingeniería para separar el redondeo numérico de un cambio que se lee en pantalla.
@@ -124,11 +125,27 @@ def gradable(case: WhatIfCase, result: Dict[str, dict]) -> bool:
 
 
 _STATE = "what_if_state"
+# Registro una sola vez por intento (mismo criterio que `app/utils/confidence.py`): la marca es (intento, caso) y el
+# intento solo cambia con «Otra predicción». Volver a enviar el mismo caso sin pedir otro no registra de nuevo.
+_ATTEMPT = "what_if_attempt"
+_RECORDED = "what_if_recorded"
+
+
+def _log_once(case: WhatIfCase, result: Dict[str, dict], confidences: Dict[str, int]) -> None:
+    from app.utils.session_learning import log_session_answer
+
+    mark = (st.session_state.get(_ATTEMPT, 0), case.key)
+    recorded = st.session_state.setdefault(_RECORDED, set())
+    if mark in recorded:
+        return
+    for out_key, *_ in OUTPUTS:
+        log_session_answer(f"what_if:{case.key}:{out_key}", "what_if", "hemodinamica",
+                           result[out_key]["correct"], confidences[out_key])
+    recorded.add(mark)
 
 
 def render_what_if_page() -> None:
     from app.utils.design_system import BADGES, render_no_data
-    from app.utils.session_learning import log_session_answer
 
     st.caption(EXCLUDED_NOTE)
     labels = {c.key: c.label for c in CASES}
@@ -159,9 +176,7 @@ def render_what_if_page() -> None:
             state.update(submitted=True, predictions=predictions, confidences=confidences, result=result,
                          logged=gradable(case, result))
             if state["logged"]:
-                for out_key, *_ in OUTPUTS:
-                    log_session_answer(f"what_if:{case.key}:{out_key}", "what_if", "hemodinamica",
-                                       result[out_key]["correct"], confidences[out_key])
+                _log_once(case, result, confidences)
             st.rerun()
         return
 
@@ -183,6 +198,7 @@ def render_what_if_page() -> None:
     import pandas as pd
 
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.caption(GRADED_AGAINST)
     st.caption(f"Procedencia de los valores: {PROVENANCE} · {BADGES.label(BADGES.SIMULATION)}.")
     if state["logged"]:
         hits = sum(result[k]["correct"] for k, *_ in OUTPUTS)
@@ -201,4 +217,5 @@ def render_what_if_page() -> None:
         for k in [k for k in st.session_state if str(k).startswith(("what_if_pred_", "what_if_conf_"))]:
             del st.session_state[k]
         st.session_state.pop(_STATE, None)
+        st.session_state[_ATTEMPT] = st.session_state.get(_ATTEMPT, 0) + 1
         st.rerun()

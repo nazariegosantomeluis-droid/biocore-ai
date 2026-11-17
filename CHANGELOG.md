@@ -19,6 +19,8 @@
 - **Calificación**: la respuesta correcta es el signo del cambio que calculó el motor. Umbral de «sin cambio»: `NO_CHANGE_REL` = 2 % del valor basal, rotulado en la página como «Criterio BIOCORE (HEURISTIC)».
   - Ejemplo del motor: sano 72 → 50 lpm da PAM sin cambio (el reflejo la devuelve a su punto de ajuste), gasto baja y VS sube.
 - **Registro**: cada predicción calificada pasa por `log_session_answer("what_if:<caso>:<salida>", "what_if", "hemodinamica", correcto, confianza)`. Es el primer llamador de `session_learning`.
+  - Una sola vez por intento, con el criterio de `app/utils/confidence.py` (rama `calibracion-confianza`): la marca es (intento, caso) y el intento solo cambia con «Otra predicción». Salir del caso y volver a enviarlo sin pedir otro no registra de nuevo (prueba `test_resending_the_same_case_without_asking_for_another_is_not_logged_again`).
+- **Rótulo junto a la tabla del resultado** (procedencia, no fisiología): «Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real».
 - **Pruebas** (`tests/test_what_if.py`, 9):
   - con el motor sustituido por uno que da el signo contrario, la calificación se invierte;
   - antes de enviar el motor no se corre y no hay números;
@@ -28,6 +30,7 @@
   - toda la lista cerrada converge.
   - La navegación (`test_fase1_t1_navegacion.py`) incluye `what-if` en Practicar.
   - Resultado: 38 pasan (los dos archivos). Por instrucción no se corrió la suite completa.
+  - Tras el registro por intento y el rótulo: `test_what_if.py` + `test_docs_honest_tanda2.py` + `test_fase1_t2_pulido.py` = 55 pasan con el Python del PATH (3.13.11, Streamlit 1.67.0). Sin el guardia, la prueba nueva falla (6 registros en vez de 3).
 
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 

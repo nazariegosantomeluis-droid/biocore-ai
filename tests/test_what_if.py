@@ -135,11 +135,28 @@ def test_each_graded_prediction_is_logged_as_what_if_hemodinamica():
     assert [e["correct"] for e in log] == [expected[k]["correct"] for k, *_ in W.OUTPUTS]
 
 
+def test_resending_the_same_case_without_asking_for_another_is_not_logged_again():
+    """Una sola vez por intento: salir del caso y volver a enviarlo no registra; «Otra predicción» abre otro intento."""
+    first, second = W.CASES[0], W.CASES[1]
+    at = _predict_all(_open(), W.SAME)
+    assert len(at.session_state["session_learning_log"]) == 3
+    at.selectbox(key="what_if_case").set_value(second.key).run()
+    at.selectbox(key="what_if_case").set_value(first.key).run()
+    at = _predict_all(at, W.UP)                                                 # el mismo caso, otra vez
+    assert len(at.session_state["session_learning_log"]) == 3
+    next(b for b in at.button if b.label == "Otra predicción").click()
+    at.run()
+    at = _predict_all(at, W.SAME)                                               # intento nuevo: sí cuenta
+    log = at.session_state["session_learning_log"]
+    assert len(log) == 6 and {e["item_id"] for e in log[3:]} == {f"what_if:{first.key}:{k}" for k, *_ in W.OUTPUTS}
+
+
 # ── Procedencia y cadena del modelo, sin texto nuevo ───────────────────────────────────────────────────────────────
 def test_values_carry_their_provenance_and_the_chain_is_quoted_from_the_code():
     at = _predict_all(_open(), W.SAME)
     captions = " ".join(c.value for c in at.caption)
     assert W.PROVENANCE == "calculado por el motor de lazo cerrado de BIOCORE" and W.PROVENANCE in captions
+    assert "Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real" in captions
     chain = next(e for e in at.expander if e.label == "Cómo lo calcula el modelo")
     assert W.MODEL_CHAIN in " ".join(m.value for m in chain.markdown)
     src = " ".join(Path("domain/physiology/hemodynamics/closed_loop.py").read_text(encoding="utf-8").split())
