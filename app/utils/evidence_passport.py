@@ -17,7 +17,7 @@ from __future__ import annotations
 import html
 import importlib
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 import streamlit as st
 
@@ -219,7 +219,8 @@ def render_passport_body(view: PassportView) -> None:
         st.markdown(src.clave)
     if src.cita is not None:
         st.caption(f"Citada en `{src.cita.ubicacion}`")
-    nav.link("bibliografia", "Ver en la Bibliografía")
+    if src.referencia:                      # solo si la Bibliografía la lista
+        nav.link("bibliografia", "Ver en la Bibliografía")
 
 
 def render_evidence_passport(campo: str, valor: Any, procedencia: Any = None, key: Optional[str] = None) -> None:
@@ -230,7 +231,3 @@ def render_evidence_passport(campo: str, valor: Any, procedencia: Any = None, ke
     with st.popover(f"Evidencia: {view.etiqueta}", key=key or f"passport_{campo}"):
         render_passport_body(view)
 
-
-def rendered_sections(view: PassportView) -> Tuple[str, ...]:
-    """Los apartados que el pasaporte dibuja (siempre todos, en orden): para las pruebas."""
-    return SECTIONS

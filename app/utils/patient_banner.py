@@ -145,12 +145,9 @@ def render_active_patient_banner() -> None:
             unsafe_allow_html=True,
         )
         # Pasaporte de evidencia (2026-11-17): un botón por valor; el tipo de dato sale de la procedencia guardada.
-        cols = st.columns(len(VITALS) + 1)
-        for col, (key, _label, _domain, _name) in zip(cols, VITALS):
+        for col, (key, _label, _domain, _name) in zip(st.columns(len(VITALS)), VITALS):
             with col:
                 render_evidence_passport(PASSPORT_FIELDS[key], _passport_value(vitals.values[key]),
                                          procedencia=getattr(vitals.values[key], "provenance", None))
-        with cols[-1]:
-            render_evidence_passport("banner.fuente_activa", active_source_label())
         st.caption("Último estado guardado en el UPS de esta sesión; un laboratorio lo actualiza con «Guardar estado "
                    "al gemelo». Valores simulados no son mediciones de un paciente.")

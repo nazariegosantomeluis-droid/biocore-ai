@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-17 · Pasaporte de evidencia y «Tu aprendizaje en esta sesión»
+
+**Contexto (Art. I)**: el estudiante ve un valor (en el banner del paciente activo, en Calculadoras, en el gemelo) y no tiene a la mano de dónde sale. Rama `pasaporte-evidencia`, creada desde `Integration` (banner del paciente activo) con `main` fusionada (contrato `session_learning`). Paso 0: 2318 pasan, 8 omitidas, 0 fallan.
+
+1. **Registro** (`app/utils/evidence_registry.py`): campo → qué lo produce, procedencia, regla o ecuación, supuestos, lo no modelado y fuente, cada uno como cita literal con `archivo:línea`. Lo armó una extracción de solo lectura: copia lo que ya estaba escrito y deja `None` donde el repositorio no dice nada. Una prueba busca cada cita en su archivo.
+2. **Pasaporte** (`app/utils/evidence_passport.py`): `render_evidence_passport(campo, valor)` abre un popover con siete apartados fijos. Un apartado sin cita dice «no documentado». El tipo de dato (medido, simulado, estimado, inferido por IA, desconocido) sale de la procedencia con la tabla `PROVENANCE_TYPE`; ninguna procedencia del UPS es «inferido por IA», porque el narrador explica valores y no los produce.
+3. **Dónde está**: banner del paciente activo (FC, FR, SpO₂ con la procedencia que guardó el UPS, y la fuente activa) y Calculadoras (una línea en `_card()` y una en los puntos NEWS2 del paciente). Las tarjetas del gemelo tienen su registro, pero colocar el botón toca `twin_shell/`, que tiene otra dueña: las líneas van en la descripción del PR.
+4. **«Tu aprendizaje en esta sesión»** (Practicar, `mi-sesion`; `app/supermodules/session_learning_view.py`): lee `get_session_log()` sin modificar el contrato. Aciertos por concepto de los 8 de `CONCEPTS`, confianza promedio frente a acierto por tramos (0–49, 50–69, 70–89, 90–100) y puntaje de Brier en su forma binaria (de 0 a 1; la formulación original de Brier 1950 va de 0 a 2, `THIRD_PARTY_NOTICES.md`). El mensaje de exceso o falta de confianza aparece con 5 o más respuestas con confianza; su margen de 10 puntos lleva la etiqueta «Heurística». Sin respuestas no muestra ningún número. Aviso visible: «Se borra al cerrar la sesión; no se guarda ningún dato personal».
+5. **Entorno**: `lime` no compila en Python 3.13 en el entorno de la sesión; ningún archivo lo importa (CLAUDE.md), así que la suite corrió con el resto de `requirements.txt`.
+
 ## 2026-11-17 — Un mismo paciente entre laboratorios (rama `Integration`)
 
 **Contexto (Art. I)**: los estudiantes valoraron que BIOCORE sea «íntegro» (un solo UPS), pero al moverse entre laboratorios no se notaba que era el mismo paciente.
