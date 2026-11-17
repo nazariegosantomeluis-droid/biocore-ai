@@ -1,0 +1,559 @@
+{
+ "name": "Biocore",
+ "version": 1,
+ "color": {
+  "themes": [
+   {
+    "id": "monitor",
+    "name": "Monitor"
+   },
+   {
+    "id": "papel",
+    "name": "Papel"
+   }
+  ],
+  "tokens": [
+   {
+    "name": "fondo-pagina",
+    "value": {
+     "monitor": "#0f172a",
+     "papel": "#f7f9fb"
+    },
+    "usage": "Fondo de la app y de todo material. Monitor: la noche del monitor de cabecera (tema de la app). Papel: el papel de registro, para impresos, informes y documentos."
+   },
+   {
+    "name": "fondo-panel",
+    "value": {
+     "monitor": "#111d36",
+     "papel": "#ffffff"
+    },
+    "usage": "Láminas del Atlas, tarjetas de lectura y figuras sobre fondo-pagina."
+   },
+   {
+    "name": "fondo-consola",
+    "value": {
+     "monitor": "#1a2a4a",
+     "papel": "#edf2f7"
+    },
+    "usage": "Barra lateral, campos y fondo secundario de los controles (secondaryBackgroundColor de Streamlit)."
+   },
+   {
+    "name": "fondo-vidrio",
+    "value": {
+     "monitor": "#0b1426",
+     "papel": "#ffffff"
+    },
+    "usage": "Fondo de la tira de monitor: el vidrio del monitor en Monitor, el papel milimétrico en Papel."
+   },
+   {
+    "name": "tinta-titulo",
+    "value": {
+     "monitor": "#f1f5ff",
+     "papel": "#0f172a"
+    },
+    "usage": "Títulos (h1–h3, display) y la parte 'iocore' del logotipo. Legible en los cuatro fondos de ambos temas (≥ 13:1)."
+   },
+   {
+    "name": "tinta-1",
+    "value": {
+     "monitor": "#e0e7ff",
+     "papel": "#1b2537"
+    },
+    "usage": "Texto principal sobre fondo-pagina, fondo-panel, fondo-consola y fondo-vidrio (≥ 11.5:1 en ambos temas)."
+   },
+   {
+    "name": "tinta-2",
+    "value": {
+     "monitor": "#b6c2e2",
+     "papel": "#3c4a63"
+    },
+    "usage": "Texto secundario, subtítulos y pies de figura, sobre los cuatro fondos (≥ 7.9:1)."
+   },
+   {
+    "name": "tinta-3",
+    "value": {
+     "monitor": "#94a3c8",
+     "papel": "#56647d"
+    },
+    "usage": "Rótulos terciarios, migas de pan, fuentes citadas y rótulo de la tira, sobre los cuatro fondos (≥ 5.3:1)."
+   },
+   {
+    "name": "borde",
+    "value": {
+     "monitor": "#5d6b92",
+     "papel": "#7d8ba3"
+    },
+    "usage": "Borde de controles (borderColor de Streamlit). En Monitor da 3.39:1 sobre fondo-pagina pero 2.70:1 sobre fondo-consola: valor del código, conservado; un control en la barra lateral no se distingue solo por su borde."
+   },
+   {
+    "name": "borde-suave",
+    "value": {
+     "monitor": "rgba(148,163,209,0.18)",
+     "papel": "rgba(15,23,42,0.12)"
+    },
+    "usage": "Contorno de láminas, mosaicos y tarjetas: decorativo, nunca el único indicio de un control."
+   },
+   {
+    "name": "borde-dibujo",
+    "value": {
+     "monitor": "#5d6b92",
+     "papel": "#a3b1c6"
+    },
+    "usage": "Contornos tenues de ilustración y reglas finas. Solo decorativo, nunca texto."
+   },
+   {
+    "name": "trazo",
+    "value": {
+     "monitor": "#22d3ee",
+     "papel": "#0891b2"
+    },
+    "usage": "Color firma: la tinta de la señal (tira, láminas), la b del logotipo, el ícono de módulo y el elemento activo. Nunca como relleno grande ni como texto pequeño en Papel (3.27:1 mínimo)."
+   },
+   {
+    "name": "trazo-suave",
+    "value": {
+     "monitor": "#67e8f9",
+     "papel": "#0e7490"
+    },
+    "usage": "Texto e íconos de marca sobre fondo-pagina (12.32:1 en Monitor, 5.08:1 en Papel); texto del botón secundario al pasar el puntero."
+   },
+   {
+    "name": "trazo-resalte",
+    "value": {
+     "monitor": "rgba(34,211,238,0.14)",
+     "papel": "rgba(8,145,178,0.12)"
+    },
+    "usage": "Relleno de la parte seleccionada de una lámina (la onda P/QRS/T elegida) y fondo del mosaico de ícono."
+   },
+   {
+    "name": "nucleo",
+    "value": {
+     "monitor": "#099fbd",
+     "papel": "#0e7490"
+    },
+    "usage": "Controles primarios: botón primario, pestaña activa, slider, casilla marcada. El texto encima va en nucleo-sobre."
+   },
+   {
+    "name": "nucleo-sobre",
+    "value": {
+     "monitor": "#0f172a",
+     "papel": "#ffffff"
+    },
+    "usage": "Texto sobre un relleno nucleo: oscuro en Monitor (5.70:1), blanco en Papel (5.36:1). Nunca blanco sobre nucleo en Monitor."
+   },
+   {
+    "name": "enlace",
+    "value": {
+     "monitor": "#22d3ee",
+     "papel": "#0e7490"
+    },
+    "usage": "Enlaces de texto, subrayados con desfase de 2 px (≥ 4.76:1 en los cuatro fondos)."
+   },
+   {
+    "name": "foco",
+    "value": {
+     "monitor": "#22d3ee",
+     "papel": "#0e7490"
+    },
+    "usage": "Contorno de foco: 3 px sólido, desfase de 2 px, radio-8. ≥ 4.7:1 sobre todos los fondos de ambos temas."
+   },
+   {
+    "name": "reticula-menor",
+    "value": {
+     "monitor": "rgba(34,211,238,0.07)",
+     "papel": "rgba(8,145,178,0.10)"
+    },
+    "usage": "Línea de 1 mm del papel milimétrico (tira, láminas, portadas). Textura, nunca información."
+   },
+   {
+    "name": "reticula-mayor",
+    "value": {
+     "monitor": "rgba(34,211,238,0.16)",
+     "papel": "rgba(8,145,178,0.22)"
+    },
+    "usage": "Línea de 5 mm del papel milimétrico."
+   },
+   {
+    "name": "estado-estable",
+    "value": {
+     "monitor": "#39d98a",
+     "papel": "#147a3a"
+    },
+    "usage": "RESERVADO: estado clínico estable. Siempre con su palabra ('Estable'); nunca decorativo, nunca en ilustraciones ni materiales de marca. Estable y crítico se distinguen por el rótulo, no por el color (1.79:1 entre sí)."
+   },
+   {
+    "name": "estado-alerta",
+    "value": {
+     "monitor": "#ffc542",
+     "papel": "#975b06"
+    },
+    "usage": "RESERVADO: estado clínico de alerta. Siempre con su palabra; nunca decorativo."
+   },
+   {
+    "name": "estado-critico",
+    "value": {
+     "monitor": "#ff4d4d",
+     "papel": "#c81e1e"
+    },
+    "usage": "RESERVADO: estado clínico crítico. Siempre con su palabra. En Monitor da 4.36:1 sobre fondo-consola: úsalo ahí en texto ≥ 19 px negritas o en insignias, no en letra pequeña."
+   },
+   {
+    "name": "estado-neutral",
+    "value": {
+     "monitor": "#64748b",
+     "papel": "#5e6e85"
+    },
+    "usage": "Estado apagado o sin dato (punto de estado, 'No disponible'). En Monitor da 3.75:1: solo para elementos grandes o con rótulo, nunca texto de lectura."
+   },
+   {
+    "name": "serie-1",
+    "value": {
+     "monitor": "#3987e5",
+     "papel": "#2a78d6"
+    },
+    "usage": "Serie 1 de gráficos (azul), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre. Validada con la skill de dataviz: CVD ΔE adyacente ≥ 8.4 (Monitor) / 9.1 (Papel), visión normal ≥ 19.3."
+   },
+   {
+    "name": "serie-2",
+    "value": {
+     "monitor": "#d95926",
+     "papel": "#eb6834"
+    },
+    "usage": "Serie 2 de gráficos (naranja), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre."
+   },
+   {
+    "name": "serie-3",
+    "value": {
+     "monitor": "#199e70",
+     "papel": "#1baf7a"
+    },
+    "usage": "Serie 3 de gráficos (aqua), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre. En Papel queda bajo 3:1 sobre el fondo: rótulo directo visible o vista de tabla."
+   },
+   {
+    "name": "serie-4",
+    "value": {
+     "monitor": "#c98500",
+     "papel": "#eda100"
+    },
+    "usage": "Serie 4 de gráficos (amarillo), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre. En Papel queda bajo 3:1 sobre el fondo: rótulo directo visible o vista de tabla."
+   },
+   {
+    "name": "serie-5",
+    "value": {
+     "monitor": "#d55181",
+     "papel": "#e87ba4"
+    },
+    "usage": "Serie 5 de gráficos (magenta), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre. En Papel queda bajo 3:1 sobre el fondo: rótulo directo visible o vista de tabla."
+   },
+   {
+    "name": "serie-6",
+    "value": {
+     "monitor": "#008300",
+     "papel": "#008300"
+    },
+    "usage": "Serie 6 de gráficos (verde), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre."
+   },
+   {
+    "name": "serie-7",
+    "value": {
+     "monitor": "#9085e9",
+     "papel": "#6250d6"
+    },
+    "usage": "Serie 7 de gráficos (violeta), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre."
+   },
+   {
+    "name": "serie-8",
+    "value": {
+     "monitor": "#e66767",
+     "papel": "#e34948"
+    },
+    "usage": "Serie 8 de gráficos (rojo), siempre en este orden y nunca ciclada; con 2+ series, leyenda siempre."
+   }
+  ]
+ },
+ "type": {
+  "fonts": [
+   {
+    "family": "Figtree",
+    "file": "fonts/figtree-latin-wght-normal.woff2",
+    "weight": "300 900",
+    "style": "normal"
+   },
+   {
+    "family": "Figtree Ext",
+    "file": "fonts/figtree-latin-ext-wght-normal.woff2",
+    "weight": "300 900",
+    "style": "normal"
+   },
+   {
+    "family": "Noto Sans",
+    "file": "fonts/noto-sans-latin-wght-normal.woff2",
+    "weight": "100 900",
+    "style": "normal"
+   },
+   {
+    "family": "Noto Sans",
+    "file": "fonts/noto-sans-latin-wght-italic.woff2",
+    "weight": "100 900",
+    "style": "italic"
+   },
+   {
+    "family": "Noto Sans Griego",
+    "file": "fonts/noto-sans-greek-wght-normal.woff2",
+    "weight": "100 900",
+    "style": "normal"
+   }
+  ],
+  "families": {
+   "titulo": "Figtree, \"Figtree Ext\", \"Noto Sans\", \"Noto Sans Griego\", \"Segoe UI\", system-ui, sans-serif",
+   "texto": "\"Noto Sans\", \"Noto Sans Griego\", \"Segoe UI\", system-ui, sans-serif"
+  },
+  "groups": [
+   {
+    "name": "Titulares",
+    "family": "titulo",
+    "styles": [
+     {
+      "name": "display",
+      "fontSize": "56px",
+      "lineHeight": 1.05,
+      "fontWeight": 700,
+      "letterSpacing": "-0.02em",
+      "sample": "Equivócate aquí.",
+      "usage": "Portadas, posts y carteles. Nunca dentro de la app."
+     },
+     {
+      "name": "h1",
+      "fontSize": "36px",
+      "lineHeight": 1.15,
+      "fontWeight": 700,
+      "letterSpacing": "-0.01em",
+      "sample": "Electrocardiograma",
+      "usage": "El único h1 de cada vista: el nombre del módulo en su encabezado."
+     },
+     {
+      "name": "h2",
+      "fontSize": "24px",
+      "lineHeight": 1.25,
+      "fontWeight": 700,
+      "sample": "Intervalos medidos sobre el latido",
+      "usage": "Secciones de una vista; título de diapositiva."
+     },
+     {
+      "name": "h3",
+      "fontSize": "21px",
+      "lineHeight": 1.3,
+      "fontWeight": 600,
+      "sample": "Variabilidad de la frecuencia cardiaca",
+      "usage": "Subsecciones."
+     },
+     {
+      "name": "h4",
+      "fontSize": "18px",
+      "lineHeight": 1.35,
+      "fontWeight": 600,
+      "sample": "Ritmo sinusal normal",
+      "usage": "Encabezados de grupo dentro de una sección."
+     },
+     {
+      "name": "titulo-lamina",
+      "fontSize": "18px",
+      "lineHeight": 1.3,
+      "fontWeight": 700,
+      "sample": "Siete latidos normales",
+      "usage": "Título de lámina del Atlas y de tarjetas."
+     },
+     {
+      "name": "h5",
+      "fontSize": "16px",
+      "lineHeight": 1.4,
+      "fontWeight": 600,
+      "sample": "Derivación MLII",
+      "usage": "Encabezados menores."
+     },
+     {
+      "name": "h6",
+      "fontSize": "14px",
+      "lineHeight": 1.4,
+      "fontWeight": 600,
+      "sample": "Fuente",
+      "usage": "Rótulos de bloque."
+     },
+     {
+      "name": "lectura",
+      "fontSize": "36px",
+      "lineHeight": 1.1,
+      "fontWeight": 600,
+      "sample": "74 lpm",
+      "usage": "Valores medidos o calculados en tarjetas de lectura. Siempre con font-variant-numeric: tabular-nums y su unidad."
+     }
+    ]
+   },
+   {
+    "name": "Texto",
+    "family": "texto",
+    "styles": [
+     {
+      "name": "cuerpo",
+      "fontSize": "16px",
+      "lineHeight": 1.55,
+      "fontWeight": 400,
+      "sample": "Cada dato declara su procedencia.",
+      "usage": "Texto corrido y subtítulo de módulo (máx. 72 caracteres por línea)."
+     },
+     {
+      "name": "cuerpo-lamina",
+      "fontSize": "15px",
+      "lineHeight": 1.55,
+      "fontWeight": 400,
+      "sample": "Las R son las anotaciones de los cardiólogos.",
+      "usage": "Pie de lámina y explicación de figuras."
+     },
+     {
+      "name": "secundario",
+      "fontSize": "14px",
+      "lineHeight": 1.4,
+      "fontWeight": 400,
+      "sample": "Laboratorios › ECG",
+      "usage": "Migas de pan, leyendas de gráfico, texto de apoyo."
+     },
+     {
+      "name": "leyenda",
+      "fontSize": "13px",
+      "lineHeight": 1.45,
+      "fontWeight": 400,
+      "sample": "Registro real: MIT-BIH 100, MLII",
+      "usage": "Fuente de la tira, notas de mosaico, citas."
+     },
+     {
+      "name": "chip",
+      "fontSize": "12px",
+      "lineHeight": 1.5,
+      "fontWeight": 500,
+      "sample": "Registro real",
+      "usage": "Sellos de procedencia y chips."
+     },
+     {
+      "name": "micro",
+      "fontSize": "11px",
+      "lineHeight": 1.35,
+      "fontWeight": 400,
+      "sample": "Simulación",
+      "usage": "Solo rótulos de 1–3 palabras bajo una tarjeta de órgano."
+     }
+    ]
+   }
+  ]
+ },
+ "spacing": {
+  "tokens": [
+   {
+    "name": "esp-4",
+    "value": "4px",
+    "usage": "Separación mínima: entre ícono y texto de un sello, bajo el encabezado."
+   },
+   {
+    "name": "esp-6",
+    "value": "6px",
+    "usage": "Bajo las migas de pan; separación vertical en leyendas."
+   },
+   {
+    "name": "esp-8",
+    "value": "8px",
+    "usage": "Filas de estado; entre título y subtítulo; entre sellos."
+   },
+   {
+    "name": "esp-10",
+    "value": "10px",
+    "usage": "Padding interno de mosaicos."
+   },
+   {
+    "name": "esp-12",
+    "value": "12px",
+    "usage": "Gap de mosaicos y del bloque de marca; padding de lámina en móvil."
+   },
+   {
+    "name": "esp-14",
+    "value": "14px",
+    "usage": "Gap entre ícono y h1; padding superior de lámina; margen sobre la tira."
+   },
+   {
+    "name": "esp-16",
+    "value": "16px",
+    "usage": "Padding lateral de lámina y de tarjetas de lectura."
+   },
+   {
+    "name": "esp-18",
+    "value": "18px",
+    "usage": "Separación entre láminas; gap horizontal de leyenda."
+   },
+   {
+    "name": "esp-24",
+    "value": "24px",
+    "usage": "Entre secciones de una vista; margen interior mínimo de un material."
+   },
+   {
+    "name": "esp-32",
+    "value": "32px",
+    "usage": "Márgenes de diapositivas y tarjetas grandes."
+   },
+   {
+    "name": "esp-48",
+    "value": "48px",
+    "usage": "Márgenes de posts y portadas."
+   },
+   {
+    "name": "esp-64",
+    "value": "64px",
+    "usage": "Margen exterior de carteles; espacio sobre un titular display."
+   }
+  ]
+ },
+ "radius": {
+  "tokens": [
+   {
+    "name": "radio-8",
+    "value": "8px",
+    "usage": "Contorno de foco; tarjetas de lectura."
+   },
+   {
+    "name": "radio-10",
+    "value": "10px",
+    "usage": "Botones y campos (baseRadius de Streamlit, 0.625rem) y la tira de monitor."
+   },
+   {
+    "name": "radio-12",
+    "value": "12px",
+    "usage": "Mosaicos, ícono de módulo, contenedor de render 3D."
+   },
+   {
+    "name": "radio-14",
+    "value": "14px",
+    "usage": "Láminas del Atlas."
+   },
+   {
+    "name": "radio-18",
+    "value": "18px",
+    "usage": "Tarjetas de órgano del gemelo."
+   },
+   {
+    "name": "radio-pildora",
+    "value": "999px",
+    "usage": "Sellos de procedencia y chips."
+   }
+  ]
+ },
+ "shadow": {
+  "note": "Biocore es plano: sin sombras proyectadas. Solo un anillo interior.",
+  "tokens": [
+   {
+    "name": "anillo-trazo",
+    "value": {
+     "monitor": "inset 0 0 0 1px rgba(34,211,238,0.22)",
+     "papel": "inset 0 0 0 1px rgba(8,145,178,0.30)"
+    },
+    "usage": "Anillo interior del ícono de módulo y del mosaico activo."
+   }
+  ]
+ }
+}

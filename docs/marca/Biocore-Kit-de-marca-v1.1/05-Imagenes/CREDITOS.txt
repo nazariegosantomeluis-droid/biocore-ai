@@ -1,0 +1,31 @@
+﻿RENDERS DE ANATOMÍA · CRÉDITOS
+
+Cada imagen es anatomía reconstruida de datos reales. Cuando publiques una,
+pon su crédito a la vista, en tamaño leyenda.
+
+biocore-render-corazon.png
+biocore-render-corazon-grande.png
+biocore-render-pulmones.png
+biocore-render-musculo.png
+biocore-render-medula-espinal.png
+biocore-render-cuerpo-completo.png
+  Fuente: tomografía real de cuerpo completo, TotalSegmentator dataset v2,
+  sujeto s1397.
+  Artículo: Wasserthal J. et al. TotalSegmentator: Robust Segmentation of
+  104 Anatomic Structures in CT Images. Radiology: Artificial Intelligence,
+  2023.
+  Licencia: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Puedes usarlas, también en piezas comerciales, si das el crédito.
+  Crédito corto: Anatomía real: TotalSegmentator v2, CC BY 4.0
+
+biocore-render-cerebro.png
+  Fuente: plantilla MNI ICBM 152 2009a.
+  Artículos: Fonov V. et al., NeuroImage, 2009 y 2011.
+  Aviso: Copyright (C) 1993-2009 Louis Collins, McConnell Brain Imaging
+  Centre, Montreal Neurological Institute, McGill University. La licencia
+  de la plantilla pide conservar este aviso en todas las copias.
+  Crédito corto: Cerebro: plantilla MNI ICBM 152 2009a, McConnell Brain
+  Imaging Centre
+
+Los PNG tienen fondo transparente. Se ven mejor sobre Monitor (#0f172a)
+con un halo radial más claro al centro (#1a2a4a).

@@ -1,0 +1,24 @@
+﻿SEÑALES REALES · FUENTES
+
+Tira (biocore-tira-ecg-*, biocore-trazo-ecg-solo-*)
+  Registro 100 de la MIT-BIH Arrhythmia Database, derivación MLII,
+  segundos 7 a 19. Escala real: 25 mm/s y 5 mm/mV (1 mm = 6 px).
+  PhysioNet · Open Data Commons Attribution License 1.0.
+  Cita: Moody G. B., Mark R. G. The impact of the MIT-BIH Arrhythmia
+  Database. IEEE Engineering in Medicine and Biology, 2001.
+  Rótulo para piezas: Registro real: MIT-BIH 100, MLII · PhysioNet, ODC-By 1.0
+
+Tira multisistema (biocore-tira-multisistema-*)
+  Registro 037 de la MIMIC Database: ECG (derivación MCL1), presión
+  arterial y respiración del mismo paciente, al mismo tiempo, segundos
+  10 a 18. Cada carril se escala a su propio alto.
+  PhysioNet · Open Data Commons Attribution License 1.0.
+  Cita: Moody G. B., Mark R. G. A database to support development and
+  evaluation of intelligent intensive care monitoring. Computers in
+  Cardiology, 1996.
+  Rótulo para piezas: Registro real: MIMIC 037 · PhysioNet, ODC-By 1.0
+
+PhysioNet pide citar también: Goldberger A. L. et al. PhysioBank,
+PhysioToolkit, and PhysioNet. Circulation, 2000.
+
+Pon el rótulo debajo de la tira, en tamaño leyenda, siempre que la publiques.
