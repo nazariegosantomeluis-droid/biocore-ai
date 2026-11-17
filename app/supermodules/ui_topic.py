@@ -218,7 +218,7 @@ def render_topic_page() -> None:
     topic = C.TOPIC_BY_KEY[topic_key]
     organ = C.ORGAN_BY_KEY[topic.organ]
 
-    st.markdown(f"<span class='bc-eyebrow'>{organ.label}</span><p class='bc-hero'>{topic.theory.title}</p>",
+    st.markdown(f"<span class='bc-eyebrow'>{organ.label}</span><div class='bc-hero'>{topic.theory.title}</div>",
                 unsafe_allow_html=True)
     chips = [f"<span class='bc-chip'><b>●</b> Teoría firmada{f' · {topic.theory.source}' if topic.theory.source else ''}</span>",
              f"<span class='bc-chip'><b>●</b> {'Registro real' if organ.recording else 'Sin registro real'}</span>",

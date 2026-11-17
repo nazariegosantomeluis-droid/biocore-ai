@@ -21,7 +21,7 @@ DESCRIPTOR_ES = {
     "heart_rate": "Frecuencia cardiaca", "respiratory_rate": "Frecuencia respiratoria", "spo2": "SpO₂",
     "news2_pulse_points": "Puntos NEWS2 del pulso", "news2_respiratory_rate_points": "Puntos NEWS2 de la FR",
     "news2_spo2_scale1_points": "Puntos NEWS2 de la SpO₂ (escala 1)", "hr_rr_ratio": "Razón FC:FR",
-    "systolic_bp": "Presión sistólica", "diastolic_bp": "Presión diastólica", "mean_arterial_pressure": "PAM",
+    "hrv": "HRV", "systolic_bp": "Presión sistólica", "diastolic_bp": "Presión diastólica", "mean_arterial_pressure": "PAM",
 }
 
 
@@ -231,7 +231,7 @@ def _render_clinical_card() -> None:
 def render_home_dashboard() -> None:
     from app.utils import navigation as nav
 
-    st.markdown("<span class='bc-eyebrow'>BIOCORE AI</span><p class='bc-hero'>Equivócate aquí.</p>",
+    st.markdown("<span class='bc-eyebrow'>BIOCORE AI</span><div class='bc-hero'>Equivócate aquí.</div>",
                 unsafe_allow_html=True)
     st.caption("Plataforma educativa de fisiología. El gemelo digital es una simulación y se declara como tal.")
     _render_monitor_strip()
