@@ -2553,6 +2553,14 @@ def render_learn_bibliography_page() -> None:
     render_bibliography_page()
 
 
+def render_learn_ask_page() -> None:
+    from app.supermodules.academia.ask import render_ask_biocore
+
+    render_module_header("Pregunta a BIOCORE", icon="💬",
+                         subtitle="Respuestas solo con la teoría firmada, cada afirmación con su fuente.")
+    render_ask_biocore()
+
+
 def render_practice_quiz_page() -> None:
     from app.supermodules.academia.pages import render_quiz_section
 
@@ -2602,6 +2610,7 @@ def _page_specs() -> list:
         ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
         ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
         ("Aprender", "bibliografia", "Bibliografía", "📚", render_learn_bibliography_page),
+        ("Aprender", "pregunta", "Pregunta a BIOCORE", "💬", render_learn_ask_page),
         ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
         ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
         ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),

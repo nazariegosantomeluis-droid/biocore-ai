@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-11-17 — Base de conocimiento de la IA: solo lo firmado, todo con cita
+
+**Contexto (Art. I)**: la IA de BIOCORE no se entrena; consulta una base verificada y cita lo que encuentra. Esta tanda crea esa base a partir de la teoría ya firmada.
+
+1. **`educational/knowledge_base.py`** (nuevo):
+   - Lee `docs/contenido/teoria_citada.md` y `teoria_citada_2.md` (`CORPUS`) y los parte en fragmentos (párrafo, viñeta o tabla) con tema, capa (idea, mecanismo, detalle) y claves de cita.
+   - Solo entran los documentos con «Estado: FIRMADO» y, dentro de ellos, los temas con ☑ en la hoja de firma. Un borrador no alimenta a la IA.
+   - Guarda también las «Decisiones de Luis» (capa `decision`) y las listas «Sin fuente verificada» (capa `sin_fuente`). Los comentarios sobre la propia plataforma («Por qué BIOCORE no calcula el total…», notas entre paréntesis) van como `nota`, sin heredar la cita del encabezado.
+   - Si un tema firmado tiene una afirmación sin cita o una clave que no está en su Bibliografía, no se construye nada (`BaseInvalidaError`).
+   - Índice SQLite FTS5 sin distinguir acentos en `data/local/conocimiento.db` (ignorado por git; se regenera con `python -m educational.knowledge_base`).
+   - `buscar()` devuelve los fragmentos con sus referencias completas; `contexto_para_ia()` arma el bloque para el modelo con las restricciones firmadas del tema. Sin fragmentos devuelve `None` y la respuesta es `NO_DISPONIBLE`, sin llamar al modelo.
+   - Resultado al construir: 107 fragmentos (46 de `teoria_citada.md`, 61 de `teoria_citada_2.md`) de 28 temas firmados, 18 referencias.
+2. **Aislamiento**: `tests/conftest.py` redirige `knowledge_base.DEFAULT_DB_PATH` a un archivo temporal, como ya se hace con la base del UPS y la de aprendizaje.
+3. **Pruebas de la base**: `tests/test_knowledge_base.py` (18). Verificado en un entorno sin `plotly` ni `fooof`: 17 pasan con `--noconftest`; el fixture de aislamiento se verificó aparte. Falta correr la suite completa en el intérprete de Luis.
+
+4. **`educational/citation_tutor.py`** (nuevo): conecta la base con el modelo SIN modificar `domain/` (reutiliza `resolve_model` y `check_provider_allows` del narrador).
+   - Sin fragmentos firmados devuelve `NO_DISPONIBLE` y no llama al modelo.
+   - `SYSTEM_PROMPT`: responder solo con los fragmentos, citar cada afirmación con su clave, decir qué falta en lugar de completarlo, respetar las restricciones de Luis y no dar indicaciones para una persona real.
+   - La pregunta es texto libre de una persona: su origen es DESCONOCIDO (`privacy.py`), así que el nivel gratuito de Gemini no la recibe. **Decisión para Luis:** confirmar o cambiar este criterio.
+   - `verificar_citas()`: una clave que el modelo no recibió, o una respuesta sin citas, se avisa en pantalla.
+   - `knowledge_base.asegurar_base()`: la base se reconstruye sola si falta o si cambió un documento firmado (compara el SHA-256 de cada uno).
+5. **Página «Pregunta a BIOCORE»** (`pregunta`, sección Aprender; `app/supermodules/academia/ask.py`): con o sin IA muestra los fragmentos firmados que responden a la pregunta; con IA, la explicación en streaming y los avisos de citas. `_page_specs()` pasa a 23 páginas: se actualizaron `tests/test_fase1_t1_navegacion.py` y `CLAUDE.md`.
+6. **Pruebas**: `tests/test_citation_tutor.py` (8) con un cliente simulado, sin red. Verificado aquí sin `anthropic`, `sqlalchemy` ni `streamlit` (cargando `privacy.py` y `errors.py` del narrador por separado): 24 pasan entre las dos pruebas nuevas; la prueba de la página (AppTest) se salta aquí y **falta correrla**, junto con la suite completa, en el intérprete de Luis.
+
+**Pendiente:** sinónimos para la búsqueda (hoy «electromiografía» no encuentra «EMG»); indexar los bancos de preguntas; probar con una clave real de Anthropic (aquí no se hizo ninguna llamada real).
+
 ## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
 
 **Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
