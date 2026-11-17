@@ -16,6 +16,13 @@
 5. **Pruebas** (`tests/test_guided_case.py`): cada texto que ve el estudiante (también desafíos, evidencias, resultados y la introducción) está en el documento firmado; cada t1:N existe literal en `teoria_citada.md`; el caso aparece en su página con el documento FIRMADO; el registro no se duplica al volver a dibujar. Se corrigió una fuga entre pruebas: la prueba de la pantalla firmada reasignaba `case_signed` en el módulo importado y la siguiente veía el caso «firmado»; ahora la firma se simula con `monkeypatch`.
 6. **Falla heredada de `base-conocimiento-ia`, corregida en la prueba:** `tests/test_respiratory_phase43.py` daba 3 errores ya en esa rama sola (en main, 0). Su recorrido tomaba como «respuesta» el primer radio del cuestionario de Respiratorio, que desde `207d924` es el de la confianza (se pide antes de responder), y le asignaba el texto formateado. El recorrido ahora salta el radio `_confidence` y vuelve a pasar por todas las respuestas; la app no cambia.
 
+## 2026-11-17 — Integración 1: bloque de firma textual del banco EMG/HRV y fixture de la auditoría respiratoria
+
+**Contexto.** Rama `integracion-1`: fusión de `origin/main` (PR #7, #8 y #10) y de `base-conocimiento-ia` (solo el merge del PR #6; sin diferencias de archivos).
+
+- **Firma (Art. I).** En `docs/contenido/banco_preguntas_emg_hrv.md`, «Firmo todo.» se sustituye por el bloque de firma textual de Luis del 17-11-2026: (1) E1–E10 y H1–H8 como quedan en la hoja v2; (2) `CONCEPT_BY_PROMPT` con «onda T normal» → `ritmo_y_conduccion`, la pericarditis fuera hoy, E1–E10 → `emg` y H1–H8 → `hrv`; (3) privacidad P1–P3. No se firman las [N] del apéndice, H10–H12, C1.2 ni los casos C1–C6. `tests/test_banco_emg_hrv.py` exige el bloque literal y que ya no diga «Firmo todo»; los comentarios de `quiz_bank.py` apuntan al bloque. Las entradas anteriores de este archivo que citan «Firmo todo.» son históricas.
+- **Fixture `lab_texts`** (`tests/test_respiratory_phase43.py`): el filtro de radios de respuesta excluye los de confianza (key que termina en `_confidence`), que la calibración agregó al cuestionario.
+
 ## 2026-11-17 — Residuos del PR #8 (2): la RSA sin Task Force y la Carga cognitiva sin Holm (Art. I)
 
 - **`src/signals/ecg/rsa.py`.**

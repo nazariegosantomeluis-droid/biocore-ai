@@ -1,4 +1,4 @@
-"""Bancos de EMG (E1–E10) y HRV (H1–H8), firmados por Luis el 2026-11-17 («Firmo todo»), y la privacidad de
+"""Bancos de EMG (E1–E10) y HRV (H1–H8), firmados por Luis el 2026-11-17 (bloque de firma del 17-11-2026), y la privacidad de
 «Pregunta a BIOCORE».
 
 - Cada pregunta en código coincide letra por letra con la hoja de firma v2 (E1, firmada «tal cual», con su versión v2 del
@@ -59,7 +59,9 @@ def _limpia(linea):
 # ── la firma ───────────────────────────────────────────────────────────────────────────────────────────────────────
 def test_the_bank_document_is_signed_with_luis_block_and_the_explicit_ids():
     assert "**Estado:** FIRMADO 2026-11-17" in BANCO
-    assert "> «Firmo todo.» — Luis Nazariego Santome, 17-11-2026." in BANCO
+    assert "> «Firmo, el 17 de noviembre de 2026, Luis Nazariego Santome:\n> (1) E1–E10 y H1–H8" in BANCO
+    assert "> No firmo hoy: las [N] del apéndice, H10–H12, C1.2 ni los casos C1–C6.»" in BANCO
+    assert "Firmo todo" not in BANCO
     assert ("**Lo que abarca la firma (IDs firmados):** " + ", ".join(SIGNED_IDS) + ".") in BANCO
     assert BANCO.count("**Firma de Luis:** ☑ firmo") == 18
     for part in ("# Parte 3.", "# Apéndice.", "# Decisiones para Luis"):
@@ -94,7 +96,13 @@ def test_each_question_matches_the_signed_sheet_letter_by_letter(qid):
 def test_each_explanation_is_a_substring_of_its_signed_t2_lines(qid):
     q = BANK[qid]
     if qid == "E1":
-        pytest.skip("E1 se firmó «tal cual» con la explicación de la v2, que resume t2:13 (ver la prueba anterior)")
+        # Excepción explícita, no una omisión: E1 se firmó «tal cual» en la hoja v2, cuya explicación resume t2:13 en
+        # vez de copiarla. Se exige que sea EXACTAMENTE la de la hoja. Allí va entre comillas dentro de una frase; la
+        # app la muestra como oración, con su punto final.
+        signed = re.search(r"^### E1 — FIRMAR TAL CUAL\n.*?la explicación de la v2 \(«([^»]+)»\)", HOJA, re.M | re.S)
+        assert signed, "la hoja v2 debe traer la explicación firmada de E1 entre «»"
+        assert q.explanation == signed.group(1) + ".", (q.explanation, signed.group(1))
+        return
     lines = _hoja(qid)["lines"]
     joined = " ".join(_limpia(T2[n - 1]) for n in lines)
     assert q.explanation in joined, (qid, lines)
