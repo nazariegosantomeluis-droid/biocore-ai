@@ -38,3 +38,17 @@ def _learning_db_aislada(tmp_path_factory):
         yield la.DEFAULT_DB_PATH
     finally:
         la.DEFAULT_DB_PATH = original
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _knowledge_db_aislada(tmp_path_factory):
+    """Lo mismo para la base de conocimiento de la IA (2026-11-17): las pruebas no reconstruyen
+    `data/local/conocimiento.db`."""
+    import educational.knowledge_base as kb
+
+    original = kb.DEFAULT_DB_PATH
+    kb.DEFAULT_DB_PATH = tmp_path_factory.mktemp("knowledge_suite") / "conocimiento_suite.db"
+    try:
+        yield kb.DEFAULT_DB_PATH
+    finally:
+        kb.DEFAULT_DB_PATH = original

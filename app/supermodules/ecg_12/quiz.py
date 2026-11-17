@@ -12,6 +12,7 @@ de la mejora continua (`app/utils/learning_log.py`), y cada pregunta tiene su ca
 
 import streamlit as st
 
+from app.utils.confidence import record_quiz_answer, render_confidence_input
 from app.utils.learning_log import log_answer, render_report_box, session_attempt
 from educational.quiz_bank import ECG12_QUESTIONS
 
@@ -32,9 +33,13 @@ def render_ecg12_quiz(key_prefix: str = "") -> None:
         "Respuesta:", current_question.display_choices(), index=None,
         key=f"{key_prefix}ecglab_12_quiz_{question_index}",
     )
+    # 2026-11-17: confianza opcional, antes de verificar (calibración; `app/utils/confidence.py`).
+    confidence = render_confidence_input(key=f"{key_prefix}ecglab_12_confidence_{question_index}")
 
     if st.button("Verificar respuesta", key=f"{key_prefix}ecglab_12_quiz_verify", disabled=selected_answer is None):
-        log_answer(BANK, current_question, selected_answer, session_attempt("ecglab_12_quiz_attempt"))
+        attempt = session_attempt("ecglab_12_quiz_attempt")
+        log_answer(BANK, current_question, selected_answer, attempt)
+        record_quiz_answer(BANK, current_question, selected_answer, confidence, attempt)
         if current_question.is_correct(selected_answer):
             st.success(f"✅ Correcto. {current_question.explanation}")
         else:

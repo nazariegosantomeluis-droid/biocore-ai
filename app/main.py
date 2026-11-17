@@ -2761,11 +2761,21 @@ def render_learn_bibliography_page() -> None:
     render_bibliography_page()
 
 
+def render_learn_ask_page() -> None:
+    from app.supermodules.academia.ask import render_ask_biocore
+
+    render_module_header("Pregunta a BIOCORE", icon="💬",
+                         subtitle="Respuestas solo con la teoría firmada, cada afirmación con su fuente.")
+    render_ask_biocore()
+
+
 def render_practice_quiz_page() -> None:
     from app.supermodules.academia.pages import render_quiz_section
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Quiz de la Academia", icon="✍️")
     render_quiz_section()
+    render_calibration_panel()
 
 
 def render_practice_blind_case_page() -> None:
@@ -2777,20 +2787,24 @@ def render_practice_blind_case_page() -> None:
 
 def render_practice_ecg_challenge_page() -> None:
     from app.supermodules.ecg_12.quiz import render_ecg12_quiz
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Desafío ECG de 12 derivaciones", icon="📋")
     render_ecg12_quiz(key_prefix="practicar_")
+    render_calibration_panel()
 
 
 def render_practice_lab_quizzes_page() -> None:
     from app.supermodules.eeg_neuro_lab.teaching import render_eeg_quiz
     from app.supermodules.respiratory_lab import views as respiratory_views
+    from app.utils.confidence import render_calibration_panel
 
     render_module_header("Cuestionarios de los laboratorios", icon="❓")
     render_section_header("Respiratorio")
     respiratory_views.render_quiz(None, key_prefix="practicar_")
     render_section_header("EEG")
     render_eeg_quiz(expanded=True)
+    render_calibration_panel()   # 2026-11-17: el EEG no tiene concepto en el vocabulario de `session_learning`
 
 
 def render_practice_simulator_cases_page() -> None:
@@ -2824,6 +2838,7 @@ def _page_specs() -> list:
         ("Aprender", "referencias", "Referencias de los laboratorios", "📚", render_learn_references_page),
         ("Aprender", "ecg-3d", "ECG en 3D", "🫀", render_learn_ecg3d_page),
         ("Aprender", "bibliografia", "Bibliografía", "📚", render_learn_bibliography_page),
+        ("Aprender", "pregunta", "Pregunta a BIOCORE", "💬", render_learn_ask_page),
         ("Practicar", "quiz", "Quiz de la Academia", "✍️", render_practice_quiz_page),
         ("Practicar", "caso-ciego", "Caso ciego", "🕵️", render_practice_blind_case_page),
         ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", "📋", render_practice_ecg_challenge_page),
