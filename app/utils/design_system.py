@@ -107,6 +107,10 @@ class PALETTE:
 
     # Gráficas (no son texto: contraste >= 3:1 de objeto gráfico)
     GRID = "#334155"
+    # Acento de marca (2026-11-17, PROVISIONAL): el cian del trazo, único color vivo de cada vista según el manual de marca
+    # v1.1. El kit todavía no está en el repositorio; el valor sale de `visualization/art/tokens.py` (TRACE, rama
+    # respaldo-mezcla-20261021) y se reemplaza por el token `trazo` del kit en cuanto llegue. Texto encima: ON_STATE.
+    TRAZO = "#22d3ee"
     SERIES_2 = "#c4b5fd"
 
     # Diagramas de cableado y marcas de ondas de los tutoriales de hardware (integración 2026-11-16): colores
@@ -142,6 +146,7 @@ CONTRAST_PAIRS = (
     ("ON_STATE", "STABLE", 4.5), ("ON_STATE", "WARNING", 4.5), ("ON_STATE", "CRITICAL", 4.5),
     ("ON_STATE", "PRIMARY", 4.5), ("ON_STATE", "ACCENT_ON_DARK", 4.5),     # botón principal: reposo y cursor encima
     ("PRIMARY", "SECONDARY_BACKGROUND", 3.0), ("SERIES_2", "SECONDARY_BACKGROUND", 3.0),
+    ("TRAZO", "BACKGROUND", 4.5), ("TRAZO", "SECONDARY_BACKGROUND", 4.5), ("ON_STATE", "TRAZO", 4.5),
     # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
     # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
     ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
@@ -730,6 +735,29 @@ def inject_global_theme() -> None:
             /* Pasaporte de evidencia (2026-11-17): el botón de cada valor mide al menos 44 px de alto (WCAG 2.5.5, tamaño
                del objetivo), igual con el dedo que con el cursor. Selector por clave del popover (.st-key-*). */
             [class*="st-key-passport_"] button {{ min-height: 44px; }}
+            /* Rediseño Duolingo + Apple (2026-11-17): tarjetas, franja de monitoreo, ruta, chips y carrusel. Solo tokens de
+               PALETTE; el único color vivo es TRAZO. Selectores por clave de contenedor (.st-key-*). */
+            [class*="st-key-bc_card"] {{ border-radius: 18px !important; background: {PALETTE.SECONDARY_BACKGROUND};
+                border: 1px solid {PALETTE.GRID} !important; padding: 18px 20px !important; }}
+            [class*="st-key-bc_monitor"] {{ border-radius: 18px !important; border: 1px solid {PALETTE.GRID} !important;
+                border-top: 4px solid {PALETTE.TRAZO} !important; padding: 14px 20px !important; }}
+            [class*="st-key-bc_node"] a, [class*="st-key-bc_node"] button {{ min-height: 56px; border-radius: 999px !important;
+                border: 2px solid {PALETTE.TRAZO} !important; padding: 8px 22px !important; }}
+            [class*="st-key-bc_node_b"] {{ margin-left: 22%; }}
+            [class*="st-key-bc_cmp_col"] {{ border-right: 2px solid {PALETTE.TRAZO}; padding-right: 12px; }}
+            [class*="st-key-bc_"] button {{ min-height: 44px; }}
+            .bc-hero {{ font-size: 2.4rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; color: {PALETTE.TEXT};
+                margin: 0 0 6px 0; }}
+            .bc-eyebrow {{ color: {PALETTE.TRAZO}; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.04em;
+                text-transform: uppercase; }}
+            .bc-chip {{ display: inline-flex; align-items: center; gap: 6px; border: 1px solid {PALETTE.GRID};
+                border-radius: 999px; padding: 4px 12px; margin: 0 6px 6px 0; color: {PALETTE.TEXT}; font-size: 0.9rem; }}
+            .bc-chip b {{ color: {PALETTE.TRAZO}; }}
+            .bc-dots {{ display: flex; gap: 8px; justify-content: center; margin: 8px 0; }}
+            .bc-dots span {{ width: 10px; height: 10px; border-radius: 999px; background: {PALETTE.GRID}; }}
+            .bc-dots span.on {{ background: {PALETTE.TRAZO}; width: 26px; }}
+            .bc-value {{ font-size: 1.6rem; font-weight: 700; color: {PALETTE.TEXT}; font-variant-numeric: tabular-nums; }}
+            @media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}
             /* Al pasar el cursor Streamlit oscurece el fondo (#0b5fef: 3.31:1 con texto oscuro). Se usa ACCENT_ON_DARK. */
             [data-testid="stBaseButton-primary"]:hover, [data-testid="stBaseButton-primary"]:active,
             [data-testid="stBaseButton-primary"]:focus-visible,
