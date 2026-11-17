@@ -1,0 +1,352 @@
+{
+  "fecha": "2026-11-17",
+  "modelo": {
+    "version": "lgbm-8rasgos-ds1-v1",
+    "codigo": "biomedical/arrhythmia_classifier.py (extract_features) + LGBMClassifier por defecto",
+    "parametros": "LGBMClassifier(random_state=42, verbose=-1, deterministic=True, force_row_wise=True); el resto, por defecto",
+    "rasgos": [
+      "media",
+      "desviacion",
+      "rango",
+      "maximo",
+      "minimo",
+      "energia",
+      "mediana",
+      "entropia"
+    ],
+    "sha256_archivo_modelo": "2621b367489b16221a3260c8374519cf51c426a515fbd8a9d44b6f7b95e51024",
+    "versiones": {
+      "python": "3.13.11",
+      "lightgbm": "4.6.0",
+      "scikit_learn": "1.9.0",
+      "numpy": "2.4.6"
+    }
+  },
+  "datos": {
+    "base": "MIT-BIH Arrhythmia Database (PhysioNet mitdb), 360 muestras/s, derivación MLII",
+    "separacion": "entre pacientes: entrenamiento con DS1, evaluación con DS2 (de Chazal 2004)",
+    "cita_separacion": "de Chazal P, O'Dwyer M, Reilly RB. IEEE Trans Biomed Eng 2004;51(7):1196-1206",
+    "registros_entrenamiento": [
+      101,
+      106,
+      108,
+      109,
+      112,
+      114,
+      115,
+      116,
+      118,
+      119,
+      122,
+      124,
+      201,
+      203,
+      205,
+      207,
+      208,
+      209,
+      215,
+      220,
+      223,
+      230
+    ],
+    "registros_evaluacion": [
+      100,
+      103,
+      105,
+      111,
+      113,
+      117,
+      121,
+      123,
+      200,
+      202,
+      210,
+      212,
+      213,
+      214,
+      219,
+      221,
+      222,
+      228,
+      231,
+      232,
+      233,
+      234
+    ],
+    "registros_excluidos_marcapasos": [
+      102,
+      104,
+      107,
+      217
+    ],
+    "clases_aami": "ANSI/AAMI EC57; N={N,L,R,e,j}, S={A,a,J,S}, V={V,E}, F={F}, Q={/,f,Q}",
+    "ventana_latido": "0.25 s antes y 0.45 s después de la anotación R, sin filtro (Criterio BIOCORE)",
+    "latidos_entrenamiento": {
+      "N": 45848,
+      "S": 944,
+      "V": 3788,
+      "F": 414,
+      "Q": 8
+    },
+    "latidos_evaluacion": {
+      "N": 44240,
+      "S": 1837,
+      "V": 3220,
+      "F": 388,
+      "Q": 7
+    }
+  },
+  "evaluacion_entre_pacientes": {
+    "clases": [
+      "N",
+      "S",
+      "V",
+      "F",
+      "Q"
+    ],
+    "matriz_confusion": [
+      [
+        39779,
+        957,
+        1904,
+        1593,
+        7
+      ],
+      [
+        1775,
+        12,
+        32,
+        18,
+        0
+      ],
+      [
+        972,
+        24,
+        2074,
+        77,
+        73
+      ],
+      [
+        269,
+        0,
+        112,
+        7,
+        0
+      ],
+      [
+        0,
+        0,
+        6,
+        1,
+        0
+      ]
+    ],
+    "por_clase": {
+      "N": {
+        "latidos": 44240,
+        "predichos": 42795,
+        "sensibilidad": 0.8991636528028933,
+        "valor_predictivo_positivo": 0.9295244771585466,
+        "f1": 0.9140920319411732
+      },
+      "S": {
+        "latidos": 1837,
+        "predichos": 993,
+        "sensibilidad": 0.0065323897659227,
+        "valor_predictivo_positivo": 0.012084592145015106,
+        "f1": 0.008480565371024736
+      },
+      "V": {
+        "latidos": 3220,
+        "predichos": 4128,
+        "sensibilidad": 0.6440993788819875,
+        "valor_predictivo_positivo": 0.502422480620155,
+        "f1": 0.5645073489384866
+      },
+      "F": {
+        "latidos": 388,
+        "predichos": 1696,
+        "sensibilidad": 0.01804123711340206,
+        "valor_predictivo_positivo": 0.004127358490566038,
+        "f1": 0.00671785028790787
+      },
+      "Q": {
+        "latidos": 7,
+        "predichos": 80,
+        "sensibilidad": 0.0,
+        "valor_predictivo_positivo": 0.0,
+        "f1": 0.0
+      }
+    },
+    "f1_macro": 0.29875955930771847,
+    "f1_macro_definicion": "media del F1 de las clases con al menos un latido en DS2",
+    "exactitud": 0.8426306045238671,
+    "exactitud_advertencia": "Con clases desbalanceadas (la N domina), la exactitud global engaña: un modelo que siempre dijera N la tendría alta.",
+    "brier": 0.2910023118296208,
+    "brier_definicion": "Brier (1950), forma multicategoría: media de la suma de (p_k − o_k)² sobre 5 clases; 0 es perfecto y 2 el peor",
+    "confiabilidad": [
+      {
+        "desde": 0.0,
+        "hasta": 0.1,
+        "latidos": 0,
+        "confianza_media": null,
+        "exactitud": null
+      },
+      {
+        "desde": 0.1,
+        "hasta": 0.2,
+        "latidos": 0,
+        "confianza_media": null,
+        "exactitud": null
+      },
+      {
+        "desde": 0.2,
+        "hasta": 0.3,
+        "latidos": 0,
+        "confianza_media": null,
+        "exactitud": null
+      },
+      {
+        "desde": 0.3,
+        "hasta": 0.4,
+        "latidos": 10,
+        "confianza_media": 0.37398509596523544,
+        "exactitud": 0.2
+      },
+      {
+        "desde": 0.4,
+        "hasta": 0.5,
+        "latidos": 105,
+        "confianza_media": 0.4680720414802677,
+        "exactitud": 0.49523809523809526
+      },
+      {
+        "desde": 0.5,
+        "hasta": 0.6,
+        "latidos": 890,
+        "confianza_media": 0.5524968775188603,
+        "exactitud": 0.5404494382022472
+      },
+      {
+        "desde": 0.6,
+        "hasta": 0.7,
+        "latidos": 988,
+        "confianza_media": 0.6508044691714586,
+        "exactitud": 0.604251012145749
+      },
+      {
+        "desde": 0.7,
+        "hasta": 0.8,
+        "latidos": 1408,
+        "confianza_media": 0.7545755683755949,
+        "exactitud": 0.7088068181818182
+      },
+      {
+        "desde": 0.8,
+        "hasta": 0.9,
+        "latidos": 3153,
+        "confianza_media": 0.8586164715867587,
+        "exactitud": 0.8344433872502379
+      },
+      {
+        "desde": 0.9,
+        "hasta": 1.0,
+        "latidos": 43138,
+        "confianza_media": 0.986021187935882,
+        "exactitud": 0.8602855950669943
+      }
+    ]
+  },
+  "fuga_por_latido": {
+    "descripcion": "train_test_split(test_size=0.2, stratify) por latido sobre DS1 y DS2 juntos, como ArrhythmiaClassifier.train",
+    "registros_en_entrenamiento_y_prueba": 44,
+    "registros_totales": 44,
+    "exactitud": 0.9437410000496549,
+    "f1_macro": 0.5305990609014009,
+    "por_clase": {
+      "N": {
+        "latidos": 18018,
+        "predichos": 18166,
+        "sensibilidad": 0.9746364746364746,
+        "valor_predictivo_positivo": 0.9666960255422218,
+        "f1": 0.9706500110546099
+      },
+      "S": {
+        "latidos": 556,
+        "predichos": 402,
+        "sensibilidad": 0.4244604316546763,
+        "valor_predictivo_positivo": 0.5870646766169154,
+        "f1": 0.4926931106471817
+      },
+      "V": {
+        "latidos": 1402,
+        "predichos": 1392,
+        "sensibilidad": 0.8202567760342369,
+        "valor_predictivo_positivo": 0.8261494252873564,
+        "f1": 0.8231925554760201
+      },
+      "F": {
+        "latidos": 160,
+        "predichos": 162,
+        "sensibilidad": 0.36875,
+        "valor_predictivo_positivo": 0.36419753086419754,
+        "f1": 0.3664596273291926
+      },
+      "Q": {
+        "latidos": 3,
+        "predichos": 17,
+        "sensibilidad": 0.0,
+        "valor_predictivo_positivo": 0.0,
+        "f1": 0.0
+      }
+    },
+    "matriz_confusion": [
+      [
+        17561,
+        156,
+        215,
+        78,
+        8
+      ],
+      [
+        309,
+        236,
+        6,
+        5,
+        0
+      ],
+      [
+        214,
+        9,
+        1150,
+        20,
+        9
+      ],
+      [
+        80,
+        1,
+        20,
+        59,
+        0
+      ],
+      [
+        2,
+        0,
+        1,
+        0,
+        0
+      ]
+    ]
+  },
+  "estado": "en evaluacion",
+  "clases_con_sensibilidad_baja": [
+    "S",
+    "V",
+    "F",
+    "Q"
+  ],
+  "umbral_sensibilidad_baja": 0.8,
+  "umbral_sensibilidad_baja_origen": "Criterio BIOCORE (sin cita)",
+  "uso_previsto": "Educativo. No apto para diagnóstico ni para decisiones clínicas."
+}
