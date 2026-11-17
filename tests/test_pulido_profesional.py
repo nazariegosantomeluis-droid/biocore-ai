@@ -190,10 +190,11 @@ def _labels(at):
 REACHABLE = {
     "ecg": {
         "Clínica": ["¿Qué significa Frecuencia cardíaca?"],          # la demo no guarda al gemelo (lo dice)
-        "Educativa → Teoría": ["Teoría", "Nodo SA", "Nodo AV", "Haz de His", "Fibras Purkinje", "Etapa", "Segmento"],
+        # Cierre del pulido: el material sin fuente de Educativa y «Simular» (controles que no movían nada) ya no se
+        # montan; su código queda en `_ecg_monitor_unsourced_material()` (ver tests/test_cierre_pulido.py).
+        "Educativa → Teoría": ["Teoría"],
         "Investigación → Cómo se calcula": ["Cómo se calcula", "Exportar segmento para investigación",
                                             "📓 Generar notebook reproducible desde esta señal"],
-        "Simulación → Simular": ["Simular", "Frecuencia cardíaca (lpm)", "PR (ms)", "QRS (ms)", "QT (ms)"],
         "IA → Narración con IA (opcional)": ["Narración con IA (opcional)"],
     },
     "emg": {
@@ -246,7 +247,7 @@ def test_the_old_differential_example_without_source_is_gone_and_unsourced_mater
     at = _open("ecg")
     text = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
     assert "Diagnóstico diferencial (ejemplo)" not in text and "Infarto agudo de miocardio anterior (LAD)" not in text
-    assert "[Sin fuente]" in text                                              # anatomía y línea de tiempo
+    assert "[Sin fuente]" not in text                       # cierre del pulido: el material sin fuente no se monta
 
 
 # ── PARTE D ────────────────────────────────────────────────────────────────────────────────────────────────────────

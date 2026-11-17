@@ -256,8 +256,10 @@ _UNAVAILABLE_CASES = [
     ),
     (
         "Estabilidad autonómica",
-        "[Sin fuente] Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
-        "existen en el pipeline (ver «Fantasmas» abajo).",
+        # Cierre del pulido (2026-11-16): el mismo motivo, sin la etiqueta «[Sin fuente]» (ninguna página la muestra) ni
+        # la remisión al expander «Fantasmas», que ya no se monta.
+        "No disponible: requiere presión arterial y tiempo de tránsito del pulso (PPG-PTT), señales que hoy no "
+        "existen en el pipeline.",
     ),
 ]
 

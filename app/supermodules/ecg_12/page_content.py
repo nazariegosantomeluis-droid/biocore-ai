@@ -231,15 +231,18 @@ st.caption(
     "automático (eje QRS, ST, bloqueos, arritmias) se ejecuta apenas se genera la señal."
 )
 
-st.markdown(
-    "##### 🎓 ¿Qué es un ECG de 12 derivaciones?\n"
-    "Registra la actividad eléctrica del corazón desde **12 ángulos distintos**: "
-    "**I, II, III** (miembros) · **aVR, aVL, aVF** (aumentadas) · **V1-V6** (precordiales, del "
-    "lado derecho V1 al izquierdo V6 del corazón). Cada una lo mira desde un ángulo distinto, así "
-    "que combinarlas permite **localizar** un problema, no solo detectarlo: una elevación del ST en "
-    "V1-V4 apunta a la arteria descendente anterior (cara anterior); solo en II, III y aVF, a la "
-    "coronaria derecha o a la circunfleja (cara inferior), según la AHA/ACCF/HRS 2009 (parte VI)."
-)
+# Cierre del pulido (2026-11-16, Art. I): la introducción decía «una elevación del ST en V1-V4 apunta a la arteria
+# descendente anterior (cara anterior); solo en II, III y aVF, a la coronaria derecha o a la circunfleja (cara inferior)»,
+# es decir, rotulaba derivaciones por pared, lo que la AHA/ACCF/HRS desaconseja [W2009]. Ahora son, tal cual, las ideas
+# firmadas de los temas 4 y 5 de docs/contenido/teoria_citada.md; la tabla de isquemia está en la columna de la derecha.
+from app.supermodules.learn_theory import SIGNED_ISCHEMIA, SIGNED_TWELVE_LEADS
+from app.utils import navigation as nav
+from app.utils.design_system import render_theory_topic
+
+st.markdown("##### 🎓 ¿Qué es un ECG de 12 derivaciones?")
+st.markdown(SIGNED_TWELVE_LEADS.idea)
+st.markdown(SIGNED_ISCHEMIA.idea)
+nav.link("teoria", "Teoría del ECG en Aprender: de dónde salen las 12 derivaciones y la tabla de isquemia", icon="📖")
 
 # Two column layout
 col1, col2 = st.columns([2, 1])
@@ -534,17 +537,10 @@ with col2:
 
     st.markdown("---")
 
-    st.markdown("### 🔍 Territorios Vasculares")
-    # 2026-11-14 (Art. I): antes «LAD (Anterior): V1-V4 · LCx (Lateral): I, aVL, V5-V6 · RCA (Inferior):
-    # II, III, aVF · Posterior: V1-V2 (reciprocal)», en inglés y sin fuente. La parte VI dice que II, III
-    # y aVF solos pueden ser de la coronaria derecha o de la circunfleja, y no asigna la cara lateral a una
-    # arteria; queda solo lo que dice.
-    st.write("""
-    - **Descendente anterior (DA), cara anterior:** elevación del ST en algunas o todas de V1–V6; si la oclusión es proximal, en V1–V4, I, aVL y a menudo aVR
-    - **II, III y aVF solos (cara inferior):** coronaria derecha (CD) o circunfleja (Cx)
-    - **Depresión del ST en V1–V2:** infarto posterior o lateral con elevación del ST
-    """)
-    st.caption(f"Fuente: {WAGNER_2009}")
+    # Cierre del pulido (2026-11-16, Art. I): la lista «Territorios Vasculares» («DA, cara anterior», «II, III y aVF
+    # solos (cara inferior)»...) rotulaba grupos de derivaciones por pared. La sustituye el tema 5 firmado: grupo de
+    # derivaciones → qué sugiere → arteria probable y advertencias, con la advertencia de la AHA/ACCF/HRS [W2009].
+    render_theory_topic(SIGNED_ISCHEMIA)
 
     st.markdown("---")
 
@@ -577,7 +573,7 @@ with col2:
     st.write("""
     1. Identifica todas las ondas (P, Q, R, S, T)
     2. Mide intervalos (PR, QRS, QT)
-    3. Localiza territorios vasculares
+    3. Con la tabla de isquemia, di qué sugieren los cambios del ST de cada grupo de derivaciones
     4. Reconoce patrones de bloqueo
     5. Detecta arritmias
     6. Genera diagnóstico diferencial

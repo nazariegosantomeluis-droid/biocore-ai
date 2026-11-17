@@ -168,7 +168,7 @@ El **ritmo alfa** es un ritmo de 8–13 Hz que aparece en vigilia sobre las regi
 **Libros de texto (acceso abierto)**
 - **[MCM]** Sibbald M, Dąbrowski A, Leśniak W. Standard Electrocardiography. En: *McMaster Textbook of Internal Medicine*. Cracovia: Medycyna Praktyczna. [Capítulo en línea](https://empendium.com/mcmtextbook/chapter/B31.1269.3.6.1)
 - **[CS2023]** Cheyne Stokes Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls Publishing; actualizado el 31 de julio de 2023. NCBI Bookshelf NBK448165. [Capítulo](https://www.statpearls.com/point-of-care/19395) (Autores: completar desde NBK448165; la página consultada solo muestra al editor, Bollu PC.)
-- **[AR2025]** Whited L, Graham DD. Abnormal Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls Publishing; actualizado el 13 de diciembre de 2025. NCBI Bookshelf NBK470309. [Capítulo](https://www.statpearls.com/point-of-care/23959)
+- **[AR2025]** Porter R, Graham DD. Abnormal Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls Publishing; actualizado el 13 de diciembre de 2025. NCBI Bookshelf NBK470309; PMID 29262235. [Capítulo](https://www.statpearls.com/point-of-care/23959) (Autores corregidos según PubMed el 16 de noviembre de 2026: decía «Whited L, Graham DD».)
 
 **Artículos originales**
 - **[KORS1990]** Kors JA, van Herpen G, Sittig AC, van Bemmel JH. Reconstruction of the Frank vectorcardiogram from standard electrocardiographic leads: diagnostic comparison of different methods. *Eur Heart J*. 1990;11(12):1083–1092. doi:10.1093/oxfordjournals.eurheartj.a059647.

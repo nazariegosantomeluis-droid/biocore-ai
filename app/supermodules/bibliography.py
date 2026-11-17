@@ -71,12 +71,13 @@ SIGNED: Tuple[Reference, ...] = (
                ("NCBI Bookshelf", "https://www.ncbi.nlm.nih.gov/books/NBK448165/")),
               note="Autores tomados del registro de PubMed (PMID 28846350), cuya versión actual es del 17 de agosto de "
                    "2026; el texto firmado se leyó en la versión del 31 de julio de 2023."),
+    # Cierre del pulido (2026-11-16): autores corregidos según PubMed (PMID 29262235); decía «Whited L, Graham DD».
     Reference("AR2025", BOOKS,
-              "Whited L, Graham DD. Abnormal Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls "
+              "Porter R, Graham DD. Abnormal Respirations. En: *StatPearls*. Treasure Island (FL): StatPearls "
               "Publishing; actualizado el 13 de diciembre de 2025. NCBI Bookshelf NBK470309; PMID 29262235.",
-              (("Capítulo", "https://www.statpearls.com/point-of-care/23959"),),
-              note="Pendiente de verificar: el registro de PubMed (PMID 29262235) lista hoy a Porter R y Graham DD como "
-                   "autores; se conserva la autoría de la versión consultada."),
+              (("Capítulo", "https://www.statpearls.com/point-of-care/23959"),
+               ("NCBI Bookshelf", "https://www.ncbi.nlm.nih.gov/books/NBK470309/")),
+              note="Autores corregidos según PubMed el 16 de noviembre de 2026."),
     Reference("KORS1990", ARTICLES,
               "Kors JA, van Herpen G, Sittig AC, van Bemmel JH. Reconstruction of the Frank vectorcardiogram from "
               "standard electrocardiographic leads: diagnostic comparison of different methods. *Eur Heart J*. "

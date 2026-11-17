@@ -603,6 +603,38 @@ _BIOMARKER_HELP = {
 }
 
 
+def _biomarkers_ghost_history() -> None:  # pragma: no cover -- SIN MONTAR, a propósito
+    """Historia de las entradas sin fuente de señal real de Biomarcadores, retirada de la vista del estudiante en el
+    cierre del pulido (2026-11-16): estaba rotulada «[Sin fuente]». Fuente que haría falta para volver a mostrar la
+    Estabilidad autonómica: una señal real de presión arterial y de tiempo de tránsito del pulso (PPG-PTT) en el
+    pipeline, más una cita para la fórmula de `calculate_autonomic_stability_score()`."""
+    with st.expander("Fantasmas [Sin fuente] — entradas sin fuente de señal real"):
+        st.markdown(
+            "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
+            "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
+            "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
+            "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
+            ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
+            "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
+            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
+            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
+            "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
+            "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
+            "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
+            "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
+            "-- Theta Frontomedial (4-8Hz) vs. banda HF-HRV (0.15-0.40Hz), ≥180s de señal simultánea. "
+            "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
+            "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
+            "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
+            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 entradas tienen "
+            "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
+            "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
+            "(a diferencia de NeuroCardiac→PLV) — la función `calculate_autonomic_stability_score()` "
+            "queda latente en `biomarkers.py`, sin llamarse desde la UI, por si algún día hay "
+            "instrumentación real de PA/PPG-PTT."
+        )
+
+
 def render_biomarkers_page() -> None:
     """Renders the Índices fisiológicos BIOCORE dashboard with Override mode."""
     # Piloto 2 de la Fase 2.3 Tanda 1 (2026-08-24): reemplaza el
@@ -852,37 +884,16 @@ def render_biomarkers_page() -> None:
     with col3:
         render_metric_card(
             "Estabilidad autonómica", None,
+            # Cierre del pulido (2026-11-16): sin la etiqueta «[Sin fuente]» (ninguna página la muestra); el motivo es el mismo.
             unavailable_reason=(
-                f"{BADGES.tag(BADGES.GHOST)} Sin fuente de señal real: requiere presión arterial y PPG-PTT, que hoy no "
-                "existen en el pipeline (ver «Fantasmas» abajo)."
+                "No disponible: requiere presión arterial y tiempo de tránsito del pulso (PPG-PTT), señales que hoy no "
+                "existen en el pipeline."
             ),
         )
 
-    with st.expander("Fantasmas [Sin fuente] — entradas sin fuente de señal real"):
-        st.markdown(
-            "El dictamen del validador identificó componentes sin señal real detrás en el repo. "
-            "3 ya se resolvieron; 1 sigue retirado de la grilla sin reemplazo posible.\n\n"
-            "- ✅ **`metabolic_efficiency`** (Resiliencia fisiológica) — **retirado (2026-08-15)**. "
-            "Fingía modelar el RER con un rango fisiológicamente imposible (RER real nunca <0.7 ni "
-            ">1.5). El score quedó solo sobre HRR + SDNN ('marcadores dorados de resiliencia "
-            "cardiovascular'), pesos renormalizados 0.45/0.35 → 0.5625/0.4375.\n"
-            "- ✅ **`eda_scr_peaks` / `scl_u_siemens`** (Índice de estrés) — **retirados (2026-08-15)**. "
-            "No existe ningún módulo de señal EDA en el repo. Índice de estrés quedó solo sobre LF/HF, "
-            "normalizado directo a 0-100 (Task Force ESC/NASPE 1996) — el score entero está citado ahora.\n"
-            "- ✅ **`signal_coherence`** (NeuroCardiac Coupling) — **retirado por completo (2026-08-19)**. "
-            "No solo el placeholder: la fórmula entera (suma de potencias absolutas) era la que el "
-            "validador calificó de pseudocientífica. Reemplazada por un PLV (Phase-Locking Value) real "
-            "-- Theta Frontomedial (4-8Hz) vs. banda HF-HRV (0.15-0.40Hz), ≥180s de señal simultánea. "
-            "Casi siempre mostrará 'no disponible' (ver arriba) porque el pipeline hoy no persiste "
-            "ECG+EEG crudos simultáneos -- eso es honestidad, no un bug.\n"
-            "- [Sin fuente] **`bp_variance` / `ppg_pulse_transit_time_var`** (Estabilidad autonómica) — **retirado "
-            "de la grilla (2026-08-15)**. A diferencia de los otros 3 casos, aquí 0 de 2 entradas tienen "
-            "cualquier fuente de señal real: no hay generador de presión arterial en el repo, y el "
-            "módulo PPG existente no calcula pulse transit time. Sin reemplazo algorítmico identificado "
-            "(a diferencia de NeuroCardiac→PLV) — la función `calculate_autonomic_stability_score()` "
-            "queda latente en `biomarkers.py`, sin llamarse desde la UI, por si algún día hay "
-            "instrumentación real de PA/PPG-PTT."
-        )
+    # Cierre del pulido (2026-11-16, Art. I): el expander «Fantasmas [Sin fuente]» (historia de las entradas retiradas por el
+    # dictamen del validador) ya no se monta: ninguna página muestra «[Sin fuente]». Queda en
+    # `_biomarkers_ghost_history()`, sin llamar; su historia completa está en CHANGELOG.md.
 
     st.markdown("---")
     st.subheader("📝 Notas del Sistema de Razonamiento")
@@ -1651,20 +1662,13 @@ def render_ecg_monitor_page() -> None:
 
     # Pulido profesional (2026-11-16, Art. I): se retiró el selector «Capa de Exploración Cognitiva» (Clínica / Educativa /
     # Investigación / IA / Simulación). Una sola página: arriba el trazo en papel ECG y los valores clave; debajo, plegados,
-    # «Cómo se calcula» (antes Investigación), «Simular» (antes Simulación), «Teoría» (antes Educativa, con el enlace a
-    # Aprender) y «Narración con IA (opcional)» (antes IA). Ninguna función se perdió (tests/test_pulido_profesional.py).
+    # «Cómo se calcula» (antes Investigación), «Teoría» (antes Educativa: el enlace a Aprender) y «Narración con IA
+    # (opcional)» (antes IA). Cierre del pulido: «Simular» y el material de Educativa estaban rotulados «[Sin fuente]» (y
+    # los controles de Simular no movían nada); se retiraron de la vista, su código queda sin montar en
+    # `_ecg_monitor_unsourced_material()`.
     # Bug 2 del ECG (2026-09-26): las 6 fuentes miden con el mismo detector TKEO; `hr is None` se declara «no disponible».
     hr = _measure_ecg_heart_rate_tkeo(signal, fs, ECGAnalyzer)
     vm = np.arange(len(signal)) / fs
-
-    def show_anatomy(part: str):
-        explanations = {
-            'SA Node': 'Nodo SA: marcapasos natural que inicia la despolarización atrial (ondas P).',
-            'AV Node': 'Nodo AV: retraso fisiológico para permitir llenado ventricular antes de la contracción.',
-            'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
-            'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
-        }
-        st.markdown(f"**{part}**: {explanations.get(part, '')}")
 
     # ── 1. El trazo (papel ECG, 25 mm/s · 10 mm/mV) y los valores clave ──
     from app.utils import ecg_paper
@@ -1766,57 +1770,14 @@ def render_ecg_monitor_page() -> None:
         corr_ecg_spo2 = float(np.corrcoef(signal[:len_min], spo2_demo[:len_min])[0, 1]) if len_min > 1 else 0.0
         st.write(f'ECG ↔ Respiración: {corr_ecg_resp:.2f} — ECG ↔ SpO₂: {corr_ecg_spo2:.2f}')
 
-    with st.expander(LAB_SECTION_SIMULATE, expanded=False):
-        st.write('Ajusta parámetros y observa efectos en ECG y explicaciones asociadas.')
-        # Keys explícitas (Fusión ECG Lab, 2026-07-14): near-miss con widgets de ecg_12/page_content.py. `hr` puede ser
-        # `None` o salir del rango del slider: se recorta (sandbox de «qué pasaría si», no un valor reportado).
-        fc_default = min(160, max(30, int(hr))) if hr is not None else 72
-        fc = st.slider('Frecuencia cardíaca (lpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
-        pr = st.slider('PR (ms)', 80, 300, 160)
-        qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
-        qt = st.slider('QT (ms)', 200, 500, 360)
-        st.markdown('#### Qué cambiaría si...')
-        st.caption(f"{BADGES.tag(BADGES.GHOST)}: texto anterior a la teoría firmada, pendiente de fuente.")
-        st.write('- Aumenta FC: reduce intervalo RR, puede disminuir tiempo de llenado ventricular.')
-        st.write('- QRS ancho: sugiere bloqueo de rama o conducción aberrante, afecta sincronía ventricular.')
-
+    # Cierre del pulido (2026-11-16, Art. I): el material sin fuente («[Sin fuente]») ya no se monta. «Simular» se fue con
+    # él: sus 4 controles (FC, PR, QRS, QT) no movían nada (nadie leía su valor), solo acompañaban ese texto. El código
+    # queda, sin montar, en `_ecg_monitor_unsourced_material()` (abajo), con la fuente que le haría falta.
     with st.expander(LAB_SECTION_THEORY, expanded=False):
         nav.link('teoria', 'Teoría del ECG en Aprender: el papel, la frecuencia, las ondas, las 12 derivaciones y la '
                            'isquemia (con sus fuentes)', icon='📖')
         # El «Diagnóstico diferencial (ejemplo)» que vivía en la vista Clínica (elevación del ST en V2-V4 = «infarto
         # anterior (LAD)», sin cita) se retiró: lo sustituye la tabla de isquemia firmada (tema 5), con su advertencia.
-        st.caption(f"{BADGES.tag(BADGES.GHOST)}: lo que sigue es material interactivo anterior a la teoría "
-                   "firmada; no tiene cita y queda pendiente de firma.")
-        st.markdown('#### Anatomía interactiva')
-        cols = st.columns(4)
-        if cols[0].button('Nodo SA'):
-            show_anatomy('SA Node')
-        if cols[1].button('Nodo AV'):
-            show_anatomy('AV Node')
-        if cols[2].button('Haz de His'):
-            show_anatomy('His Bundle')
-        if cols[3].button('Fibras Purkinje'):
-            show_anatomy('Purkinje')
-
-        st.markdown('#### Línea de tiempo fisiológica')
-        st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
-        step = st.slider('Etapa', 0, 4, 0)
-        steps = ['Despolarización', 'Contracción', 'Eyección', 'Relajación', 'Llenado']
-        st.info(steps[step])
-
-        st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
-        seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
-        if seg == 'P':
-            st.write('- Evento eléctrico: despolarización atrial (onda P).')
-            st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
-            st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
-        elif seg == 'QRS':
-            st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
-            st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
-            st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
-        else:
-            st.write('- Evento eléctrico: repolarización ventricular (onda T).')
-            st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
 
     with st.expander(LAB_SECTION_AI, expanded=False):
         try:
@@ -1840,6 +1801,72 @@ def render_ecg_monitor_page() -> None:
                 st.info('El analizador de ECG (`interpret_ecg`) no está disponible en este entorno — no hay hallazgos reales que narrar.')
         except Exception as e:
             st.warning(f'El análisis de ECG falló: {e}')
+
+
+def _ecg_monitor_unsourced_material(hr) -> None:  # pragma: no cover -- SIN MONTAR, a propósito
+    """Material del Monitoreo del ECG retirado de la vista del estudiante (cierre del pulido, 2026-11-16, Art. I): estaba
+    rotulado «[Sin fuente]». No lo llama nadie; se conserva para cuando haya texto firmado en
+    `docs/contenido/teoria_citada.md`. Fuente que haría falta:
+
+    - Anatomía del sistema de conducción (nodo SA, nodo AV, haz de His, fibras de Purkinje): un capítulo de fisiología
+      con cita verificada (p. ej. Hall JE, Hall ME. Guyton and Hall Textbook of Medical Physiology, 14.ª ed., capítulos
+      de electrocardiografía; teoria_citada.md lo deja como «lectura complementaria: verificar capítulo y página»).
+    - Línea de tiempo eléctrica → mecánica y «Fisiología dinámica» (eventos mecánicos y hemodinámicos de P, QRS y T): la
+      misma fuente de fisiología; el evento eléctrico de cada onda ya está firmado (tema 3, [MCM]).
+    - «Qué cambiaría si…» (FC y tiempo de llenado ventricular; QRS ancho y bloqueo de rama): una fuente para cada frase
+      (para el QRS ancho, Surawicz 2009, ya citado en 12 Derivaciones). Sus controles FC/PR/QRS/QT no movían nada: si se
+      vuelve a montar, deben regenerar el trazo o no deben existir."""
+    def show_anatomy(part: str):
+        explanations = {
+            'SA Node': 'Nodo SA: marcapasos natural que inicia la despolarización atrial (ondas P).',
+            'AV Node': 'Nodo AV: retraso fisiológico para permitir llenado ventricular antes de la contracción.',
+            'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
+            'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
+        }
+        st.markdown(f"**{part}**: {explanations.get(part, '')}")
+
+    st.write('Ajusta parámetros y observa efectos en ECG y explicaciones asociadas.')
+    # Keys explícitas (Fusión ECG Lab, 2026-07-14): near-miss con widgets de ecg_12/page_content.py. `hr` puede ser
+    # `None` o salir del rango del slider: se recorta (sandbox de «qué pasaría si», no un valor reportado).
+    fc_default = min(160, max(30, int(hr))) if hr is not None else 72
+    fc = st.slider('Frecuencia cardíaca (lpm)', 30, 160, fc_default, key="ecglab_monitor_sim_hr")
+    pr = st.slider('PR (ms)', 80, 300, 160)
+    qrs = st.slider('QRS (ms)', 60, 200, 100, key="ecglab_monitor_sim_qrs")
+    qt = st.slider('QT (ms)', 200, 500, 360)
+    st.markdown('#### Qué cambiaría si...')
+    st.write('- Aumenta FC: reduce intervalo RR, puede disminuir tiempo de llenado ventricular.')
+    st.write('- QRS ancho: sugiere bloqueo de rama o conducción aberrante, afecta sincronía ventricular.')
+
+    st.markdown('#### Anatomía interactiva')
+    cols = st.columns(4)
+    if cols[0].button('Nodo SA'):
+        show_anatomy('SA Node')
+    if cols[1].button('Nodo AV'):
+        show_anatomy('AV Node')
+    if cols[2].button('Haz de His'):
+        show_anatomy('His Bundle')
+    if cols[3].button('Fibras Purkinje'):
+        show_anatomy('Purkinje')
+
+    st.markdown('#### Línea de tiempo fisiológica')
+    st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
+    step = st.slider('Etapa', 0, 4, 0)
+    steps = ['Despolarización', 'Contracción', 'Eyección', 'Relajación', 'Llenado']
+    st.info(steps[step])
+
+    st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
+    seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
+    if seg == 'P':
+        st.write('- Evento eléctrico: despolarización atrial (onda P).')
+        st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
+        st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
+    elif seg == 'QRS':
+        st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
+        st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
+        st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
+    else:
+        st.write('- Evento eléctrico: repolarización ventricular (onda T).')
+        st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
 
 
 def _build_multisensor_record(channels: dict, BiosignalChannel, MultisensoralRecord):

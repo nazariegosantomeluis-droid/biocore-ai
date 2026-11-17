@@ -145,6 +145,8 @@ def test_no_bpm_and_no_listed_english_term_reaches_the_student(url):
     assert offenders == [], offenders
     treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
     assert treatments == [], treatments
+    # Cierre del pulido (2026-11-16): el material rotulado «[Sin fuente]» ya no se monta en ninguna página.
+    assert not [t[:120] for t in texts if "[Sin fuente]" in t], url
 
 
 # Integración con main: las fuentes de cada laboratorio que no son la de inicio (sin red ni puerto: MIT-BIH/PTB-XL
@@ -173,6 +175,7 @@ def test_no_bpm_and_no_listed_english_term_in_the_other_sources(url, label, opti
     assert offenders == [], offenders
     treatments = sorted({(m.group(0), t[:120]) for t in texts for m in [TREATMENT.search(t)] if m})
     assert treatments == [], treatments
+    assert not [t[:120] for t in texts if "[Sin fuente]" in t], (url, option)      # cierre del pulido
 
 
 def test_the_citation_exemption_removes_only_the_exact_title():

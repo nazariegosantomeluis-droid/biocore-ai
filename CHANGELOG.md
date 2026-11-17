@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-11-16 — Cierre del pulido profesional: coherencia con la teoría firmada
+
+**Contexto (Art. I)**: quedaban pendientes cortos de coherencia con `docs/contenido/teoria_citada.md`:
+- una autoría por verificar;
+- material «[Sin fuente]» a la vista del estudiante;
+- 12 Derivaciones rotulando derivaciones por pared;
+- casos clínicos a 250 muestras/s.
+
+Rama `cierre-pulido`, apilada sobre `pulido-profesional`: esa rama no está fusionada en `main` (su PR no se llegó a abrir). Intérprete del PATH: Python 3.13.11, Streamlit 1.67.0. En el paso 0, la suite completa dio 2292 pasan, 0 fallan y 6 omitidas.
+
+1. **[AR2025]**: autores según PubMed (PMID 29262235): «Porter R, Graham DD». Se retira «Whited L».
+   - La referencia lleva el NBK470309, el PMID y el enlace a NCBI Bookshelf.
+   - `teoria_citada.md` lleva la nota «Autores corregidos según PubMed el 16 de noviembre de 2026».
+2. **Material «[Sin fuente]» fuera de la vista del estudiante**. El código queda en el repositorio, sin montar, con la fuente que le haría falta en su docstring.
+   - **ECG · Monitoreo**: anatomía interactiva (nodo SA, nodo AV, His, Purkinje), línea de tiempo fisiológica, «Fisiología dinámica» y «Qué cambiaría si…».
+     - «Simular» se retiró con ellos: sus controles FC, PR, QRS y QT no movían nada (nadie leía su valor), así que sin ese texto eran un control placebo.
+     - Todo vive en `_ecg_monitor_unsourced_material()` (`app/main.py`).
+     - Fuente que haría falta: un capítulo de fisiología con cita verificada (Guyton y Hall, que el documento deja como lectura por verificar) y una fuente por frase de «Qué cambiaría si…».
+   - **Biomarcadores**: el expander «Fantasmas [Sin fuente]» vive en `_biomarkers_ghost_history()`. Fuente que haría falta: presión arterial y PPG-PTT reales en el pipeline, más una cita de la fórmula. La tarjeta «Estabilidad autonómica» conserva su motivo («No disponible: requiere presión arterial y tiempo de tránsito del pulso…»), sin la etiqueta.
+   - El recorrido de todas las páginas y fuentes (`test_fase1_t2_pulido.py`) exige ahora que ninguna muestre «[Sin fuente]».
+3. **12 Derivaciones alineado con el tema 5**:
+   - **Introducción**: decía «una elevación del ST en V1-V4 apunta a la arteria descendente anterior (cara anterior); solo en II, III y aVF, a la coronaria derecha o a la circunfleja (cara inferior)». Ahora es, tal cual, la idea de los temas 4 y 5 firmados, con el enlace a Teoría.
+   - **Lista «Territorios Vasculares»** («DA, cara anterior», «II, III y aVF solos (cara inferior)»…): la sustituye el tema 5 completo (grupo de derivaciones → qué sugiere → arteria probable y advertencias), con la advertencia de la AHA/ACCF/HRS [W2009].
+   - **Desafío 3**: «Localiza territorios vasculares» pasa a «Con la tabla de isquemia, di qué sugieren los cambios del ST de cada grupo de derivaciones».
+4. **Casos clínicos del Monitoreo a 500 muestras/s** (`CASE_FS` en `src/clinical/case_database.py`) [K2007].
+   - Los generadores están definidos en segundos, así que el contenido clínico no cambia.
+   - Golden: los 61 casos a ≥ 500 Hz y 10 s, mismos identificadores, diagnósticos, dificultad y derivación que a 250 Hz; un caso sinusal sigue midiendo 75 lpm con el detector TKEO.
+
+### Para Luis: teoría que falta firmar (EMG y HRV)
+- **EMG**:
+  1. Qué es el EMG de superficie: de dónde sale la señal (potenciales de acción de unidades motoras).
+  2. Unidad motora y reclutamiento: por qué la amplitud crece con la fuerza.
+  3. Colocación de electrodos y referencia.
+  4. Filtrado (por qué 20–450 Hz) y ruido de la red.
+  5. Rectificación, envolvente y RMS: qué miden.
+  6. Normalización a la contracción voluntaria máxima (%MVC): por qué sin ella no hay «porcentaje de esfuerzo».
+  7. Fatiga: el desplazamiento de la frecuencia mediana hacia abajo.
+  8. Artefactos: movimiento, ECG en músculos del tronco y diafonía.
+  9. Qué no puede concluir un EMG de superficie: fuerza, lesión, diagnóstico.
+- **HRV**:
+  1. Qué es la HRV y qué son los intervalos NN.
+  2. Dominio del tiempo: qué significan SDNN, RMSSD y pNN50, y su relación con el tono vagal.
+  3. Dominio de la frecuencia: VLF, LF, HF y por qué la razón LF/HF es discutida.
+  4. Duración del registro: 5 min frente a 24 h, y por qué no se comparan.
+  5. Arritmia sinusal respiratoria: su relación con la frecuencia y la profundidad respiratorias.
+  6. No lineales: Poincaré (SD1, SD2), entropía muestral y DFA α1.
+  7. Factores que la modifican: edad, respiración, postura, fármacos y ejercicio.
+  8. Calidad de la serie: latidos ectópicos y edición NN.
+  9. Valores de referencia y límites de interpretación.
+
+### Verificación
+- Suite completa en serie: **SUITE**.
+- Pruebas nuevas: `tests/test_cierre_pulido.py`. El recorrido de idioma y tratamientos ahora también vigila «[Sin fuente]».
+- Adaptadas sin debilitarse:
+  - la alcanzabilidad del Monitoreo (ya no exige el material sin fuente ni «Simular»);
+  - el motivo verbatim de «Estabilidad autonómica».
+- Base de desarrollo intacta (1/7/53/0).
+- **Sin tocar**: los nombres de los escenarios de 12 Derivaciones («STEMI Anterior - Infarto anterior (DA)», «STEMI Lateral - Infarto lateral alto (I y aVL, V5-V6)»…) siguen nombrando el infarto por cara; no estaban en el alcance.
+
 ## 2026-11-16 — Pulido profesional: ECG con estándar clínico, ancho, vistas unificadas y teoría citada
 
 **Contexto (Art. I)**: tras la contención, la plataforma se veía poco profesional:
