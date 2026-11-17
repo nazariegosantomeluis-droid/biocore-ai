@@ -127,6 +127,16 @@ SIGNED: Tuple[Reference, ...] = (
                    "ninguna afirmación directamente: las definiciones vienen de [SG2017], que se basa en él."),
 )
 
+# Métodos que la plataforma cita en pantalla con su clave, fuera de la teoría firmada (2026-11-17). Wilson 1927: el
+# intervalo de 95 % del acierto en «Tu calibración en esta sesión»; metadatos verificados en Crossref el 2026-11-17.
+METHODS_GROUP = "Métodos que usa la plataforma"
+METHODS: Tuple[Reference, ...] = (
+    Reference("WILSON1927", METHODS_GROUP,
+              "Wilson EB. Probable inference, the law of succession, and statistical inference. *J Am Stat Assoc*. "
+              "1927;22(158):209–212.",
+              (("doi:10.1080/01621459.1927.10502953", "https://doi.org/10.1080/01621459.1927.10502953"),)),
+)
+
 SIGNED_KEYS = tuple(r.key for r in SIGNED)
 
 # «Oehler 2014» (auditoría firmada, decisión 2): es una publicación verificable (PubMed 25201032) y sostiene lo que el
@@ -213,6 +223,9 @@ def render_bibliography_page() -> None:
         for ref in SIGNED:
             if ref.group == group:
                 _render_reference(st, ref)
+    render_section_header(METHODS_GROUP)
+    for ref in METHODS:
+        _render_reference(st, ref)
     extra = repo_references()
     for group in dict.fromkeys(r.group for r in extra):
         render_section_header(group)
@@ -223,7 +236,7 @@ def render_bibliography_page() -> None:
 
 def _render_reference(st, ref: Reference) -> None:
     links = " · ".join(f"[{label}]({url})" for label, url in ref.links)
-    head = f"**[{ref.key}]** " if ref.key and ref.key in SIGNED_KEYS else ""
+    head = f"**[{ref.key}]** " if ref.key else ""          # las de `REPO` no tienen clave
     st.markdown(f"- {head}{ref.text}" + (f" {links}" if links else ""))
     if ref.note:
         st.caption(ref.note)

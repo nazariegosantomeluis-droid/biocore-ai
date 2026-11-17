@@ -19,11 +19,14 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from educational.learning_engine import LearningEngine, generate_quiz
-from educational.quiz_bank import (ACADEMIA_QUESTIONS, ECG12_QUESTIONS, EEG_QUESTIONS, QuizQuestion,
-                                   balance_positions, numeric_choices, stable_shuffle)
+from educational.quiz_bank import (ACADEMIA_QUESTIONS, ECG12_QUESTIONS, EEG_QUESTIONS, EMG_QUESTIONS, HRV_QUESTIONS,
+                                   QuizQuestion, balance_positions, numeric_choices, stable_shuffle)
 
 ROOT = Path(__file__).resolve().parents[1]
-BANKS = {"academia": ACADEMIA_QUESTIONS, "ecg12": ECG12_QUESTIONS, "eeg": EEG_QUESTIONS}
+# 2026-11-17: + los bancos de EMG y HRV firmados por Luis (mismas reglas: correcta primero, explicación, fuente, no la
+# más larga en más del 40 %, lugar en pantalla repartido).
+BANKS = {"academia": ACADEMIA_QUESTIONS, "ecg12": ECG12_QUESTIONS, "eeg": EEG_QUESTIONS, "emg": EMG_QUESTIONS,
+         "hrv": HRV_QUESTIONS}
 
 
 def _norm(text: str) -> str:
@@ -155,9 +158,12 @@ def test_submit_quiz_averages_every_quiz_including_a_zero():
 
 def test_generate_quiz_keeps_lessons_and_levels():
     assert len(generate_quiz(level="advanced")) == len(ACADEMIA_QUESTIONS) == 16
-    for lesson in ("ECG Básico", "ECG 12-derivaciones", "Arritmias", "Otras señales"):
+    for lesson in ("ECG Básico", "ECG 12-derivaciones", "Arritmias", "Otras señales", "EMG", "HRV"):
         assert generate_quiz(level="advanced", lesson=lesson)
         assert all(q.category == lesson for q in generate_quiz(level="advanced", lesson=lesson).values())
+    # 2026-11-17: las lecciones EMG y HRV traen su banco completo en «Avanzado»
+    assert list(generate_quiz(level="advanced", lesson="EMG").values()) == EMG_QUESTIONS
+    assert list(generate_quiz(level="advanced", lesson="HRV").values()) == HRV_QUESTIONS
 
 
 # --- las pantallas: nada elegido de inicio, fuente al responder ---------------------------------------
