@@ -19,6 +19,35 @@
 
 **Pruebas** (Python 3.13.11 del PATH, en serie): la guardia, las de rsa y HRV (`test_rsa_cardiopulmonary`, `test_hrv_nonlinear`, `test_teoria_emg_hrv`) y las de Biomarcadores (`test_biomarkers_plv`, `test_visual_migration_main_inline`, `test_visual_consolidation_tanda_final`, `test_cierre_pulido`, `test_fase1_t1_contencion`): 136 passed, 1 skipped (de entorno: sin base de desarrollo). El recorrido de idioma y contención de las páginas `hrv` y `biomarcadores` (`test_fase1_t2_pulido`, `test_integracion_contencion`, `test_pulido_profesional`): 50 passed. No se corrió la suite completa.
 
+## 2026-11-17 — Caso guiado de ECG (C3): razonar con incertidumbre, borrador para firma
+
+**Contexto (Art. I)**: primer caso progresivo. El estudiante ve un ECG de 12 derivaciones simulado, plantea una hipótesis, pide pruebas y justifica por qué, recibe un desafío a su conclusión y al final ve su recorrido. Junta el Uncertainty Lab, un agente adversarial por reglas (sin modelo de lenguaje) y la calibración. **No entra a la app hasta que Luis firme** `docs/contenido/caso_guiado_ecg.md`, y la página no se monta en el menú (D2).
+
+1. **`educational/guided_case.py`** (nuevo, sin Streamlit):
+   - **Trazado:** simulado (`generate_twelve_lead("inferior_stemi", seed=7)`). Los resultados de las pruebas salen de la medición de `analyze_twelve_lead`: II +2.1, III +2.9, aVF +2.5, I −0.7, aVL −1.8 y V1–V6 0.0 mm.
+   - **Incertidumbre, toda del tema 5 firmado [W2009]:**
+     - Con elevación en II, III y aVF, la coronaria derecha y la circunfleja son posibles (t1:81).
+     - III mayor que II sugiere la coronaria derecha (t1:81).
+     - I y aVL sin elevación (t1:82).
+     - V3R y V4R **no disponibles**: el simulador solo genera las 12 estándar (t1:83). Es la información incompleta del caso.
+   - **4 decisiones** (correcta primero), **5 pruebas** con su motivo y un **desafío** a la hipótesis final según la respuesta y las pruebas pedidas. Puede contradecirla con evidencia del caso: por ejemplo, ante la circunfleja muestra que I y aVL tienen descenso, no elevación.
+   - **6 competencias:** reconoce lo que el primer dato no permite decidir, pide la prueba que distingue, justifica cada prueba, evita concluir antes del dato (cuenta la PRIMERA conclusión), actualiza la hipótesis y reconoce la información que falta.
+   - **Nombres:** las derivaciones se nombran por su nombre, no por pared (decisión de Luis, t1:70). `case_signed()` lee el «Estado» del documento.
+2. **`docs/contenido/caso_guiado_ecg.md`** (BORRADOR): generado desde el código, con los valores medidos, las líneas firmadas textuales, cada decisión, prueba y desafío con su casilla de firma, y las decisiones D1–D3.
+3. **`app/supermodules/academia/guided_case_view.py`** (nuevo):
+   - Sin firma, solo dice «Caso pendiente de firma».
+   - Con firma: el trazado con la etiqueta «Simulación», las fases y el desafío («Mantengo / Cambio / Pido más pruebas»), las competencias, el recorrido en tabla y el panel de calibración.
+   - Cada decisión pide la confianza y se registra con `source="caso_guiado"` y `concept="derivaciones_e_isquemia"`. `confidence.record_answer` acepta ahora `source`.
+4. **Pruebas:** `tests/test_guided_case.py` (13). Comprueban que:
+   - cada línea citada existe en la teoría firmada;
+   - las premisas del caso salen de la medición (si el generador cambia, la prueba falla);
+   - todo texto del código está en el documento para firma;
+   - sin firma no se muestra;
+   - los desafíos citan [W2009] y ninguna derivación se rotula por pared;
+   - el recorrido ideal logra las 6 competencias y la conclusión prematura se detecta.
+
+   Verificado aquí: 11 pasan. **Falta correr** las 2 de pantalla (AppTest) y la suite completa en el intérprete de Luis.
+
 ## 2026-11-17 — Banco de preguntas de EMG y HRV firmado (E1–E10, H1–H8) y privacidad de «Pregunta a BIOCORE»
 
 **Contexto (Art. I)**: Luis firmó el banco v2 el 17 de noviembre: «Firmo todo.» Abarca las 18 preguntas E1–E10 y H1–H8, tal como quedan en la hoja de firma v2 (E1 tal cual; E2–E10 y H1–H8 con su corrección). Los casos clínicos, el apéndice y las decisiones quedan para después de hoy.
