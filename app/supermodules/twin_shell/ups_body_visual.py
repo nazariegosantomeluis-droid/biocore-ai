@@ -112,6 +112,7 @@ _STYLE = """
 }
 .biocore-organ-title { font-weight: 700; font-size: 15px; margin-top: 6px; color: __TEXT__; }
 .biocore-organ-metric { font-size: 13px; color: __MUTED__; margin-top: 2px; }
+.biocore-organ-source { font-size: 12px; color: __MUTED__; margin-top: 2px; }
 .biocore-organ-alert {
   margin-top: 6px; font-size: 12px; font-weight: 600; color: __CRITICAL__;
   background: rgba(255,100,100,0.12); border-radius: 8px; padding: 3px 8px; display: inline-block;
@@ -214,7 +215,26 @@ def _event_labels_for_organ(events: List[PhysiologicalEvent], organ_id: str) -> 
     return labels
 
 
-def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
+def _source_html(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict], keys) -> str:
+    """T1 de la ruta integrada (2026-11-18): la procedencia del valor que muestra una tarjeta. El cuerpo del gemelo
+    junta lo que el estudiante mueve ahora con lo que guardaron los laboratorios, así que cada tarjeta dice de dónde
+    viene su valor (Art. I). `origins is None` (modo caso, escenarios): la tarjeta se ve como siempre."""
+    if origins is None or state is None:
+        return ""
+    from app.utils.patient_banner import vital_provenance_text
+
+    domains = state.all_domains()
+    texts = []
+    for domain, name in keys:
+        descriptor = domains[domain].get(name)
+        if descriptor is not None:
+            text = vital_provenance_text(descriptor, origins.get((domain, name)))
+            if text not in texts:
+                texts.append(text)
+    return f'<div class="biocore-organ-source">Procedencia: {" / ".join(texts)}</div>' if texts else ""
+
+
+def _render_heart_card(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> str:
     hr = state.all_domains()["cardiovascular"].get("heart_rate") if state else None
     visual = organ_visual_state(state)["heart"]
     color, severity = visual.color, visual.severity
@@ -259,12 +279,13 @@ def _render_heart_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         '</svg>'
         '<div class="biocore-organ-title">🫀 Corazón</div>'
         f'<div class="biocore-organ-metric">{metric_label}</div>'
+        f'{_source_html(state, origins, [("cardiovascular", "heart_rate")])}'
         f'{alerts_html}'
         '</div>'
     )
 
 
-def _render_lungs_card(state: Optional[UnifiedPhysiologicalState]) -> str:
+def _render_lungs_card(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> str:
     rr = state.all_domains()["respiratory"].get("respiratory_rate") if state else None
     spo2 = state.all_domains()["respiratory"].get("spo2") if state else None
     visual = organ_visual_state(state)["lungs"]
@@ -316,12 +337,13 @@ def _render_lungs_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         '</svg>'
         '<div class="biocore-organ-title">🫁 Pulmones</div>'
         f'<div class="biocore-organ-metric">{lungs_metric}</div>'
+        f'{_source_html(state, origins, [("respiratory", "respiratory_rate"), ("respiratory", "spo2")])}'
         f'{alerts_html}'
         '</div>'
     )
 
 
-def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
+def _render_brain_card(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> str:
     """Capa 5A, Sub-fase 2 (presentacional): tercer órgano, mismo patrón
     EXACTO que `_render_heart_card()`/`_render_lungs_card()`.
 
@@ -354,9 +376,12 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         animation_css = ""
 
         present_bands = [(b, descriptors[b].value) for b in _BRAIN_BAND_DESCRIPTORS if b in descriptors]
+        source_keys = [("neurological", name) for name in descriptors]
         if present_bands:
-            dominant = max(present_bands, key=lambda kv: kv[1])[0].replace("_power", "")
+            dominant_key = max(present_bands, key=lambda kv: kv[1])[0]
+            dominant = dominant_key.replace("_power", "")
             band_label = f"Banda dom.: {dominant.upper()}"
+            source_keys = [("neurological", dominant_key)]
         else:
             band_label = no_data_html("banda dominante")
         metric_label = band_label
@@ -384,12 +409,50 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState]) -> str:
         '</svg>'
         '<div class="biocore-organ-title">🧠 Cerebro</div>'
         f'<div class="biocore-organ-metric">{metric_label}</div>'
+        f'{_source_html(state, origins, source_keys) if visual.has_data else ""}'
         f'{alerts_html}'
         '</div>'
     )
 
 
-def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> None:
+# T1 de la ruta integrada (2026-11-18): el músculo, cuarto dominio del UPS, no tenía tarjeta. Solo SVG: el cuerpo 3D
+# sale de una TC sin malla muscular, así que `ORGAN_DOMAINS`/`organ_visual_state()` (la fuente de color compartida
+# con el 3D) no cambian. Mismo gate que el builder: el dominio muscular solo existe con `activation` del EMG.
+MUSCLE_ACTIVATION_NOTE = "media/máx. de la señal filtrada, no % de contracción máxima"
+
+
+def _render_muscle_card(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> str:
+    muscular = state.all_domains()["muscular"] if state else None
+    descriptors = dict(muscular.descriptors) if muscular is not None else {}
+    has_data = bool(descriptors)
+    severity = _severity_for_domain(state, "muscular")
+    if not has_data:
+        color = NEUTRAL_COLOR
+        metric_label = no_data_html("EMG")
+        source = ""
+    else:
+        color = STABLE_COLOR if severity is None else SEVERITY_COLOR[severity]
+        parts = []
+        if "activation" in descriptors:
+            parts.append(f"Activación EMG: {descriptors['activation'].value:.0f} % ({MUSCLE_ACTIVATION_NOTE})")
+        if "median_frequency" in descriptors:
+            parts.append(f"Frecuencia mediana: {descriptors['median_frequency'].value:.0f} Hz")
+        metric_label = " · ".join(parts) if parts else no_data_html("activación y frecuencia mediana")
+        source = _source_html(state, origins, [("muscular", n) for n in ("activation", "median_frequency")])
+    return (
+        '<div class="biocore-organ-card">'
+        '<svg viewBox="0 0 24 24" width="110" height="110" style="overflow: visible;">'
+        f'<path d="M5 9c0-3 2.5-5 5-5h1c2 0 3 1.5 3 3.5S15.5 10 17 10c2.5 0 4 2 4 4.5S19 19 16 19H8c-2 0-3-1-3-3z" '
+        f'fill="{color}"/>'
+        '</svg>'
+        '<div class="biocore-organ-title">💪 Músculo</div>'
+        f'<div class="biocore-organ-metric">{metric_label}</div>'
+        f'{source}'
+        '</div>'
+    )
+
+
+def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> None:
     """Neuro Tanda 2 (firma del experto, 2026-09-10): badges clínicos
     🟢/🟡/🔴 para DAR/TBR, junto al cerebro. Mismo componente visual que los
     badges NEWS2/ACLS/AASM de arriba en esta app (`st.caption()` con la cita
@@ -415,27 +478,36 @@ def _render_neuro_ratio_badges(state: Optional[UnifiedPhysiologicalState]) -> No
     neuro = state.all_domains()["neurological"] if state else None
     descriptors = neuro.descriptors if neuro is not None else {}
 
+    def _source(name: str) -> str:
+        # T1 (revisión final, 2026-11-18): en el gemelo, la insignia dice de dónde viene su valor y su edad.
+        if origins is None:
+            return ""
+        from app.utils.patient_banner import vital_provenance_text
+
+        return f" · Procedencia: {vital_provenance_text(descriptors[name], origins.get(('neurological', name)))}"
+
     dar_descriptor = descriptors.get("dar")
     if dar_descriptor is not None:
         _, dar_label, dar_badge = classify_dar(dar_descriptor.value)
         if dar_badge:
-            st.caption(f"{dar_badge} DAR = {dar_descriptor.value:.2f} ({dar_label}) — {DAR_CITATION}")
+            st.caption(f"{dar_badge} DAR = {dar_descriptor.value:.2f} ({dar_label}) — {DAR_CITATION}{_source('dar')}")
 
     tbr_descriptor = descriptors.get("tbr")
     if tbr_descriptor is not None:
         _, tbr_label, tbr_badge = classify_tbr(tbr_descriptor.value)
         if tbr_badge:
-            st.caption(f"{tbr_badge} TBR = {tbr_descriptor.value:.2f} ({tbr_label}) — {TBR_CITATION}")
+            st.caption(f"{tbr_badge} TBR = {tbr_descriptor.value:.2f} ({tbr_label}) — {TBR_CITATION}{_source('tbr')}")
 
     chi_descriptor = descriptors.get("chi_aperiodic")
     if chi_descriptor is not None:
         _, chi_label, chi_badge = classify_chi(chi_descriptor.value)
         if chi_badge:
-            st.caption(f"{chi_badge} χ = {chi_descriptor.value:.2f} ({chi_label}) — {CHI_CITATION}")
+            st.caption(f"{chi_badge} χ = {chi_descriptor.value:.2f} ({chi_label}) — {CHI_CITATION}"
+                       f"{_source('chi_aperiodic')}")
 
 
 def render_ups_body(state: Optional[UnifiedPhysiologicalState], *, with_3d: bool = False,
-                    key: str = "ups_body") -> None:
+                    key: str = "ups_body", origins: Optional[dict] = None) -> None:
     """Fase 1.4: corazón y pulmones coloreados/animados desde un
     `UnifiedPhysiologicalState` real — nunca de texto del narrador.
     Capa 5A, Sub-fase 2 (2026-08-31): + el cerebro, tercer órgano, misma
@@ -465,14 +537,19 @@ def render_ups_body(state: Optional[UnifiedPhysiologicalState], *, with_3d: bool
     # siendo `st.columns(2)` idéntica, sólo se le antepone la fila del cerebro.
     _, brain_col, _ = st.columns([1, 2, 1])
     with brain_col:
-        st.markdown(_render_brain_card(state), unsafe_allow_html=True)
-        _render_neuro_ratio_badges(state)
+        st.markdown(_render_brain_card(state, origins), unsafe_allow_html=True)
+        _render_neuro_ratio_badges(state, origins)
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(_render_heart_card(state), unsafe_allow_html=True)
+        st.markdown(_render_heart_card(state, origins), unsafe_allow_html=True)
     with col2:
-        st.markdown(_render_lungs_card(state), unsafe_allow_html=True)
+        st.markdown(_render_lungs_card(state, origins), unsafe_allow_html=True)
+
+    # T1 (2026-11-18): el músculo, en su fila, solo en SVG.
+    _, muscle_col, _ = st.columns([1, 2, 1])
+    with muscle_col:
+        st.markdown(_render_muscle_card(state, origins), unsafe_allow_html=True)
 
     # Pieza 2 (2026-10-22): el cuerpo 3D se dibuja con ESTE MISMO `state` y la
     # misma `organ_visual_state()` -- imposible que contradiga al SVG.
