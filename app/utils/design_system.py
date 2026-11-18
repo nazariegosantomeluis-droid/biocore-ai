@@ -940,7 +940,9 @@ def inject_global_theme() -> None:
             [data-testid="stAlert"], [data-testid="stAlertContainer"] {{ border-radius: 14px !important; }}
             [data-testid="stDataFrame"], [data-testid="stTable"] {{ border: 1px solid {PALETTE.GRID}; border-radius: 12px;
                 overflow: hidden; }}
-            [data-baseweb="input"], [data-baseweb="select"] > div, [data-baseweb="textarea"] {{ border-radius: 12px !important; }}
+            /* Campos por su data-testid (la palabra suelta en inglés la vigila el recorrido de «sin inglés visible»). */
+            [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"], [data-baseweb="select"] > div,
+            [data-baseweb="textarea"] {{ border-radius: 12px !important; }}
             [data-testid="stPopover"] button {{ border-radius: 999px !important; }}
             hr {{ border-color: {PALETTE.GRID} !important; opacity: 0.8; }}
             ::selection {{ background: {PALETTE.RESALTE}; color: {PALETTE.TINTA_TITULO}; }}
