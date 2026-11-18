@@ -200,7 +200,7 @@ def _render_calculator(topic: C.Topic) -> None:
 
 
 def _render_patient_variability(topic: C.Topic) -> None:
-    from app.utils.patient_banner import NO_DATA_TEXT, VITALS, read_active_vitals, provenance_label, UNIT_ES
+    from app.utils.patient_banner import NO_DATA_TEXT, VITALS, read_active_vitals, vital_provenance_text, UNIT_ES
 
     vitals = read_active_vitals()
     with st.container(key="bc_card_patient"):
@@ -212,7 +212,7 @@ def _render_patient_variability(topic: C.Topic) -> None:
         for key, label, *_rest in VITALS:
             d = vitals.values[key]
             st.markdown(f"**{label}** · " + (NO_DATA_TEXT if d is None else
-                        f"{d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} · {provenance_label(d)}"))
+                        f"{d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} · {vital_provenance_text(d, vitals.origins.get(key))}"))
         if topic.calculator:
             st.button("Usar en la calculadora", key=f"bc_use_patient_{topic.key}",
                       on_click=_use_patient, args=(topic.calculator,))
