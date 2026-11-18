@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-18 · Logo de OmniCore en la esquina del menú
+
+José Miguel pidió poner en la esquina superior del menú el logo de OmniCore, la empresa matriz. `st.logo` (`app/main.py`) usa ahora `app/static/marca/omnicore/omnicore-logotipo-1024px.png` y, con el menú contraído, el isotipo de 256 × 256. El archivo entregado (`docs/marca/omnicore/omnicore-logo-original.png`) ya tenía fondo transparente: solo se recortó y se redimensionó. El favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
+
 ## 2026-11-17 · Menú con un ícono por página, flechas en la ruta y animaciones de scroll
 
 **Contexto**: José Miguel reportó que en el menú lateral «unos íconos desaparecieron» y pidió flechas en la ruta del Inicio, animaciones de scroll y mejoras visuales sin cambiar lo que ya había.
