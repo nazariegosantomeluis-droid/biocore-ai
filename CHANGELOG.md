@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-18 · T1 de la ruta integrada: el gemelo lee al paciente compuesto (Art. I)
+
+Segunda tanda del diseño firmado. Antes, el cuerpo del gemelo se dibujaba solo con el organismo en memoria (sliders o escenario): lo que guardaban los laboratorios (bandas y razones del EEG, activación del EMG, valores de sensor real) nunca llegaba al gemelo, y el músculo, cuarto dominio del UPS, no tenía tarjeta.
+
+1. **`overlay_current_on_composed()`** (`app/utils/physiological_state.py`): el paciente compuesto de la T0 con el estado en memoria encima. Regla firmada: lo que el estudiante mueve ahora gana; lo que no movió viene del paciente, con su origen. Un derivado del paciente se quita si el estado actual trae alguna de sus entradas (unos puntos NEWS2 viejos no se ven junto a la FC nueva del slider). Eventos: los del estado actual para los dominios que trae; los del paciente para los demás.
+2. **El cuerpo del gemelo** (`render_synced_digital_twin_body`, decisión 2 firmada por Luis) dibuja ese estado, y cada tarjeta dice la procedencia de su valor («Procedencia: Simulación · hace 3 min»). Con `origins=None` (modo caso, escenarios) las tarjetas se ven como siempre.
+3. **Tarjeta muscular** (`_render_muscle_card`), solo en SVG: el cuerpo 3D sale de una TC sin malla muscular, así que `ORGAN_DOMAINS` y `organ_visual_state()` (la fuente de color compartida con el 3D) no cambian. Muestra activación («media/máx. de la señal filtrada, no % de contracción máxima») y frecuencia mediana cuando el EMG las guardó; si no, «sin dato». El slider de fatiga no la llena: el builder exige `activation`.
+4. **Límite declarado:** los sliders alimentan FC, HRV, FR, SpO₂, estrés y fatiga en cada rerun, así que esos campos salen del organismo; un valor medido de esos campos en un laboratorio se ve en el banner y en el Inicio, no en el cuerpo del gemelo mientras los sliders manden.
+
+5. **Revisión independiente** (dos hallazgos corregidos, cada uno con su prueba en rojo antes): un valor del último guardado de un laboratorio se veía «Simulación» sin edad, igual que el slider que se mueve ahora; ahora todo valor que viene del paciente lleva su origen y su edad («Simulación · hace 2 min»), y lo que mueves ahora no. Las insignias DAR, TBR y χ, que antes de la T1 nunca salían en el gemelo, ahora dicen su procedencia y su edad.
+6. **La tarjeta muscular también aparece** en el modo caso, en Academia y en los pasos de escenario (todo lo que usa `render_ups_body`), sin línea de procedencia: allí el estado es un snapshot y la tarjeta dice «sin dato» si ese snapshot no trae EMG.
+
+Pruebas: `tests/test_twin_paciente_compuesto.py` (11); `test_ups_body_3d_paridad.py` vigila la nueva llamada (un solo estado para SVG y 3D).
+
 ## 2026-11-18 · T0 de la ruta integrada: el paciente compuesto (Art. I)
 
 Primera tanda del diseño «De laboratorios a una ruta integrada», firmado por Luis el 2026-11-17. Medido antes de tocar (regla 1): tras guardar en el gemelo (FC 100, FR 24, SpO₂ 92) y luego en el EEG Lab, `get_latest_state()` devolvía FC, FR y SpO₂ en `None`. Cada laboratorio escribe solo lo que mide (gates anti-órgano-fantasma) y todo lo que leía «el estado actual» leía la última fila: el banner, el Inicio, Calculadoras, Temas y el arranque de Respiratorio y HRV. El paciente «olvidaba» sus signos al pasar por un laboratorio.

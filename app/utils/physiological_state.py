@@ -39,11 +39,15 @@ Ver CHANGELOG.md, Fase 5.3.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from domain.physiology.state import (
+    DERIVED_INPUTS,
+    CarryOrigin,
+    ComposedPatient,
+    DomainState,
     Provenance,
     UnifiedPhysiologicalState,
     from_digital_twin_organism,
@@ -106,3 +110,45 @@ def persist_current_state(
     state = from_digital_twin_organism(organism, patient_id, provenance=provenance, source_detail=source_detail)
     snapshot_id = save_state(session, state)
     return state, snapshot_id
+
+
+def overlay_current_on_composed(
+    current: UnifiedPhysiologicalState, composed: Optional[ComposedPatient]
+) -> Tuple[UnifiedPhysiologicalState, Dict[Tuple[str, str], CarryOrigin]]:
+    """T1 de la ruta integrada (2026-11-18): el cuerpo del gemelo = el paciente compuesto con el estado en memoria
+    encima. Regla firmada: lo que el estudiante mueve ahora (sliders o escenario) gana; lo que no movió viene del
+    paciente, con su origen. Devuelve el estado y el origen de TODO valor que viene del paciente -- también los de su
+    último snapshot, con edad 0 respecto a ese snapshot (revisión final de la T1): sin origen, un valor guardado por
+    un laboratorio hace una hora se vería igual que el que el slider mueve ahora.
+
+    - Sin paciente (`composed is None`): el estado en memoria tal cual.
+    - Un derivado del paciente (`DERIVED_INPUTS`) se quita si el estado actual trae alguna de sus entradas: unos
+      puntos NEWS2 viejos no se muestran junto a la FC nueva del slider.
+    - Eventos: los del estado actual para los dominios que trae; los del paciente para los demás. Un evento de FC
+      viejo no colorea el corazón si el estudiante ya movió la FC.
+    """
+    if composed is None:
+        return current, {}
+    now_domains = current.all_domains()
+    now_names = {name for dom in now_domains.values() for name in dom.descriptors}
+    origins: Dict[Tuple[str, str], CarryOrigin] = {}
+    merged: Dict[str, DomainState] = {}
+    latest_ts = composed.state.timestamp
+    for domain, patient_dom in composed.state.all_domains().items():
+        current_dom = now_domains.get(domain)
+        current_descriptors = current_dom.descriptors if current_dom is not None else {}
+        descriptors = {}
+        for name, descriptor in patient_dom.descriptors.items():
+            if name in current_descriptors:
+                continue
+            if name in DERIVED_INPUTS and any(inp in now_names for inp in DERIVED_INPUTS[name]):
+                continue
+            descriptors[name] = descriptor
+            origins[(domain, name)] = composed.origins.get(
+                (domain, name), CarryOrigin(composed.latest_snapshot_id, latest_ts, descriptor.provenance, 0.0))
+        descriptors.update(current_descriptors)
+        merged[domain] = DomainState(domain=domain, descriptors=descriptors)
+    moved = {domain for domain, dom in now_domains.items() if dom.descriptors}
+    events = list(current.events) + [e for e in composed.state.events if e.domain not in moved]
+    return UnifiedPhysiologicalState(patient_id=current.patient_id, timestamp=current.timestamp, **merged,
+                                     events=events), origins

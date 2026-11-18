@@ -48,7 +48,9 @@ from app.utils.patient_session import (
     get_active_session_factory,
     set_active_patient_id,
 )
-from app.utils.physiological_state import get_current_physiological_state, persist_current_state
+from app.utils.physiological_state import (
+    get_current_physiological_state, overlay_current_on_composed, persist_current_state,
+)
 from domain.physiology.hemodynamics import (
     HEMODYNAMIC_MODEL_ENABLED_SCENARIOS,
     HemodynamicModelNotEnabledError,
@@ -78,6 +80,7 @@ from domain.physiology.scenarios.rich_engine import (
     run_rich_scenario,
 )
 from domain.physiology.state import (
+    get_composed_patient,
     EventSeverity,
     compose_neuro_cardiac_snapshot,
     get_clinical_references_for_patient,
@@ -985,12 +988,19 @@ def render_synced_digital_twin_body(organism: DigitalTwinOrganism) -> None:
         st.success("Momento guardado en la trayectoria del paciente.")
 
     # Pieza 2 (2026-10-22): un solo `state` alimenta el cuerpo SVG y el 3D.
-    render_ups_body(get_current_physiological_state(organism, patient_id), with_3d=True, key="twin_actual")
+    # T1 de la ruta integrada (2026-11-18): ese `state` es el paciente compuesto con el estado en memoria encima
+    # (`overlay_current_on_composed`): lo que mueves ahora gana; lo que guardaron los laboratorios aparece con su
+    # procedencia.
+    with session_factory() as session:
+        composed = get_composed_patient(session, patient_id)
+    body_state, body_origins = overlay_current_on_composed(get_current_physiological_state(organism, patient_id),
+                                                           composed)
+    render_ups_body(body_state, with_3d=True, key="twin_actual", origins=body_origins)
     st.caption(
-        "Color y animación se derivan de tu estado fisiológico ACTUAL (severidad de eventos por "
-        "dominio + heart_rate/respiratory_rate/spo2 en memoria ahora mismo) — nunca del texto del "
-        "narrador. Se actualiza solo mientras tengas esta página abierta; para conservarlo en la "
-        "trayectoria permanente del paciente, usa el botón de arriba."
+        "El cuerpo junta lo que mueves ahora (sliders o escenario) con lo que guardaron los laboratorios para este "
+        "paciente; cada tarjeta dice la procedencia de su valor. El color sale de la severidad de los eventos por "
+        "dominio, nunca del texto del narrador. Para conservar el estado en la trayectoria del paciente, usa el "
+        "botón de arriba."
     )
 
 

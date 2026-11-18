@@ -213,7 +213,9 @@ def test_digital_twin_os_draws_svg_and_3d_from_one_state(tmp_path):
     assert not at.exception, at.exception
     assert UPS_BODY_3D_NOTE in " ".join(c.value for c in at.caption)
     src = (ROOT / "app/supermodules/twin_shell/pages.py").read_text(encoding="utf-8")
-    assert 'render_ups_body(get_current_physiological_state(organism, patient_id), with_3d=True' in src
+    # T1 de la ruta integrada (2026-11-18): el estado es el paciente compuesto con el organismo encima; sigue siendo
+    # UNO solo para el SVG y el 3D.
+    assert 'render_ups_body(body_state, with_3d=True, key="twin_actual", origins=body_origins)' in src
 
 
 # --- La fuente heurística no existe; el UPS y el motor, intactos ------------
