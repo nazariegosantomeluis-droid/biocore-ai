@@ -34,6 +34,7 @@ load_dotenv_file(Path(ROOT_DIR) / ".env")
 from app.utils import legal
 from app.utils import version as app_version
 from app.utils import navigation as nav
+from app.utils import i18n
 from app.utils.ai_session import (
     AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_settings_link, render_settings_page,
     render_sidebar_status,
@@ -158,7 +159,7 @@ PLOTLY_GO, _, PLOTLY_OK = safe_import_plotly()
 st.set_page_config(
     # Fase 1 (idioma, 2026-08-30): título de la pestaña del navegador --
     # única cadena de este bloque que no es una clave reservada de Streamlit.
-    page_title="Biocore · Laboratorio digital de fisiología",      # manual de marca v1.1, p. 7: sin «AI» en público
+    page_title=i18n.t("Biocore · Laboratorio digital de fisiología"),   # manual de marca v1.1, p. 7: sin «AI» en público
     page_icon=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "favicon-48.png"),
     layout="wide",
     # 2026-11-17: «auto» = abierto en pantallas anchas y cerrado en el celular. Con «expanded», el menú se abría encima
@@ -2902,13 +2903,14 @@ def _page_specs() -> list:
 
 def main() -> None:
     init_state()
+    i18n.init_language()                  # español por defecto; inglés con el selector o con ?lang=en
     inject_global_theme()
     start = st.session_state.get(nav.START_PAGE, "inicio")
     pages, sections, menu = {}, {}, {}
     for section, url, title, icon, render in _page_specs():
-        page = st.Page(render, title=title, icon=icon, url_path=url, default=(url == start))
+        page = st.Page(render, title=i18n.t(title), icon=icon, url_path=url, default=(url == start))
         pages[url], sections[url] = page, section or "Inicio"
-        menu.setdefault(section, []).append(page)
+        menu.setdefault(i18n.t(section), []).append(page)
     nav.register(pages, sections)
     # Esquina superior del menú: OmniCore, la empresa matriz (2026-11-18, app/static/marca/omnicore/LEEME.txt). El
     # favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
@@ -2916,6 +2918,7 @@ def main() -> None:
             icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "omnicore", "omnicore-isotipo-256px.png"),
             size="large")
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
+    i18n.render_language_selector()
     render_sidebar_status()
     with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo
         # Aviso clínico y educativo (2026-11-17): al iniciar la sesión y al entrar a una página que carga un caso
@@ -2923,6 +2926,8 @@ def main() -> None:
         if legal.clickwrap_pending(current.url_path):
             legal.render_clickwrap(current.url_path)
         else:
+            # En inglés: qué sigue en español y por qué. La página por defecto tiene url_path "" (Streamlit).
+            i18n.render_page_notice(current.url_path or start)
             current.run()
         legal.render_legal_footer()
         app_version.render_stale_warning()    # solo si el código cambió después de arrancar el proceso

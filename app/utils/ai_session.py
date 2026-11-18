@@ -23,6 +23,8 @@ from typing import Optional, Tuple
 
 import streamlit as st
 
+from app.utils.i18n import t
+
 from domain.physiology.narrator import DEFAULT_GEMINI_MODEL, DEFAULT_MODEL, GeminiClient
 from domain.physiology.narrator import is_configured as env_key_configured
 from domain.physiology.narrator.gemini import validate_key as _validate_gemini_key
@@ -146,7 +148,7 @@ def render_settings_link() -> None:
     """Enlace a Ajustes justo donde una función necesita la IA y no hay clave (decisión 2)."""
     from app.utils import navigation as nav
 
-    nav.link("ajustes", "Ir a Ajustes para poner tu clave", icon="⚙️")
+    nav.link("ajustes", t("Ir a Ajustes para poner tu clave"), icon="⚙️")
 
 
 def render_settings_page() -> None:
@@ -192,11 +194,11 @@ def render_settings_page() -> None:
 def render_sidebar_status() -> None:
     with st.sidebar:
         if session_gemini_key():
-            st.caption("🔑 IA activa con Gemini, nivel gratuito (solo datos simulados o públicos; solo en esta sesión)")
+            st.caption(t("🔑 IA activa con Gemini, nivel gratuito (solo datos simulados o públicos; solo en esta sesión)"))
         elif session_api_key():
-            st.caption("🔑 IA activa con tu clave (solo en esta sesión)")
+            st.caption(t("🔑 IA activa con tu clave (solo en esta sesión)"))
         elif env_key_configured():
-            st.caption("🔑 IA activa (clave del entorno del servidor)")
+            st.caption(t("🔑 IA activa (clave del entorno del servidor)"))
         else:
-            st.caption("🔑 IA apagada")
+            st.caption(t("🔑 IA apagada"))
             render_settings_link()
