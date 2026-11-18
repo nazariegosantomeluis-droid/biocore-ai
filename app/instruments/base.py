@@ -26,6 +26,11 @@ class InstrumentContext:
     mode: str = MODE_FREE
     controls: Any = None     # None = el menú lateral
 
+    def __post_init__(self):
+        # Revisión de la T2: en una estación, `auto_key` sin prefijo dejaría widgets sin clave y dos montajes chocarían.
+        if self.mode == MODE_STATION and not self.key_prefix:
+            raise ValueError("un contexto de estación necesita prefijo (usa station_context)")
+
     def k(self, name: str) -> str:
         return f"{self.key_prefix}{name}"
 

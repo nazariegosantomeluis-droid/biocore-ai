@@ -229,3 +229,98 @@ def test_monitoreo_avisa_una_sola_vez_si_faltan_los_modulos_src():
     at = AppTest.from_function(_script, default_timeout=240).run()
     assert not at.exception, at.exception
     assert [w.value for w in at.warning].count("SRC-FALTA") == 1
+
+
+# --------------------------------------------------------------------------- T3, Task 1: detalles menores de la T2
+def test_contexto_de_estacion_sin_prefijo_falla():
+    """Sin prefijo, `auto_key` deja los widgets sin clave y dos montajes chocarían: el contrato lo impide."""
+    import pytest
+
+    from app.instruments.base import MODE_STATION, InstrumentContext
+
+    with pytest.raises(ValueError):
+        InstrumentContext(mode=MODE_STATION)
+
+
+def _hrv_without_plotly(fail_after_bands=False):
+    import streamlit as st
+
+    from app.instruments import hrv
+    from app.instruments.base import station_context
+
+    rr = hrv.RRSeries(rr_ms=__import__("numpy").array([800.0, 820, 790, 810, 805, 815, 795, 800] * 10),
+                      source="Serie RR manual")
+    saved = (hrv.PLOTLY_OK, hrv.st.write)
+    hrv.PLOTLY_OK = False
+    if fail_after_bands:
+        def boom(*a, **k):
+            raise ValueError("falla al dibujar")
+        hrv.st.write = boom
+    try:
+        for prefix in ("e1", "e2"):
+            st.session_state[f"_bands_{prefix}"] = hrv.frecuencia(station_context(prefix), rr).values
+    finally:
+        hrv.PLOTLY_OK, hrv.st.write = saved
+
+
+def test_respaldo_sin_plotly_se_monta_dos_veces():
+    at = AppTest.from_function(_hrv_without_plotly, default_timeout=120).run()
+    assert not at.exception, at.exception
+    assert set(at.session_state["_bands_e2"]) == {"lf", "hf"}
+
+
+def test_frecuencia_conserva_las_bandas_si_falla_despues():
+    at = AppTest.from_function(_hrv_without_plotly, kwargs={"fail_after_bands": True}, default_timeout=120).run()
+    assert not at.exception, at.exception
+    assert set(at.session_state["_bands_e1"]) == {"lf", "hf"}
+
+
+def test_ecg_estacion_con_el_paciente_activo_no_guarda():
+    from app.engines.digital_twin_organism import DigitalTwinOrganism
+    from app.utils.patient_session import get_shared_ups_engine
+    from app.utils.physiological_state import persist_current_state
+    from domain.physiology.state import create_patient, make_session_factory
+
+    organism = DigitalTwinOrganism()
+    organism.update_from_sensors({"ecg": {"heart_rate": 90.0}})
+    with make_session_factory(get_shared_ups_engine())() as session:
+        pid = create_patient(session, display_name="estación")
+        persist_current_state(session, organism, pid, source_detail="twin_visual:prueba_t3")
+    at = _ecg_at()
+    at.session_state["twin_shell_ups_patient_id"] = pid
+    at.run()
+    assert not at.exception, at.exception
+    assert at.radio(key="e1__ecg_monitor_source").value == "Paciente activo (simulación a su FC)"
+    assert not [b for b in at.button if b.key and b.key.endswith("ecg_lab_save_to_ups")]
+    assert any("guardarla no añadiría" in i.value for i in at.info)
+
+
+# ------------------------------------------------------------------ T3, Task 2: «¿Qué pasa si…?» como instrumento
+def _what_if_page_and_station():
+    from app.instruments.base import PAGE, station_context
+    from app.supermodules import what_if as W
+
+    W.render_what_if_page(PAGE)
+    W.render_what_if_page(station_context("ruta"), cases=tuple(c for c in W.CASES if c.scenario == "healthy"))
+
+
+def test_what_if_filtra_los_casos():
+    at = AppTest.from_function(_what_if_page_and_station, default_timeout=120).run()
+    assert not at.exception, at.exception
+    assert at.selectbox(key="ruta__what_if_case").options == ["sano_fc_50", "sano_fc_120"] or \
+        len(at.selectbox(key="ruta__what_if_case").options) == 2
+    assert len(at.selectbox(key="what_if_case").options) == 4
+
+
+def test_what_if_en_estacion_no_comparte_estado_con_la_pagina():
+    at = AppTest.from_function(_what_if_page_and_station, default_timeout=120).run()
+    for r in [r for r in at.radio if r.key and r.key.startswith("ruta__what_if_pred_")]:
+        r.set_value("sube")
+    at.run()
+    at.button(key="ruta__what_if_send_sano_fc_50").click().run()
+    assert not at.exception, at.exception
+    assert at.session_state["ruta__what_if_state"]["submitted"] is True
+    assert at.session_state["what_if_state"]["submitted"] is False          # la página no se enteró
+    assert len(at.session_state["session_learning_log"]) == 3                # una vez por intento, 3 salidas
+    at.run()
+    assert len(at.session_state["session_learning_log"]) == 3

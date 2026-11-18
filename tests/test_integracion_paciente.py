@@ -528,3 +528,17 @@ def test_registro_del_banner_apunta_a_la_linea_que_dibuja_el_valor():
     for entry in [e for e in ENTRIES if e.superficie == "banner"]:
         path, line = entry.mostrado_en.rsplit(":", 1)
         assert "_value_html(" in Path(path).read_text(encoding="utf-8").splitlines()[int(line) - 1], entry.campo
+
+
+def test_valor_del_ultimo_paso_de_una_trayectoria_dice_su_horizonte():
+    """T3 (detalle de la T1.1): un valor del último guardado (sin origen de arrastre) que salió de una trayectoria de
+    escenario se rotula con su horizonte, como sus valores arrastrados."""
+    from app.utils.patient_banner import vital_provenance_text
+    from domain.physiology.state import PhysiologicalDescriptor, Provenance
+
+    d = PhysiologicalDescriptor(name="heart_rate", value=88.0, unit="bpm", provenance=Provenance.SIMULACION,
+                                confidence=0.6, source_detail="escenario_rico:hypertension:modo:basal:horizonte:7d")
+    assert vital_provenance_text(d) == "Simulación · horizonte 7d"
+    plain = PhysiologicalDescriptor(name="heart_rate", value=88.0, unit="bpm", provenance=Provenance.SIMULACION,
+                                    confidence=0.6, source_detail="twin_visual:x")
+    assert vital_provenance_text(plain) == "Simulación"

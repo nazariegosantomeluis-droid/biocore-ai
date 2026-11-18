@@ -25,7 +25,7 @@ def test_every_menu_page_has_an_existing_icon():
     import app.main as m
 
     urls = [u for _, u, *_ in m._page_specs()]
-    assert len(urls) == 31 and set(DS.NAV_ICONS) == set(urls)
+    assert len(urls) == 32 and set(DS.NAV_ICONS) == set(urls)        # T3: + Ruta
     for url, file in DS.NAV_ICONS.items():
         assert (STATIC / "iconos" / file).is_file(), (url, file)
 

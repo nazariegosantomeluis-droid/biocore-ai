@@ -84,7 +84,7 @@ def _slide_findings(topic: C.Topic) -> None:
 
 
 def _render_patient_news2() -> None:
-    from app.utils.patient_banner import UNIT_ES, read_active_vitals, vital_provenance_text
+    from app.utils.patient_banner import UNIT_ES, VITALS, read_active_vitals, vital_provenance_text
     from clinical import calculators as calc
 
     vitals = read_active_vitals()
@@ -95,7 +95,9 @@ def _render_patient_news2() -> None:
     raw = {k: (d.value if d is not None else None) for k, d in vitals.values.items()}
     partial = calc.news2_partial(pulse=raw["hr"], respiratory_rate=raw["rr"], spo2=raw["spo2"])
     # T1.1: cada componente dice de qué valor sale, con su procedencia y edad (pueden venir de guardados distintos).
-    source = {"Pulso": ("hr", "FC"), "Frecuencia respiratoria": ("rr", "FR"), "SpO₂ (escala 1)": ("spo2", "SpO₂")}
+    # T3 (detalle de la T1.1): el componente de `news2_partial` -> (clave, rótulo) sale de `VITALS`, la misma tabla del
+    # banner, no de nombres escritos aquí a mano.
+    source = {component: (key, label) for key, label, _domain, _name, component in VITALS}
     for component, points in partial.components.items():
         key, short = source[component]
         d = vitals.values[key]
@@ -148,6 +150,10 @@ def _slide_quiz(topic: C.Topic) -> None:
                 if q.source:
                     st.caption(f"Fuente: {q.source}")
                 _log_once(topic, topic.quiz_bank, q, ok, None if done[1] == NOT_DECLARED else int(done[1]))
+
+
+# La estación «Practica» de la ruta (T3) monta el mismo quiz del tema, con las mismas claves y el mismo registro.
+render_topic_quiz = _slide_quiz
 
 
 # ───────────────────────────── panel derecho ─────────────────────────────

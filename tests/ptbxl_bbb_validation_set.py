@@ -4,7 +4,7 @@ autorizada todavía) -- ground truth de registros PTB-XL reales, CONFIRMADOS
 (LBBB completo).
 
 Instrumento de validación, deliberadamente NO parte de la UI viva --
-separado de `app/main.py::_ecg_get_ptbxl_records()` (el catálogo del ECG
+separado de `app/instruments/ecg_trazo.py::_ecg_get_ptbxl_records()` (el catálogo del ECG
 Lab, pensado para navegación variada: 2 normales + 1 hallazgo de cada
 tipo) y de `app/supermodules/ecg_monitor/pages.py::get_ptbxl_records()`
 (mismo catálogo, en el supermódulo huérfano). Los tres comparten el acceso

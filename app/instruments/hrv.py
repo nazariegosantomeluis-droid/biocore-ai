@@ -127,6 +127,7 @@ def frecuencia(ctx: InstrumentContext, series: RRSeries) -> InstrumentResult:
     from app.supermodules.learn_theory import LF_HF_DISCUSSED, LF_HF_LABEL
 
     rr_ms = series.rr_ms
+    lf_power = hf_power = None
     try:
         # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
         # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
@@ -149,7 +150,9 @@ def frecuencia(ctx: InstrumentContext, series: RRSeries) -> InstrumentResult:
         st.caption(LF_HF_DISCUSSED)
     except ValueError as exc:
         st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
-        return InstrumentResult()
+        # Como antes de la T2: si las bandas ya estaban calculadas, siguen valiendo (el narrador las recibía).
+        if lf_power is None or hf_power is None:
+            return InstrumentResult()
     return InstrumentResult(values={"lf": float(lf_power), "hf": float(hf_power)})
 
 
@@ -216,9 +219,8 @@ def guardar(ctx: InstrumentContext, series: RRSeries, sdnn: float, mean_nn: floa
     from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
     from app.engines.digital_twin_organism import DigitalTwinOrganism
 
-    # Fase 3 (paciente único de sesión, 2026-08-30): ver el mismo
-    # comentario en render_ecg_monitor_page() más arriba -- este era el
-    # 2° de los 4 sitios que copiaban el bootstrap inline.
+    # Fase 3 (paciente único de sesión, 2026-08-30): ver el mismo comentario en `_render_ecg_save_to_twin()`
+    # (`app/instruments/ecg_trazo.py`) -- este era el 2° de los 4 sitios que copiaban el bootstrap inline.
     session_factory = get_active_session_factory()
     patient_id = get_active_patient_id()
 

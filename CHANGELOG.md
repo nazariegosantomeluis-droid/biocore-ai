@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-11-18 · T3 de la ruta integrada: la Unidad Corazón en la página Ruta
+
+Cuarta tanda del diseño firmado. Pedida por Luis: «Bien, haz T3 y resuelve los detalles menores». Antes, el Inicio mandaba cada nodo de la ruta a una página distinta, con su propio encabezado y sus pestañas. Ahora la Unidad Corazón se recorre en una sola página, con el mismo paciente en cada estación.
+
+1. **Página Ruta** (`ruta`, junto a Inicio; `app/supermodules/ruta/`). Ocho estaciones, todas con contenido que ya existe y está firmado:
+   - **0 · Tu paciente:** un escenario del simulador (sano, hipertensión o sepsis, `run_rich_scenario`, procedencia simulación) en un paciente NUEVO, «Unidad Corazón · …», que pasa a ser el paciente activo de toda la app. Se muestran los 6 horizontes que calculó el simulador, y la declaración de la instancia (sano) o de la trayectoria (sepsis).
+   - **1 · Concepto:** temas firmados 1–3 (papel ECG, frecuencia cardiaca, ondas).
+   - **2 · Observa:** el registro real PTB s0010, con su sello.
+   - **3 · Mide:** el instrumento `ecg_trazo` en modo estación. Abre en la fuente «Paciente activo», así que el trazo late a la FC del paciente. Al lado, el QTc con esa misma FC.
+   - **4 · Practica:** las preguntas del tema «Frecuencia cardiaca», con su confianza, registradas en la sesión.
+   - **5 · Altera:** «¿Qué pasa si…?» con el escenario del paciente. Con sepsis se declina con el motivo de siempre.
+   - **6 · Concepto:** temas 4 y 5 (12 derivaciones e isquemia).
+   - **7 · Cierre:** el mismo paciente, sus valores ahora y al empezar, cada uno con su procedencia, lo que practicó en la sesión, y el caso guiado firmado como siguiente paso. El caso guiado se abre en su página, con su aviso de entrada.
+2. **Franja del paciente:** fija abajo al centro (en el celular, una línea que se desliza). Muestra FC, FR y SpO₂ con su sello y su edad u horizonte. Cuando una estación guarda, lo dice ahí mismo: «Guardaste FC 115 lpm».
+3. **Riel:** el zigzag del Inicio como mapa de la unidad, con la estación actual marcada («aquí») y las visitadas. Debajo de cada estación, «Anterior» y «Siguiente».
+4. **Hilo entre estaciones:** cada estación abre con «Tu paciente ahora: FC … (procedencia) · FR … · SpO₂ …». Describe datos; no hace afirmaciones clínicas.
+5. **Sin paciente no hay relleno:** una estación que necesita al paciente de la unidad dice «Sin dato: falta Paciente de la unidad» y no crea uno. Si el paciente activo cambió en otra página, la estación lo dice y ofrece volver al de la unidad.
+6. **El avance** vive en la sesión del navegador y la pantalla lo dice: se pierde al cerrar, y una estación cuenta como visitada, no como dominada.
+7. **«¿Qué pasa si…?» es un instrumento:** `render_what_if_page(ctx, cases)`. Con `PAGE` nada cambia; en una estación, sus claves y el estado del intento llevan el prefijo de la estación.
+8. **Sin emoji en la ruta:** en modo estación, `ecg_trazo` quita los emoji decorativos de sus títulos, botones y avisos. En la página de siempre no cambian.
+9. **Detalles menores de la T2 y la T1.1:**
+   - Un contexto de estación sin prefijo lanza un error, porque dos montajes chocarían.
+   - El espectro de la variabilidad conserva LF y HF si falla después de calcularlas.
+   - Los comentarios que apuntaban a la ubicación vieja ya apuntan a la nueva.
+   - Hay prueba de que, en una estación, la fuente «paciente activo» no ofrece guardar.
+   - Un valor del último paso de una trayectoria dice su horizonte («Simulación · horizonte 7d»).
+   - La lista NEWS2 de Temas sale de `VITALS`.
+   - El respaldo sin Plotly no chocaba con dos montajes; la prueba queda como guardia.
+
+10. **Revisión independiente** (corregido, cada hallazgo con su prueba en rojo antes):
+    - **Franja:** decía «Tu paciente» con los signos de OTRO paciente cuando el activo cambiaba fuera de la ruta o aún no había paciente de la unidad (Art. I). Ahora lo dice y no muestra esos valores. La estación 0 también avisa, y las estaciones que no leen al paciente ya no se bloquean.
+    - **Estado del gemelo:** al crear el paciente de la unidad se quitan de la sesión la «fuente activa» y el organismo en memoria del gemelo, que eran del paciente anterior. Con una arritmia aplicada antes en el gemelo, el ECG de un paciente sano declinaba «ritmo no modelado».
+    - **QTc de la estación:** ahora lleva la cita de cada fórmula, las mismas que Calculadoras.
+    - **Pie del cierre:** ya no dice que solo una estación puede cambiar un valor.
+    - **Riel:** la estación actual se ve marcada, no apagada.
+
+Pruebas:
+- `tests/test_ruta_corazon.py`: recorrido estación por estación de la app completa. El paciente de la estación 0 late en el ECG, carga el QTc y es el del cierre. Una FC guardada desde MIT-BIH reemplaza a la anterior en la franja, el hilo y el cierre. Cubre también sin paciente, paciente cambiado, sepsis, el riel, y sin inglés ni emoji en cada estación.
+- `tests/test_instruments.py`: «¿Qué pasa si…?» en una estación sin compartir estado con su página, más los detalles menores.
+- Las pruebas de navegación pasan de 31 a 32 páginas.
+
 ## 2026-11-18 · T2 de la ruta integrada: los laboratorios de ECG y variabilidad cardiaca se vuelven instrumentos
 
 Tercera tanda del diseño firmado («Instrumentos: partir los labs»). Una estación de la ruta (T3) necesita montar el trazo del ECG o la variabilidad cardiaca dentro de su paso, sin el menú lateral y, si hace falta, dos veces en la misma página. Hoy eran páginas cerradas: controles fijos en el menú lateral y widgets sin clave, que chocan si se dibujan dos veces.
