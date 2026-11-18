@@ -29,7 +29,7 @@ from app.utils.design_system import PALETTE
 from app.utils.evidence_passport import render_evidence_passport
 from app.utils.patient_session import _PATIENT_ID_KEY, get_active_session_factory
 from clinical.calculators import news2_partial, news2_points_text
-from domain.physiology.state import CarryOrigin, Provenance, get_composed_patient
+from domain.physiology.state import CarryOrigin, Provenance, get_composed_patient, horizon_of
 from domain.physiology.state.schema import PhysiologicalDescriptor
 
 BANNER_KEY = "active_patient_banner"          # `st.container(key=...)`: la prueba lo busca por texto, no por DOM
@@ -158,6 +158,10 @@ def origin_age_s(origin: CarryOrigin) -> float:
 def vital_provenance_text(descriptor: PhysiologicalDescriptor, origin: Optional[CarryOrigin] = None) -> str:
     """La procedencia que se muestra: la del valor o, si es un arrastre, la de su origen con su edad."""
     if origin is None:
+        # T3 (detalle de la T1.1): un valor del último paso de una trayectoria dice su horizonte, como sus arrastres.
+        horizon = horizon_of(descriptor.source_detail)
+        if horizon is not None:
+            return f"{provenance_label(descriptor)} · horizonte {HORIZON_ES.get(horizon, horizon)}"
         return provenance_label(descriptor)
     return f"{PROVENANCE_ES.get(origin.provenance, origin.provenance.value)} · {origin_when_text(origin)}"
 

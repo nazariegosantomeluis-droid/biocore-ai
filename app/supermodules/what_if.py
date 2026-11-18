@@ -131,11 +131,13 @@ _ATTEMPT = "what_if_attempt"
 _RECORDED = "what_if_recorded"
 
 
-def _log_once(case: WhatIfCase, result: Dict[str, dict], confidences: Dict[str, int]) -> None:
+def _log_once(case: WhatIfCase, result: Dict[str, dict], confidences: Dict[str, int], ctx=None) -> None:
+    from app.instruments.base import PAGE
     from app.utils.session_learning import log_session_answer
 
-    mark = (st.session_state.get(_ATTEMPT, 0), case.key)
-    recorded = st.session_state.setdefault(_RECORDED, set())
+    ctx = ctx or PAGE
+    mark = (st.session_state.get(ctx.k(_ATTEMPT), 0), case.key)
+    recorded = st.session_state.setdefault(ctx.k(_RECORDED), set())
     if mark in recorded:
         return
     for out_key, *_ in OUTPUTS:
@@ -144,17 +146,24 @@ def _log_once(case: WhatIfCase, result: Dict[str, dict], confidences: Dict[str, 
     recorded.add(mark)
 
 
-def render_what_if_page() -> None:
+def render_what_if_page(ctx=None, cases: Optional[Tuple[WhatIfCase, ...]] = None) -> None:
+    """La página «¿Qué pasa si…?» o, con `ctx` de estación (T3, 2026-11-18), el mismo instrumento dentro de una
+    estación de la ruta: todas las claves (widgets y estado del intento) pasan por `ctx.k`, así que no comparte estado
+    con la página. `cases`: un subconjunto de la lista cerrada (p. ej. solo el escenario del paciente); por defecto,
+    todos."""
+    from app.instruments.base import PAGE
     from app.utils.design_system import BADGES, render_no_data
 
+    ctx = ctx or PAGE
+    cases = CASES if cases is None else cases
     st.caption(EXCLUDED_NOTE)
-    labels = {c.key: c.label for c in CASES}
-    key = st.selectbox("Caso", list(labels), format_func=labels.get, key="what_if_case")
-    case = next(c for c in CASES if c.key == key)
-    state = st.session_state.get(_STATE)
+    labels = {c.key: c.label for c in cases}
+    key = st.selectbox("Caso", list(labels), format_func=labels.get, key=ctx.k("what_if_case"))
+    case = next(c for c in cases if c.key == key)
+    state = st.session_state.get(ctx.k(_STATE))
     if state is None or state.get("case") != key:
         state = {"case": key, "submitted": False}
-        st.session_state[_STATE] = state
+        st.session_state[ctx.k(_STATE)] = state
 
     if case.in_review:
         st.warning(f"En revisión clínica: {case.in_review}. Puedes ver lo que calcula el motor, pero no se califica "
@@ -167,16 +176,16 @@ def render_what_if_page() -> None:
         for out_key, name, unit, _ in OUTPUTS:
             cols = st.columns([3, 2])
             predictions[out_key] = cols[0].radio(f"{name} ({unit})", DIRECTIONS, index=None, horizontal=True,
-                                                 key=f"what_if_pred_{key}_{out_key}")
+                                                 key=ctx.k(f"what_if_pred_{key}_{out_key}"))
             confidences[out_key] = cols[1].slider("Tu confianza (0–100)", 0, 100, 50,
-                                                  key=f"what_if_conf_{key}_{out_key}")
+                                                  key=ctx.k(f"what_if_conf_{key}_{out_key}"))
         ready = all(predictions.values())
-        if st.button("Enviar predicción", key=f"what_if_send_{key}", disabled=not ready):
+        if st.button("Enviar predicción", key=ctx.k(f"what_if_send_{key}"), disabled=not ready):
             result = grade(case, predictions)
             state.update(submitted=True, predictions=predictions, confidences=confidences, result=result,
                          logged=gradable(case, result))
             if state["logged"]:
-                _log_once(case, result, confidences)
+                _log_once(case, result, confidences, ctx)
             st.rerun()
         return
 
@@ -213,9 +222,9 @@ def render_what_if_page() -> None:
         st.caption("Cadena tal como está escrita en `domain/physiology/hemodynamics/closed_loop.py`.")
         st.markdown(CARDIAC_ARM_NOTE)
 
-    if st.button("Otra predicción", key="what_if_again"):
-        for k in [k for k in st.session_state if str(k).startswith(("what_if_pred_", "what_if_conf_"))]:
+    if st.button("Otra predicción", key=ctx.k("what_if_again")):
+        for k in [k for k in st.session_state if str(k).startswith((ctx.k("what_if_pred_"), ctx.k("what_if_conf_")))]:
             del st.session_state[k]
-        st.session_state.pop(_STATE, None)
-        st.session_state[_ATTEMPT] = st.session_state.get(_ATTEMPT, 0) + 1
+        st.session_state.pop(ctx.k(_STATE), None)
+        st.session_state[ctx.k(_ATTEMPT)] = st.session_state.get(ctx.k(_ATTEMPT), 0) + 1
         st.rerun()

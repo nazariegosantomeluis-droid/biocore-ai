@@ -75,8 +75,8 @@ def get_case_database():
     Reubicada aquí (2026-08-20, Capa 2 Fase 2.1) desde
     `app/supermodules/ecg_monitor/pages.py`, enterrado por código muerto (su
     `run()`/`main()` nunca tuvo un llamador vivo -- ver CHANGELOG.md). Esta
-    era la única función de ese archivo con un import vivo real (aquí mismo,
-    en `render_ecg_monitor_page()`)."""
+    era la única función de ese archivo con un import vivo real (en
+    `render_ecg_monitor_page()`; desde la T2, 2026-11-18, vive en este instrumento)."""
     from src.clinical.case_database import build_complete_case_database
 
     # 2026-11-16 (Art. I): antes los 61 casos dependían del estado de `np.random` global en el momento de construirlos,
@@ -290,15 +290,15 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
     precisamente de dónde vino, no solo la etiqueta genérica.
 
     T2 (2026-11-18): `ctx` da la clave del botón (con `PAGE`, la de siempre); devuelve el snapshot escrito o `None`."""
-    st.markdown("#### 🔗 Guardar estado al gemelo")
+    st.markdown(f"#### {_deco(ctx, '🔗')}Guardar estado al gemelo")
     source_label = metadata.get('source', 'demo')
 
     # Contención (2026-11-16, Art. I): un CSV cargado no escribe al gemelo, con el mismo criterio y mensaje que el EMG.
     # Antes no escribía por accidente (sus metadatos no traían 'source' y caía en la rama demo) y la página le decía
     # al estudiante que la FC la había elegido él en un slider.
     if source_label == ECG_CSV_SOURCE_LABEL:
-        st.button("💾 Guardar estado al gemelo", key=ctx.k("ecg_lab_save_to_ups"), disabled=True, help=CSV_SAVE_BLOCKER)
-        st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
+        st.button(f"{_deco(ctx, '💾')}Guardar estado al gemelo", key=ctx.k("ecg_lab_save_to_ups"), disabled=True, help=CSV_SAVE_BLOCKER)
+        st.warning(f"{_deco(ctx, '⛔')}No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
         return
 
     if source_label == ECG_PATIENT_SOURCE_LABEL:
@@ -324,7 +324,7 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
         "esa página o pulses \"Sincronizar\" ahí. Si declina, no escribe nada -- verás el motivo "
         "clínico exacto."
     )
-    if st.button("💾 Guardar estado al gemelo", key=ctx.k("ecg_lab_save_to_ups")):
+    if st.button(f"{_deco(ctx, '💾')}Guardar estado al gemelo", key=ctx.k("ecg_lab_save_to_ups")):
         if ECGAnalyzerCls is None:
             render_error_state("Motor ECGAnalyzer no disponible en este entorno -- no se puede evaluar la compuerta.")
             return
@@ -335,7 +335,7 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
         try:
             hr, confidence = analyzer.estimate_heart_rate_with_confidence(signal)
         except ClinicalDataQualityError as e:
-            st.warning(f"⛔ Escritura declinada por seguridad clínica: {e}")
+            st.warning(f"{_deco(ctx, '⛔')}Escritura declinada por seguridad clínica: {e}")
             return
 
         from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
@@ -376,6 +376,12 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
         return snapshot_id
     return None
 
+
+
+def _deco(ctx: InstrumentContext, emoji: str) -> str:
+    """El emoji decorativo de la página de siempre; en una estación de la ruta, nada (diseño firmado: sin emoji). El
+    texto que sigue dice lo mismo con palabras."""
+    return "" if ctx.in_station else f"{emoji} "
 
 
 SOURCES = ['Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)', 'Base de datos MIT-BIH',
@@ -446,7 +452,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
 
     elif source == 'Caso clínico (61 disponibles)':
         case_db = get_case_database()
-        panel.caption(f"📚 {case_db.count_cases()} casos disponibles, agrupados por diagnóstico.")
+        panel.caption(f"{_deco(ctx, '📚')}{case_db.count_cases()} casos disponibles, agrupados por diagnóstico.")
         diagnosis_options = sorted({c.primary_diagnosis.value for c in case_db.cases.values()})
         selected_diagnosis = panel.selectbox('Diagnóstico primario', diagnosis_options, key=ctx.auto_key('ecg_case_diagnosis'))
         matching_cases = sorted(

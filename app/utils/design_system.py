@@ -157,6 +157,7 @@ CONTRAST_PAIRS = (
     ("TINTA_2", "BACKGROUND", 4.5), ("TINTA_2", "SECONDARY_BACKGROUND", 4.5), ("TEXT", "PANEL", 4.5),
     ("TEXT", "RESALTE", 4.5), ("TINTA_TITULO", "RESALTE", 4.5), ("TRAZO", "RESALTE", 3.0),   # cursor encima
     ("NEUTRAL", "PANEL", 4.5), ("TINTA_2", "PANEL", 4.5),   # menú lateral sobre PANEL (2026-11-18)
+    ("TRAZO", "PANEL", 4.5),                                # «Guardaste FC …» en la franja de la Ruta (T3)
     # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
     # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
     ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
@@ -721,6 +722,7 @@ ROUTE_URL = "app/static/marca/ruta"
 # pendientes de revisión de marca (LEEME-iconos-app.txt). Una prueba exige uno por página y que el archivo exista.
 NAV_ICONS = {
     "inicio": "biocore-icono-app-inicio-monitor.svg",
+    "ruta": "biocore-icono-app-ruta-monitor.svg",
     "temas": "biocore-icono-app-temas-monitor.svg",
     "teoria": "biocore-icono-academia-monitor.svg",
     "referencias": "biocore-icono-app-referencias-monitor.svg",
@@ -879,6 +881,20 @@ def inject_global_theme() -> None:
                 border-radius: 999px; padding: 4px 16px; width: auto !important; max-width: 92vw; }}
             .bc-mini {{ display: flex; align-items: center; gap: 14px; color: {PALETTE.TEXT}; font-size: 0.9rem; white-space: nowrap; }}
             .bc-mini img {{ height: 22px; width: auto; }}
+            /* Franja fija de la Ruta (T3): el paciente siempre presente, abajo al centro en toda la página (arriba la
+               tapaba el encabezado de Streamlit). */
+            .bc-franja {{ position: fixed; bottom: 0.8rem; left: 50%; transform: translateX(-50%); z-index: 999991;
+                background: {PALETTE.PANEL}; border: 1px solid {PALETTE.GRID}; border-radius: 18px; padding: 6px 16px;
+                max-width: 70vw; flex-wrap: wrap; white-space: normal; row-gap: 4px; }}
+            .bc-franja-saved {{ color: {PALETTE.TRAZO}; font-weight: 600; }}
+            .bc-franja img.bc-franja-seal {{ height: 20px; }}
+            .bc-franja-when {{ color: {PALETTE.NEUTRAL}; font-size: 0.8rem; }}
+            .bc-franja-space {{ height: 96px; }}
+            /* En el celular, una sola línea que se desliza (abajo, como en pantallas anchas: arriba tapa el menú). */
+            @media (max-width: 640px) {{
+                .bc-franja {{ bottom: 0.6rem; max-width: 94vw; overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; }}
+            }}
+            [class*="st-key-bc_node"] button:disabled, [class*="st-key-bc_node"] button:disabled * {{ opacity: 1; color: {PALETTE.TINTA_TITULO} !important; background: {PALETTE.RESALTE} !important; border-color: {PALETTE.TRAZO} !important; }}
             @supports (animation-timeline: scroll()) {{
                 .st-key-bc_sticky {{ animation: bc-reveal linear both; animation-timeline: --bcmain; animation-range: 160px 320px; }}
             }}

@@ -2059,6 +2059,13 @@ def render_compare_patients_page() -> None:
     render_compare_page()
 
 
+def render_route_page() -> None:
+    """La ruta (T3 de la ruta integrada, 2026-11-18): la Unidad Corazón, estación por estación, sobre un paciente."""
+    from app.supermodules.ruta.page import render_route_page as render
+
+    render()
+
+
 def render_practice_what_if_page() -> None:
     from app.supermodules.what_if import render_what_if_page
 
@@ -2095,6 +2102,7 @@ def _page_specs() -> list:
     `inject_global_theme` en el menú. Títulos con los nombres de la página 7 del manual."""
     return [
         ("", "inicio", "Inicio", None, render_home_page),
+        ("", "ruta", "Ruta", None, render_route_page),          # T3 (2026-11-18): la ruta por unidades
         ("Aprender", "temas", "Temas", None, render_learn_topics_page),
         ("Aprender", "teoria", "Teoría (Academia)", None, render_learn_theory_page),
         ("Aprender", "referencias", "Referencias de los laboratorios", None, render_learn_references_page),

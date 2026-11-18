@@ -65,7 +65,8 @@ def test_each_section_holds_what_the_signed_decision_lists():
                                        "casos-simulador", "what-if", "detective", "mi-sesion"]
     assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
                                       "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
-    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio"]
+    # T3 (2026-11-18): la Ruta, junto a Inicio (diseño firmado: «Ruta» es uno de los cinco destinos de la T5).
+    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio", "ruta"]
 
 
 def test_the_twelve_old_entries_all_map_to_existing_pages():

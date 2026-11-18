@@ -2,7 +2,7 @@
 
 Usado por DOS entregables separados que comparten el CSV pero no la
 selección de registros:
-- El loader vivo del ECG Monitor (`app/main.py::_ecg_get_ptbxl_records()`,
+- El loader vivo del ECG Monitor (`app/instruments/ecg_trazo.py::_ecg_get_ptbxl_records()`, antes en `app/main.py`,
   UI) -- navegación de unos pocos registros variados. (Nota 2026-08-20: vivía
   aquí documentado como `app/supermodules/ecg_monitor/pages.py`, pero ese
   supermódulo se enterró por código muerto -- el loader real siempre fue la
