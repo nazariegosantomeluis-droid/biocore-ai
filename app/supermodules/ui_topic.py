@@ -84,7 +84,7 @@ def _slide_findings(topic: C.Topic) -> None:
 
 
 def _render_patient_news2() -> None:
-    from app.utils.patient_banner import read_active_vitals
+    from app.utils.patient_banner import UNIT_ES, read_active_vitals, vital_provenance_text
     from clinical import calculators as calc
 
     vitals = read_active_vitals()
@@ -94,8 +94,13 @@ def _render_patient_news2() -> None:
         return
     raw = {k: (d.value if d is not None else None) for k, d in vitals.values.items()}
     partial = calc.news2_partial(pulse=raw["hr"], respiratory_rate=raw["rr"], spo2=raw["spo2"])
+    # T1.1: cada componente dice de qué valor sale, con su procedencia y edad (pueden venir de guardados distintos).
+    source = {"Pulso": ("hr", "FC"), "Frecuencia respiratoria": ("rr", "FR"), "SpO₂ (escala 1)": ("spo2", "SpO₂")}
     for component, points in partial.components.items():
-        st.markdown(f"- {component}: {points} {'punto' if points == 1 else 'puntos'}")
+        key, short = source[component]
+        d = vitals.values[key]
+        st.markdown(f"- {component}: {points} {'punto' if points == 1 else 'puntos'} ({short} {d.value:.0f} "
+                    f"{UNIT_ES.get(d.unit, d.unit)} · {vital_provenance_text(d, vitals.origins.get(key))})")
     st.caption(f"No hay total: faltan {', '.join(calc.NEWS2_PARAMETERS_NOT_MODELED)} ({calc.NEWS2_CITATION}).")
 
 

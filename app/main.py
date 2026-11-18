@@ -68,6 +68,7 @@ from app.utils.design_system import (
 )
 from app.utils.patient_banner import (
     active_source_label, patient_start_value, read_active_vitals, render_active_patient_banner,
+    vital_provenance_text,
 )
 from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
@@ -1461,6 +1462,9 @@ def _ecg_from_active_patient():
                        f'({lo}–{hi} lpm)')
         return None
     signal = DynamicECGGenerator(fs=ECG_DEMO_FS).generate(duration=20, hr=float(hr.value))
+    # T1.1: de qué guardado sale la FC del trazo (puede ser de otro momento que el último guardado del paciente).
+    st.caption(f"Trazo simulado a la FC {hr.value:.0f} lpm del paciente activo · "
+               f"{vital_provenance_text(hr, vitals.origins.get('hr'))}.")
     return signal, ECG_DEMO_FS, {'source': ECG_PATIENT_SOURCE_LABEL, 'patient_id': vitals.patient_id,
                                   'hr_ups': float(hr.value)}
 

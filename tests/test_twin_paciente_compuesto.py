@@ -203,3 +203,114 @@ def test_insignias_del_eeg_dicen_su_procedencia():
     badges = [c.value for c in at.main.caption if "DAR =" in c.value or "TBR =" in c.value]
     assert badges, "precondición: el EEG guardado trae DAR/TBR"
     assert all("Procedencia: Simulación · hace" in b for b in badges), badges
+
+
+# ── T1.1 (2026-11-18): sliders desde el paciente; lo que no se movió sigue siendo del paciente ──
+
+def _save_hr(patient_id: str, hr: float, prov=Provenance.SENSOR_REAL) -> None:
+    with _shared_factory()() as session:
+        save_state(session, UnifiedPhysiologicalState(
+            patient_id=patient_id, timestamp=datetime.now(timezone.utc),
+            cardiovascular=DomainState("cardiovascular", {
+                "heart_rate": PhysiologicalDescriptor("heart_rate", float(hr), "bpm", prov, 0.85, "placa (prueba)")}),
+            respiratory=DomainState("respiratory", {}), events=[]))
+
+
+def _twin_app(patient_id: str) -> AppTest:
+    at = AppTest.from_file(MAIN, default_timeout=240)
+    at.session_state["biocore_start_page"] = "gemelo"
+    at.session_state[PATIENT_KEY] = patient_id
+    at.run()
+    assert at.exception == [], at.exception
+    return at
+
+
+def _md(at: AppTest) -> str:
+    return " ".join(m.value for m in at.main.markdown)
+
+
+def test_slider_arranca_en_la_fc_del_paciente():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _twin_app(patient_id)
+    assert at.slider(key="twin_shell_hr").value == 88
+    assert any("empieza en la FC del paciente activo" in c.value for c in at.main.caption)
+
+
+def test_slider_sigue_al_paciente_mientras_no_se_mueve():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _twin_app(patient_id)
+    _save_hr(patient_id, 95)                     # el laboratorio de ECG guarda una FC medida
+    at.run()
+    assert at.slider(key="twin_shell_hr").value == 95
+    text = _md(at)
+    assert "FC: 95 lpm" in text and "Procedencia: Sensor real" in text, "lo no movido viene del paciente"
+
+
+def test_slider_movido_gana():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _twin_app(patient_id)
+    at.slider(key="twin_shell_hr").set_value(120).run()
+    _save_hr(patient_id, 95)
+    at.run()
+    assert at.slider(key="twin_shell_hr").value == 120
+    text = _md(at)
+    assert "FC: 120 lpm" in text
+    heart = text.split("🫀 Corazón", 1)[1].split("</div></div>", 1)[0]
+    assert "Procedencia: Simulación" in heart and "hace" not in heart
+
+
+def test_escenario_activo_no_difiere():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = AppTest.from_file(MAIN, default_timeout=240)
+    at.session_state["biocore_start_page"] = "gemelo"
+    at.session_state[PATIENT_KEY] = patient_id
+    at.session_state["twin_shell_input_source"] = "escenario de prueba"
+    at.run()
+    assert at.exception == []
+    assert at.session_state["twin_shell_deferred_inputs"] == frozenset()
+
+
+def test_pulmones_dicen_que_procedencia_es_de_cual(pid):
+    from app.supermodules.twin_shell.ups_body_visual import _render_lungs_card
+    state = _state(pid, resp=[_d("respiratory_rate", 18, "breaths/min"),
+                              _d("spo2", 94, "%", prov=Provenance.SENSOR_REAL)])
+    html = _render_lungs_card(state, origins={})
+    assert "Procedencia: FR: Simulación; SpO₂: Sensor real" in html
+
+
+def test_cerebro_sin_bandas_sin_linea_de_procedencia(pid):
+    from app.supermodules.twin_shell.ups_body_visual import _render_brain_card
+    html = _render_brain_card(_state(pid, neuro=[_d("chi_aperiodic", 1.4)]), origins={})
+    assert "banda dominante" in html and "biocore-organ-source" not in html
+
+
+def test_pie_dice_gris_sin_dato():
+    text = " ".join(c.value for c in _twin_app(_patient_with(EEG)).main.caption)
+    assert "una tarjeta sin dato se pinta en gris" in text
+
+
+# ── Revisión final de la T1.1 ──
+
+def test_dominio_diferido_entero_no_duplica_alertas(factory, pid):
+    organism = DigitalTwinOrganism()
+    organism.update_from_sensors({"respiratory": {"respiratory_rate": 18.0, "spo2": 90.0}})
+    _save(factory, from_digital_twin_organism(organism, pid, provenance=Provenance.SIMULACION, source_detail="lab"))
+    from app.utils.physiological_state import get_current_physiological_state
+    current = get_current_physiological_state(organism, pid)
+    state, _ = overlay_current_on_composed(current, _composed(factory, pid),
+                                           frozenset({("respiratory", "respiratory_rate"), ("respiratory", "spo2")}))
+    assert [e.event_type for e in state.events].count(EventType.SPO2_NEWS2_3_POINTS) == 1
+
+
+def test_valor_del_paciente_fuera_de_rango_no_lo_tapa_el_slider():
+    patient_id = _patient_with()
+    with _shared_factory()() as session:
+        save_state(session, UnifiedPhysiologicalState(
+            patient_id=patient_id, timestamp=datetime.now(timezone.utc),
+            cardiovascular=DomainState("cardiovascular", {}),
+            respiratory=DomainState("respiratory", {"spo2": PhysiologicalDescriptor(
+                "spo2", 69.0, "%", Provenance.SENSOR_REAL, 0.85, "oxímetro (prueba)")}), events=[]))
+    at = _twin_app(patient_id)
+    assert at.slider(key="twin_shell_spo2").value == 98          # el control no llega a 69
+    text = _md(at)
+    assert "SpO₂: 69%" in text and "SpO₂: Sensor real" in text

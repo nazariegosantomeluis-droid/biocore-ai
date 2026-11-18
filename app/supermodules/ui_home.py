@@ -59,7 +59,7 @@ def seal_html(kind: str, word: str) -> str:
 def seal_for(descriptor, origin=None) -> str:
     """Sello de procedencia. Con `origin` (un `CarryOrigin` del paciente compuesto), el sello de la procedencia de
     origen y su edad, traducida: «Simulado · hace 3 min»."""
-    from app.utils.patient_banner import age_text, origin_age_s
+    from app.utils.patient_banner import origin_when_text
 
     if descriptor is None:
         return seal_html(*NO_DATA_SEAL)
@@ -67,7 +67,7 @@ def seal_for(descriptor, origin=None) -> str:
         return seal_html(*PROVENANCE_SEAL.get(descriptor.provenance.name, NO_DATA_SEAL))
     kind, word = PROVENANCE_SEAL.get(origin.provenance.name, NO_DATA_SEAL)
     return (f"<span class='bc-seal'><img src='{STATIC}/sellos/biocore-sello-{kind}-monitor.svg' alt=''>"
-            f"{t(word)} · {age_text(origin_age_s(origin), t)}</span>")
+            f"{t(word)} · {origin_when_text(origin, t)}</span>")
 
 
 def icon_html(name: str, css: str = "bc-illus") -> str:

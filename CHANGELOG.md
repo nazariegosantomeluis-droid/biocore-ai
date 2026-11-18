@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-18 · T1.1: sliders del gemelo desde el paciente y pendientes de la T0 y la T1 (Art. I)
+
+Aprobado por Luis («sí, haz esto, repara los pendientes menores»).
+
+1. **Sliders del gemelo desde el paciente.** FC, FR y SpO₂ arrancan en los valores del paciente, como en Respiración y Variabilidad cardiaca (`patient_seed`, `_seed_sliders_from_patient`). Solo esas tres: el `hrv` del UPS no dice qué índice es, y estrés y fatiga no se escriben al UPS. Mientras el estudiante no mueva un slider sembrado, el slider sigue al paciente (si el ECG guarda 95, el slider pasa a 95) y el cuerpo muestra el valor del paciente con su procedencia y su edad (`overlay_current_on_composed(..., defer_to_patient=...)`). Un slider movido manda y se ve como simulación. Con un escenario activo no se difiere nada. La nota dice que guardar el estado lo guarda como simulación.
+2. **Paciente compuesto más rápido y sin carrera:** una consulta con ventana lee solo la última fila de cada descriptor (de 73 a 13 ms con 1500 guardados), y los valores se leen con el `rowid` del último snapshot como corte: una escritura entre las dos lecturas ya no vuelve arrastre todo.
+3. **`DERIVED_INPUTS` calificado por dominio:** un nombre repetido en otro dominio ya no decide por el de este.
+4. **Trayectorias de escenario:** un valor de otro paso se rotula con su horizonte («Simulación · horizonte 1h»), no con «hace 2 s» (`CarryOrigin.horizon`, `horizon_of`).
+5. **Una sola edad por valor:** el texto al pasar el cursor en el banner usa la misma edad que la etiqueta (`display_detail`).
+6. **Edad por valor donde se mezclan momentos:** el panel NEWS2 de Calculadoras, la lista NEWS2 de Temas y el trazo «Paciente activo» del ECG dicen la procedencia y la edad del valor del que sale cada número.
+7. **Tarjetas del gemelo:** pulmones dice de cuál valor es cada procedencia («FR: …; SpO₂: …»); el cerebro sin banda dominante no muestra procedencia de valores que no enseña; el pie dice que una tarjeta sin dato se pinta en gris.
+
+Las 4 líneas nuevas en `calculators/pages.py` recorrieron 5 citas literales y 18 líneas de tarjeta del pasaporte de evidencia; se corrieron y se verificó cada una.
+
 ## 2026-11-18 · T1 de la ruta integrada: el gemelo lee al paciente compuesto (Art. I)
 
 Segunda tanda del diseño firmado. Antes, el cuerpo del gemelo se dibujaba solo con el organismo en memoria (sliders o escenario): lo que guardaban los laboratorios (bandas y razones del EEG, activación del EMG, valores de sensor real) nunca llegaba al gemelo, y el músculo, cuarto dominio del UPS, no tenía tarjeta.

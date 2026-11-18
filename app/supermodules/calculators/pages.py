@@ -39,7 +39,7 @@ from app.utils.design_system import (
     resolve_metric_card,
 )
 from app.utils.evidence_passport import render_evidence_passport
-from app.utils.patient_banner import CALC_LOAD_PATIENT_KEY, read_active_vitals
+from app.utils.patient_banner import CALC_LOAD_PATIENT_KEY, read_active_vitals, vital_provenance_text
 from clinical import calculators as calc
 
 # Tanda 2C (2026-10-24): traída del aporte SIN su capa de arte (láminas
@@ -202,6 +202,10 @@ def _render_patient_news2_points() -> None:
                     unavailable_reason=f"el paciente activo no tiene {short} en el UPS",
                 )
                 render_evidence_passport(f"calculadoras.news2_paciente_{key}", shown, key=f"passport_calc_news2_{key}")
+                if descriptor is not None:
+                    # T1.1: los tres valores pueden venir de guardados distintos; cada uno dice de cuál.
+                    st.caption(f"{short} {descriptor.value:.0f} {unit} · "
+                               f"{vital_provenance_text(descriptor, vitals.origins.get(key))}")
         st.caption(
             f"Paciente `{vitals.short_id}`: valores del UPS (no son mediciones de un paciente si su procedencia es "
             f"Simulación). Cada componente con su tabla ({calc.NEWS2_CITATION}). No hay total: faltan "
