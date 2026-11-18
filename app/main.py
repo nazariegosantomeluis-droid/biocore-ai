@@ -35,10 +35,7 @@ from app.utils import legal
 from app.utils import version as app_version
 from app.utils import navigation as nav
 from app.utils import i18n
-from app.utils.ai_session import (
-    AI_CALL_FAILED, AI_KEY_HINT, AI_OFF, ai_client, ai_configured, render_settings_link, render_settings_page,
-    render_sidebar_status,
-)
+from app.utils.ai_session import render_settings_page, render_sidebar_status
 from domain.physiology.narrator.privacy import DataOrigin
 
 from app.supermodules import (
@@ -51,7 +48,6 @@ from app.supermodules import (
     safe_import_ecg_modules,
     safe_import_multisensor,
     safe_import_src_modules,
-    validate_signal,
     plot_signal_matplotlib,
     display_warning_message,
     display_error_message,
@@ -60,16 +56,19 @@ from app.supermodules import (
 )
 from app.engines import DigitalTwinOrganism
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
-from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, detect_rsa, rr_spectrum
-from app.supermodules import hrv_nonlinear_panel, rsa_panel
+from app.supermodules import rsa_panel
+from app.instruments.common import CSV_SAVE_BLOCKER, render_findings_narrator, render_metric_explained  # T2: instrumentos
+# T2 (2026-11-18): el trazo del ECG (fuente, papel, FC, compuerta de guardado) vive en `app/instruments/ecg_trazo.py`;
+# estos nombres se siguen exponiendo aquí para quien los importa de `app.main`.
+from app.instruments.ecg_trazo import (  # noqa: F401
+    ECG_CSV_SOURCE_LABEL, ECG_DEMO_FS, ECG_PATIENT_SOURCE, ECG_PATIENT_SOURCE_LABEL, ECG_SOURCE_KEY, _ecg_data_origin,
+    _measure_ecg_heart_rate_tkeo, get_case_database,
+)
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_no_data,
 )
-from app.utils.patient_banner import (
-    active_source_label, patient_start_value, read_active_vitals, render_active_patient_banner,
-    vital_provenance_text,
-)
+from app.utils.patient_banner import render_active_patient_banner
 from clinical.calculators import news2_reading_note
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -223,26 +222,6 @@ def init_state() -> None:
 # la usa ya (ver render_patient_pipeline_page()). El archivo
 # clinical_states.db se conserva sin borrar, solo deja de inicializarse.
 
-def render_metric_explained(title: str, value: Any, unit: str = '', topic=None) -> None:
-    """El número y, a demanda, «¿Qué significa…?» con las capas de un tema FIRMADO y su fuente.
-
-    Pulido profesional (2026-11-16, Art. I): la explicación ya no se escribe a mano en cada llamada. Antes cada llamador
-    pasaba sus propias capas («¿Por qué importa?», «¿Qué la afecta?»...), sin fuente; en la frecuencia cardiaca eran
-    genéricas. Ahora una capa solo existe si viene de un `TheoryTopic` de `learn_theory.py` (texto de
-    `docs/contenido/teoria_citada.md`, firmado por Luis, con su clave de cita). Sin tema, no hay expander."""
-    from app.utils.design_system import render_theory_topic
-
-    try:
-        display_value = f"{value} {unit}" if unit else f"{value}"
-    except Exception:
-        display_value = str(value)
-
-    st.markdown(f"**{title}** — {display_value}")
-    if topic is not None:
-        with st.expander(f"¿Qué significa {title}?", expanded=False):
-            render_theory_topic(topic, inside_expander=True)
-
-
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
     with st.expander(f"🔬 Laboratorio de descubrimiento — {name}", expanded=False):
         st.write('Interactividad: correlaciones, sensibilidad y exploración de parámetros.')
@@ -275,74 +254,6 @@ def _emg_data_origin(source: str, live) -> 'DataOrigin':
     if live is None:                                  # CSV, o la fuente en vivo sin señal
         return DataOrigin.DESCONOCIDO
     return DataOrigin.PERSONA if live.provenance == 'SENSOR_REAL' else DataOrigin.SIMULADO
-
-
-_ECG_SOURCE_ORIGIN = {
-    'Demo (sintético)': 'simulado', 'Caso clínico (61 disponibles)': 'simulado',
-    'Base de datos MIT-BIH': 'base_publica', 'Base de datos PTB-XL': 'base_publica',
-}
-
-
-def _ecg_data_origin(source: str, metadata: dict) -> 'DataOrigin':
-    """De dónde vienen los datos del Monitoreo del ECG Lab, para el narrador (`privacy.py`). Los 61 casos clínicos
-    son sintéticos; MIT-BIH y PTB-XL son bases públicas anonimizadas; un CSV no se sabe de quién es."""
-    if source == 'Hardware ESP32 en vivo':
-        label = str((metadata or {}).get('source', ''))
-        return DataOrigin.PERSONA if 'SENSOR_REAL' in label else (
-            DataOrigin.SIMULADO if 'SIMULACIÓN' in label else DataOrigin.DESCONOCIDO)
-    return DataOrigin(_ECG_SOURCE_ORIGIN.get(source, 'desconocido'))
-
-
-def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]], origin=None) -> None:
-    """Narrador clínico real (Anthropic o Gemini, streaming) para hallazgos calculados en
-    laboratorios que no persisten en el UPS (EMG/HRV/Multisensor/ECG Monitor no
-    tienen dominio en el Unified Physiological State — solo cardiovascular y
-    respiratorio están modelados). Ver domain/physiology/narrator/findings.py.
-
-    Mismo patrón que el narrador del Digital Twin OS (twin_shell/pages.py):
-    llamada real a la API, sin narración simulada de respaldo, cada afirmación
-    anclada a una métrica exacta del contexto — pero sin comparación temporal
-    (estas señales ad-hoc no tienen historial persistido).
-
-    `findings`: lista de tuplas (nombre_metrica, valor, significado). `origin`
-    (2026-11-16): de dónde vienen los datos (`DataOrigin`); sin declarar es
-    DESCONOCIDO, y el nivel gratuito de Gemini no lo recibe."""
-    from domain.physiology.narrator import (
-        DataOrigin,
-        Finding,
-        FindingsContext,
-        GeminiError,
-        NarratorNotConfiguredError,
-        ProviderNotAllowedError,
-        stream_findings_narration,
-    )
-
-    if not ai_configured():
-        st.warning(
-            AI_OFF + " Este narrador llama a un modelo de lenguaje real con streaming — no existe una "
-            "narración simulada de respaldo. " + AI_KEY_HINT
-        )
-        render_settings_link()
-        return
-
-    st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
-    if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
-        context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings],
-                                  origin=origin or DataOrigin.DESCONOCIDO)
-        try:
-            st.write_stream(stream_findings_narration(context, client=ai_client()))
-        except ProviderNotAllowedError as exc:
-            st.warning(str(exc))
-        except NarratorNotConfiguredError as exc:
-            render_error_state(str(exc))
-        except GeminiError as exc:
-            render_error_state(str(exc), exception=exc)
-        except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
-            # Fase 2.3 Tanda 3 (2026-08-29): compartido por EMG/ECG Monitor/
-            # Multisensor/HRV (pestaña "IA") -- una sola migración cubre los
-            # 4. Antes exponía `{exc}` crudo (puede incluir detalle interno
-            # de la respuesta HTTP de la API).
-            render_error_state(AI_CALL_FAILED, exception=exc)
 
 
 # Pulido profesional (2026-11-16): `render_view_selector()` («Capa de Exploración Cognitiva») se retiró: cada
@@ -406,28 +317,12 @@ _ECG_VALIDATION_DETAIL = (
     "Detección QRS (detector TKEO) revisada en 6 rondas contra registros de la MIT-BIH Arrhythmia Database "
     "(informe: docs/validation/ecg_hr_detector_bank/). Filtro de monitoreo de 0.5–40 Hz, no diagnóstico [K2007]."
 )
-ECG_DEMO_FS = 500   # muestras/s de la demo: lo que pide [K2007] para un corte de 150 Hz con error de amplitud < 1 %
 
 # Las cuatro secciones plegadas de cada laboratorio (pulido profesional, Parte C: sin selector de vistas).
 from app.utils.design_system import (  # noqa: E402
     CONTENT_KEY, LAB_SECTION_AI, LAB_SECTION_HOW, LAB_SECTION_SIMULATE, LAB_SECTION_THEORY,
 )
 
-# Ganancia de la tira por fuente: solo es «10 mm/mV» si la amplitud está en mV.
-_ECG_GAIN_NOTES = {
-    'CSV local': 'unidades del archivo, no verificadas en mV',
-    'Hardware ESP32 en vivo': 'mV aproximados: ganancia del AD8232 y ADC sin calibrar',
-}
-
-
-def _ecg_monitor_filter_label(source: str) -> str:
-    """Qué filtro tiene la señal que se dibuja (Parte A): la placa en vivo pasa por el filtro de monitoreo de
-    `hardware/ecg_plugplay` (0.5–40 Hz y 60 Hz); las demás fuentes se dibujan tal como vienen."""
-    from app.utils import ecg_paper
-
-    if source == 'Hardware ESP32 en vivo':
-        return ecg_paper.MONITOR_FILTER_LABEL + " y notch de 60 Hz"
-    return ecg_paper.NO_FILTER_LABEL
 # NOTA: Respiratory Lab NO tiene constante de validación (Tanda 1, 2026-11-05):
 # su insignia se retiró y NO se reactivó tras la reparación del detector (fase 3, 2026-11-07);
 # ver `RESPIRATORY_STATUS_NOTICE` en `app/supermodules/respiratory_lab/pages.py`.
@@ -1098,7 +993,6 @@ def _render_emg_lab(signal, time_arr, fs, source, live, emg_live) -> None:
         ], origin=_emg_data_origin(source, live))
 
 
-CSV_SAVE_BLOCKER = "archivo sin procedencia verificable (un CSV cargado no dice de quién ni de qué equipo viene)"
 
 
 def _render_emg_save_to_twin(fs: int, source: str, emg_analysis, live=None) -> None:
@@ -1221,115 +1115,6 @@ def generate_demo_emg_signal(fs: float, duration: float, pattern: str) -> np.nda
 
 # ==================== OTHER PAGES ====================
 
-@st.cache_resource
-def get_case_database():
-    """Cachea la base completa de 61 casos clínicos sintéticos.
-
-    build_complete_case_database() usa np.random para edad/sexo/frecuencia en
-    varios grupos de casos — cachear con @st.cache_resource evita que cada
-    rerun de Streamlit regenere (y potencialmente cambie) los 61 casos.
-
-    Reubicada aquí (2026-08-20, Capa 2 Fase 2.1) desde
-    `app/supermodules/ecg_monitor/pages.py`, enterrado por código muerto (su
-    `run()`/`main()` nunca tuvo un llamador vivo -- ver CHANGELOG.md). Esta
-    era la única función de ese archivo con un import vivo real (aquí mismo,
-    en `render_ecg_monitor_page()`)."""
-    from src.clinical.case_database import build_complete_case_database
-
-    # 2026-11-16 (Art. I): antes los 61 casos dependían del estado de `np.random` global en el momento de construirlos,
-    # así que «el mismo caso» cambiaba de una ejecución a otra (y una prueba dependía del orden). Semilla fija y se
-    # devuelve el estado global como estaba: el resto de la app no nota la diferencia.
-    previous = np.random.get_state()
-    np.random.seed(CASE_DATABASE_SEED)
-    try:
-        return build_complete_case_database()
-    finally:
-        np.random.set_state(previous)
-
-
-CASE_DATABASE_SEED = 0
-
-
-def _ecg_get_ptbxl_records() -> list:
-    """Corrección (2026-08-09): esta función y `_ecg_load_ptbxl_record()` son un
-    segundo loader PTB-XL, duplicado de `app/supermodules/ecg_monitor/pages.py`
-    (copiado en la "Tanda de rescate — Joya 1/3", 2026-07-13) -- y es EL QUE
-    REALMENTE SE RENDERIZA en la app viva (`render_ecg_lab_page()` -> pestaña
-    "Monitoreo" -> `render_ecg_monitor_page()`, este archivo). El loader del
-    supermódulo, aunque también se corrigió, no se llama desde ningún punto
-    vivo (confirmado por grep: solo `get_case_database` se importa de ahí) --
-    arreglar solo aquel habría dejado la fachada intacta en la superficie que
-    el usuario de verdad ve. Los 5 IDs de antes (`'10038'`, etc.) nunca
-    existieron en PTB-XL -- ver `clinical.ptbxl_metadata` para el diagnóstico
-    completo y CHANGELOG.md."""
-    from clinical.ptbxl_metadata import PtbxlUnavailableError, load_ptbxl_database
-    import ast
-
-    df = load_ptbxl_database()
-
-    def _confirmed(scp_codes_str: str, code: str) -> bool:
-        try:
-            codes = ast.literal_eval(scp_codes_str)
-        except (ValueError, SyntaxError):
-            return False
-        return codes.get(code) == 100.0
-
-    picks: list = []
-    seen_ids: set = set()
-
-    def _add(code: str, label: str, limit: int) -> None:
-        added = 0
-        for _, row in df.iterrows():
-            if added >= limit:
-                break
-            if row['ecg_id'] in seen_ids:
-                continue
-            if not _confirmed(row['scp_codes'], code):
-                continue
-            seen_ids.add(row['ecg_id'])
-            picks.append({'ecg_id': int(row['ecg_id']), 'label': label, 'filename': row['filename_hr']})
-            added += 1
-
-    _add('NORM', 'Normal (NORM, confirmado)', 2)
-    _add('CRBBB', 'Bloqueo de rama derecha (CRBBB, confirmado)', 1)
-    _add('CLBBB', 'Bloqueo de rama izquierda (CLBBB, confirmado)', 1)
-
-    return picks
-
-
-def _ecg_load_ptbxl_record(filename: str, lead: int = 0):
-    """Corrección (2026-08-09): antes de esto, esta función NUNCA cargó un
-    registro real -- usaba `pn_dir='ptbxl'` (slug sin guion, inexistente en
-    PhysioNet) con un `record_id` plano inventado. Cualquier "PTB-XL cargado"
-    que la app mostró antes de hoy era en realidad el fallback silencioso a
-    `generate_demo_ecg_signal()`, presentado como PTB-XL -- una fachada
-    (Art. I de la Constitución). Ese fallback se eliminó por completo: sin
-    red hacia PhysioNet, esto falla explícito con `PtbxlUnavailableError`,
-    nunca cae a una señal sintética disfrazada de dato real. `filename` es
-    ahora el valor `filename_hr` real del catálogo (ver
-    `_ecg_get_ptbxl_records()`), no un ID inventado."""
-    from clinical.ptbxl_metadata import PtbxlUnavailableError, resolve_ptbxl_wfdb_args
-
-    try:
-        import wfdb
-    except ImportError as e:
-        raise ImportError('wfdb no está instalado. Instala con: pip install wfdb') from e
-
-    record_id, pn_dir = resolve_ptbxl_wfdb_args(filename)
-    try:
-        record = wfdb.rdrecord(record_id, pn_dir=pn_dir)
-    except Exception as exc:
-        raise PtbxlUnavailableError(
-            f"PTB-XL requiere conexión a PhysioNet -- no se pudo cargar el registro "
-            f"'{filename}' ({type(exc).__name__}: {exc})."
-        ) from exc
-
-    signal = record.p_signal[:, lead]
-    fs = record.fs
-    metadata = {'record_name': record.record_name, 'source': 'PTB-XL', 'filename': filename}
-    return signal, fs, metadata
-
-
 def _ecg_export_signal_csv(signal: np.ndarray, fs: float, prefix: str = 'ecg_export') -> str:
     """Rescatado de app/supermodules/ecg_monitor/pages.py (Tanda de rescate — Joya 1/3,
     2026-07-13) — sin cambios de lógica, solo de ubicación."""
@@ -1385,205 +1170,6 @@ def _ecg_create_reproducible_notebook(csv_path: str, metadata: dict) -> str:
     with open(prov_path, 'w', encoding='utf-8') as pf:
         json.dump(metadata, pf, indent=2)
     return nb_path
-
-
-def _measure_ecg_heart_rate_tkeo(signal: np.ndarray, fs: float, ECGAnalyzerCls) -> Optional[float]:
-    """Bug 2 del ECG (2026-09-26, ver CHANGELOG.md) -- fuente única de
-    medición de HR para `render_ecg_monitor_page()`, consolidada sobre
-    `ECGAnalyzer.detect_r_peaks_tkeo()` (banda 5-15Hz + energía
-    Teager-Kaiser + refractario, 6 rondas de validación con el experto) en
-    vez de la vieja `estimate_ecg_heart_rate()` (naive, sin distancia
-    mínima -- contaba el par R+T del mismo latido como dos latidos, saturaba
-    en 220bpm). Antes de esta tanda solo la fuente demo usaba TKEO; las
-    fuentes de señal REAL (MIT-BIH/PTB-XL/CSV/hardware) seguían con el
-    detector roto -- un HR de 220 sobre un ECG de paciente real, no solo
-    sobre una demo sintética. Ahora las 6 fuentes de `render_ecg_monitor_page()`
-    pasan por esta misma función.
-
-    Devuelve `None` (no un número de relleno) cuando no hay detección
-    fiable -- ECGAnalyzer no disponible en el entorno, o menos de 2 picos
-    R encontrados (señal demasiado corta, sin QRS reconocible en la banda
-    5-15Hz, o ritmo no evaluable). El llamador declara "no disponible" con
-    el motivo, nunca sustituye por un valor inventado (Art. I).
-
-    Error medido en vivo contra `DynamicECGGenerator` con hr conocido:
-    0.00-0.12bpm en el rango 40-200bpm (ver
-    tests/test_ecg_hr_detector_consolidation.py -- el mismo banco que ya
-    validó el generador en Fase 5B sirve, sin modificar, como banco de
-    regresión de este detector)."""
-    if ECGAnalyzerCls is None:
-        return None
-    peaks = ECGAnalyzerCls(fs=fs).detect_r_peaks_tkeo(signal)
-    if len(peaks) < 2:
-        return None
-    return float(60.0 * fs / np.mean(np.diff(peaks)))
-
-
-ECG_CSV_SOURCE_LABEL = "CSV local (archivo cargado)"
-
-# Fuente «Paciente activo» del Monitoreo (integración, 2026-11-17): el trazo se GENERA a la FC que el UPS ya tiene del
-# paciente activo, para que el banner y el ECG digan el mismo número. El UPS guarda la FC, no la onda: la onda es una
-# vista determinista de ese valor (`DynamicECGGenerator`, sin ruido: la misma FC da siempre el mismo trazo).
-ECG_PATIENT_SOURCE = 'Paciente activo (simulación a su FC)'
-ECG_PATIENT_SOURCE_LABEL = 'simulación a la FC del paciente activo (UPS)'
-ECG_SOURCE_KEY = 'ecg_monitor_source'
-# Rango en que la FC del generador está validada con el detector TKEO (error < 0.2 lpm; ver el comentario de la demo).
-ECG_GENERATOR_VALIDATED_HR = (40, 200)
-# Un escenario de arritmia NO se dibuja desde la FC sola: un ritmo sinusal regular sería una onda falsa (Art. I).
-# Marcas (en minúsculas) con que el gemelo rotula su fuente activa cuando aplica una arritmia
-# (`twin_shell.pages`: «arritmia …» o «escenario del simulador 🫀 Fibrilación auricular …», `RICH_SCENARIO_LABELS`).
-ECG_RHYTHM_NOT_MODELED_MARKS = ('arrhythmia', 'arritmia', 'fibrilación auricular', 'flutter auricular',
-                                'taquicardia supraventricular', 'bradicardia sinusal')
-
-
-def _ecg_from_active_patient():
-    """(señal, fs, metadatos) del paciente activo, o `None` tras decir en pantalla por qué no hay trazo. Nunca inventa
-    una FC: sin FC en el UPS, sin paciente, con un escenario de arritmia o fuera del rango validado, es «sin dato»."""
-    vitals = read_active_vitals()
-    if vitals.patient_id is None:
-        render_no_data('Paciente activo', 'todavía no hay paciente: abre el Gemelo digital o guarda un estado desde un '
-                                          'laboratorio para crearlo')
-        return None
-    hr = vitals.values['hr']
-    if hr is None:
-        render_no_data('Frecuencia cardíaca del paciente activo',
-                       'el UPS aún no tiene FC de este paciente: aplica un escenario o guarda un estado en el Gemelo digital')
-        return None
-    origin = f"{hr.source_detail or ''} {active_source_label()}".lower()
-    if any(mark in origin for mark in ECG_RHYTHM_NOT_MODELED_MARKS):
-        render_no_data('Trazo del paciente activo',
-                       'ritmo no modelado: la FC sola no describe un escenario de arritmia y un ritmo sinusal regular '
-                       'sería una onda falsa. Usa un caso clínico para ver un ritmo con su trazo')
-        return None
-    lo, hi = ECG_GENERATOR_VALIDATED_HR
-    if not lo <= hr.value <= hi:
-        render_no_data('Trazo del paciente activo',
-                       f'la FC del paciente ({hr.value:.0f} lpm) está fuera del rango en que el generador está validado '
-                       f'({lo}–{hi} lpm)')
-        return None
-    signal = DynamicECGGenerator(fs=ECG_DEMO_FS).generate(duration=20, hr=float(hr.value))
-    # T1.1: de qué guardado sale la FC del trazo (puede ser de otro momento que el último guardado del paciente).
-    st.caption(f"Trazo simulado a la FC {hr.value:.0f} lpm del paciente activo · "
-               f"{vital_provenance_text(hr, vitals.origins.get('hr'))}.")
-    return signal, ECG_DEMO_FS, {'source': ECG_PATIENT_SOURCE_LABEL, 'patient_id': vitals.patient_id,
-                                  'hr_ups': float(hr.value)}
-
-
-def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGAnalyzerCls) -> None:
-    """Tercer y último lab de la integración estrecha (2026-08-24, Capa
-    2/5B, tanda de cableado) -- molde idéntico a Respiratory/HRV, con la
-    compuerta whitelist (detector TKEO + Vpp + filtros R-R, 6 rondas de
-    validación con el experto, ver docs/validation/ecg_hr_detector_bank/)
-    gobernando la escritura.
-
-    Fuente demo excluida por completo -- decisión que SIGUE en pie tras la
-    Fase 5B (2026-08-30, ver CHANGELOG.md), aunque su razón original ya no
-    aplica: `generate_demo_ecg_signal()` ignoraba `hr` (bug de generador,
-    ahora corregido -- `DynamicECGGenerator`/McSharry 2003, respeta el HR
-    pedido, validado por TKEO). La exclusión se mantiene por una razón
-    distinta y más fundamental: el HR demo es un valor ELEGIDO por el
-    estudiante en un slider, nunca MEDIDO de nada -- aunque el generador
-    ahora sea fiel a ese valor pedido, escribirlo al UPS seguiría siendo
-    "guardar lo que alguien pidió", no "guardar lo que se observó", que es
-    la garantía que esta compuerta existe para proteger. Ni siquiera se
-    muestra el botón para esa fuente -- una decisión permanente, no una
-    que la compuerta re-evalúe cada vez.
-
-    Procedencia -- decisión documentada, no una convención perfecta: el
-    schema (`Provenance`) no tiene una categoría para "dato real de
-    paciente real, reproducido de un dataset público, no medido en vivo
-    aquí" (MIT-BIH/PTB-XL/CSV/casos clínicos). `SENSOR_REAL` se reserva
-    -- mismo criterio que ya usa `twin_shell.pages` para ESP32 -- para
-    hardware conectado y verificado EN VIVO en este momento, nunca por la
-    sola intención de conectar. Todo lo demás usa `Provenance.SIMULACION`
-    (la caja disponible más honesta en el enum actual -- mismo precedente
-    que Patient Pipeline, cuya entrada manual real tampoco es
-    "sensor_real"), con `source_detail` cargando la procedencia exacta
-    (qué dataset/registro/caso) para que quien lea el UPS sepa
-    precisamente de dónde vino, no solo la etiqueta genérica."""
-    st.markdown("#### 🔗 Guardar estado al gemelo")
-    source_label = metadata.get('source', 'demo')
-
-    # Contención (2026-11-16, Art. I): un CSV cargado no escribe al gemelo, con el mismo criterio y mensaje que el EMG.
-    # Antes no escribía por accidente (sus metadatos no traían 'source' y caía en la rama demo) y la página le decía
-    # al estudiante que la FC la había elegido él en un slider.
-    if source_label == ECG_CSV_SOURCE_LABEL:
-        st.button("💾 Guardar estado al gemelo", key="ecg_lab_save_to_ups", disabled=True, help=CSV_SAVE_BLOCKER)
-        st.warning(f"⛔ No se guarda al gemelo: {CSV_SAVE_BLOCKER}.")
-        return
-
-    if source_label == ECG_PATIENT_SOURCE_LABEL:
-        st.info("Esta señal se generó a partir de la FC que el UPS ya tiene de este paciente: guardarla no añadiría "
-                "ningún dato (sería escribir el mismo valor otra vez).")
-        return
-
-    if 'demo' in source_label.lower():
-        st.info(
-            "Fuente demo (sintética) -- nunca escribe HR al gemelo. El HR de esta fuente es un valor "
-            "que TÚ elegiste en el slider, no algo medido de un paciente -- guardarlo confundiría "
-            "'lo que pediste' con 'lo que se observó', aunque el generador ya sea fiel a ese valor "
-            "(Fase 5B). Cambia a MIT-BIH, PTB-XL, un caso clínico o hardware ESP32 para guardar "
-            "un HR real."
-        )
-        return
-
-    st.caption(
-        "Corre el detector TKEO + la compuerta whitelist (pRR31 para FA / metrónomo para marcapasos "
-        "/ banda sinusal / calidad por Vpp) sobre esta señal. Si el ritmo se confirma "
-        "sinusal-evaluable, escribe `heart_rate` real al Unified Physiological State, bajo el mismo "
-        "paciente que renderiza Digital Twin OS -- su corazón reaccionará la próxima vez que abras "
-        "esa página o pulses \"Sincronizar\" ahí. Si declina, no escribe nada -- verás el motivo "
-        "clínico exacto."
-    )
-    if st.button("💾 Guardar estado al gemelo", key="ecg_lab_save_to_ups"):
-        if ECGAnalyzerCls is None:
-            render_error_state("Motor ECGAnalyzer no disponible en este entorno -- no se puede evaluar la compuerta.")
-            return
-
-        from clinical.ecg_analyzer import ClinicalDataQualityError
-
-        analyzer = ECGAnalyzerCls(fs=fs)
-        try:
-            hr, confidence = analyzer.estimate_heart_rate_with_confidence(signal)
-        except ClinicalDataQualityError as e:
-            st.warning(f"⛔ Escritura declinada por seguridad clínica: {e}")
-            return
-
-        from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
-        from app.engines.digital_twin_organism import DigitalTwinOrganism
-
-        # Fase 3 (paciente único de sesión, 2026-08-30): antes este bloque
-        # comprobaba/creaba `twin_shell_ups_session_factory`/
-        # `twin_shell_ups_patient_id` por su cuenta -- 1 de los 4 sitios que
-        # copiaban el mismo bootstrap. Ahora pasa por el único punto de
-        # verdad (`app/utils/patient_session.py`); el comportamiento no
-        # cambia (misma clave, mismo paciente), solo deja de depender de la
-        # convención de copiar el nombre.
-        session_factory = get_active_session_factory()
-        patient_id = get_active_patient_id()
-
-        provenance = Provenance.SENSOR_REAL if 'SENSOR_REAL' in source_label else Provenance.SIMULACION
-
-        organism = DigitalTwinOrganism()
-        organism.update_from_sensors({"ecg": {"heart_rate": float(hr)}})
-        # C0 (2026-11-12, Art. I): la confianza que CALCULO el detector (`estimate_heart_rate_with_confidence`)
-        # es la que se escribe, no el punto medio fijo de la banda (0.75) que ignoraba lo medido.
-        state = from_digital_twin_organism(
-            organism, patient_id, provenance=provenance, confidence=float(confidence),
-            source_detail=f"ecg_lab:{source_label}",
-        )
-        with session_factory() as session:
-            snapshot_id = save_state(session, state)
-
-        st.success(
-            f"Estado guardado al gemelo -- snapshot: {snapshot_id} "
-            f"(FC={hr:.0f} lpm, confianza={confidence:.2f})"
-        )
-        st.caption(
-            f"cardiovascular: {len(state.cardiovascular.descriptors)} descriptores · "
-            f"respiratory: {len(state.respiratory.descriptors)} descriptores "
-            f"(vacío esperado -- este lab no envía dato respiratorio)"
-        )
 
 
 ARRHYTHMIA_CLASS_NAMES = {
@@ -1654,230 +1240,18 @@ def render_ecg_monitor_page() -> None:
     # muestra arriba (render_ecg_lab_page()) -- downgrade a encabezado de
     # sección, no un segundo título de módulo duplicado.
     # Tanda 2 de la fase 1: sin el «Monitoreo» repetido (la pestaña ya lo dice): el trazo entra en la primera vista.
-    ECGAnalyzer, create_clinical_ecg_figure, load_mitbih_record, get_mitbih_records, ecg_ok = safe_import_ecg_modules()
-    src_modules, src_ok = safe_import_src_modules()
+    # T2 (2026-11-18): la fuente, el trazo, la FC y la compuerta de guardado son el instrumento `ecg_trazo` (con `PAGE`:
+    # controles en el menú lateral y las claves de siempre). Lo de abajo es de la página: el detalle del caso y los
+    # plegados (Cómo se calcula, Teoría, Narración con IA).
+    from app.instruments import ecg_trazo
+    from app.instruments.base import PAGE
 
-    # Integración: con un paciente que ya tiene FC en el UPS el Monitoreo abre en SU trazo (banner y ECG, el mismo
-    # número); sin él, abre en la demo como siempre. Streamlit olvida la clave al salir de la página.
-    if ECG_SOURCE_KEY not in st.session_state:
-        st.session_state[ECG_SOURCE_KEY] = (
-            ECG_PATIENT_SOURCE if read_active_vitals().values['hr'] is not None else 'Demo (sintético)')
-    source = st.sidebar.radio(
-        'Origen del ECG',
-        [
-            'Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)',
-            'Base de datos MIT-BIH', 'Base de datos PTB-XL', 'Hardware ESP32 en vivo', ECG_PATIENT_SOURCE,
-        ],
-        key=ECG_SOURCE_KEY,
-    )
-    signal = None
-    fs = 250
-    metadata = {}
-    loaded_case = None
-
-    if source == 'CSV local':
-        uploaded = st.sidebar.file_uploader('Carga ECG local (CSV)', type=['csv'])
-        if uploaded and src_ok and 'load_biomedical_signal' in src_modules:
-            try:
-                with open(os.path.join(tempfile.gettempdir(), uploaded.name), 'wb') as tmp:
-                    tmp.write(uploaded.read())
-                signal, fs, metadata = src_modules['load_biomedical_signal'](os.path.join(tempfile.gettempdir(), uploaded.name))
-                metadata['source'] = ECG_CSV_SOURCE_LABEL       # antes faltaba y la página lo rotulaba «demo»
-                st.success('Señal ECG cargada desde CSV local')
-            except Exception as e:
-                render_error_state(
-                    "No se pudo cargar el archivo CSV -- verifica que el formato sea el esperado "
-                    "(columna de señal + frecuencia de muestreo).",
-                    exception=e,
-                )
-        elif uploaded:
-            st.warning('Carga de CSV detectada, pero faltan módulos de `src`. Usando demo.')
-
-    elif source == 'Caso clínico (61 disponibles)':
-        case_db = get_case_database()
-        st.sidebar.caption(f"📚 {case_db.count_cases()} casos disponibles, agrupados por diagnóstico.")
-        diagnosis_options = sorted({c.primary_diagnosis.value for c in case_db.cases.values()})
-        selected_diagnosis = st.sidebar.selectbox('Diagnóstico primario', diagnosis_options)
-        matching_cases = sorted(
-            (c for c in case_db.cases.values() if c.primary_diagnosis.value == selected_diagnosis),
-            key=lambda c: c.case_id,
-        )
-        selected_case_id = st.sidebar.selectbox(
-            'Caso específico',
-            [c.case_id for c in matching_cases],
-            format_func=lambda cid: next(
-                f"{c.case_id} — {c.age}a {c.sex}, dificultad {c.difficulty.value}"
-                for c in matching_cases if c.case_id == cid
-            ),
-        )
-        loaded_case = case_db.get_case(selected_case_id)
-        signal = loaded_case.ecg_signal
-        fs = loaded_case.fs
-        metadata = {'source': f'caso clínico {selected_case_id}', 'diagnosis': loaded_case.primary_diagnosis.value}
-
-    elif source == 'Base de datos MIT-BIH':
-        # Rescatado (Tanda de rescate — Joya 1/3, 2026-07-13): el loader ya vivía
-        # compartido en signals/loaders/wfdb_loader.py (safe_import_ecg_modules() lo
-        # importa arriba) — lo único que faltaba era esta opción de UI para alcanzarlo.
-        if not ecg_ok:
-            st.sidebar.warning(
-                'El loader MIT-BIH no está disponible en este entorno (falta `wfdb` o '
-                '`signals.loaders`). Usando demo.'
-            )
-        else:
-            mitbih_records = get_mitbih_records()
-            selected_mitbih = st.sidebar.selectbox('Registro MIT-BIH', mitbih_records)
-            if st.sidebar.button('Cargar registro MIT-BIH'):
-                try:
-                    loaded_signal, loaded_fs, mitbih_meta = load_mitbih_record(selected_mitbih)
-                    st.session_state['_ecg_monitor_mitbih_cache'] = (
-                        loaded_signal, loaded_fs,
-                        {'source': f'MIT-BIH {selected_mitbih} (PhysioNet)', **mitbih_meta},
-                    )
-                except Exception as e:
-                    st.session_state['_ecg_monitor_mitbih_cache'] = None
-                    # Piloto de impacto, Fase 2.3 Tanda 2 (2026-08-29): antes
-                    # `display_error_message()` mostraba `str(e)` crudo -- un
-                    # `URLError`/`HTTPError` de la descarga en vivo de
-                    # PhysioNet, o un 404 de registro inexistente, aparecía
-                    # tal cual en pantalla. Ahora: caja limpia para quien ve
-                    # la demo, traza completa a logging para quien depura.
-                    render_error_state(
-                        "No se pudo cargar el registro MIT-BIH -- verifica la conexión a PhysioNet "
-                        "o prueba otro registro.",
-                        exception=e,
-                    )
-            cached_mitbih = st.session_state.get('_ecg_monitor_mitbih_cache')
-            if cached_mitbih is not None:
-                signal, fs, metadata = cached_mitbih
-            else:
-                render_empty_state(
-                    "Aún no hay ningún registro MIT-BIH cargado",
-                    action='selecciona uno arriba y pulsa "Cargar registro MIT-BIH" -- se descarga en vivo desde PhysioNet',
-                )
-
-    elif source == 'Base de datos PTB-XL':
-        # Corregido 2026-08-09 -- ver docstrings de _ecg_get_ptbxl_records()/
-        # _ecg_load_ptbxl_record() para el diagnóstico y la corrección completa.
-        try:
-            ptbxl_records = _ecg_get_ptbxl_records()
-        except Exception as e:
-            ptbxl_records = []
-            render_error_state(
-                "No se pudo obtener el catálogo de PTB-XL -- verifica la conexión a PhysioNet.",
-                exception=e,
-            )
-
-        if not ptbxl_records:
-            st.sidebar.warning('No hay registros PTB-XL disponibles ahora mismo (ver error arriba).')
-        else:
-            selected_ptbxl = st.sidebar.selectbox(
-                'Registro PTB-XL', ptbxl_records,
-                format_func=lambda r: f"{r['ecg_id']} — {r['label']}",
-            )
-            if st.sidebar.button('Cargar registro PTB-XL'):
-                try:
-                    loaded_signal, loaded_fs, ptbxl_meta = _ecg_load_ptbxl_record(selected_ptbxl['filename'])
-                    st.session_state['_ecg_monitor_ptbxl_cache'] = (
-                        loaded_signal, loaded_fs,
-                        {'source': f"PTB-XL {selected_ptbxl['ecg_id']} ({selected_ptbxl['label']}, PhysioNet)", **ptbxl_meta},
-                    )
-                except Exception as e:
-                    st.session_state['_ecg_monitor_ptbxl_cache'] = None
-                    # Segundo sitio del piloto de impacto (Fase 2.3 Tanda 2) --
-                    # este es el que más falla en la práctica: `_ecg_load_ptbxl_record()`
-                    # lanza `PtbxlUnavailableError` explícito sin red hacia
-                    # PhysioNet (ver su docstring) -- antes ese mensaje, ya
-                    # honesto en su texto, se mostraba con la traza de Python
-                    # pegada. Misma caja limpia + traza al log.
-                    render_error_state(
-                        "No se pudo cargar el registro PTB-XL -- verifica la conexión a PhysioNet "
-                        "o prueba otro registro.",
-                        exception=e,
-                    )
-            cached_ptbxl = st.session_state.get('_ecg_monitor_ptbxl_cache')
-            if cached_ptbxl is not None:
-                signal, fs, metadata = cached_ptbxl
-            else:
-                st.sidebar.info('Selecciona un registro y pulsa "Cargar" — se descarga en vivo desde PhysioNet.')
-
-    elif source == ECG_PATIENT_SOURCE:
-        generated = _ecg_from_active_patient()
-        if generated is None:
-            return
-        signal, fs, metadata = generated
-
-    elif source == 'Hardware ESP32 en vivo':
-        # ECG Plug & Play (2026-11-13, ver CHANGELOG; Art. I): reemplaza a la rama de
-        # ESP32SignalSource, que tras desconectar el cable seguía diciendo SENSOR_REAL sobre un
-        # búfer congelado y podía abrir un puerto Bluetooth. La placa se busca sola, el puerto se
-        # cierra al desconectarse y la procedencia es SENSOR_REAL solo mientras una placa real
-        # manda datos. Código en app/supermodules/ecg_live/ y hardware/ecg_plugplay/.
-        from app.supermodules.ecg_live.monitor_source import render_live_source
-
-        live = render_live_source()
-        if live is not None:
-            signal, fs, metadata = live
-
-    if signal is None:
-        hr_demo = st.sidebar.slider('FC demo (lpm)', 40, 140, 72)
-        # Fase 5B (2026-08-30): DynamicECGGenerator (McSharry et al. 2003)
-        # reemplaza a generate_demo_ecg_signal() -- ver
-        # src/signals/ecg/dynamic_ecg_generator.py. El generador viejo
-        # ignoraba `hr` (QRS con ciclo fijo `t % 1`); este respeta el HR
-        # pedido (validado por TKEO, error <0.2bpm en todo el rango 40-200,
-        # ver CHANGELOG.md).
-        # Pulido profesional (2026-11-16): la demo se genera a 500 muestras/s, lo que pide [K2007] para un corte
-        # superior de 150 Hz con error de amplitud < 1 % (antes 250).
-        fs = ECG_DEMO_FS
-        signal = DynamicECGGenerator(fs=fs).generate(duration=20, hr=hr_demo)
-        metadata['source'] = 'demo'
-
-    valid, msg = validate_signal(signal)
-    if not valid:
-        render_error_state(msg)
+    trace = ecg_trazo.render(PAGE)
+    if trace is None:
         return
-
-    # Pulido profesional (2026-11-16, Art. I): se retiró el selector «Capa de Exploración Cognitiva» (Clínica / Educativa /
-    # Investigación / IA / Simulación). Una sola página: arriba el trazo en papel ECG y los valores clave; debajo, plegados,
-    # «Cómo se calcula» (antes Investigación), «Teoría» (antes Educativa: el enlace a Aprender) y «Narración con IA
-    # (opcional)» (antes IA). Cierre del pulido: «Simular» y el material de Educativa estaban rotulados «[Sin fuente]» (y
-    # los controles de Simular no movían nada); se retiraron de la vista, su código queda sin montar en
-    # `_ecg_monitor_unsourced_material()`.
-    # Bug 2 del ECG (2026-09-26): las 6 fuentes miden con el mismo detector TKEO; `hr is None` se declara «no disponible».
-    hr = _measure_ecg_heart_rate_tkeo(signal, fs, ECGAnalyzer)
-    vm = np.arange(len(signal)) / fs
-
-    # ── 1. El trazo (papel ECG, 25 mm/s · 10 mm/mV) y los valores clave ──
-    from app.utils import ecg_paper
-    from app.supermodules.learn_theory import SIGNED_HEART_RATE
-
-    duration_s = len(signal) / fs
-    strip_start = 0.0
-    if duration_s > ecg_paper.STRIP_S + 0.5:
-        strip_start = st.slider('Inicio de la tira de 10 s (s)', 0.0, float(np.floor(duration_s - ecg_paper.STRIP_S)),
-                                0.0, step=1.0, key='ecg_monitor_strip_start')
-    ecg_paper.render(ecg_paper.strip_figure(
-        signal, fs, lead=str(metadata.get('lead') or 'ECG'), start_s=strip_start,
-        filter_label=_ecg_monitor_filter_label(source),
-        gain_note=_ECG_GAIN_NOTES.get(source),
-    ), key='ecg_monitor_paper')
-
-    if hr is None:
-        render_no_data(
-            'Frecuencia cardíaca',
-            'el detector TKEO no encontró suficientes picos R fiables en esta señal (señal corta, sin QRS '
-            'reconocible en 5-15 Hz, ritmo no evaluable o motor ECGAnalyzer no disponible). Prueba con otra '
-            'fuente o una señal más larga.',
-        )
-    else:
-        # La explicación es el tema 2 firmado (docs/contenido/teoria_citada.md); las capas genéricas se retiraron.
-        render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm', topic=SIGNED_HEART_RATE)
-        st.caption(news2_reading_note(pulse=hr))     # integración: la FC siempre con sus puntos NEWS2 (misma tabla del gemelo)
-    st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs:g} Hz")
-
-    st.divider()
-    _render_ecg_save_to_twin(signal, fs, metadata, ECGAnalyzer)
+    signal, fs, metadata, source = trace.signal, trace.fs, trace.metadata, trace.source
+    hr, loaded_case = trace.hr, trace.loaded_case
+    src_modules, src_ok = trace.src_modules, trace.src_ok   # una sola importación (y un solo aviso si faltan)
 
     if loaded_case is not None:
         with st.expander(f"📋 Detalle del caso {loaded_case.case_id}", expanded=False):
@@ -2212,81 +1586,17 @@ def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecor
         ], origin=DataOrigin.SIMULADO)  # canales demo
 
 
-def _render_hrv_save_to_twin(sdnn: float, mean_nn: float, source: str) -> None:
-    """Segundo lab de la integración estrecha (2026-08-24, Capa 2 Fase 2.4) --
-    mismo molde que tuvo `respiratory_lab/pages.py::_render_save_to_twin()`
-    (desactivada el 2026-11-05: FR/AHI no fiables), aplicado al lado cardio-únicamente. Botón explícito, nunca
-    automático. Fase 3 (2026-08-30): el bootstrap manual ya no existe --
-    llama a `get_active_patient_id()`/`get_active_session_factory()`
-    (`app/utils/patient_session.py`), el punto único de verdad que
-    reemplazó la convención de copiar `twin_shell_ups_session_factory`/
-    `twin_shell_ups_patient_id` en cada lab (decisión de alcance del piloto
-    de Respiratory, ahora formalizada).
-
-    Qué escribe -- solo lo real con destino confirmado (Paso 1 del recon
-    cardiovascular): `hrv` mapeado desde `sdnn`, no RMSSD -- convención YA
-    documentada en el repo (`domain/physiology/ml/risk_context.py`:
-    "el UPS solo modela un 'hrv' genérico en ms -- se usa como proxy de
-    SDNN"), no una decisión nueva. `heart_rate` mapeado desde `60000/mean_nn`
-    -- derivado de la MISMA serie RR real, no fabricado. `rmssd`/`pnn50`/
-    LF/HF no tienen slot en el schema -- no se escriben, no se fuerzan.
-
-    Procedencia: `Provenance.SIMULACION` siempre -- ambas fuentes de este lab
-    (RR manual pegado por el usuario, o RR demo generado con jitter) son
-    entrada de demo/manual, nunca un sensor real verificado en el momento.
-    `source_detail` incluye qué fuente (`source`) se usó.
-
-    La raíz respiratoria (gate simétrico ya cerrado en el builder) hace su
-    trabajo aquí sola: como `update_from_sensors()` solo recibe `"ecg"`, el
-    dominio respiratorio del estado resultante queda vacío -- no hay pulmón
-    fantasma que evitar a mano, espejo exacto de cómo Respiratory dejó
-    cardiovascular vacío en su propio piloto."""
-    st.markdown("#### 🔗 Guardar estado al gemelo")
-    st.caption(
-        "Escribe `heart_rate`/`hrv` reales (calculados de la serie RR de arriba -- `hrv` mapeado "
-        "desde SDNN) al Unified Physiological State, bajo el mismo paciente que renderiza Digital "
-        "Twin OS -- su corazón reaccionará a estos valores la próxima vez que abras esa página o "
-        "pulses \"Sincronizar\" ahí. Procedencia: simulación (serie RR de demo/manual, no un sensor real)."
-    )
-    if st.button("💾 Guardar estado al gemelo", key="hrv_lab_save_to_ups"):
-        from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
-        from app.engines.digital_twin_organism import DigitalTwinOrganism
-
-        # Fase 3 (paciente único de sesión, 2026-08-30): ver el mismo
-        # comentario en render_ecg_monitor_page() más arriba -- este era el
-        # 2° de los 4 sitios que copiaban el bootstrap inline.
-        session_factory = get_active_session_factory()
-        patient_id = get_active_patient_id()
-
-        heart_rate_bpm = 60000.0 / mean_nn
-        organism = DigitalTwinOrganism()
-        organism.update_from_sensors({
-            "ecg": {
-                "heart_rate": float(heart_rate_bpm),
-                "hrv": float(sdnn),
-            }
-        })
-        state = from_digital_twin_organism(
-            organism, patient_id, provenance=Provenance.SIMULACION,
-            source_detail=f"hrv_lab:sdnn_desde_serie_rr:fuente={source}",
-        )
-        with session_factory() as session:
-            snapshot_id = save_state(session, state)
-
-        st.success(f"Estado guardado al gemelo -- snapshot: {snapshot_id}")
-        st.caption(
-            f"cardiovascular: {len(state.cardiovascular.descriptors)} descriptores · "
-            f"respiratory: {len(state.respiratory.descriptors)} descriptores "
-            f"(vacío esperado -- este lab no envía dato respiratorio)"
-        )
-
-
 def render_hrv_page() -> None:
     # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
     # SDNN/RMSSD (dominio temporal) y las bandas de frecuencia se definen
     # según [SG2017] (B2/B3 de teoria_citada_2.md), `validation="VALIDATED"`.
     # Residuos del PR #8 (2026-11-17): antes se atribuían a la Task Force
     # ESC/NASPE 1996 ([TF1996]), a la que no se le atribuye ninguna afirmación.
+    # T2 (2026-11-18): la página es la composición de los instrumentos de `app/instruments/hrv.py` (fuente RR,
+    # dominio temporal, espectro, RSA, no lineal y guardar), con `PAGE`: mismas claves y controles en el menú lateral.
+    from app.instruments import hrv
+    from app.instruments.base import PAGE
+
     render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Variabilidad de la frecuencia cardíaca (HRV)", icon="📈",
@@ -2294,118 +1604,32 @@ def render_hrv_page() -> None:
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
     st.markdown('Análisis de variabilidad de la frecuencia cardíaca con métricas de tiempo y frecuencia.')
-    # Sub-arco RSA (2026-10-19): la fuente demo era "Demo (ECG-derived)" y no
-    # derivaba de ningún ECG (`mean_rr + N(0, 3%)`, ruido blanco). Ahora los RR
-    # salen de verdad de un ECG sintético con RSA, por el detector TKEO.
-    source = st.sidebar.radio('Origen de la HRV', [rsa_panel.RSA_SOURCE_LABEL, 'Serie RR manual'], index=0)
-    rr_ms = None
-    rsa_signals, rsa_params, r_peak_times_s = None, None, None
-    if source == 'Serie RR manual':
-        txt = st.text_area('Pega RR intervals en ms separados por comas', '800,820,790,810,805')
-        try:
-            rr_ms = np.array([float(x.strip()) for x in txt.split(',') if x.strip()])
-        except Exception:
-            rr_ms = None
-    else:
-        ECGAnalyzer, _, _, _, _ = safe_import_ecg_modules()
-        if ECGAnalyzer is None:
-            render_error_state('Motor ECGAnalyzer (detector TKEO) no disponible en este entorno -- sin RR que derivar.')
-            return
-        # Integración (2026-11-17): FC base y FR EMPIEZAN en las del paciente activo del UPS (si caben en el control).
-        # La amplitud RSA no: el `hrv` del UPS no dice qué índice es, y ajustar la serie para «dar» ese número sería
-        # inventar la relación entre ambos.
-        hr_start, hr_note = patient_start_value('hr', 40, 140, 72, 'FC base')
-        rr_start, rr_note = patient_start_value('rr', 6, 30, 15, 'Frecuencia respiratoria')
-        rsa_params = RsaParams(
-            hr_base_bpm=float(st.sidebar.slider('FC base (lpm)', 40, 140, int(hr_start))),
-            rsa_amplitude_bpm=float(st.sidebar.slider('Amplitud RSA (lpm)', 0, 15, 5,
-                help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.')),
-            respiratory_rate_rpm=float(st.sidebar.slider('Frecuencia respiratoria (rpm)', 6, 30, int(rr_start),
-                help='La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones '
-                     'por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.')),
-        )
-        for note in (hr_note, rr_note):
-            if note:
-                st.sidebar.caption(note)
-        if hr_note or rr_note:
-            st.sidebar.caption('La amplitud RSA no sale del paciente: el UPS guarda «hrv» sin decir qué índice es.')
-        # 240 s (~290 latidos a 72 lpm): SampEn y DFA α1 necesitan ≥200 latidos; con 120 s
-        # (~144) la fuente por defecto declinaría ambas.
-        n = st.sidebar.slider('Duración (seg)', 30, 300, 240)
-        rsa_signals, r_peak_times_s = rsa_panel.simulate_rsa_rr(rsa_params, float(n), ECGAnalyzer)
-        rr_ms = np.diff(r_peak_times_s) * 1000.0
-        st.caption(
-            f"Fuente: simulación -- {len(r_peak_times_s)} picos R detectados por TKEO sobre un ECG sintético "
-            "(McSharry 2003) cuya FC modula la respiración. No es un registro de un paciente."
-        )
-
-    if rr_ms is None or len(rr_ms) < 5:
-        render_error_state('RR series insuficiente -- provee más latidos o usa la fuente de simulación.')
+    series = hrv.rr_source(PAGE)
+    if series is None:
         return
-
-    diffs = np.diff(rr_ms)
-    sdnn = float(np.std(rr_ms, ddof=1))
-    rmssd = float(np.sqrt(np.mean(diffs**2))) if len(diffs) > 0 else 0.0
-    pnn50 = float(np.sum(np.abs(diffs) > 50) / max(1, len(diffs)) * 100)
-    mean_nn = float(np.mean(rr_ms))
+    rr_ms, source = series.rr_ms, series.source
 
     st.markdown('### Vista Clínica')
-    # Pulido profesional (2026-11-16, Art. I): las capas de «¿Qué significa…?» de SDNN/RMSSD/pNN50 no tenían fuente
-    # («Indicador general de variabilidad autonómica», «Bajos valores asociados a mayor riesgo cardiovascular»...) y
-    # no hay tema firmado de HRV: se retiran. Queda la definición de cada cálculo (método, no una afirmación clínica).
-    # Teoría citada 2 (2026-11-17): «¿Qué significa…?» con la línea firmada de B2 de cada valor ([SG2017]).
-    from app.supermodules.learn_theory import (HRV_TOPICS, LF_HF_DISCUSSED, LF_HF_LABEL, SIGNED_HRV_B7,
-                                               SIGNED_HRV_PNN50, SIGNED_HRV_RMSSD, SIGNED_HRV_SDNN)
+    from app.supermodules.learn_theory import HRV_TOPICS, LF_HF_DISCUSSED, LF_HF_LABEL, SIGNED_HRV_B7
     from app.utils.design_system import render_theory_topic
 
-    render_metric_explained('SDNN', f'{sdnn:.1f}', unit='ms', topic=SIGNED_HRV_SDNN)
-    render_metric_explained('RMSSD', f'{rmssd:.1f}', unit='ms', topic=SIGNED_HRV_RMSSD)
-    render_metric_explained('pNN50', f'{pnn50:.1f}', unit='%', topic=SIGNED_HRV_PNN50)
-    st.caption('Cómo se calcula: SDNN = desviación estándar de los intervalos NN; RMSSD = raíz cuadrática media de las '
-               'diferencias sucesivas entre intervalos NN; pNN50 = porcentaje de diferencias sucesivas mayores de 50 ms.')
+    temporal = hrv.tiempo(PAGE, series).values
+    sdnn, rmssd, pnn50, mean_nn = temporal["sdnn"], temporal["rmssd"], temporal["pnn50"], temporal["mean_nn"]
 
     # Tanda 2 de la fase 1: ≤ 5 paneles al abrir. Lo demás, en pestañas (a demanda), sin cambiar ningún cálculo; el
     # espectro va primero porque es un solo gráfico.
     tab_spectrum, tab_rsa, tab_nonlinear, tab_learn, tab_save = st.tabs(
         ["Espectro (bandas LF y HF)", "RSA", "No lineal", "Aprender y explicar", "Guardar al gemelo"])
-    # RSA: con la fuente manual no hay respiración simultánea -> declina con motivo.
-    if r_peak_times_s is None:
-        r_peak_times_s = np.concatenate([[0.0], np.cumsum(rr_ms) / 1000.0])
     with tab_rsa:
-        rsa_panel.render_rsa_panel(
-            detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
-            rsa_signals, rsa_params,
-        )
+        hrv.rsa(PAGE, series)
     with tab_nonlinear:
-        hrv_nonlinear_panel.render_nonlinear_panel(rr_ms)
+        hrv.no_lineal(PAGE, series)
     with tab_save:
-        _render_hrv_save_to_twin(sdnn, mean_nn, source)
+        hrv.guardar(PAGE, series, sdnn, mean_nn)
 
     with tab_spectrum:
-        lf_power = None
-        hf_power = None
-        try:
-            # Sub-arco RSA: el cálculo en línea se movió a `rr_spectrum()` (compartido con
-            # la RSA). Antes usaba `np.trapz`, que numpy 2.x ya no tiene -- el espectro
-            # fallaba siempre y el `except` culpaba a scipy.
-            f, pxx = rr_spectrum(rr_ms)
-            lf_power = band_power(f, pxx, LF_BAND_HZ)
-            hf_power = band_power(f, pxx, HF_BAND_HZ)
-            lf_hf = lf_power / hf_power if hf_power > 0 else None
-            st.markdown('### Vista Investigación — Espectro HRV')
-            if PLOTLY_OK:
-                fig = PLOTLY_GO.Figure()
-                fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
-                fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Potencia')
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.line_chart(pxx)
-            # Teoría citada 2, B3 (decisión de Luis): la razón va rotulada «interpretación discutida» con [B2013].
-            lf_hf_txt = f'{lf_hf:.2f}' if lf_hf is not None else 'no disponible (potencia HF nula)'
-            st.write(f'LF: {lf_power:.3f} — HF: {hf_power:.3f} — {LF_HF_LABEL} [B2013]: {lf_hf_txt}')
-            st.caption(LF_HF_DISCUSSED)
-        except ValueError as exc:
-            st.info(f'No se pudo calcular el espectro HRV con esta serie RR: {exc}')
+        bands = hrv.frecuencia(PAGE, series).values
+    lf_power, hf_power = bands.get("lf"), bands.get("hf")
 
     # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
     # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Autonomic

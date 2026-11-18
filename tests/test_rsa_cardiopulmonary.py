@@ -148,7 +148,8 @@ def _run_hrv(source=None):
 
 
 def test_hrv_lab_source_no_longer_claims_ecg_derived_over_white_noise():
-    src = Path("app/main.py").read_text(encoding="utf-8")
+    # T2 (2026-11-18): la fuente de la HRV vive en `app/instruments/hrv.py`; la guardia mira los dos archivos.
+    src = "".join(Path(p).read_text(encoding="utf-8") for p in ("app/main.py", "app/instruments/hrv.py"))
     assert "'Demo (ECG-derived)'" not in src, "la etiqueta ya no se usa como opción de la fuente"
     assert "np.random.normal(0, mean_rr * 0.03" not in src
     at = _run_hrv()

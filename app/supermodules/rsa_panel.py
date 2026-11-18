@@ -57,7 +57,9 @@ def build_rsa_figure(result: RSAResult, signals: RsaSignals) -> go.Figure:
     return fig
 
 
-def render_rsa_panel(result: RSAResult, signals: Optional[RsaSignals], injected: Optional[RsaParams]) -> None:
+def render_rsa_panel(result: RSAResult, signals: Optional[RsaSignals], injected: Optional[RsaParams],
+                     key: Optional[str] = None) -> None:
+    """`key` (T2): la clave del gráfico cuando el panel se monta en una estación (dos montajes no chocan)."""
     st.markdown("### 🫁❤️ Acoplamiento cardiopulmonar (RSA)")
     st.markdown(
         "Arritmia sinusal respiratoria: al inspirar se retira el freno vagal y la FC sube; al espirar "
@@ -72,7 +74,7 @@ def render_rsa_panel(result: RSAResult, signals: Optional[RsaSignals], injected:
         return
 
     if signals is not None:
-        st.plotly_chart(build_rsa_figure(result, signals), width="stretch")
+        st.plotly_chart(build_rsa_figure(result, signals), width="stretch", key=key)
 
     injected_txt = f" · inyectada {injected.rsa_amplitude_bpm:.1f} lpm" if injected is not None else ""
     render_metric_card(

@@ -15,6 +15,8 @@ detector consolidado sigue recuperando el HR real -- si alguien reintroduce
 un detector sin distancia mínima, este test lo atrapa.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -88,6 +90,8 @@ def test_naive_detector_has_zero_live_callers_in_source():
         "app/main.py",
         "app/utils.py",
         "app/supermodules/__init__.py",
+        # T2 (2026-11-18): la FC del Monitoreo se mide en el instrumento del trazo.
+        *sorted(str(p) for p in Path("app/instruments").glob("*.py")),
     ]
     call_pattern = re.compile(r"(?<!`)\bestimate_ecg_heart_rate\s*\(")
     for path in live_files:
