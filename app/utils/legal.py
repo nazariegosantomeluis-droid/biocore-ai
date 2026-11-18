@@ -248,17 +248,26 @@ def clickwrap_pending(url_path: str) -> bool:
 def render_clickwrap(url_path: str) -> None:
     import streamlit as st
 
-    st.markdown(f"### {CLICKWRAP_TITLE}")
+    from app.utils import i18n
+
+    st.markdown(f"### {i18n.t(CLICKWRAP_TITLE)}")
     with st.container(border=True):
-        st.markdown(CLICKWRAP_TEXT)
-    accepted = st.checkbox(CLICKWRAP_CHECKBOX, value=False, key=f"legal_clickwrap_check_{url_path}")
-    if st.button(CLICKWRAP_BUTTON, type="primary", disabled=not accepted, key=f"legal_clickwrap_enter_{url_path}"):
+        if i18n.is_english():      # traducción de cortesía; el texto firmado en español es el que aplica
+            st.markdown(i18n.CLICKWRAP_TEXT_EN)
+            st.caption(i18n.COURTESY_NOTE)
+            with st.expander(i18n.t("Texto firmado (español)")):
+                st.markdown(CLICKWRAP_TEXT)
+        else:
+            st.markdown(CLICKWRAP_TEXT)
+    accepted = st.checkbox(i18n.t(CLICKWRAP_CHECKBOX), value=False, key=f"legal_clickwrap_check_{url_path}")
+    if st.button(i18n.t(CLICKWRAP_BUTTON), type="primary", disabled=not accepted,
+                 key=f"legal_clickwrap_enter_{url_path}"):
         st.session_state[_SESSION_OK] = True
         if url_path in CASE_PAGES:
             st.session_state[_CASE_OK] = url_path
         st.rerun()
     if not accepted:
-        st.caption(CLICKWRAP_HINT)
+        st.caption(i18n.t(CLICKWRAP_HINT))
 
 
 def _render_sections(title: str, sections, preamble: Optional[str] = None) -> None:
@@ -291,14 +300,15 @@ def render_legal_footer() -> None:
     import streamlit as st
 
     from app.utils import navigation as nav
+    from app.utils.i18n import t
 
     st.divider()
-    st.caption(FOOTER_NOTICE)
+    st.caption(t(FOOTER_NOTICE))
     cols = st.columns(2)
     with cols[0]:
-        nav.link("terminos", "Términos y condiciones", icon="📜")
+        nav.link("terminos", t("Términos y condiciones"), icon="📜")
     with cols[1]:
-        nav.link("privacidad", "Aviso de privacidad", icon="🔒")
+        nav.link("privacidad", t("Aviso de privacidad"), icon="🔒")
 
 
 def render_safety_precautions(kind: str) -> None:
