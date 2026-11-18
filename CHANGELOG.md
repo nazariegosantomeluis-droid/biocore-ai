@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-18 · Interfaz en español e inglés (rama `i18n-es-en`, primera entrega)
+
+José Miguel pidió que la página se pudiera usar en inglés y en español.
+
+1. **`app/utils/i18n.py`:** `t(texto_es)` devuelve el texto en el idioma de la sesión. La clave es el propio texto en español y, si no hay traducción, se muestra el español: nunca se traduce al vuelo. El idioma vive en `st.session_state["biocore_lang"]`; con `?lang=en` en la URL, la app abre en inglés. Selector «Idioma · Language» en el menú lateral (el rótulo es bilingüe y fijo para que lo encuentre quien no lee el idioma activo).
+2. **Traducido:** las 31 páginas y las 4 secciones del menú, el título de la pestaña, el estado de la IA en el menú, todo el Inicio (franja de monitoreo, órganos, gemelo, ruta, tarjetas, sellos, unidades), el pie de página y el aviso de entrada.
+3. **Art. I, lo firmado sigue en español:** la teoría, las preguntas, los casos y los textos legales se firmaron en español. Una versión en inglés necesita su propia revisión y firma, así que no se tradujeron. En inglés, el Inicio marca el tema y la ficha como «Signed content: shown in Spanish…». Cada página cuya interfaz falta traducir lo avisa arriba (`render_page_notice`), y Términos y Aviso de privacidad dicen que aplica el texto firmado en español. El aviso de entrada muestra una traducción de cortesía y el texto firmado en español, que es el que aplica.
+4. **Detalle de Streamlit:** la página por defecto siempre tiene `url_path` vacío. El aviso de página usa `current.url_path or start`.
+5. **Pendiente:** las otras 30 páginas por dentro. Los sellos del kit traen la palabra en español dentro del dibujo (el texto junto al sello sí se traduce). El lema en inglés («Get it wrong here.») espera la revisión de marca.
+6. **Pruebas:** `tests/test_i18n.py` comprueba que el español sea el predeterminado y que, sin traducción, quede el texto original. También que cada página, sección y texto del Inicio tenga traducción, que el Inicio en inglés traduzca su interfaz y marque lo firmado, que el selector cambie el idioma, que las páginas sin traducir y las legales lo avisen, y que el aviso de entrada conserve el texto firmado.
+
+## 2026-11-18 · Logo de OmniCore en la esquina del menú
+
+José Miguel pidió poner en la esquina superior del menú el logo de OmniCore, la empresa matriz. `st.logo` (`app/main.py`) usa ahora `app/static/marca/omnicore/omnicore-logotipo-1024px.png` y, con el menú contraído, el isotipo de 256 × 256. El archivo entregado (`docs/marca/omnicore/omnicore-logo-original.png`) ya tenía fondo transparente: solo se recortó y se redimensionó. El favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
+
 ## 2026-11-17 — Caso guiado 2 firmado: elevación del ST en V1–V4
 
 Luis firmó el caso guiado 2 («Firmo el caso guiado 2»). `docs/contenido/caso_guiado_ecg_2.md` dice FIRMADO con su hoja marcada, y Practicar → «Caso guiado de ECG» muestra los dos casos con un selector. Pruebas: `tests/test_guided_case_2.py` (firmado, los dos casos en la app, registro con `caso_guiado:st_v1_v4:<decisión>`); la prueba de la pantalla sin firma ahora simula que ninguno de los dos está firmado.

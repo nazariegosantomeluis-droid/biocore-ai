@@ -275,7 +275,7 @@ def test_ecg_sin_paciente_abre_en_la_demo_como_siempre():
 def test_ecg_paciente_sin_fc_en_el_ups_dice_sin_dato_y_no_cae_en_la_demo():
     patient_id = _patient_with({"respiratory": {"respiratory_rate": 18.0, "spo2": 97.0}})
     at = _open("ecg", **{PATIENT_KEY: patient_id})
-    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    at.radio(key=ECG_SOURCE_KEY).set_value(ECG_PATIENT_SOURCE).run()   # por clave: el menú tiene otros radios
     assert at.exception == []
     text = " ".join(m.value for m in at.markdown)
     assert "Sin dato" in text and "FC" in text
@@ -285,7 +285,7 @@ def test_ecg_paciente_sin_fc_en_el_ups_dice_sin_dato_y_no_cae_en_la_demo():
 def test_ecg_con_arritmia_aplicada_dice_ritmo_no_modelado():
     patient_id = _patient_with({"ecg": {"heart_rate": 130.0}})
     at = _open("ecg", **{PATIENT_KEY: patient_id, INPUT_SOURCE_KEY: "arritmia Fibrilación auricular (semilla 0)"})
-    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    at.radio(key=ECG_SOURCE_KEY).set_value(ECG_PATIENT_SOURCE).run()   # por clave: el menú tiene otros radios
     assert at.exception == []
     assert "ritmo no modelado" in " ".join(m.value for m in at.markdown)
     assert _ecg_hr_lines(at) == []
@@ -294,7 +294,7 @@ def test_ecg_con_arritmia_aplicada_dice_ritmo_no_modelado():
 def test_ecg_con_fc_fuera_del_rango_validado_dice_sin_dato():
     patient_id = _patient_with({"ecg": {"heart_rate": 230.0}})
     at = _open("ecg", **{PATIENT_KEY: patient_id})
-    at.sidebar.radio[0].set_value(ECG_PATIENT_SOURCE).run()
+    at.radio(key=ECG_SOURCE_KEY).set_value(ECG_PATIENT_SOURCE).run()   # por clave: el menú tiene otros radios
     assert at.exception == []
     assert "rango en que el generador está validado" in " ".join(m.value for m in at.markdown)
 
