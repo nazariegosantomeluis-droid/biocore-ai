@@ -177,10 +177,14 @@ def _go_to_topic(topic_key: str) -> None:
 
 def _render_path(organ: C.Organ) -> None:
     from app.utils import navigation as nav
+    from app.utils.design_system import route_arrow_html
 
     st.markdown("#### Ruta")
     for i, (label, kind, target) in enumerate(C.PATHS[organ.key]):
-        with st.container(key=f"bc_node_{'a' if i % 2 == 0 else 'b'}_{organ.key}_{i}"):
+        side = "a" if i % 2 == 0 else "b"
+        if i:   # flecha desde el nodo anterior: a la derecha si este nodo va a la derecha (zigzag)
+            st.markdown(route_arrow_html("derecha" if side == "b" else "izquierda"), unsafe_allow_html=True)
+        with st.container(key=f"bc_node_{side}_{organ.key}_{i}"):
             if kind == "tema":
                 st.button(label, key=f"bc_go_{organ.key}_{i}", on_click=_go_to_topic, args=(target,))
             else:

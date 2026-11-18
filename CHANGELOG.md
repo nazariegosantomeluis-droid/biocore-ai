@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-17 · Menú con un ícono por página, flechas en la ruta y animaciones de scroll
+
+**Contexto**: José Miguel reportó que en el menú lateral «unos íconos desaparecieron» y pidió flechas en la ruta del Inicio, animaciones de scroll y mejoras visuales sin cambiar lo que ya había.
+
+1. **Causa de los íconos que faltaban:** una regla genérica (`[data-testid="stSidebarNav"] a::before`) reservaba 20 px en todos los enlaces, pero solo 13 de las 31 páginas tenían imagen. Las otras 18 quedaban con un hueco en blanco. Ahora `NAV_ICONS` (`app/utils/design_system.py`) asigna un ícono a cada página y `nav_icon_css()` escribe una regla por enlace, así que ningún enlace reserva espacio sin ícono. Inicio, que es la página por defecto, enlaza a la raíz (`a[href$="/"]`).
+2. **Íconos nuevos** (`app/static/marca/iconos/biocore-icono-app-*-monitor.svg`, 20 archivos): el kit v1.1 no trae íconos para estas páginas. Se dibujaron con las reglas del manual (p. 21: línea de 1.75 en 24 × 24, puntas y uniones redondas, Trazo). No son parte del kit original y quedan pendientes de revisión de marca (`LEEME-iconos-app.txt`). «Comparar pacientes» ya no repite el ícono de «Pacientes» y «Temas» ya no repite el de la Academia.
+3. **Menú:** al pasar el cursor, fondo `RESALTE`; el ícono de la página activa se ve completo; el foco del teclado tiene contorno Trazo. `RESALTE` (#133650) es el token `trazo-resalte` del kit (Trazo al 14 %) ya compuesto sobre `PANEL`. Su contraste está medido en `CONTRAST_PAIRS`: texto 10.2:1, Trazo 6.95:1.
+4. **Ruta del Inicio:** entre cada par de nodos va una flecha punteada que avanza hacia el siguiente, hacia la derecha o hacia la izquierda según el zigzag. Después del último nodo no hay flecha. Los dos SVG están en `app/static/marca/ruta/`, se dibujan con `route_arrow_html()`, son decorativos (`aria-hidden`, `alt=""`) y su animación vive en el SVG.
+5. **Animaciones:** las tarjetas, el monitoreo, los nodos y las flechas aparecen al entrar en la vista (`animation-timeline: view()`, solo donde el navegador lo soporta; sin soporte, todo se ve desde el inicio). El encabezado entra al cargar. La tira MIT-BIH 100 se descubre una vez, de izquierda a derecha, sin repetirse para que no parezca una señal en vivo (Art. I). Al pasar el cursor, las tarjetas y los nodos suben 2–3 px. Con `prefers-reduced-motion` se detiene todo, también dentro de los SVG.
+6. **Pruebas:** `tests/test_ui_iconos_ruta.py` comprueba que haya un ícono por página y que el archivo exista, que se cumplan las reglas del manual, que no se reserve espacio sin ícono, que haya una flecha entre cada par de nodos con la dirección alternada y que todo se detenga con movimiento reducido. En la app corriendo, los 31 enlaces cargan su ícono y las 4 flechas de la ruta del corazón cargan.
+
 ## 2026-11-17 — Hemodinámica firmada con fuentes verificables, banco de NEWS2 corregido y caso guiado 2 para firma (Art. I)
 
 **Contexto**: Luis pidió resolver lo urgente de la evaluación: hemodinámica («firmo todo, pero que salga de referencias verídicas»), la observación del banco de NEWS2 y el siguiente paso (un segundo caso guiado). Los datos de la entidad legal siguen pendientes: no se dieron y no se inventan.
