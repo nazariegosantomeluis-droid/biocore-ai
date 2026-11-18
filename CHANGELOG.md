@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-18 · Optimización y pulido estético
+
+José Miguel pidió mejorar la optimización y que la app se viera más estética. Primero se midió (regla 1):
+
+- **Servidor:** cada página se dibuja en 0.3–0.7 s (AppTest). Multisensor tarda 2.9 s porque la prueba recorre cada sensor y modo. Ahí hay poco que ganar.
+- **Arranque en frío (2.9 s):** 1.9 s son del narrador de IA (`domain/physiology/narrator`, que importa `anthropic` y `clinical`). Ese costo se paga una vez por proceso y está en `domain/`, que no se toca en esta tanda.
+- **Navegador:** lo más pesado eran las fuentes. Noto Sans pesaba 0.87 MB y su itálica 1.0 MB, casi 2 MB antes de pintar el texto con la tipografía de la marca.
+
+1. **Fuentes recortadas** (`tools/subset_fonts.py`): se fija el ancho en 100, se conserva el eje de peso (100–900) y quedan los rangos latinos, el griego, la puntuación, las flechas y los símbolos, más todo carácter que aparece en los textos de la app. Resultado: 155 KB y 168 KB (−82 %). Los originales siguen en el kit (`docs/marca`). La licencia OFL de Noto no reserva el nombre. `tests/test_fuentes_subconjunto.py` falla si un texto nuevo usa un carácter que se perdió; en ese caso se vuelve a correr la herramienta. Requiere `brotli` (agregado a `requirements-dev.txt`).
+2. **Pulido** (`inject_global_theme`, solo tokens de `PALETTE`): encabezado translúcido; menú lateral sobre `PANEL`, con borde y secciones en versalitas pequeñas; página activa en `RESALTE`; botones en píldora con cursor encima en `RESALTE`; expanders, pestañas, avisos, tablas y campos con esquinas redondeadas; foco visible en Trazo; barras de desplazamiento delgadas; color de selección de la marca; y entrada suave del contenido, solo con opacidad (un `transform` haría que la barra fija del Inicio dejara de ser fija). Pares nuevos medidos: `NEUTRAL`/`PANEL` y `TINTA_2`/`PANEL`.
+3. **Error corregido:** con la casilla del aviso de entrada sin marcar, el botón «Ingresar al laboratorio» se veía vacío. La regla `ON_STATE` del botón principal dejaba el texto oscuro sobre fondo oscuro. Ahora, deshabilitado, el texto va en `NEUTRAL`.
+4. **Barra superior** (`config.toml`, `toolbarMode = "minimal"`): sin el botón «Deploy» ni las opciones de desarrollo.
+5. **Pruebas:** `tests/test_pulido_estetico.py` y `tests/test_fuentes_subconjunto.py`.
+
 ## 2026-11-18 · Interfaz en español e inglés (rama `i18n-es-en`, primera entrega)
 
 José Miguel pidió que la página se pudiera usar en inglés y en español.

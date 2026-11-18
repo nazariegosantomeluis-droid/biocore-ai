@@ -2,6 +2,8 @@
 # Tanda 1 de la fase 1 (2026-11-15): el menú es el de `st.navigation` (Inicio, Aprender, Practicar, Laboratorios,
 # Ajustes), declarado en app/main.py. No hay carpeta pages/: Streamlit no lista ningún archivo por su cuenta.
 showSidebarNavigation = true
+# Sin el botón «Deploy» ni las opciones de desarrollo en la barra superior (pulido estético, 2026-11-18).
+toolbarMode = "minimal"
 
 [server]
 # Kit de marca v1.1 (2026-11-17): sirve app/static/ (fuentes, logos, íconos y sellos del kit) en /app/static/.
@@ -17,6 +19,7 @@ backgroundColor = "#0f172a"
 secondaryBackgroundColor = "#1a2a4a"
 textColor = "#e0e7ff"
 # Tipografía del kit (Figtree en títulos, Noto Sans en texto), servida en local desde app/static: sin servicio externo.
+# Noto Sans va recortada a lo que la app muestra (tools/subset_fonts.py, 2026-11-18): 0.32 MB en vez de 1.87 MB.
 font = "Noto Sans, sans-serif"
 headingFont = "Figtree, Noto Sans, sans-serif"
 codeTextColor = "#e0e7ff"
@@ -30,12 +33,12 @@ style = "normal"
 
 [[theme.fontFaces]]
 family = "Noto Sans"
-url = "app/static/marca/fuentes/noto-sans-wdth-wght.woff2"
+url = "app/static/marca/fuentes/noto-sans-latin-wght.woff2"
 weight = "100 900"
 style = "normal"
 
 [[theme.fontFaces]]
 family = "Noto Sans"
-url = "app/static/marca/fuentes/noto-sans-italic-wdth-wght.woff2"
+url = "app/static/marca/fuentes/noto-sans-italic-latin-wght.woff2"
 weight = "100 900"
 style = "italic"
