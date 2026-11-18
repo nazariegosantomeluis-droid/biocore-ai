@@ -59,13 +59,18 @@ def test_at_most_five_panels_are_visible_when_the_page_opens(url):
 
 def test_the_ecg_trace_comes_before_the_heart_rate_and_the_save_panel():
     import app.main as m
+    from app.instruments import ecg_trazo
 
     src = inspect.getsource(m.render_ecg_monitor_page)
     # Pulido profesional (2026-11-16): sin vistas; el trazo es el papel ECG (`ecg_paper.render`) y va primero en la página.
-    top = src[:src.index("with st.expander(LAB_SECTION_HOW")]
+    # T2 (2026-11-18): el trazo, la FC y el guardado son el instrumento `ecg_trazo.render`, que la página llama antes de
+    # sus plegados.
+    page_top = src[:src.index("with st.expander(LAB_SECTION_HOW")]
+    assert "ecg_trazo.render(PAGE)" in page_top
+    top = inspect.getsource(ecg_trazo.render)
     assert top.index("ecg_paper.render(") < top.index("render_metric_explained('Frecuencia cardíaca'")
     assert top.index("ecg_paper.render(") < top.index("_render_ecg_save_to_twin(")
-    assert 'render_section_header("Monitoreo")' not in src                         # ya lo dice la pestaña
+    assert 'render_section_header("Monitoreo")' not in src + top                   # ya lo dice la pestaña
 
 
 def test_the_respiratory_status_notice_is_one_line_with_the_detail_on_demand():

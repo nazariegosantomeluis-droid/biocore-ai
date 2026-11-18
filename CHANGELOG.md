@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-18 · T2 de la ruta integrada: los laboratorios de ECG y variabilidad cardiaca se vuelven instrumentos
+
+Tercera tanda del diseño firmado («Instrumentos: partir los labs»). Una estación de la ruta (T3) necesita montar el trazo del ECG o la variabilidad cardiaca dentro de su paso, sin el menú lateral y, si hace falta, dos veces en la misma página. Hoy eran páginas cerradas: controles fijos en el menú lateral y widgets sin clave, que chocan si se dibujan dos veces.
+
+1. **Contrato** (`app/instruments/base.py`): `InstrumentContext` dice con qué prefijo se nombran las claves (`ctx.k`) y dónde van los controles (`ctx.panel`). `PAGE` es la página de siempre: mismas claves y controles en el menú lateral. `station_context(prefijo)` pone las claves `"<prefijo>__…"` y los controles en la página. Un widget que en su página no tenía clave sigue sin ella con `PAGE` (`ctx.auto_key`), así su comportamiento no cambia.
+2. **Auxiliares compartidos** (`app/instruments/common.py`): `render_metric_explained`, `render_findings_narrator` (el botón del narrador toma la clave del contexto) y `CSV_SAVE_BLOCKER`, movidos tal cual. `app.main` los sigue exponiendo.
+3. **Variabilidad cardiaca** (`app/instruments/hrv.py`): `rr_source`, `tiempo`, `frecuencia`, `rsa`, `no_lineal` y `guardar`, movidos tal cual desde `render_hrv_page()` y `_render_hrv_save_to_twin()`. La página es su composición; la pestaña «Aprender y explicar» sigue en la página. `render_rsa_panel` y `render_nonlinear_panel` aceptan una clave opcional para su gráfico.
+4. **Trazo del ECG** (`app/instruments/ecg_trazo.py`): fuente, papel ECG, FC medida por TKEO y la compuerta de guardado, movidos tal cual desde `render_ecg_monitor_page()` con sus funciones y constantes. La pestaña Monitoreo es `ecg_trazo.render(PAGE)` más el detalle del caso y los plegados, que son de la página. En una estación no se ofrece «Hardware ESP32 en vivo»: su panel vive en el menú lateral con claves fijas y la placa es una por computadora.
+5. **Nada clínico cambió:** ningún cálculo, texto, cita ni compuerta. La demo, un CSV y «paciente activo» siguen sin escribir al gemelo, también en una estación.
+6. **Revisión independiente** (dos hallazgos corregidos, cada uno con su prueba en rojo antes): dos guardias de texto (el detector ingenuo de FC y el relleno sin fuente de «¿Qué significa…?») solo leían `app/main.py` y pasaban en vacío para el código movido; ahora leen también `app/instruments/`. Y el Monitoreo, sin los módulos de `src`, avisaba dos veces; ahora una, como antes (`EcgTrace` lleva los módulos ya importados).
+
+Pruebas: `tests/test_instruments.py` (dos montajes en una página sin choque, ningún control en el menú lateral en modo estación, mover una estación no mueve la otra, la compuerta del ECG y el guardado de HRV en una estación). Pruebas de ubicación actualizadas: `test_fase1_t1_contencion.py`, `test_fase1_t2_primera_vista.py`, `test_rsa_cardiopulmonary.py` y `test_teoria_emg_hrv.py` (sus guardias de texto miran ahora también el archivo del instrumento, para no pasar en vacío).
+
 ## 2026-11-18 · T1.1: sliders del gemelo desde el paciente y pendientes de la T0 y la T1 (Art. I)
 
 Aprobado por Luis («sí, haz esto, repara los pendientes menores»).

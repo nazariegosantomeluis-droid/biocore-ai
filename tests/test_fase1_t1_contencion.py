@@ -174,7 +174,8 @@ def test_ecg12_no_longer_has_a_redirect_only_tab():
 
 
 def test_layered_explanations_show_only_layers_written_for_that_number():
-    src = Path("app/main.py").read_text(encoding="utf-8")
+    # T2 (2026-11-18): las llamadas de FC, SDNN, RMSSD y pNN50 viven en los instrumentos; la guardia mira los dos lugares.
+    src = "\n".join(f.read_text(encoding="utf-8") for f in [Path("app/main.py"), *sorted(Path("app/instruments").glob("*.py"))])
     src = " ".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))      # el comentario las cita
     for filler in ("Valor clínico cuantitativo que resume", "Permite priorizar decisiones clínicas",
                    "Fármacos, estado hemodinámico, respiración", "Interacciona con ventilación, oxigenación",
@@ -207,7 +208,7 @@ def test_layered_explanations_show_only_layers_written_for_that_number():
 
 def test_multisensor_has_no_health_score_anywhere():
     src = Path("app/main.py").read_text(encoding="utf-8")
-    body = src[src.index("def render_multisensor_page"):src.index("def _render_hrv_save_to_twin")]
+    body = src[src.index("def render_multisensor_page"):src.index("def render_hrv_page")]
     code = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))
     assert "health_score()" not in code and "'Health Score" not in code and "Health Score (" not in code
     assert "Heart Rate" not in code and " bpm" not in code

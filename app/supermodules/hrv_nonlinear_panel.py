@@ -15,6 +15,8 @@ truth sintético, pero la interpretación clínica de la complejidad no tiene
 firma del experto.
 """
 
+from typing import Optional
+
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
@@ -74,7 +76,8 @@ def _render_metrics(result: HrvNonlinearResult) -> None:
         st.markdown(f"*{result.structure_note}*")
 
 
-def render_nonlinear_panel(rr_ms: np.ndarray) -> None:
+def render_nonlinear_panel(rr_ms: np.ndarray, key: Optional[str] = None) -> None:
+    """`key` (T2): la clave del gráfico de Poincaré cuando el panel se monta en una estación."""
     rr_ms = np.asarray(rr_ms, dtype=float)
     surrogate = np.random.default_rng(SURROGATE_SEED).permutation(rr_ms)
     real, noise = analyze_hrv_nonlinear(rr_ms), analyze_hrv_nonlinear(surrogate)
@@ -97,5 +100,5 @@ def render_nonlinear_panel(rr_ms: np.ndarray) -> None:
         _render_metrics(noise)
 
     if real.poincare.available:
-        st.plotly_chart(build_poincare_figure(rr_ms, surrogate), width="stretch")
+        st.plotly_chart(build_poincare_figure(rr_ms, surrogate), width="stretch", key=key)
     st.markdown(f"*DFA {real.alpha2_note}.*")

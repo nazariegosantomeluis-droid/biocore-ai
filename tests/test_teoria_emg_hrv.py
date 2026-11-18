@@ -120,7 +120,9 @@ def test_lf_hf_is_labeled_and_never_read_as_balance_on_the_hrv_and_biomarker_pag
 
 def test_the_narrator_receives_the_labeled_lf_hf_and_the_signed_meanings():
     src = Path(MAIN).read_text(encoding="utf-8")
-    code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+    # T2 (2026-11-18): el espectro de la HRV vive en `app/instruments/hrv.py`; la guardia mira los dos archivos.
+    code = "\n".join(l for l in (src + Path("app/instruments/hrv.py").read_text(encoding="utf-8")).splitlines()
+                     if not l.lstrip().startswith("#"))
     assert "proxy de balance" not in code and "indicador vagal" not in code and "tono parasimpático'" not in code
     body = src[src.index("def render_hrv_page"):src.index("def render_patient_pipeline_page")]
     assert "f'{LF_HF_LABEL} [B2013]. ' + LF_HF_DISCUSSED" in body
