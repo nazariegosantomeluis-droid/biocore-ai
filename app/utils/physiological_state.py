@@ -85,13 +85,64 @@ def get_current_physiological_state(
     )
 
 
+def with_carried_events(session: Session, composed: Optional[ComposedPatient]) -> Optional[ComposedPatient]:
+    """El paciente compuesto con los eventos de sus valores ARRASTRADOS (revisión final de la T4, Art. I).
+
+    `get_composed_patient` toma los eventos solo del último snapshot. Si ese snapshot es parcial (p. ej. una FC que
+    guardó HRV), una SpO₂ de 85 % arrastrada de antes, con sus 3 puntos NEWS2, perdía su evento y el pulmón se pintaba
+    «estable». Aquí vuelven los eventos de cada snapshot de origen cuyo descriptor relacionado sigue arrastrado DESDE
+    ESE snapshot (un evento de una FC que ya cambió no vuelve). Solo lee."""
+    import dataclasses
+
+    from domain.physiology.state.repository import get_state_by_snapshot_id
+
+    if composed is None or not composed.origins:
+        return composed
+    by_snapshot: Dict[str, set] = {}
+    for key, origin in composed.origins.items():
+        by_snapshot.setdefault(origin.snapshot_id, set()).add(key)
+    extra = []
+    for snapshot_id, keys in by_snapshot.items():
+        old = get_state_by_snapshot_id(session, snapshot_id)
+        if old is None:
+            continue
+        extra += [e for e in old.events
+                  if e.related_descriptor is not None and (e.domain, e.related_descriptor) in keys]
+    if not extra:
+        return composed
+    state = dataclasses.replace(composed.state, events=list(composed.state.events) + extra)
+    return dataclasses.replace(composed, state=state)
+
+
+def without_inputs(state: UnifiedPhysiologicalState, exclude: frozenset) -> UnifiedPhysiologicalState:
+    """El estado sin las entradas `exclude` ((dominio, descriptor)), sin los derivados que salen de alguna de ellas
+    (`DERIVED_INPUTS`: un derivado no se guarda sin sus entradas en el mismo snapshot, regla C0) y sin los eventos de
+    esas entradas. T4 (detalle de la T1.1): lo usa el gemelo al guardar, para no volver «simulación» un valor del
+    paciente que el estudiante no movió."""
+    if not exclude:
+        return state
+    import dataclasses
+
+    def keep(domain: str, name: str) -> bool:
+        if (domain, name) in exclude:
+            return False
+        return not any(i in exclude for i in DERIVED_INPUTS.get((domain, name), ()))
+
+    domains = {domain: dataclasses.replace(ds, descriptors={n: d for n, d in ds.descriptors.items() if keep(domain, n)})
+               for domain, ds in state.all_domains().items()}
+    events = [e for e in state.events
+              if e.related_descriptor is None or keep(e.domain, e.related_descriptor)]
+    return dataclasses.replace(state, events=events, **domains)
+
+
 def persist_current_state(
     session: Session,
     organism: "DigitalTwinOrganism",
     patient_id: str,
     source_detail: str,
     provenance: Provenance = Provenance.SIMULACION,
-) -> Tuple[UnifiedPhysiologicalState, str]:
+    exclude: frozenset = frozenset(),
+) -> Tuple[UnifiedPhysiologicalState, Optional[str]]:
     """Fase 5.3: helper compartido de escritura al UPS -- reemplaza el
     patrón `from_digital_twin_organism(...) + save_state(...)` que los 4
     escritores del UPS (Guardar este momento, Simulador de escenarios,
@@ -109,6 +160,11 @@ def persist_current_state(
     state()` arriba, que sí ofrece un default porque casi todos sus
     llamadores SÍ quieren el paciente activo)."""
     state = from_digital_twin_organism(organism, patient_id, provenance=provenance, source_detail=source_detail)
+    # `exclude` (T4): entradas que NO se guardan porque no son de este momento (en el gemelo, los sliders sembrados
+    # desde el paciente y sin mover). Si no queda nada, no se escribe un snapshot vacío: devuelve `None`.
+    state = without_inputs(state, exclude)
+    if exclude and not any(ds.descriptors for ds in state.all_domains().values()):
+        return state, None
     snapshot_id = save_state(session, state)
     return state, snapshot_id
 

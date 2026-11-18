@@ -118,6 +118,20 @@ def _log_once(topic: C.Topic, bank: str, question, correct: bool, confidence: Op
     logged.add(item)
 
 
+def render_answer_feedback(q, ok: bool) -> None:
+    """La retroalimentación de una respuesta (la usan Temas y la práctica de la Ruta, T4)."""
+    from app.utils.design_system import PALETTE
+
+    # Manual de marca: acierto = Núcleo + palomita + «Correcto»; error = tinta-2 + ícono + «Todavía no».
+    st.markdown(f"<span style='color:{PALETTE.PRIMARY}; font-weight:700;'>✓ Correcto.</span>" if ok else
+                f"<span style='color:{PALETTE.TINTA_2}; font-weight:700;'>↻ Todavía no.</span> "
+                f"La respuesta es: {q.correct_choice}", unsafe_allow_html=True)
+    if q.explanation:
+        st.caption(q.explanation)
+    if q.source:
+        st.caption(f"Fuente: {q.source}")
+
+
 def _slide_quiz(topic: C.Topic) -> None:
     questions = C.quiz_questions(topic)
     if not questions:
@@ -139,21 +153,8 @@ def _slide_quiz(topic: C.Topic) -> None:
             done = st.session_state.get(f"{base}_done")
             if done:
                 ok = q.is_correct(done[0])
-                from app.utils.design_system import PALETTE
-
-                # Manual de marca: acierto = Núcleo + palomita + «Correcto»; error = tinta-2 + ícono + «Todavía no».
-                st.markdown(f"<span style='color:{PALETTE.PRIMARY}; font-weight:700;'>✓ Correcto.</span>" if ok else
-                            f"<span style='color:{PALETTE.TINTA_2}; font-weight:700;'>↻ Todavía no.</span> "
-                            f"La respuesta es: {q.correct_choice}", unsafe_allow_html=True)
-                if q.explanation:
-                    st.caption(q.explanation)
-                if q.source:
-                    st.caption(f"Fuente: {q.source}")
+                render_answer_feedback(q, ok)
                 _log_once(topic, topic.quiz_bank, q, ok, None if done[1] == NOT_DECLARED else int(done[1]))
-
-
-# La estación «Practica» de la ruta (T3) monta el mismo quiz del tema, con las mismas claves y el mismo registro.
-render_topic_quiz = _slide_quiz
 
 
 # ───────────────────────────── panel derecho ─────────────────────────────

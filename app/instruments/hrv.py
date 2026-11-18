@@ -29,6 +29,9 @@ from src.signals.ecg.rsa import HF_BAND_HZ, LF_BAND_HZ, RsaParams, band_power, d
 PLOTLY_GO, _, PLOTLY_OK = safe_import_plotly()
 
 MANUAL_SOURCE = 'Serie RR manual'
+# Rangos de los controles de la simulación con RSA (los de siempre; T4: con nombre para que una estación los lea).
+HR_BASE_RANGE = (40, 140)
+RESP_RATE_RANGE = (6, 30)
 
 
 @dataclass
@@ -65,14 +68,14 @@ def rr_source(ctx: InstrumentContext) -> Optional[RRSeries]:
         # Integración (2026-11-17): FC base y FR EMPIEZAN en las del paciente activo del UPS (si caben en el control).
         # La amplitud RSA no: el `hrv` del UPS no dice qué índice es, y ajustar la serie para «dar» ese número sería
         # inventar la relación entre ambos.
-        hr_start, hr_note = patient_start_value('hr', 40, 140, 72, 'FC base')
-        rr_start, rr_note = patient_start_value('rr', 6, 30, 15, 'Frecuencia respiratoria')
+        hr_start, hr_note = patient_start_value('hr', *HR_BASE_RANGE, 72, 'FC base')
+        rr_start, rr_note = patient_start_value('rr', *RESP_RATE_RANGE, 15, 'Frecuencia respiratoria')
         rsa_params = RsaParams(
-            hr_base_bpm=float(panel.slider('FC base (lpm)', 40, 140, int(hr_start), key=ctx.auto_key('hrv_hr_base'))),
+            hr_base_bpm=float(panel.slider('FC base (lpm)', *HR_BASE_RANGE, int(hr_start), key=ctx.auto_key('hrv_hr_base'))),
             rsa_amplitude_bpm=float(panel.slider('Amplitud RSA (lpm)', 0, 15, 5,
                 help='Cuánto sube la FC en inspiración y baja en espiración respecto de la FC base.',
                 key=ctx.auto_key('hrv_amplitude'))),
-            respiratory_rate_rpm=float(panel.slider('Frecuencia respiratoria (rpm)', 6, 30, int(rr_start),
+            respiratory_rate_rpm=float(panel.slider('Frecuencia respiratoria (rpm)', *RESP_RATE_RANGE, int(rr_start),
                 help='La banda HF (0.15–0.40 Hz) está influida por la respiración entre 9 y 24 respiraciones '
                      'por minuto [SG2017]; fuera de ese rango la RSA no se lee como HF.',
                 key=ctx.auto_key('hrv_resp_rate'))),
@@ -164,7 +167,7 @@ def rsa(ctx: InstrumentContext, series: RRSeries) -> InstrumentResult:
     rsa_signals = series.rsa_signals
     rsa_panel.render_rsa_panel(
         detect_rsa(r_peak_times_s, rsa_signals.respiration if rsa_signals is not None else None, rsa_panel.ECG_FS_HZ),
-        rsa_signals, series.rsa_params, key=ctx.auto_key('hrv_rsa_chart'),
+        rsa_signals, series.rsa_params, key=ctx.auto_key('hrv_rsa_chart'), decorated=not ctx.in_station,
     )
     return InstrumentResult()
 
@@ -207,14 +210,14 @@ def guardar(ctx: InstrumentContext, series: RRSeries, sdnn: float, mean_nn: floa
     T2 (2026-11-18): antes `_render_hrv_save_to_twin()` de `app/main.py`. Con `PAGE`, la clave del botón es la de
     siempre (`hrv_lab_save_to_ups`). `saved_snapshot_id` dice qué snapshot se escribió en este rerun (o `None`)."""
     source = series.source
-    st.markdown("#### 🔗 Guardar estado al gemelo")
+    st.markdown(f"#### {ctx.deco('🔗')}Guardar estado al gemelo")
     st.caption(
         "Escribe `heart_rate`/`hrv` reales (calculados de la serie RR de arriba -- `hrv` mapeado "
         "desde SDNN) al Unified Physiological State, bajo el mismo paciente que renderiza Digital "
         "Twin OS -- su corazón reaccionará a estos valores la próxima vez que abras esa página o "
         "pulses \"Sincronizar\" ahí. Procedencia: simulación (serie RR de demo/manual, no un sensor real)."
     )
-    if not st.button("💾 Guardar estado al gemelo", key=ctx.k("hrv_lab_save_to_ups")):
+    if not st.button(f"{ctx.deco('💾')}Guardar estado al gemelo", key=ctx.k("hrv_lab_save_to_ups")):
         return InstrumentResult()
     from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
     from app.engines.digital_twin_organism import DigitalTwinOrganism

@@ -58,9 +58,10 @@ def build_rsa_figure(result: RSAResult, signals: RsaSignals) -> go.Figure:
 
 
 def render_rsa_panel(result: RSAResult, signals: Optional[RsaSignals], injected: Optional[RsaParams],
-                     key: Optional[str] = None) -> None:
-    """`key` (T2): la clave del gráfico cuando el panel se monta en una estación (dos montajes no chocan)."""
-    st.markdown("### 🫁❤️ Acoplamiento cardiopulmonar (RSA)")
+                     key: Optional[str] = None, decorated: bool = True) -> None:
+    """`key` (T2): la clave del gráfico cuando el panel se monta en una estación (dos montajes no chocan).
+    `decorated` (T4): sin emoji en el título dentro de una estación de la ruta."""
+    st.markdown(("### 🫁❤️ " if decorated else "### ") + "Acoplamiento cardiopulmonar (RSA)")
     st.markdown(
         "Arritmia sinusal respiratoria: al inspirar se retira el freno vagal y la FC sube; al espirar "
         "vuelve el freno y baja. En la serie RR aparece como potencia concentrada en la frecuencia "
