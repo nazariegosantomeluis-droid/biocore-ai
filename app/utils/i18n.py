@@ -101,6 +101,7 @@ EN = {
     "Medido": "Measured", "Simulado": "Simulated", "Calculado por modelo": "Calculated by model",
     "Referencia citada": "Cited reference", "Arrastre temporal": "Carried over in time",
     "hace {n} s": "{n} s ago", "hace {n} min": "{n} min ago", "hace {n} h": "{n} h ago",
+    "horizonte {h}": "horizon {h}", "ahora": "now",
     "No disponible": "Not available",
     # Aviso de entrada y pie de página
     "Aviso clínico y educativo": "Clinical and educational notice",

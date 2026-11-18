@@ -24,7 +24,7 @@ from .clinical_reference_repository import (
     get_clinical_references_for_snapshot,
 )
 from .composer import ComposeResult, compose_neuro_cardiac_snapshot
-from .composed import DERIVED_INPUTS, CarryOrigin, ComposedPatient, get_composed_patient
+from .composed import DERIVED_INPUTS, CarryOrigin, ComposedPatient, get_composed_patient, horizon_of
 from .db import init_db, make_engine, make_session_factory
 from .repository import (
     create_patient,
@@ -72,6 +72,7 @@ __all__ = [
     "ComposedPatient",
     "DERIVED_INPUTS",
     "get_composed_patient",
+    "horizon_of",
     "CONFIDENCE_REFERENCE",
     "ConfidenceBand",
     "DomainState",

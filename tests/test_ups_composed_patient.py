@@ -234,3 +234,61 @@ def test_duplicado_en_un_snapshot_coincide_con_get_latest_state(factory, pid):
         expected = get_latest_state(s, pid).cardiovascular.get("heart_rate").value
     assert expected == 95.0
     assert _composed(factory, pid).state.cardiovascular.get("heart_rate").value == expected
+
+
+# ── T1.1 (2026-11-18): consulta con ventana, corte por rowid, derivados por dominio, horizonte ──
+
+def test_corte_por_rowid_del_ultimo(factory, pid):
+    """Leer los valores con el `rowid` del último snapshot como corte: una escritura posterior no se cuela."""
+    from sqlalchemy import text
+    from domain.physiology.state.composed import _latest_values
+    first = _save(factory, pid, cv=[_d("heart_rate", 100, "bpm")])
+    _save(factory, pid, cv=[_d("heart_rate", 80, "bpm")])
+    with factory() as s:
+        cut = s.execute(text("SELECT rowid FROM ups_snapshots WHERE id = :i"), {"i": first}).scalar_one()
+        rows = _latest_values(s, pid, cut)
+    assert [(v.descriptor, v.value, snap.id) for v, snap in rows] == [("heart_rate", 100.0, first)]
+
+
+def test_mismo_nombre_en_dos_dominios(factory, pid):
+    """La regla de derivados mira la entrada en SU dominio: una `heart_rate` en otro dominio no tumba los puntos
+    NEWS2 del pulso."""
+    _save(factory, pid, neuro=[_d("heart_rate", 50, "bpm")])
+    _save(factory, pid, cv=[_d("heart_rate", 90, "bpm"), _d("news2_pulse_points", 0)])
+    state = _composed(factory, pid).state
+    assert state.cardiovascular.get("news2_pulse_points") is not None
+    assert state.neurological.get("heart_rate").value == 50.0
+
+
+def test_horizonte_de_una_trayectoria(factory, pid):
+    """Un valor que viene de otro paso de una trayectoria simulada lleva su horizonte: su «edad» en tiempo real no
+    dice nada del tiempo simulado."""
+    _save(factory, pid, cv=[_d("heart_rate", 100, "bpm", detail="escenario_rico:sepsis:modo:basal:horizonte:1h")],
+          resp=[_d("spo2", 95, "%", detail="escenario_rico:sepsis:modo:basal:horizonte:1h")])
+    _save(factory, pid, resp=[_d("spo2", 91, "%", detail="escenario_rico:sepsis:modo:basal:horizonte:6h")])
+    origins = _composed(factory, pid).origins
+    assert origins[("cardiovascular", "heart_rate")].horizon == "1h"
+
+
+def test_resultado_igual_a_la_version_ingenua(factory, pid):
+    """La consulta con ventana entrega lo mismo que recorrer toda la historia (último valor por descriptor)."""
+    import random
+    from sqlalchemy import text
+    rnd = random.Random(7)
+    names = [("cv", "heart_rate"), ("resp", "spo2"), ("resp", "respiratory_rate"), ("neuro", "alpha_power"),
+             ("neuro", "chi_aperiodic")]
+    for _ in range(300):
+        kw = {"cv": [], "resp": [], "neuro": []}
+        for dom, name in rnd.sample(names, 2):
+            kw[dom].append(_d(name, round(rnd.uniform(1, 100), 3)))
+        _save(factory, pid, **kw)
+    with factory() as s:
+        rows = s.execute(text(
+            "SELECT v.domain, v.descriptor, v.value FROM ups_values v JOIN ups_snapshots s ON v.snapshot_id = s.id "
+            "WHERE s.patient_id = :p ORDER BY s.rowid DESC, v.rowid DESC"), {"p": pid}).all()
+    naive = {}
+    for dom, name, value in rows:
+        naive.setdefault((dom, name), value)
+    got = {(d, n): desc.value for d, dom in _composed(factory, pid).state.all_domains().items()
+           for n, desc in dom.descriptors.items()}
+    assert got == naive

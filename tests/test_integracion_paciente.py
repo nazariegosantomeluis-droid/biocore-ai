@@ -432,3 +432,99 @@ def test_pasaporte_y_pie_del_banner_con_arrastre():
     captions = " ".join(c.value for c in at.main.caption)
     assert "Último estado guardado" not in captions
     assert "Últimos valores guardados en el UPS de esta sesión" in captions
+
+
+# ── T1.1 (2026-11-18): horizonte de trayectoria y edad en los paneles que mezclan momentos ──
+
+def _patient_then_eeg() -> str:
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 92.0}})
+    _append_eeg(patient_id)
+    return patient_id
+
+
+def test_procedencia_de_una_trayectoria_dice_su_horizonte():
+    from datetime import datetime, timezone
+    from app.utils.patient_banner import vital_provenance_text
+    from domain.physiology.state import CarryOrigin, PhysiologicalDescriptor, Provenance
+    d = PhysiologicalDescriptor("heart_rate", 100.0, "bpm", Provenance.ARRASTRE_TEMPORAL, 0.6, None)
+    origin = CarryOrigin("s1", datetime.now(timezone.utc), Provenance.SIMULACION, 2.0, "6h")
+    assert vital_provenance_text(d, origin) == "Simulación · horizonte 6h"
+
+
+def test_title_del_banner_usa_la_misma_edad_que_la_etiqueta():
+    banner = _banner_texts(_open("calculadoras", **{PATIENT_KEY: _patient_then_eeg()}))[0]
+    assert "(edad " not in banner, "el title= ya no trae la edad respecto al último snapshot"
+    assert "title='Valor de un guardado anterior (Simulación · hace" in banner
+
+
+def test_news2_de_calculadoras_dice_procedencia_y_edad():
+    at = _open("calculadoras", **{PATIENT_KEY: _patient_then_eeg()})
+    captions = " ".join(c.value for c in at.main.caption)
+    assert "FC 100 lpm · Simulación · hace" in captions
+    assert "SpO₂ 92 % · Simulación · hace" in captions
+
+
+def test_news2_de_temas_dice_procedencia_y_edad():
+    from app.supermodules import ui_catalog as C
+    at = AppTest.from_file(MAIN, default_timeout=240)
+    at.session_state["biocore_start_page"] = "temas"
+    at.session_state[PATIENT_KEY] = _patient_then_eeg()
+    at.session_state[C.SELECTED_TOPIC_KEY] = "news2"
+    at.session_state["bc_slide_news2"] = "Hallazgos"        # la lista NEWS2 del paciente vive en esa diapositiva
+    at.run()
+    assert at.exception == []
+    text = " ".join(m.value for m in at.main.markdown)
+    assert "Pulso: 1 punto (FC 100 lpm · Simulación · hace" in text, text[-600:]
+
+
+def test_ecg_paciente_activo_dice_la_procedencia_de_su_fc():
+    at = _open("ecg", **{PATIENT_KEY: _patient_then_eeg()})     # con FC del paciente, la fuente por defecto es él
+    captions = " ".join(c.value for c in at.main.caption)
+    assert "FC 100 lpm del paciente activo · Simulación · hace" in captions
+
+
+# ── Revisión final de la T1.1 ──
+
+def test_title_de_un_arrastre_trae_el_detalle_original_completo():
+    from app.utils.patient_banner import display_detail, vital_provenance_text
+    from domain.physiology.state import (
+        DomainState, PhysiologicalDescriptor, Provenance, UnifiedPhysiologicalState, save_state,
+    )
+    from datetime import datetime, timezone
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 18.0}})
+    hr = PhysiologicalDescriptor("heart_rate", 88.0, "bpm", Provenance.SENSOR_REAL, 0.85, "ecg_lab:monitor")
+    with _session_factory()() as session:
+        save_state(session, UnifiedPhysiologicalState(
+            patient_id=patient_id, timestamp=datetime.now(timezone.utc),
+            cardiovascular=DomainState("cardiovascular", {"heart_rate": hr}),
+            respiratory=DomainState("respiratory", {}), events=[]))
+    _append_eeg(patient_id)
+
+    def script():
+        import streamlit as st
+        from app.utils.patient_banner import display_detail, read_active_vitals, vital_provenance_text
+        v = read_active_vitals()
+        st.session_state["out"] = (display_detail(v.values["hr"], v.origins["hr"]),
+                                   vital_provenance_text(v.values["hr"], v.origins["hr"]))
+
+    at = AppTest.from_function(script)
+    at.session_state[PATIENT_KEY] = patient_id
+    at.run()
+    title, label = at.session_state["out"]
+    assert title == f"Valor de un guardado anterior ({label}); ecg_lab:monitor"
+
+
+def test_horizonte_now_se_dice_en_espanol():
+    from datetime import datetime, timezone
+    from app.utils.patient_banner import vital_provenance_text
+    from domain.physiology.state import CarryOrigin, PhysiologicalDescriptor, Provenance
+    d = PhysiologicalDescriptor("heart_rate", 100.0, "bpm", Provenance.ARRASTRE_TEMPORAL, 0.6, None)
+    origin = CarryOrigin("s1", datetime.now(timezone.utc), Provenance.SIMULACION, 2.0, "now")
+    assert vital_provenance_text(d, origin) == "Simulación · horizonte ahora"
+
+
+def test_registro_del_banner_apunta_a_la_linea_que_dibuja_el_valor():
+    from app.utils.evidence_registry import ENTRIES
+    for entry in [e for e in ENTRIES if e.superficie == "banner"]:
+        path, line = entry.mostrado_en.rsplit(":", 1)
+        assert "_value_html(" in Path(path).read_text(encoding="utf-8").splitlines()[int(line) - 1], entry.campo

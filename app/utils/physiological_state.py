@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from domain.physiology.state import (
+    horizon_of,
     DERIVED_INPUTS,
     CarryOrigin,
     ComposedPatient,
@@ -113,7 +114,8 @@ def persist_current_state(
 
 
 def overlay_current_on_composed(
-    current: UnifiedPhysiologicalState, composed: Optional[ComposedPatient]
+    current: UnifiedPhysiologicalState, composed: Optional[ComposedPatient],
+    defer_to_patient: frozenset = frozenset(),
 ) -> Tuple[UnifiedPhysiologicalState, Dict[Tuple[str, str], CarryOrigin]]:
     """T1 de la ruta integrada (2026-11-18): el cuerpo del gemelo = el paciente compuesto con el estado en memoria
     encima. Regla firmada: lo que el estudiante mueve ahora (sliders o escenario) gana; lo que no movió viene del
@@ -126,29 +128,49 @@ def overlay_current_on_composed(
       puntos NEWS2 viejos no se muestran junto a la FC nueva del slider.
     - Eventos: los del estado actual para los dominios que trae; los del paciente para los demás. Un evento de FC
       viejo no colorea el corazón si el estudiante ya movió la FC.
+    - `defer_to_patient` (T1.1): entradas `(dominio, descriptor)` que el estado actual trae solo porque un slider se
+      sembró con el valor del paciente y el estudiante no lo movió. Para ellas gana el valor del paciente, con su
+      procedencia y su edad; un derivado actual cuyas entradas están todas diferidas cede también.
     """
     if composed is None:
         return current, {}
+    patient_domains = composed.state.all_domains()
+    deferred = {k for k in defer_to_patient if patient_domains[k[0]].get(k[1]) is not None}
     now_domains = current.all_domains()
-    now_names = {name for dom in now_domains.values() for name in dom.descriptors}
+
+    def _defers(domain: str, name: str) -> bool:
+        if (domain, name) in deferred:
+            return True
+        inputs = DERIVED_INPUTS.get((domain, name))
+        return bool(inputs) and all(inp in deferred for inp in inputs)
+
+    now_keys = {(domain, name) for domain, dom in now_domains.items() for name in dom.descriptors
+                if not _defers(domain, name)}
     origins: Dict[Tuple[str, str], CarryOrigin] = {}
     merged: Dict[str, DomainState] = {}
     latest_ts = composed.state.timestamp
     for domain, patient_dom in composed.state.all_domains().items():
         current_dom = now_domains.get(domain)
-        current_descriptors = current_dom.descriptors if current_dom is not None else {}
+        current_descriptors = {name: d for name, d in (current_dom.descriptors if current_dom is not None else {}).items()
+                               if (domain, name) in now_keys}
         descriptors = {}
         for name, descriptor in patient_dom.descriptors.items():
             if name in current_descriptors:
                 continue
-            if name in DERIVED_INPUTS and any(inp in now_names for inp in DERIVED_INPUTS[name]):
+            if (domain, name) in DERIVED_INPUTS and any(inp in now_keys for inp in DERIVED_INPUTS[(domain, name)]):
                 continue
             descriptors[name] = descriptor
             origins[(domain, name)] = composed.origins.get(
-                (domain, name), CarryOrigin(composed.latest_snapshot_id, latest_ts, descriptor.provenance, 0.0))
+                (domain, name), CarryOrigin(composed.latest_snapshot_id, latest_ts, descriptor.provenance, 0.0,
+                                            horizon_of(descriptor.source_detail), descriptor.source_detail))
         descriptors.update(current_descriptors)
         merged[domain] = DomainState(domain=domain, descriptors=descriptors)
-    moved = {domain for domain, dom in now_domains.items() if dom.descriptors}
-    events = list(current.events) + [e for e in composed.state.events if e.domain not in moved]
+    moved = {domain for domain, _name in now_keys}
+    # Revisión final de la T1.1: un dominio cuyas entradas actuales están TODAS diferidas al paciente toma sus eventos
+    # del paciente, no del estado actual (que solo los repetía, calculados del valor sembrado y redondeado).
+    fully_deferred = {domain for domain, dom in now_domains.items()
+                      if dom.descriptors and all(_defers(domain, name) for name in dom.descriptors)}
+    events = ([e for e in current.events if e.domain not in fully_deferred]
+              + [e for e in composed.state.events if e.domain not in moved])
     return UnifiedPhysiologicalState(patient_id=current.patient_id, timestamp=current.timestamp, **merged,
                                      events=events), origins

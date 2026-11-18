@@ -329,6 +329,45 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     )
 
 
+# T1.1 (2026-11-18, aprobado por Luis): FC, FR y SpO₂ arrancan en los valores del paciente, como en Respiración y
+# Variabilidad cardiaca. Solo esas tres: el `hrv` del UPS no dice qué índice es, y estrés y fatiga no se escriben al
+# UPS. Mientras el estudiante no mueva un slider sembrado, el slider sigue al paciente y el cuerpo muestra el valor
+# del paciente con su procedencia (`TWIN_DEFERRED_KEY` → `overlay_current_on_composed(defer_to_patient=...)`).
+TWIN_DEFERRED_KEY = "twin_shell_deferred_inputs"
+_SEEDED_SLIDERS = (
+    ("hr", "twin_shell_hr", "Frecuencia cardíaca", 40, 180, 72, ("cardiovascular", "heart_rate")),
+    ("rr", "twin_shell_rr", "Frecuencia respiratoria", 8, 40, 16, ("respiratory", "respiratory_rate")),
+    ("spo2", "twin_shell_spo2", "SpO₂", 70, 100, 98, ("respiratory", "spo2")),
+)
+
+
+def _seed_sliders_from_patient() -> tuple:
+    """Siembra los sliders de FC, FR y SpO₂ ANTES de dibujarlos. Un slider cuenta como «sin mover» si su valor sigue
+    siendo el de su última semilla; entonces se vuelve a sembrar con el valor actual del paciente. Devuelve las
+    entradas del UPS sembradas desde el paciente y sin mover, y las notas que dicen de dónde arrancó cada una."""
+    from app.utils.patient_banner import patient_seed, read_active_vitals
+
+    vitals = read_active_vitals()
+    deferred, notes = set(), []
+    for vkey, wkey, label, lo, hi, fallback, ups_key in _SEEDED_SLIDERS:
+        value, note, from_patient = patient_seed(vkey, lo, hi, fallback, label, vitals)
+        seed_key = f"{wkey}__seed"
+        previous = st.session_state.get(seed_key)
+        untouched = wkey not in st.session_state or (previous is not None and st.session_state[wkey] == previous[0])
+        if not untouched:
+            continue
+        st.session_state[wkey] = int(value)
+        st.session_state[seed_key] = (int(value), from_patient)
+        if from_patient:
+            deferred.add(ups_key)
+        if note and from_patient and int(value) == fallback and vitals.values[vkey] is not None \
+                and round(vitals.values[vkey].value) != fallback:
+            note += " El cuerpo del gemelo muestra el valor del paciente mientras no muevas el control."
+        if note:
+            notes.append(note)
+    return deferred, notes
+
+
 def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
     """Lets the shell be explored/demoed live without real hardware attached.
 
@@ -348,17 +387,21 @@ def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
                 st.rerun()
         else:
             st.caption("Fuente activa: sliders de Twin OS (simulación).")
+        deferred, seed_notes = _seed_sliders_from_patient()
         col1, col2, col3 = st.columns(3)
         with col1:
-            hr = st.slider("Frecuencia cardíaca (lpm)", 40, 180, 72, key="twin_shell_hr", disabled=bool(active))
+            hr = st.slider("Frecuencia cardíaca (lpm)", 40, 180, key="twin_shell_hr", disabled=bool(active))
             hrv = st.slider("HRV (ms)", 5, 120, 50, key="twin_shell_hrv", disabled=bool(active))
         with col2:
-            rr = st.slider("Frecuencia respiratoria (resp/min)", 8, 40, 16, key="twin_shell_rr", disabled=bool(active))
-            spo2 = st.slider("SpO₂ (%)", 70, 100, 98, key="twin_shell_spo2", disabled=bool(active))
+            rr = st.slider("Frecuencia respiratoria (resp/min)", 8, 40, key="twin_shell_rr", disabled=bool(active))
+            spo2 = st.slider("SpO₂ (%)", 70, 100, key="twin_shell_spo2", disabled=bool(active))
         with col3:
             stress = st.slider("Estrés (EEG)", 0, 100, 35, key="twin_shell_stress", disabled=bool(active))
             fatigue = st.slider("Fatiga muscular (EMG)", 0, 100, 20, key="twin_shell_fatigue", disabled=bool(active))
 
+        if seed_notes and not active:
+            st.caption(" ".join(seed_notes) + " Si guardas el estado, se guarda como simulación.")
+        st.session_state[TWIN_DEFERRED_KEY] = frozenset() if active else frozenset(deferred)
         if active:
             return
         organism.input_provenance = "simulación: sliders de Twin OS"
@@ -994,13 +1037,13 @@ def render_synced_digital_twin_body(organism: DigitalTwinOrganism) -> None:
     with session_factory() as session:
         composed = get_composed_patient(session, patient_id)
     body_state, body_origins = overlay_current_on_composed(get_current_physiological_state(organism, patient_id),
-                                                           composed)
+                                                           composed, st.session_state.get(TWIN_DEFERRED_KEY, frozenset()))
     render_ups_body(body_state, with_3d=True, key="twin_actual", origins=body_origins)
     st.caption(
         "El cuerpo junta lo que mueves ahora (sliders o escenario) con lo que guardaron los laboratorios para este "
         "paciente; cada tarjeta dice la procedencia de su valor. El color sale de la severidad de los eventos por "
-        "dominio, nunca del texto del narrador. Para conservar el estado en la trayectoria del paciente, usa el "
-        "botón de arriba."
+        "dominio, nunca del texto del narrador; una tarjeta sin dato se pinta en gris. Para conservar el estado en la "
+        "trayectoria del paciente, usa el botón de arriba."
     )
 
 

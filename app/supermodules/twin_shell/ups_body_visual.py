@@ -234,6 +234,19 @@ def _source_html(state: Optional[UnifiedPhysiologicalState], origins: Optional[d
     return f'<div class="biocore-organ-source">Procedencia: {" / ".join(texts)}</div>' if texts else ""
 
 
+def _lungs_source_html(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict]) -> str:
+    """T1.1: la FR y la SpO₂ pueden venir de guardados distintos; la línea dice de cuál es cada procedencia."""
+    if origins is None or state is None:
+        return ""
+    from app.utils.patient_banner import vital_provenance_text
+
+    respiratory = state.all_domains()["respiratory"]
+    parts = [f"{label}: {vital_provenance_text(d, origins.get(('respiratory', name)))}"
+             for label, name in (("FR", "respiratory_rate"), ("SpO₂", "spo2"))
+             if (d := respiratory.get(name)) is not None]
+    return f'<div class="biocore-organ-source">Procedencia: {"; ".join(parts)}</div>' if parts else ""
+
+
 def _render_heart_card(state: Optional[UnifiedPhysiologicalState], origins: Optional[dict] = None) -> str:
     hr = state.all_domains()["cardiovascular"].get("heart_rate") if state else None
     visual = organ_visual_state(state)["heart"]
@@ -337,7 +350,7 @@ def _render_lungs_card(state: Optional[UnifiedPhysiologicalState], origins: Opti
         '</svg>'
         '<div class="biocore-organ-title">🫁 Pulmones</div>'
         f'<div class="biocore-organ-metric">{lungs_metric}</div>'
-        f'{_source_html(state, origins, [("respiratory", "respiratory_rate"), ("respiratory", "spo2")])}'
+        f'{_lungs_source_html(state, origins)}'
         f'{alerts_html}'
         '</div>'
     )
@@ -376,7 +389,7 @@ def _render_brain_card(state: Optional[UnifiedPhysiologicalState], origins: Opti
         animation_css = ""
 
         present_bands = [(b, descriptors[b].value) for b in _BRAIN_BAND_DESCRIPTORS if b in descriptors]
-        source_keys = [("neurological", name) for name in descriptors]
+        source_keys = []      # T1.1: sin banda dominante no se muestra ningún valor, así que no hay procedencia
         if present_bands:
             dominant_key = max(present_bands, key=lambda kv: kv[1])[0]
             dominant = dominant_key.replace("_power", "")

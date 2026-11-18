@@ -159,14 +159,38 @@ def vital_provenance_text(descriptor: PhysiologicalDescriptor, origin: Optional[
     """La procedencia que se muestra: la del valor o, si es un arrastre, la de su origen con su edad."""
     if origin is None:
         return provenance_label(descriptor)
-    return f"{PROVENANCE_ES.get(origin.provenance, origin.provenance.value)} · {age_text(origin_age_s(origin))}"
+    return f"{PROVENANCE_ES.get(origin.provenance, origin.provenance.value)} · {origin_when_text(origin)}"
+
+
+HORIZON_ES = {"now": "ahora"}
+
+
+def origin_when_text(origin: CarryOrigin, translate=lambda text: text) -> str:
+    """Cuándo es el valor: su horizonte si sale de una trayectoria de escenario (T1.1: sus pasos se guardan con
+    segundos de diferencia, así que «hace 2 s» no diría nada del tiempo simulado), si no su edad hasta ahora."""
+    if origin.horizon is not None:
+        # «now» es el código del primer paso de la trayectoria; en pantalla, «ahora» (como el selector del gemelo).
+        label = HORIZON_ES.get(origin.horizon, origin.horizon)
+        return translate("horizonte {h}").format(h=translate(label))
+    return age_text(origin_age_s(origin), translate)
+
+
+def display_detail(descriptor: PhysiologicalDescriptor, origin: Optional[CarryOrigin] = None) -> Optional[str]:
+    """El texto al pasar el cursor sobre un valor. Para un valor de un guardado anterior, su procedencia y su edad con
+    el MISMO texto de la etiqueta (T1.1: el `source_detail` del arrastre cuenta la edad hasta el último snapshot, la
+    etiqueta hasta ahora; eran dos números para lo mismo), más el detalle original del valor si lo tenía."""
+    if origin is None:
+        return descriptor.source_detail
+    text = f"Valor de un guardado anterior ({vital_provenance_text(descriptor, origin)})"
+    return f"{text}; {origin.source_detail}" if origin.source_detail else text
 
 
 def _value_html(label: str, descriptor: Optional[PhysiologicalDescriptor], news2: Optional[int] = None,
                 origin: Optional[CarryOrigin] = None) -> str:
     if descriptor is None:
         return f"<span style='color:{PALETTE.NEUTRAL};'>{label}: ○ {NO_DATA_TEXT}</span>"
-    detail = f" title='{html.escape(descriptor.source_detail, quote=True)}'" if descriptor.source_detail else ""
+    title = display_detail(descriptor, origin)
+    detail = f" title='{html.escape(title, quote=True)}'" if title else ""
     points = f" · NEWS2 {news2_points_text(news2)}" if news2 is not None else ""
     return (f"<span{detail}>{label} <b>{descriptor.value:.0f}</b> {html.escape(UNIT_ES.get(descriptor.unit, descriptor.unit))} "
             f"<span style='color:{PALETTE.NEUTRAL};'>[{vital_provenance_text(descriptor, origin)}]</span>{points}</span>")
@@ -203,6 +227,30 @@ def render_active_patient_banner() -> None:
                    "actualiza con «Guardar estado al gemelo». Valores simulados no son mediciones de un paciente.")
 
 
+def patient_seed(key: str, lo: float, hi: float, fallback: float, control: str,
+                 vitals: Optional["ActiveVitals"] = None) -> tuple:
+    """`patient_start_value` más un tercer dato: si el paciente TIENE ese valor (`True`), aunque quede fuera del rango
+    del control y el control arranque en su valor de siempre. Lo usa el gemelo (T1.1) para saber si un slider sin
+    mover está en lugar de un valor del paciente: entonces el cuerpo muestra el del paciente (revisión final de la
+    T1.1: una SpO₂ medida de 69 no puede quedar tapada por el 98 de un slider que nadie movió)."""
+    vitals = vitals if vitals is not None else read_active_vitals()
+    if vitals.patient_id is None:
+        return fallback, None, False
+    label = next(lab for k, lab, *_ in VITALS if k == key)
+    descriptor = vitals.values[key]
+    if descriptor is None:
+        return fallback, (f"{control}: el paciente activo `{vitals.short_id}` no tiene {label} en el UPS; valor "
+                          "inicial de siempre."), False
+    value = round(descriptor.value)
+    unit = UNIT_ES.get(descriptor.unit, descriptor.unit)
+    if not lo <= value <= hi:
+        return fallback, (f"{control}: la {label} del paciente activo ({value} {unit}) está fuera del rango de este "
+                          f"control ({lo:g}–{hi:g}); valor inicial de siempre."), True
+    return value, (f"{control}: empieza en la {label} del paciente activo `{vitals.short_id}` ({value} {unit}, "
+                   f"{vital_provenance_text(descriptor, vitals.origins.get(key))}, UPS). Si la mueves, ya es tu "
+                   "simulación."), True
+
+
 def patient_start_value(key: str, lo: float, hi: float, fallback: float, control: str) -> tuple:
     """Valor inicial de un control de simulación tomado del paciente activo (integración, 2026-11-17).
 
@@ -210,17 +258,5 @@ def patient_start_value(key: str, lo: float, hi: float, fallback: float, control
     rango del control; si no hay paciente, no hay ese valor o está fuera de rango, devuelve el valor inicial de siempre
     del laboratorio y la nota dice por qué (nunca se recorta un valor para que «quepa»: sería otro paciente). La nota
     es `None` cuando no hay paciente (el laboratorio se ve como siempre)."""
-    vitals = read_active_vitals()
-    if vitals.patient_id is None:
-        return fallback, None
-    label = next(lab for k, lab, *_ in VITALS if k == key)
-    descriptor = vitals.values[key]
-    if descriptor is None:
-        return fallback, f"{control}: el paciente activo `{vitals.short_id}` no tiene {label} en el UPS; valor inicial de siempre."
-    value = round(descriptor.value)
-    unit = UNIT_ES.get(descriptor.unit, descriptor.unit)
-    if not lo <= value <= hi:
-        return fallback, (f"{control}: la {label} del paciente activo ({value} {unit}) está fuera del rango de este control "
-                          f"({lo:g}–{hi:g}); valor inicial de siempre.")
-    return value, (f"{control}: empieza en la {label} del paciente activo `{vitals.short_id}` ({value} {unit}, "
-                   f"{vital_provenance_text(descriptor, vitals.origins.get(key))}, UPS). Si la mueves, ya es tu simulación.")
+    value, note, _from_patient = patient_seed(key, lo, hi, fallback, control)
+    return value, note
