@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40"><title>Flecha de la ruta</title><style>.f{animation:fluir 1.4s linear infinite}@keyframes fluir{to{stroke-dashoffset:-14}}@media (prefers-reduced-motion:reduce){.f{animation:none}}</style><g fill="none" stroke="#22d3ee" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" transform="matrix(-1 0 0 1 120 0)"><path class="f" d="M14 3c0 18 40 22 88 24" stroke-dasharray="4 3"/><path d="M95 21.5l8 5.6-8.6 4.4"/></g></svg>

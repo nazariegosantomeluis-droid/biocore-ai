@@ -1,0 +1,3 @@
+Íconos «biocore-icono-app-*»: dibujados para las páginas que el kit v1.1 no trae, con las reglas del manual
+(p. 21: línea de 1.75 en 24 x 24 px, puntas y uniones redondas, Trazo #22d3ee). No son parte del kit original:
+quedan pendientes de revisión de marca. Los demás íconos de esta carpeta son copia del kit (docs/marca).

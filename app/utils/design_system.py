@@ -97,6 +97,7 @@ class PALETTE:
     TINTA_TITULO = "#f1f5ff"      # token `tinta-titulo`: títulos de módulo. 16.36:1
     TINTA_2 = "#b6c2e2"           # token `tinta-2`: texto secundario. 10.03:1
     PANEL = "#111d36"             # token `fondo-panel`
+    RESALTE = "#133650"           # token `trazo-resalte` (Trazo al 14 %) ya compuesto sobre PANEL: fondo con el cursor encima
     BACKGROUND = "#0f172a"
     SECONDARY_BACKGROUND = "#1a2a4a"
     TEXT = "#e0e7ff"
@@ -154,6 +155,7 @@ CONTRAST_PAIRS = (
     ("TRAZO", "BACKGROUND", 4.5), ("TRAZO", "SECONDARY_BACKGROUND", 4.5), ("ON_STATE", "TRAZO", 4.5),
     ("TINTA_TITULO", "BACKGROUND", 4.5), ("TINTA_TITULO", "SECONDARY_BACKGROUND", 4.5),
     ("TINTA_2", "BACKGROUND", 4.5), ("TINTA_2", "SECONDARY_BACKGROUND", 4.5), ("TEXT", "PANEL", 4.5),
+    ("TEXT", "RESALTE", 4.5), ("TINTA_TITULO", "RESALTE", 4.5), ("TRAZO", "RESALTE", 3.0),   # cursor encima
     # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
     # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
     ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
@@ -710,6 +712,71 @@ CONTENT_MAX_PX = 1200                # ancho máximo del contenido, centrado (pu
 MEASURE_CH = 75                      # largo de línea máximo de un párrafo, en caracteres
 
 
+ICONS_URL = "app/static/marca/iconos"     # servida por Streamlit (server.enableStaticServing)
+ROUTE_URL = "app/static/marca/ruta"
+
+# Ícono de cada página del menú (2026-11-17). Los del kit v1.1 donde el kit trae uno; los «biocore-icono-app-*» se
+# dibujaron con las reglas del manual (p. 21: línea de 1.75 en 24 x 24, puntas y uniones redondas, Trazo) y quedan
+# pendientes de revisión de marca (LEEME-iconos-app.txt). Una prueba exige uno por página y que el archivo exista.
+NAV_ICONS = {
+    "inicio": "biocore-icono-app-inicio-monitor.svg",
+    "temas": "biocore-icono-app-temas-monitor.svg",
+    "teoria": "biocore-icono-academia-monitor.svg",
+    "referencias": "biocore-icono-app-referencias-monitor.svg",
+    "ecg-3d": "biocore-icono-app-ecg-3d-monitor.svg",
+    "bibliografia": "biocore-icono-app-bibliografia-monitor.svg",
+    "pregunta": "biocore-icono-app-pregunta-monitor.svg",
+    "quiz": "biocore-icono-app-quiz-monitor.svg",
+    "caso-ciego": "biocore-icono-app-caso-ciego-monitor.svg",
+    "desafio-ecg": "biocore-icono-app-desafio-ecg-monitor.svg",
+    "caso-guiado": "biocore-icono-app-caso-guiado-monitor.svg",
+    "cuestionarios": "biocore-icono-app-cuestionarios-monitor.svg",
+    "casos-simulador": "biocore-icono-app-casos-simulador-monitor.svg",
+    "what-if": "biocore-icono-app-what-if-monitor.svg",
+    "detective": "biocore-icono-app-detective-monitor.svg",
+    "mi-sesion": "biocore-icono-app-mi-sesion-monitor.svg",
+    "gemelo": "biocore-icono-gemelo-digital-monitor.svg",
+    "ecg": "biocore-icono-ecg-monitor.svg",
+    "multisensor": "biocore-icono-fusion-de-sensores-monitor.svg",
+    "respiratorio": "biocore-icono-respiracion-monitor.svg",
+    "eeg": "biocore-icono-eeg-monitor.svg",
+    "emg": "biocore-icono-emg-monitor.svg",
+    "hrv": "biocore-icono-variabilidad-cardiaca-monitor.svg",
+    "biomarcadores": "biocore-icono-biomarcadores-monitor.svg",
+    "calculadoras": "biocore-icono-calculadoras-monitor.svg",
+    "pacientes": "biocore-icono-pacientes-monitor.svg",
+    "comparar": "biocore-icono-app-comparar-monitor.svg",
+    "modelo-3d": "biocore-icono-app-taller-3d-monitor.svg",
+    "ajustes": "biocore-icono-app-ajustes-monitor.svg",
+    "terminos": "biocore-icono-app-terminos-monitor.svg",
+    "privacidad": "biocore-icono-app-privacidad-monitor.svg",
+}
+
+
+def _nav_icon_selectors(url: str) -> list:
+    # Inicio es la página por defecto: Streamlit la enlaza a la raíz («/»), no a «/inicio».
+    ends = ("/", "/inicio") if url == "inicio" else (f"/{url}",)
+    return [f'[data-testid="stSidebarNav"] a[href$="{end}"]::before' for end in ends]
+
+
+def nav_icon_css() -> str:
+    """CSS de los íconos del menú. El espacio del ícono solo existe en los enlaces que tienen regla: antes una regla
+    genérica (`a::before`) reservaba 20 px en todos y las páginas sin ícono quedaban con un hueco en blanco."""
+    all_selectors = [sel for url in NAV_ICONS for sel in _nav_icon_selectors(url)]
+    rules = [", ".join(all_selectors) + ' { content: ""; flex: 0 0 20px; width: 20px; height: 20px; '
+             "margin-right: 10px; background: no-repeat center / contain; opacity: .8; "
+             "transition: opacity .15s ease, transform .15s ease; }"]
+    for url, file in NAV_ICONS.items():
+        rules.append(", ".join(_nav_icon_selectors(url)) + f' {{ background-image: url("{ICONS_URL}/{file}"); }}')
+    return "\n".join(rules)
+
+
+def route_arrow_html(direction: str) -> str:
+    """Flecha decorativa entre dos nodos de la ruta («derecha» o «izquierda»); el lector de pantalla la omite."""
+    return (f'<div class="bc-arrow bc-arrow-{direction}" aria-hidden="true">'
+            f'<img src="{ROUTE_URL}/biocore-ruta-flecha-{direction}.svg" alt=""></div>')
+
+
 def inject_global_theme() -> None:
     """Estilo global de la app -- Consolidación Visual Tanda 1 (2026-09-20).
     Reemplaza `inject_biocore_css()` (antes en `app/main.py`), que inyectaba
@@ -757,6 +824,17 @@ def inject_global_theme() -> None:
             [class*="st-key-bc_node"] a, [class*="st-key-bc_node"] button {{ min-height: 56px; border-radius: 999px !important;
                 border: 2px solid {PALETTE.TRAZO} !important; padding: 8px 22px !important; }}
             [class*="st-key-bc_node_b"] {{ margin-left: 22%; }}
+            [class*="st-key-bc_node"] a, [class*="st-key-bc_node"] button {{ transition: background-color .15s ease, translate .15s ease; }}
+            [class*="st-key-bc_node"] a:hover, [class*="st-key-bc_node"] button:hover {{ background: {PALETTE.RESALTE} !important;
+                translate: 0 -2px; }}
+            [class*="st-key-bc_node"] a:hover *, [class*="st-key-bc_node"] button:hover * {{ color: {PALETTE.TINTA_TITULO} !important; }}
+            [class*="st-key-bc_node"] a:focus-visible, [class*="st-key-bc_node"] button:focus-visible,
+            [class*="st-key-bc_card"] a:focus-visible, [class*="st-key-bc_card"] button:focus-visible {{
+                outline: 2px solid {PALETTE.TRAZO} !important; outline-offset: 3px; }}
+            /* Flechas de la ruta (`route_arrow_html`): la línea punteada avanza hacia el siguiente nodo; la animación vive
+               en el SVG y se detiene con prefers-reduced-motion. Ocupan la franja entre el nodo izquierdo y el derecho. */
+            .bc-arrow {{ width: 26%; margin: -12px 0 -12px 4%; line-height: 0; pointer-events: none; }}
+            .bc-arrow img {{ display: block; width: 100%; height: auto; }}
             [class*="st-key-bc_cmp_col"] {{ border-right: 2px solid {PALETTE.TRAZO}; padding-right: 12px; }}
             [class*="st-key-bc_"] button {{ min-height: 44px; }}
             .bc-hero {{ font-size: 2.4rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; color: {PALETTE.TEXT};
@@ -781,25 +859,18 @@ def inject_global_theme() -> None:
             .bc-illus {{ float: right; width: 72px; height: 72px; margin: 0 0 8px 12px; }}
             .bc-preview {{ border: 1px solid {PALETTE.GRID}; border-radius: 14px; overflow: hidden; background: #0b1426; }}
             .bc-preview img {{ display: block; width: 100%; height: auto; }}
-            /* Menú lateral en píldoras, con los íconos dibujados del kit (sin librería genérica de íconos). */
+            /* Menú lateral en píldoras con íconos dibujados (kit v1.1 y «biocore-icono-app-*», sin librería genérica).
+               Cada página tiene su regla (`NAV_ICONS`, `nav_icon_css`): ningún enlace reserva un hueco sin ícono. */
             [data-testid="stSidebarNav"] a {{ border: 1px solid {PALETTE.GRID}; border-radius: 999px !important;
-                margin: 3px 6px; padding-left: 12px; }}
+                margin: 3px 6px; padding-left: 12px; transition: background-color .15s ease, border-color .15s ease; }}
             [data-testid="stSidebarNav"] a[aria-current="page"] {{ border-color: {PALETTE.TRAZO}; background: {PALETTE.PANEL}; }}
-            [data-testid="stSidebarNav"] a::before {{ content: ""; flex: 0 0 20px; width: 20px; height: 20px; margin-right: 8px;
-                background-repeat: no-repeat; background-position: center; background-size: contain; }}
-            [data-testid="stSidebarNav"] a[href$="/gemelo"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-gemelo-digital-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/temas"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-academia-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/teoria"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-academia-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/ecg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-ecg-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/multisensor"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-fusion-de-sensores-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/respiratorio"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-respiracion-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/eeg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-eeg-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/emg"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-emg-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/hrv"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-variabilidad-cardiaca-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/biomarcadores"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-biomarcadores-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/calculadoras"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-calculadoras-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/pacientes"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-pacientes-monitor.svg"); }}
-            [data-testid="stSidebarNav"] a[href$="/comparar"]::before {{ background-image: url("app/static/marca/iconos/biocore-icono-pacientes-monitor.svg"); }}
+            [data-testid="stSidebarNav"] a:hover {{ border-color: {PALETTE.TRAZO}; background: {PALETTE.RESALTE}; }}
+            [data-testid="stSidebarNav"] a:hover *, [data-testid="stSidebarNav"] a[aria-current="page"] * {{
+                color: {PALETTE.TINTA_TITULO}; }}
+            [data-testid="stSidebarNav"] a:focus-visible {{ outline: 2px solid {PALETTE.TRAZO}; outline-offset: 2px; }}
+            {nav_icon_css()}
+            [data-testid="stSidebarNav"] a:hover::before, [data-testid="stSidebarNav"] a[aria-current="page"]::before {{
+                opacity: 1; transform: scale(1.1); }}
             /* Al bajar, el logo y el monitoreo suben y se quedan arriba en pequeño (animación ligada al scroll, solo CSS). */
             [data-testid="stMain"] {{ scroll-timeline: --bcmain block; }}
             .st-key-bc_sticky {{ position: fixed; top: 0.7rem; left: 50%; transform: translateX(-50%); z-index: 1000;
@@ -810,6 +881,19 @@ def inject_global_theme() -> None:
             @supports (animation-timeline: scroll()) {{
                 .st-key-bc_sticky {{ animation: bc-reveal linear both; animation-timeline: --bcmain; animation-range: 160px 320px; }}
             }}
+            /* Animaciones de scroll (2026-11-17): tarjetas, monitoreo, nodos y flechas aparecen al entrar en la vista.
+               Solo donde el navegador soporta view(); sin soporte, todo se ve desde el inicio. */
+            @supports (animation-timeline: view()) {{
+                [class*="st-key-bc_card"], [class*="st-key-bc_monitor"], [class*="st-key-bc_node"], .bc-arrow {{
+                    animation: bc-rise linear both; animation-timeline: view(); animation-range: entry 0% entry 55%; }}
+            }}
+            .bc-hero, .bc-lema, .bc-logo {{ animation: bc-rise .6s ease-out both; }}
+            .bc-preview img {{ animation: bc-draw 1.6s ease-out both; }}
+            [class*="st-key-bc_card"] {{ transition: border-color .2s ease, translate .2s ease, box-shadow .2s ease; }}
+            [class*="st-key-bc_card"]:hover {{ border-color: {PALETTE.TRAZO} !important; translate: 0 -3px;
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); }}
+            @keyframes bc-rise {{ from {{ opacity: 0; transform: translateY(18px) scale(0.98); }} to {{ opacity: 1; transform: none; }} }}
+            @keyframes bc-draw {{ from {{ clip-path: inset(0 100% 0 0); }} to {{ clip-path: inset(0 0 0 0); }} }}
             @keyframes bc-reveal {{ from {{ opacity: 0; visibility: hidden; }} to {{ opacity: 1; visibility: visible; }} }}
             @media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}
             /* Al pasar el cursor Streamlit oscurece el fondo (#0b5fef: 3.31:1 con texto oscuro). Se usa ACCENT_ON_DARK. */
