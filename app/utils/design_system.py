@@ -156,6 +156,7 @@ CONTRAST_PAIRS = (
     ("TINTA_TITULO", "BACKGROUND", 4.5), ("TINTA_TITULO", "SECONDARY_BACKGROUND", 4.5),
     ("TINTA_2", "BACKGROUND", 4.5), ("TINTA_2", "SECONDARY_BACKGROUND", 4.5), ("TEXT", "PANEL", 4.5),
     ("TEXT", "RESALTE", 4.5), ("TINTA_TITULO", "RESALTE", 4.5), ("TRAZO", "RESALTE", 3.0),   # cursor encima
+    ("NEUTRAL", "PANEL", 4.5), ("TINTA_2", "PANEL", 4.5),   # menú lateral sobre PANEL (2026-11-18)
     # Papel ECG: trazo y rótulos son texto (4.5); la línea gruesa (5 mm) es el objeto gráfico con el que se lee (3.0) y
     # el trazo debe destacar sobre ella (3.0). Las dos variantes medidas.
     ("ECG_TRACE", "ECG_PAPER", 4.5), ("ECG_LABEL", "ECG_PAPER", 4.5),
@@ -903,6 +904,56 @@ def inject_global_theme() -> None:
                 background-color: {PALETTE.ACCENT_ON_DARK} !important;
                 border-color: {PALETTE.ACCENT_ON_DARK} !important;
             }}
+            /* Pulido estético (2026-11-18): solo tokens de PALETTE; nada cambia de lugar ni de texto. */
+            [data-testid="stHeader"] {{ background: rgba(15, 23, 42, 0.72) !important; backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px); }}
+            [data-testid="stSidebar"] {{ background: {PALETTE.PANEL}; border-right: 1px solid {PALETTE.GRID}; }}
+            [data-testid="stSidebarNav"] a[aria-current="page"] {{ background: {PALETTE.RESALTE}; }}
+            [data-testid="stNavSectionHeader"], [data-testid="stNavSectionHeader"] * {{ color: {PALETTE.TINTA_2} !important;
+                text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.74rem !important; font-weight: 600; }}
+            h1, h2, h3, h4 {{ letter-spacing: -0.015em; }}
+            .st-key-{CONTENT_KEY} p, .st-key-{CONTENT_KEY} li {{ line-height: 1.6; }}
+            [data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-primary"],
+            [data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-secondaryFormSubmit"] {{
+                border-radius: 999px !important; padding-left: 18px; padding-right: 18px;
+                transition: background-color .15s ease, border-color .15s ease, translate .15s ease; }}
+            [data-testid="stBaseButton-secondary"] {{ border-color: {PALETTE.GRID} !important; }}
+            /* Botón principal deshabilitado (p. ej. «Ingresar al laboratorio» sin la casilla): la regla ON_STATE de arriba
+               dejaba su texto oscuro sobre fondo oscuro, invisible. Texto NEUTRAL sobre el fondo (medido en CONTRAST_PAIRS). */
+            [data-testid="stBaseButton-primary"]:disabled, [data-testid="stBaseButton-primary"]:disabled * {{
+                color: {PALETTE.NEUTRAL} !important; }}
+            [data-testid="stBaseButton-primary"]:disabled {{ background: transparent !important;
+                border: 1px solid {PALETTE.GRID} !important; }}
+            [data-testid="stBaseButton-secondary"]:hover {{ border-color: {PALETTE.TRAZO} !important;
+                background: {PALETTE.RESALTE} !important; translate: 0 -1px; }}
+            [data-testid="stBaseButton-secondary"]:hover * {{ color: {PALETTE.TINTA_TITULO} !important; }}
+            button:focus-visible, a:focus-visible, [role="tab"]:focus-visible, summary:focus-visible {{
+                outline: 2px solid {PALETTE.TRAZO} !important; outline-offset: 2px; }}
+            [data-testid="stExpander"] details {{ border-radius: 14px !important; border: 1px solid {PALETTE.GRID} !important;
+                overflow: hidden; }}
+            [data-testid="stExpander"] summary {{ transition: background-color .15s ease; }}
+            [data-testid="stExpander"] summary:hover {{ background: {PALETTE.RESALTE}; }}
+            [data-testid="stExpander"] details[open] > summary {{ border-bottom: 1px solid {PALETTE.GRID}; }}
+            [data-baseweb="tab-list"] {{ gap: 4px; border-bottom: 1px solid {PALETTE.GRID}; }}
+            [data-baseweb="tab"] {{ border-radius: 10px 10px 0 0; padding: 8px 14px !important; }}
+            [data-baseweb="tab"]:hover {{ background: {PALETTE.RESALTE}; }}
+            [data-testid="stAlert"], [data-testid="stAlertContainer"] {{ border-radius: 14px !important; }}
+            [data-testid="stDataFrame"], [data-testid="stTable"] {{ border: 1px solid {PALETTE.GRID}; border-radius: 12px;
+                overflow: hidden; }}
+            /* Campos por su data-testid (la palabra suelta en inglés la vigila el recorrido de «sin inglés visible»). */
+            [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"], [data-baseweb="select"] > div,
+            [data-baseweb="textarea"] {{ border-radius: 12px !important; }}
+            [data-testid="stPopover"] button {{ border-radius: 999px !important; }}
+            hr {{ border-color: {PALETTE.GRID} !important; opacity: 0.8; }}
+            ::selection {{ background: {PALETTE.RESALTE}; color: {PALETTE.TINTA_TITULO}; }}
+            * {{ scrollbar-width: thin; scrollbar-color: {PALETTE.GRID} transparent; }}
+            ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+            ::-webkit-scrollbar-thumb {{ background: {PALETTE.GRID}; border-radius: 999px; border: 2px solid transparent;
+                background-clip: content-box; }}
+            ::-webkit-scrollbar-thumb:hover {{ background-color: {PALETTE.NEUTRAL}; }}
+            .st-key-{CONTENT_KEY} {{ animation: bc-fade .35s ease-out both; }}
+            /* Solo opacidad: un transform en este contenedor haría que la barra fija del Inicio dejara de ser fija. */
+            @keyframes bc-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
         </style>
         """,
         unsafe_allow_html=True,
