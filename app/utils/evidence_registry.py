@@ -80,9 +80,13 @@ def _calc(report_id: str, etiqueta: str, linea_ui: int, produce: str, origen: in
                      f"{CALC}:{origen}", None, None, regla, supuestos, no_modelado, fuente)
 
 
-_BANNER_RULE = _c("Última FC, FR y SpO₂ del paciente activo tal como las persistió el UPS.", 87, BANNER)
-_BANNER_ASSUMPTION = _c("Los valores salen de `get_latest_state()` (el último snapshot PERSISTIDO). Un valor que el UPS "
-                        "no tiene se dice «Sin dato», jamás se rellena.", 9, BANNER)
+_BANNER_RULE = _c("Última FC, FR y SpO₂ del paciente activo según el paciente compuesto (con el origen de las "
+                   "arrastradas).", 91, BANNER)
+_BANNER_ASSUMPTION = _c("Los valores salen del paciente compuesto (`get_composed_patient()`, T0 de la ruta integrada, "
+                        "2026-11-18): el último valor de cada descriptor; uno de un snapshot anterior se muestra como "
+                        "arrastre, con su procedencia de origen y su edad («Simulación · hace 3 min»), porque el último "
+                        "snapshot de un laboratorio no trae lo que no midió. Un valor que el UPS no tiene se dice «Sin "
+                        "dato», jamás se rellena.", 9, BANNER)
 _BANNER_PROV = _c("Art. I (cada valor con su procedencia; si falta, «sin dato»; nunca un valor por defecto):", 8, BANNER)
 _NEWS2_TOTAL_MISSING = _c("Nunca suma: el total NEWS2 exige los 7 parámetros (ver `NEWS2_PARAMETERS_NOT_MODELED`).", 558)
 _NEWS2_SOURCE = Fuente(cita=_c("Royal College of Physicians. National Early Warning Score (NEWS) 2: Standardising the",
@@ -90,8 +94,8 @@ _NEWS2_SOURCE = Fuente(cita=_c("Royal College of Physicians. National Early Warn
 
 ENTRIES: Tuple[Evidencia, ...] = (
     # ── Banner del paciente activo: la procedencia es la del descriptor del UPS en ejecución ──
-    *(Evidencia(f"banner.{campo}", "banner", etiqueta, f"{BANNER}:145", "app.utils.patient_banner.read_active_vitals",
-                f"{BANNER}:86", "variable", _BANNER_PROV, _BANNER_RULE, _BANNER_ASSUMPTION, None, None)
+    *(Evidencia(f"banner.{campo}", "banner", etiqueta, f"{BANNER}:171", "app.utils.patient_banner.read_active_vitals",
+                f"{BANNER}:90", "variable", _BANNER_PROV, _BANNER_RULE, _BANNER_ASSUMPTION, None, None)
       for campo, etiqueta in (("fc", "FC"), ("fr", "FR"), ("spo2", "SpO₂"))),
 
     # ── Calculadoras: ECG ──

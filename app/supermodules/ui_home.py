@@ -40,7 +40,9 @@ PROVENANCE_SEAL = {
     "MODELO_HEMODINAMICO": ("calculado-por-modelo", "Calculado por modelo"),
     "DERIVADO_ACOPLAMIENTO": ("calculado-por-modelo", "Calculado por modelo"),
     "REFERENCIA_CLINICA": ("referencia-citada", "Referencia citada"),
-    "ARRASTRE_TEMPORAL": ("medido", "Medido · arrastre temporal"),
+    # Respaldo para un arrastre sin origen conocido. Un arrastre del paciente compuesto se sella con la procedencia de
+    # su ORIGEN y su edad (`seal_for(..., origin)`): sellarlo «Medido» pondría «Medido» a una FC simulada (T0, Art. I).
+    "ARRASTRE_TEMPORAL": ("no-disponible", "Arrastre temporal"),
 }
 NO_DATA_SEAL = ("no-disponible", "No disponible")
 
@@ -54,10 +56,18 @@ def seal_html(kind: str, word: str) -> str:
             f"{t(word)}</span>")
 
 
-def seal_for(descriptor) -> str:
+def seal_for(descriptor, origin=None) -> str:
+    """Sello de procedencia. Con `origin` (un `CarryOrigin` del paciente compuesto), el sello de la procedencia de
+    origen y su edad, traducida: «Simulado · hace 3 min»."""
+    from app.utils.patient_banner import age_text, origin_age_s
+
     if descriptor is None:
         return seal_html(*NO_DATA_SEAL)
-    return seal_html(*PROVENANCE_SEAL.get(descriptor.provenance.name, NO_DATA_SEAL))
+    if origin is None:
+        return seal_html(*PROVENANCE_SEAL.get(descriptor.provenance.name, NO_DATA_SEAL))
+    kind, word = PROVENANCE_SEAL.get(origin.provenance.name, NO_DATA_SEAL)
+    return (f"<span class='bc-seal'><img src='{STATIC}/sellos/biocore-sello-{kind}-monitor.svg' alt=''>"
+            f"{t(word)} · {age_text(origin_age_s(origin), t)}</span>")
 
 
 def icon_html(name: str, css: str = "bc-illus") -> str:
@@ -66,16 +76,16 @@ def icon_html(name: str, css: str = "bc-illus") -> str:
 
 
 def _active_state():
-    """(patient_id, último estado del UPS) sin crear paciente; (None, None) si no hay."""
+    """(patient_id, paciente compuesto del UPS) sin crear paciente; (None, None) si no hay."""
     from app.utils.patient_banner import peek_active_patient_id
     from app.utils.patient_session import get_active_session_factory
-    from domain.physiology.state import get_latest_state
+    from domain.physiology.state import get_composed_patient
 
     pid = peek_active_patient_id()
     if pid is None:
         return None, None
     with get_active_session_factory()() as session:
-        return pid, get_latest_state(session, pid)
+        return pid, get_composed_patient(session, pid)
 
 
 def snapshot_count(patient_id: Optional[str]) -> Optional[int]:
@@ -110,11 +120,12 @@ def _render_sticky(vitals) -> None:
     if vitals.patient_id is None:
         parts.append(f"<span>{t('Sin paciente activo')}</span>")
     else:
+        # Un sello por signo: con el paciente compuesto, FC, FR y SpO₂ pueden venir de guardados y procedencias
+        # distintas (revisión final de la T0); un solo sello para los tres sellaría «Medido» una FR simulada.
         for key, label, *_rest in VITALS:
             d = vitals.values[key]
-            parts.append(f"<span>{t(label)} <b>{'—' if d is None else f'{d.value:.0f}'}</b></span>")
-        any_d = next((d for d in vitals.values.values() if d is not None), None)
-        parts.append(seal_for(any_d))
+            parts.append(f"<span>{t(label)} <b>{'—' if d is None else f'{d.value:.0f}'}</b></span>"
+                         + seal_for(d, vitals.origins.get(key)))
     with st.container(key="bc_sticky"):
         st.markdown(f"<div class='bc-mini'>{''.join(parts)}</div>", unsafe_allow_html=True)
 
@@ -134,9 +145,9 @@ def _render_monitor(vitals) -> None:
                     d = vitals.values[key]
                     col.markdown(f"<span class='bc-value'>{t(label)} {'—' if d is None else f'{d.value:.0f}'}</span>",
                                  unsafe_allow_html=True)
-                    col.markdown(("" if d is None else f"{_value_with_unit(d)}<br>") + seal_for(d),
+                    col.markdown(("" if d is None else f"{_value_with_unit(d)}<br>") + seal_for(d, vitals.origins.get(key)),
                                  unsafe_allow_html=True)
-            st.caption(t("Último estado guardado en el UPS de esta sesión; no es una señal en vivo."))
+            st.caption(t("Últimos valores guardados en el UPS de esta sesión, cada uno con su procedencia; no es una señal en vivo."))
         with preview:
             st.markdown(f"<div class='bc-preview'><img src='{STATIC}/tira/biocore-tira-ecg-monitor.svg' "
                         f"alt='{t('Tira de ECG: registro real MIT-BIH 100')}'></div>", unsafe_allow_html=True)
@@ -147,7 +158,8 @@ def _render_monitor(vitals) -> None:
 def _render_twin_card(organ: C.Organ) -> None:
     from app.utils import navigation as nav
 
-    pid, state = _active_state()
+    pid, composed = _active_state()
+    state = composed.state if composed is not None else None
     with st.container(key="bc_card_twin"):
         st.markdown(f"{icon_html(organ.icon_file)}<span class='bc-eyebrow'>{t('Gemelo digital · simulación')}</span>",
                     unsafe_allow_html=True)
@@ -163,7 +175,8 @@ def _render_twin_card(organ: C.Organ) -> None:
                 st.markdown(seal_html(*NO_DATA_SEAL) + " " + t("El UPS del paciente activo no tiene valores de este sistema."),
                             unsafe_allow_html=True)
             for name, d in descriptors.items():
-                st.markdown(f"**{descriptor_label(name)}** · {_value_with_unit(d)} &nbsp; {seal_for(d)}",
+                st.markdown(f"**{descriptor_label(name)}** · {_value_with_unit(d)} &nbsp; "
+                            f"{seal_for(d, composed.origins.get((organ.domain, name)))}",
                             unsafe_allow_html=True)
         nav.link("gemelo", t("Abrir el gemelo digital"))
 

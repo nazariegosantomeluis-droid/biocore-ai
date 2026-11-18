@@ -361,3 +361,74 @@ def test_hrv_sin_dato_de_fr_lo_dice():
     assert _sidebar_slider(at, "FC base (lpm)") == 88
     assert _sidebar_slider(at, "Frecuencia respiratoria (rpm)") == 15
     assert "no tiene FR en el UPS" in _sidebar_captions(at)
+
+
+# ── T0 · paciente compuesto (2026-11-18): guardar en un laboratorio ya no borra los signos del paciente ──
+
+def _append_eeg(patient_id: str) -> None:
+    """Un guardado del EEG Lab sobre el mismo paciente: su snapshot solo trae el dominio neurológico."""
+    from domain.physiology.state import Provenance, from_digital_twin_organism, save_state
+    organism = DigitalTwinOrganism()
+    organism.update_from_sensors({"eeg": {"delta_power": 1.0, "theta_power": 1.0, "alpha_power": 2.0,
+                                          "beta_power": 4.0, "gamma_power": 0.5}})
+    with _session_factory()() as session:
+        save_state(session, from_digital_twin_organism(organism, patient_id, provenance=Provenance.SIMULACION,
+                                                       source_detail="eeg_neuro_lab"))
+
+
+def test_banner_conserva_signos_tras_guardar_eeg():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 92.0}})
+    _append_eeg(patient_id)
+    banner = _banner_texts(_open("calculadoras", **{PATIENT_KEY: patient_id}))[0]
+    assert "FC <b>100</b>" in banner and "FR <b>24</b>" in banner and "SpO₂ <b>92</b>" in banner, banner
+    assert "Simulación · hace" in banner, "un valor arrastrado dice su procedencia de origen y su edad"
+    assert "Sin dato" not in banner
+
+
+def test_read_active_vitals_origen():
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 92.0}})
+    _append_eeg(patient_id)
+
+    def script():
+        import streamlit as st
+        from app.utils.patient_banner import read_active_vitals
+        vitals = read_active_vitals()
+        st.session_state["out"] = (vitals.values["hr"].value, vitals.origins["hr"].provenance.value)
+
+    at = AppTest.from_function(script)
+    at.session_state[PATIENT_KEY] = patient_id
+    at.run()
+    assert at.exception == []
+    assert at.session_state["out"] == (100.0, "simulacion")
+
+
+def test_age_text():
+    from app.utils.patient_banner import age_text
+    assert age_text(5) == "hace 5 s"
+    assert age_text(125) == "hace 2 min"
+    assert age_text(7300) == "hace 2 h"
+
+
+def test_pasaporte_y_pie_del_banner_con_arrastre():
+    """Revisión final de la T0: el pasaporte de un valor arrastrado lleva la procedencia de ORIGEN (simulado, no
+    «estimado») y dice que es un arrastre; el pie del banner ya no dice «Último estado guardado»."""
+    from app.utils.patient_banner import passport_args
+    patient_id = _patient_with({"ecg": {"heart_rate": 100.0}, "respiratory": {"respiratory_rate": 24.0, "spo2": 92.0}})
+    _append_eeg(patient_id)
+
+    def script():
+        import streamlit as st
+        from app.utils.patient_banner import passport_args, read_active_vitals
+        st.session_state["out"] = passport_args(read_active_vitals(), "hr")
+
+    at = AppTest.from_function(script)
+    at.session_state[PATIENT_KEY] = patient_id
+    at.run()
+    valor, procedencia = at.session_state["out"]
+    assert procedencia.value == "simulacion"
+    assert valor.startswith("100 lpm") and "arrastre" in valor and "hace" in valor
+
+    at = _open("calculadoras", **{PATIENT_KEY: patient_id})
+    captions = " ".join(c.value for c in at.main.caption)
+    assert "Último estado guardado" not in captions
+    assert "Últimos valores guardados en el UPS de esta sesión" in captions

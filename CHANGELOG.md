@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-18 · T0 de la ruta integrada: el paciente compuesto (Art. I)
+
+Primera tanda del diseño «De laboratorios a una ruta integrada», firmado por Luis el 2026-11-17. Medido antes de tocar (regla 1): tras guardar en el gemelo (FC 100, FR 24, SpO₂ 92) y luego en el EEG Lab, `get_latest_state()` devolvía FC, FR y SpO₂ en `None`. Cada laboratorio escribe solo lo que mide (gates anti-órgano-fantasma) y todo lo que leía «el estado actual» leía la última fila: el banner, el Inicio, Calculadoras, Temas y el arranque de Respiratorio y HRV. El paciente «olvidaba» sus signos al pasar por un laboratorio.
+
+1. **`get_composed_patient()`** (`domain/physiology/state/composed.py`, solo lectura): el último valor de cada descriptor por `rowid`. Uno de un snapshot anterior se entrega como `ARRASTRE_TEMPORAL`, con la confianza de origen tal cual y su origen (snapshot, hora, procedencia original, edad) en `source_detail` y en `ComposedPatient.origins`. Un derivado (`DERIVED_INPUTS`: puntos NEWS2, PA del modelo, FC acoplada) viaja solo con sus entradas del mismo snapshot; nada se recalcula y la regla C0 sigue en `derived_contract.py`. Eventos: solo los del último snapshot. Leer no escribe.
+2. **Ventana de sesión** (decisión 1 firmada por Luis): para mostrar, un valor sigue vigente toda la sesión, siempre con su edad. La ventana fisiológica, estricta, sigue solo en el compositor (`DEFAULT_MAX_HR_CARRY_AGE_S`), que no cambió.
+3. **Lectores que cambiaron:** `patient_banner.read_active_vitals()` (y con ella el banner, Calculadoras, Temas y `patient_start_value`) y `ui_home._active_state()`. Un arrastre se rotula con su procedencia de origen y su edad («Simulación · hace 3 min»). **Lectores que no cambiaron:** el modo caso (un caso es un snapshot por diseño), Comparar pacientes (compara snapshots) y la trayectoria del simulador.
+4. **Fachada evitada en el Inicio:** `PROVENANCE_SEAL` sellaba todo arrastre «Medido · arrastre temporal». Con el paciente compuesto, cada FC simulada habría salido «Medido». Ahora el sello es el de la procedencia de origen con su edad; el respaldo sin origen dice «Arrastre temporal», sin «Medido». El pie del monitoreo dice «Últimos valores guardados…, cada uno con su procedencia».
+
+5. **Revisión independiente del cambio completo** (cuatro hallazgos corregidos, cada uno con su prueba en rojo antes): la barra fija del Inicio ponía UN sello para los tres signos (con una FC de sensor real y una FR simulada arrastrada, «Medido» quedaba junto a la FR); ahora hay un sello por signo. El pasaporte de evidencia de un valor arrastrado decía «estimado»; ahora lleva la procedencia de origen y dice que es un arrastre y su edad (`passport_args`). BAR, DAR y TBR viajan solo con las bandas de su snapshot (`DERIVED_INPUTS`): un EEG nuevo sin razón ya no muestra la razón vieja junto a bandas nuevas. Dentro de un snapshot gana la última fila insertada, como en `get_latest_state`. El pie del banner dice «Últimos valores guardados…».
+
+Pruebas: `tests/test_ups_composed_patient.py` (15), `tests/test_ui_home_paciente_compuesto.py` (4) y 4 nuevas en `tests/test_integracion_paciente.py`; citas del banner en `evidence_registry.py` actualizadas.
+
 ## 2026-11-18 · Optimización y pulido estético
 
 José Miguel pidió mejorar la optimización y que la app se viera más estética. Primero se midió (regla 1):

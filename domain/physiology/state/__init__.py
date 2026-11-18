@@ -24,6 +24,7 @@ from .clinical_reference_repository import (
     get_clinical_references_for_snapshot,
 )
 from .composer import ComposeResult, compose_neuro_cardiac_snapshot
+from .composed import DERIVED_INPUTS, CarryOrigin, ComposedPatient, get_composed_patient
 from .db import init_db, make_engine, make_session_factory
 from .repository import (
     create_patient,
@@ -66,6 +67,11 @@ __all__ = [
     # Compositor multi-dominio (Tanda 1 de (b), 2026-09-08) -- aditivo.
     "ComposeResult",
     "compose_neuro_cardiac_snapshot",
+    # Paciente compuesto (T0 de la ruta integrada, 2026-11-18) -- aditivo, solo lectura.
+    "CarryOrigin",
+    "ComposedPatient",
+    "DERIVED_INPUTS",
+    "get_composed_patient",
     "CONFIDENCE_REFERENCE",
     "ConfidenceBand",
     "DomainState",

@@ -6,8 +6,10 @@ de Explorar con el id corto del paciente activo, la fuente que manda en el gemel
 tiene de ese paciente, cada una con su procedencia.
 
 Art. I (cada valor con su procedencia; si falta, «sin dato»; nunca un valor por defecto):
-- Los valores salen de `get_latest_state()` (el último snapshot PERSISTIDO). Un valor que el UPS no tiene se dice
-  «Sin dato», jamás se rellena.
+- Los valores salen del paciente compuesto (`get_composed_patient()`, T0 de la ruta integrada, 2026-11-18): el último
+  valor de cada descriptor; uno de un snapshot anterior se muestra como arrastre, con su procedencia de origen y su
+  edad («Simulación · hace 3 min»), porque el último snapshot de un laboratorio no trae lo que no midió. Un valor que
+  el UPS no tiene se dice «Sin dato», jamás se rellena.
 - No hay paciente hasta que alguien lo crea (el gemelo al abrirse, o un «Guardar estado al gemelo»). El banner NO lo
   crea: mirar una página no escribe en la base. Sin paciente dice «Sin paciente activo».
 - `read_active_vitals()` es la ÚNICA lectura: el banner y Calculadoras (carga de FC/FR/SpO₂ y puntos NEWS2) la
@@ -17,7 +19,8 @@ Art. I (cada valor con su procedencia; si falta, «sin dato»; nunca un valor po
 from __future__ import annotations
 
 import html
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 import streamlit as st
@@ -26,7 +29,7 @@ from app.utils.design_system import PALETTE
 from app.utils.evidence_passport import render_evidence_passport
 from app.utils.patient_session import _PATIENT_ID_KEY, get_active_session_factory
 from clinical.calculators import news2_partial, news2_points_text
-from domain.physiology.state import Provenance, get_latest_state
+from domain.physiology.state import CarryOrigin, Provenance, get_composed_patient
 from domain.physiology.state.schema import PhysiologicalDescriptor
 
 BANNER_KEY = "active_patient_banner"          # `st.container(key=...)`: la prueba lo busca por texto, no por DOM
@@ -72,6 +75,7 @@ class ActiveVitals:
 
     patient_id: Optional[str]
     values: dict       # clave ("hr", "rr", "spo2") -> PhysiologicalDescriptor | None
+    origins: dict = field(default_factory=dict)   # clave -> CarryOrigin, SOLO de los valores arrastrados
 
     @property
     def short_id(self) -> Optional[str]:
@@ -84,18 +88,20 @@ def peek_active_patient_id() -> Optional[str]:
 
 
 def read_active_vitals() -> ActiveVitals:
-    """Última FC, FR y SpO₂ del paciente activo tal como las persistió el UPS."""
+    """Última FC, FR y SpO₂ del paciente activo según el paciente compuesto (con el origen de las arrastradas)."""
     patient_id = peek_active_patient_id()
     empty = {key: None for key, *_ in VITALS}
     if patient_id is None:
         return ActiveVitals(None, dict(empty))
     with get_active_session_factory()() as session:
-        state = get_latest_state(session, patient_id)
-    if state is None:
+        composed = get_composed_patient(session, patient_id)
+    if composed is None:
         return ActiveVitals(patient_id, dict(empty))
-    domains = state.all_domains()
+    domains = composed.state.all_domains()
     values = {key: domains[domain].get(name) for key, _label, domain, name, _component in VITALS}
-    return ActiveVitals(patient_id, values)
+    origins = {key: composed.origins[(domain, name)] for key, _label, domain, name, _component in VITALS
+               if (domain, name) in composed.origins}
+    return ActiveVitals(patient_id, values, origins)
 
 
 def active_source_label() -> str:
@@ -116,17 +122,54 @@ def _passport_value(descriptor: Optional[PhysiologicalDescriptor]) -> Optional[s
     return f"{descriptor.value:.0f} {UNIT_ES.get(descriptor.unit, descriptor.unit)}"
 
 
+def passport_args(vitals: "ActiveVitals", key: str) -> tuple:
+    """(valor, procedencia) para el pasaporte de un signo del banner. Un arrastre lleva la procedencia de ORIGEN (el
+    tipo de dato sale de ahí: «simulado», no «estimado») y el valor dice que es un arrastre y su edad."""
+    descriptor = vitals.values[key]
+    origin = vitals.origins.get(key)
+    if origin is None:
+        return _passport_value(descriptor), getattr(descriptor, "provenance", None)
+    return (f"{_passport_value(descriptor)} (arrastre: {vital_provenance_text(descriptor, origin)})",
+            origin.provenance)
+
+
 def provenance_label(descriptor: PhysiologicalDescriptor) -> str:
     return PROVENANCE_ES.get(descriptor.provenance, descriptor.provenance.value)
 
 
-def _value_html(label: str, descriptor: Optional[PhysiologicalDescriptor], news2: Optional[int] = None) -> str:
+# Plantillas de la edad de un arrastre; el Inicio (página traducida) las pasa por `t()`.
+AGE_TEMPLATES = ("hace {n} s", "hace {n} min", "hace {n} h")
+
+
+def age_text(age_s: float, translate=lambda text: text) -> str:
+    """Edad de un valor arrastrado, en palabras: «hace 5 s», «hace 2 min», «hace 2 h»."""
+    if age_s < 60:
+        return translate(AGE_TEMPLATES[0]).format(n=int(age_s))
+    if age_s < 3600:
+        return translate(AGE_TEMPLATES[1]).format(n=int(age_s // 60))
+    return translate(AGE_TEMPLATES[2]).format(n=int(age_s // 3600))
+
+
+def origin_age_s(origin: CarryOrigin) -> float:
+    """Edad de un arrastre contada hasta ahora (no hasta el último snapshot): lo que el estudiante necesita saber."""
+    return max(0.0, (datetime.now(timezone.utc) - origin.timestamp).total_seconds())
+
+
+def vital_provenance_text(descriptor: PhysiologicalDescriptor, origin: Optional[CarryOrigin] = None) -> str:
+    """La procedencia que se muestra: la del valor o, si es un arrastre, la de su origen con su edad."""
+    if origin is None:
+        return provenance_label(descriptor)
+    return f"{PROVENANCE_ES.get(origin.provenance, origin.provenance.value)} · {age_text(origin_age_s(origin))}"
+
+
+def _value_html(label: str, descriptor: Optional[PhysiologicalDescriptor], news2: Optional[int] = None,
+                origin: Optional[CarryOrigin] = None) -> str:
     if descriptor is None:
         return f"<span style='color:{PALETTE.NEUTRAL};'>{label}: ○ {NO_DATA_TEXT}</span>"
     detail = f" title='{html.escape(descriptor.source_detail, quote=True)}'" if descriptor.source_detail else ""
     points = f" · NEWS2 {news2_points_text(news2)}" if news2 is not None else ""
     return (f"<span{detail}>{label} <b>{descriptor.value:.0f}</b> {html.escape(UNIT_ES.get(descriptor.unit, descriptor.unit))} "
-            f"<span style='color:{PALETTE.NEUTRAL};'>[{provenance_label(descriptor)}]</span>{points}</span>")
+            f"<span style='color:{PALETTE.NEUTRAL};'>[{vital_provenance_text(descriptor, origin)}]</span>{points}</span>")
 
 
 def render_active_patient_banner() -> None:
@@ -143,7 +186,7 @@ def render_active_patient_banner() -> None:
         raw = {key: (d.value if d is not None else None) for key, d in vitals.values.items()}
         components = news2_partial(pulse=raw["hr"], respiratory_rate=raw["rr"], spo2=raw["spo2"]).components
         parts = " &nbsp;·&nbsp; ".join(
-            _value_html(label, vitals.values[key], components.get(component))
+            _value_html(label, vitals.values[key], components.get(component), vitals.origins.get(key))
             for key, label, _domain, _name, component in VITALS
         )
         st.markdown(
@@ -154,10 +197,10 @@ def render_active_patient_banner() -> None:
         # Pasaporte de evidencia (2026-11-17): un botón por valor; el tipo de dato sale de la procedencia guardada.
         for col, (key, *_rest) in zip(st.columns(len(VITALS)), VITALS):
             with col:
-                render_evidence_passport(PASSPORT_FIELDS[key], _passport_value(vitals.values[key]),
-                                         procedencia=getattr(vitals.values[key], "provenance", None))
-        st.caption("Último estado guardado en el UPS de esta sesión; un laboratorio lo actualiza con «Guardar estado "
-                   "al gemelo». Valores simulados no son mediciones de un paciente.")
+                valor, procedencia = passport_args(vitals, key)
+                render_evidence_passport(PASSPORT_FIELDS[key], valor, procedencia=procedencia)
+        st.caption("Últimos valores guardados en el UPS de esta sesión, cada uno con su procedencia; un laboratorio los "
+                   "actualiza con «Guardar estado al gemelo». Valores simulados no son mediciones de un paciente.")
 
 
 def patient_start_value(key: str, lo: float, hi: float, fallback: float, control: str) -> tuple:
@@ -180,4 +223,4 @@ def patient_start_value(key: str, lo: float, hi: float, fallback: float, control
         return fallback, (f"{control}: la {label} del paciente activo ({value} {unit}) está fuera del rango de este control "
                           f"({lo:g}–{hi:g}); valor inicial de siempre.")
     return value, (f"{control}: empieza en la {label} del paciente activo `{vitals.short_id}` ({value} {unit}, "
-                   f"{provenance_label(descriptor)}, UPS). Si la mueves, ya es tu simulación.")
+                   f"{vital_provenance_text(descriptor, vitals.origins.get(key))}, UPS). Si la mueves, ya es tu simulación.")

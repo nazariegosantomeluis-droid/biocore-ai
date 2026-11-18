@@ -62,8 +62,8 @@ EN = {
     "Monitoreo del paciente activo": "Active patient monitoring",
     "Sin paciente activo: abre el gemelo digital para crear el paciente que comparten las páginas.":
         "No active patient: open the digital twin to create the patient that all pages share.",
-    "Último estado guardado en el UPS de esta sesión; no es una señal en vivo.":
-        "Last state saved in the UPS for this session; it is not a live signal.",
+    "Últimos valores guardados en el UPS de esta sesión, cada uno con su procedencia; no es una señal en vivo.":
+        "Latest values saved in the UPS for this session, each with its provenance; it is not a live signal.",
     "Monitoreo en vivo: laboratorio de ECG completo": "Live monitoring: full ECG lab",
     "Gemelo digital · simulación": "Digital twin · simulation",
     "El UPS no tiene un dominio para este sistema; se estudia con la variabilidad cardiaca.":
@@ -99,7 +99,8 @@ EN = {
     "Puntos NEWS2 de la SpO₂ (escala 1)": "NEWS2 SpO₂ points (scale 1)", "Razón FC:FR": "HR:RR ratio",
     "Presión sistólica": "Systolic pressure", "Presión diastólica": "Diastolic pressure", "PAM": "MAP",
     "Medido": "Measured", "Simulado": "Simulated", "Calculado por modelo": "Calculated by model",
-    "Referencia citada": "Cited reference", "Medido · arrastre temporal": "Measured · carried over in time",
+    "Referencia citada": "Cited reference", "Arrastre temporal": "Carried over in time",
+    "hace {n} s": "{n} s ago", "hace {n} min": "{n} min ago", "hace {n} h": "{n} h ago",
     "No disponible": "Not available",
     # Aviso de entrada y pie de página
     "Aviso clínico y educativo": "Clinical and educational notice",
