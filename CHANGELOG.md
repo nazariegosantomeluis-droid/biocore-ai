@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-18 · Logo de OmniCore en la esquina del menú
+
+José Miguel pidió poner en la esquina superior del menú el logo de OmniCore, la empresa matriz. `st.logo` (`app/main.py`) usa ahora `app/static/marca/omnicore/omnicore-logotipo-1024px.png` y, con el menú contraído, el isotipo de 256 × 256. El archivo entregado (`docs/marca/omnicore/omnicore-logo-original.png`) ya tenía fondo transparente: solo se recortó y se redimensionó. El favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
+
 ## 2026-11-17 — Caso guiado 2 firmado: elevación del ST en V1–V4
 
 Luis firmó el caso guiado 2 («Firmo el caso guiado 2»). `docs/contenido/caso_guiado_ecg_2.md` dice FIRMADO con su hoja marcada, y Practicar → «Caso guiado de ECG» muestra los dos casos con un selector. Pruebas: `tests/test_guided_case_2.py` (firmado, los dos casos en la app, registro con `caso_guiado:st_v1_v4:<decisión>`); la prueba de la pantalla sin firma ahora simula que ninguno de los dos está firmado.

@@ -2910,8 +2910,10 @@ def main() -> None:
         pages[url], sections[url] = page, section or "Inicio"
         menu.setdefault(section, []).append(page)
     nav.register(pages, sections)
-    st.logo(os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-logotipo-color-monitor-512px.png"),
-            icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "logos", "biocore-isotipo-color-monitor-256px.png"),
+    # Esquina superior del menú: OmniCore, la empresa matriz (2026-11-18, app/static/marca/omnicore/LEEME.txt). El
+    # favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
+    st.logo(os.path.join(ROOT_DIR, "app", "static", "marca", "omnicore", "omnicore-logotipo-1024px.png"),
+            icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "omnicore", "omnicore-isotipo-256px.png"),
             size="large")
     current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
     render_sidebar_status()

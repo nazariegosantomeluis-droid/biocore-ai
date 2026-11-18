@@ -1,0 +1,3 @@
+Logo de OmniCore, la empresa matriz de Biocore. Lo entregó José Miguel el 2026-11-18 (docs/marca/omnicore/omnicore-logo-original.png, ya con fondo transparente).
+Solo se recortó y se redimensionó: logotipo de 1024 px de ancho e isotipo de 256 x 256 (para el menú lateral contraído).
+Va en la esquina superior del menú (st.logo en app/main.py). El favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
