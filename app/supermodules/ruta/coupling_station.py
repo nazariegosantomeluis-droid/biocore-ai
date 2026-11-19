@@ -33,8 +33,11 @@ OPERATOR_ES = {"<": "<", "<=": "≤", ">": ">", ">=": "≥"}
 
 def spanish(text: Optional[str]) -> Optional[str]:
     """Un motivo del compositor con los nombres internos de los descriptores en palabras («heart_rate» → «FC»)."""
+    from app.utils.patient_banner import HORIZON_ES
+
     if text is None:
         return None
+    text = re.sub(r"horizonte (\w+)", lambda m: f"horizonte {HORIZON_ES.get(m.group(1), m.group(1))}", text)
     return re.sub(r"\b(" + "|".join(DESCRIPTOR_ES) + r")\b", lambda m: DESCRIPTOR_ES[m.group(1)], text)
 
 
@@ -87,10 +90,17 @@ def evaluate_after_save(prefix: str, rule, scenario: Optional[str], patient_id: 
         "observed": None if r.condition is None else r.condition.descriptor.value,
         "coupled": None if c is None else {"base": c.base_value, "coupled": c.coupled_value,
                                            "confidence": c.confidence},
+        "combined_with": list(r.combined_with),
+        "inputs": _input_ids(r.condition, r.base),
     }
 
 
-def render_inputs(rule, patient_id: str, scenario: Optional[str]) -> None:
+def _input_ids(cond, base):
+    """Qué mediciones vio la evaluación: si cambian, el resultado guardado ya no es el de las mediciones de ahora."""
+    return [None if v is None else v.snapshot_id for v in (cond, base)]
+
+
+def render_inputs(rule, patient_id: str, scenario: Optional[str]) -> list:
     """Las dos entradas de la regla tal como están ahora: la última medición de cada una (nunca la copia de una
     composición), con su procedencia, el tiempo entre ambas y la ventana firmada de la regla."""
     from app.utils.design_system import render_no_data
@@ -114,9 +124,14 @@ def render_inputs(rule, patient_id: str, scenario: Optional[str]) -> None:
         gap = abs((cond.timestamp - base.timestamp).total_seconds())
         st.caption(f"Tiempo entre las dos mediciones: {gap:.0f} s. Ventana firmada de la regla: {rule.window_s:.0f} s "
                    "(las dos deben venir de momentos así de cercanos).")
+    return _input_ids(cond, base)
 
 
-def render_result(prefix: str, rule, observed_note: Optional[str] = None) -> None:
+STALE_NOTE = ("Hay mediciones nuevas desde la última evaluación (guardadas fuera de esta unidad): la regla se evalúa al "
+              "guardar aquí la FC o, en «Mide», la otra medición.")
+
+
+def render_result(prefix: str, rule, observed_note: Optional[str] = None, current_inputs: Optional[list] = None) -> None:
     """Lo que pasó con la regla en el último guardado. `observed_note`: texto de la unidad que va con un acoplamiento
     aplicado (en Cerebro, el rango de la fuente con `{observed}`)."""
     from app.utils.design_system import render_no_data
@@ -125,6 +140,9 @@ def render_result(prefix: str, rule, observed_note: Optional[str] = None) -> Non
     r = st.session_state.get(result_key(prefix))
     if r is None:
         st.caption("La regla se evalúa sola cada vez que guardas una de sus dos mediciones.")
+        return
+    if current_inputs is not None and r.get("inputs") is not None and r["inputs"] != current_inputs:
+        st.caption(STALE_NOTE)
         return
     if not r["available"]:
         render_no_data("Acoplamiento", f"la regla {r['rule_id']} no se evaluó: {r['reason']}")
@@ -139,6 +157,10 @@ def render_result(prefix: str, rule, observed_note: Optional[str] = None) -> Non
         st.caption(COUPLED_NOTE)
         if observed_note:
             st.caption(observed_note.format(observed=r["observed"]))
+    elif r.get("combined_with"):
+        st.info(f"La regla {r['rule_id']} se cumplió ({r['condition']}), pero en este guardado también se cumple "
+                f"{', '.join(r['combined_with'])}, que cambia la misma FC. Sin una política firmada para combinarlas, "
+                "no se escribe ninguna.")
     else:
         confidence = confidence_for_validation_status(rule.validation_status)
         st.info(f"La regla {r['rule_id']} se evaluó y no se aplicó: {r['condition']} no cumple su condición "
@@ -185,6 +207,6 @@ def render_station(prefix: str, rule, patient_id: str, scenario: Optional[str],
     if blocked is not None:
         render_no_data("Acoplamiento", blocked)
         return
-    render_inputs(rule, patient_id, scenario)
+    current = render_inputs(rule, patient_id, scenario)
     measure_hr(prefix, lambda: evaluate_after_save(prefix, rule, scenario, patient_id))
-    render_result(prefix, rule, observed_note)
+    render_result(prefix, rule, observed_note, current)

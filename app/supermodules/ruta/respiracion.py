@@ -27,7 +27,7 @@ MIDE_NOTE = ("El patrón respiratorio es una simulación que empieza en la FR y 
              "su FR medida en la señal y la SpO₂ basal del modelo pasan a tu paciente como simulación.")
 NEWS2_NOTE = ("Puntos de cada lectura con la tabla NEWS2 de la plataforma (RCP 2017), la misma del gemelo y de "
               "Calculadoras. Es un componente por lectura, nunca un total NEWS2.")
-FLOW_NOTE = ("T6: la regla se evalúa sola cada vez que guardas la SpO₂ de tu paciente (en «Mide») o su FC (aquí). Solo "
+FLOW_NOTE = ("La regla se evalúa sola cada vez que guardas la SpO₂ de tu paciente (en «Mide») o su FC (aquí). Solo "
              "junta una SpO₂ y una FC medidas, nunca la proyección del escenario ni la copia de una evaluación anterior, "
              "y solo si los separa como mucho la ventana firmada de la regla.")
 DETECTIVE_NOTE = ("El Detective usa sus propios casos del banco (entre ellos hipoxia y apnea), no a tu paciente: pide "

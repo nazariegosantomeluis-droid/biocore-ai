@@ -63,13 +63,18 @@ def test_cerebro_no_reacopla_al_volver_a_dibujar():
     at.run()
     _go(at, "cerebro", "mide")
     _go(at, "cerebro", "cierre")
+    from sqlalchemy import func, select
+
     from app.utils.patient_session import get_shared_ups_engine
-    from domain.physiology.state import get_snapshot_ids_with_descriptor, make_session_factory
+    from domain.physiology.state import make_session_factory
+    from domain.physiology.state.models import SnapshotRecord, ValueRecord
 
     with make_session_factory(get_shared_ups_engine())() as s:
-        ids = get_snapshot_ids_with_descriptor(s, at.session_state["twin_shell_ups_patient_id"], "cardiovascular",
-                                               "heart_rate_acoplado")
-    assert len(ids) == 1
+        n = s.execute(select(func.count()).select_from(ValueRecord)
+                      .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+                      .where(SnapshotRecord.patient_id == at.session_state["twin_shell_ups_patient_id"],
+                             ValueRecord.descriptor == "heart_rate_acoplado")).scalar_one()
+    assert n == 1
 
 
 def test_cerebro_en_estres_no_evalua_ni_ofrece_medir():
@@ -122,8 +127,11 @@ def test_empezar_de_nuevo_borra_el_resultado_de_la_regla():
 
     at = _go(_save_spo2(_start("respiracion"), 88), "respiracion", "cierre")
     _measure_hr(at, "respiracion")
-    assert CS.result_key("ruta_respiracion_").startswith("ruta_respiracion_")
     assert CS.result_key("ruta_respiracion_") in at.session_state
+    _go(at, "respiracion", "paciente")
+    _button(at, "ruta_respiracion_start").click().run()          # «Empezar de nuevo con este escenario»
+    assert at.exception == [], at.exception
+    assert CS.result_key("ruta_respiracion_") not in at.session_state
 
 
 def test_la_fc_proyectada_no_se_rotula_como_medicion():
@@ -137,3 +145,54 @@ def test_el_motivo_va_en_espanol_y_sin_tiempo_contra_una_proyeccion():
     text = _texts(at)
     assert "heart_rate" not in text and "spo2" not in text and "proyección" in text
     assert "Tiempo entre las dos mediciones" not in text            # una proyección no es un momento
+
+
+
+def test_sin_rotulos_internos_ni_horizonte_crudo():
+    """Revisión final de la T6: «T6:» y «DERIVADO_ACOPLAMIENTO» se veían en la estación; el horizonte iba crudo."""
+    at = _go(_save_eeg(_start("cerebro")), "cerebro", "cierre")
+    text = _texts(at)
+    assert "T6" not in text and "DERIVADO_ACOPLAMIENTO" not in text
+    assert "horizonte 7d" not in text and "horizonte 7 días" in text
+
+
+def test_un_resultado_viejo_no_se_muestra_junto_a_mediciones_nuevas():
+    """Una FC guardada fuera de la unidad (p. ej. en Variabilidad cardiaca) no reevalúa: el cierre no muestra el
+    resultado anterior junto a la medición nueva."""
+    from app.engines.digital_twin_organism import DigitalTwinOrganism
+    from app.utils.patient_session import get_shared_ups_engine
+    from domain.physiology.state import Provenance, from_digital_twin_organism, make_session_factory, save_state
+
+    at = _go(_save_spo2(_start("respiracion"), 88), "respiracion", "cierre")
+    _measure_hr(at, "respiracion")
+    assert "se aplicó" in _texts(at)
+    o = DigitalTwinOrganism()
+    o.update_from_sensors({"ecg": {"heart_rate": 95.0}})
+    state = from_digital_twin_organism(o, at.session_state["twin_shell_ups_patient_id"], Provenance.SIMULACION, 0.85,
+                                       source_detail="hrv_lab:fuera de la unidad")
+    with make_session_factory(get_shared_ups_engine())() as s:
+        save_state(s, state)
+    at.run()
+    text = _texts(at)
+    assert "se aplicó" not in text and "Hay mediciones nuevas" in text
+
+
+def test_dos_reglas_a_la_vez_lo_dice_la_estacion():
+    from app.supermodules.ruta import coupling_station as CS
+    from streamlit.testing.v1 import AppTest
+
+    def script():
+        import streamlit as st
+        from app.supermodules.ruta import coupling_station as CS
+        from domain.physiology.coupling import HIPOXIA_TAQUICARDIA
+
+        st.session_state[CS.result_key("p_")] = {
+            "rule_id": "HIPOXIA_TAQUICARDIA", "available": True, "reason": None, "already": False, "wrote": False,
+            "gap_s": 0.0, "condition": "SpO₂ 88 % · Simulación", "base": "FC 70 lpm · Simulación", "observed": 88.0,
+            "coupled": None, "combined_with": ["AROUSAL_TAQUICARDIA_BAR"], "inputs": None}
+        CS.render_result("p_", HIPOXIA_TAQUICARDIA)
+
+    at = AppTest.from_function(script)
+    at.run()
+    text = " ".join(i.value for i in at.info)
+    assert "AROUSAL_TAQUICARDIA_BAR" in text and "no se escribe ninguna" in text and "no cumple" not in text

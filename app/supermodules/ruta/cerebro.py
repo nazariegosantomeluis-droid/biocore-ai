@@ -29,7 +29,7 @@ MIDE_NOTE = ("El EEG es una simulación (en la ruta no se ofrece un CSV: no se s
 START_NOTE = ("El simulador no genera EEG: el escenario fija la FC, la FR y la SpO₂ de tu paciente, y su EEG lo mides en "
               "«Mide». En estrés y ansiedad la regla de arousal del cierre no se evalúa: esos escenarios ya modelan la "
               "descarga simpática.")
-FLOW_NOTE = ("T6: la regla se evalúa sola cada vez que guardas el EEG de tu paciente (en «Mide») o su FC (aquí). "
+FLOW_NOTE = ("La regla se evalúa sola cada vez que guardas el EEG de tu paciente (en «Mide») o su FC (aquí). "
              "Solo junta un BAR y una FC medidos, nunca la FC proyectada del escenario ni la copia de una evaluación "
              "anterior, y solo si los separa como mucho la ventana firmada de la regla.")
 
@@ -96,7 +96,7 @@ def _render_rule() -> None:
     confidence = confidence_for_validation_status(RULE.validation_status)
     status = "validada por su fuente" if RULE.validation_status.name == "VALIDADO_POR_FUENTE" else "transcrita sin validar"
     st.caption(f"Fuente: {RULE.source}. Regla {status}; la FC acoplada se guarda como cálculo de la regla "
-               f"(DERIVADO_ACOPLAMIENTO) con confianza {confidence:.2f}: sigue siendo un cálculo, no una medición.")
+               f"(derivado por acoplamiento) con confianza {confidence:.2f}: sigue siendo un cálculo, no una medición.")
 
 
 def _evaluate(patient_id: Optional[str]) -> None:

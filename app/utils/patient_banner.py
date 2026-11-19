@@ -166,7 +166,8 @@ def vital_provenance_text(descriptor: PhysiologicalDescriptor, origin: Optional[
     return f"{PROVENANCE_ES.get(origin.provenance, origin.provenance.value)} · {origin_when_text(origin)}"
 
 
-HORIZON_ES = {"now": "ahora"}
+# Revisión final de la T6: los horizontes de las trayectorias en palabras («7d» se mostraba crudo).
+HORIZON_ES = {"now": "ahora", "5min": "5 min", "30min": "30 min", "2h": "2 h", "24h": "24 h", "7d": "7 días"}
 
 
 def origin_when_text(origin: CarryOrigin, translate=lambda text: text) -> str:

@@ -201,3 +201,91 @@ def test_en_el_gemelo_una_spo2_movida_quita_la_fc_acoplada_por_la_hipoxia(sf, pi
     now = from_digital_twin_organism(o, pid, Provenance.SIMULACION, 0.85, source_detail="gemelo")
     state, _origins = overlay_current_on_composed(now, composed)
     assert state.cardiovascular.get("heart_rate_acoplado") is None
+
+
+# ── Revisión final de la T6 ─────────────────────────────────────────────────────────────────────────────────────────
+def _carried_events(sf, pid):
+    from app.utils.physiological_state import with_carried_events
+    from domain.physiology.state import get_composed_patient
+
+    with sf() as s:
+        return with_carried_events(s, get_composed_patient(s, pid))
+
+
+def test_una_composicion_no_esconde_los_puntos_news2_ni_el_aviso_de_spo2(sf, pid):
+    """Hallazgo crítico: el snapshot de la regla (copias) pasaba a ser el último; los puntos NEWS2 y el evento
+    SPO2_NEWS2_3_POINTS se perdían justo cuando la regla de hipoxia declara la hipoxia. Una copia no es información
+    nueva: el paciente compuesto lee los originales."""
+    spo2_snap = _save(sf, pid, {"respiratory": {"spo2": 88.0, "respiratory_rate": 16.0}}, age_s=30)
+    _save(sf, pid, {"ecg": {"heart_rate": 70.0}})
+    with sf() as s:
+        r = evaluate_rule_for_patient(s, pid, HIPOXIA_TAQUICARDIA, scenario="healthy")
+    assert r.wrote_snapshot and r.coupled is not None
+    composed = _carried_events(sf, pid)
+    assert composed.state.respiratory.get("news2_spo2_scale1_points").value == 3
+    assert composed.state.cardiovascular.get("news2_pulse_points") is not None
+    assert composed.origins[("respiratory", "spo2")].snapshot_id == spo2_snap     # la SpO₂ original, con su edad
+    assert any(e.event_type.name == "SPO2_NEWS2_3_POINTS" for e in composed.state.events)
+    assert composed.state.cardiovascular.get("heart_rate_acoplado").value == pytest.approx(83.0)
+
+
+def test_dos_reglas_que_cambian_la_fc_en_el_mismo_guardado_no_escriben_nada(sf, pid):
+    """Política firmada de no combinar: evaluar una regla sola la saltaba; y la otra decía «ya evaluaste»."""
+    _save(sf, pid, {"ecg": {"heart_rate": 70.0}, "respiratory": {"spo2": 88.0},
+                    "eeg": {"alpha_power": 10.0, "beta_power": 30.0}})
+    with sf() as s:
+        bar = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario="healthy")
+        hyp = evaluate_rule_for_patient(s, pid, HIPOXIA_TAQUICARDIA, scenario="healthy")
+        assert latest_measured(s, pid, "cardiovascular", "heart_rate_acoplado") is None
+    assert bar.coupled is None and bar.combined_with == ("HIPOXIA_TAQUICARDIA",)
+    assert not hyp.already_evaluated and hyp.combined_with == ("AROUSAL_TAQUICARDIA_BAR",)
+
+
+def test_un_eeg_nuevo_sin_bar_no_usa_el_bar_anterior(sf, pid):
+    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0}}, age_s=50)
+    _save(sf, pid, {"eeg": {"alpha_power": 0.0, "beta_power": 30.0}}, age_s=20)
+    _save(sf, pid, {"ecg": {"heart_rate": 70.0}})
+    with sf() as s:
+        r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)
+    assert not r.available and "no lo trae" in r.reason
+
+
+def test_un_arrastre_del_gemelo_no_esconde_los_valores_frescos_de_su_guardado(sf, pid):
+    from domain.physiology.state import PhysiologicalDescriptor
+
+    _save(sf, pid, {"respiratory": {"spo2": 88.0}}, age_s=20)
+    o = DigitalTwinOrganism()
+    o.update_from_sensors({"ecg": {"heart_rate": 70.0}})
+    state = from_digital_twin_organism(o, pid, Provenance.SIMULACION, 0.85, source_detail="gemelo")
+    state.respiratory.descriptors["spo2"] = PhysiologicalDescriptor(
+        name="spo2", value=88.0, unit="%", provenance=Provenance.ARRASTRE_TEMPORAL, confidence=0.85,
+        source_detail="arrastre del organismo")
+    with sf() as s:
+        twin = save_state(s, state)
+        assert latest_measured(s, pid, "cardiovascular", "heart_rate").snapshot_id == twin
+        spo2 = latest_measured(s, pid, "respiratory", "spo2")
+    assert spo2.snapshot_id != twin and spo2.descriptor.value == pytest.approx(88.0)
+
+
+def test_una_regla_cuyo_nombre_empieza_igual_no_cuenta_como_ya_compuesta(sf, pid):
+    from domain.physiology.state import PhysiologicalDescriptor, UnifiedPhysiologicalState, DomainState
+    from datetime import datetime, timezone
+
+    spo2 = _save(sf, pid, {"respiratory": {"spo2": 88.0}}, age_s=10)
+    hr = _save(sf, pid, {"ecg": {"heart_rate": 70.0}})
+    fake = PhysiologicalDescriptor(name="heart_rate", value=70.0, unit="bpm", provenance=Provenance.ARRASTRE_TEMPORAL,
+                                   confidence=0.85,
+                                   source_detail=f"heart_rate copiado del snapshot {hr} para la regla "
+                                                 f"HIPOXIA_TAQUICARDIA_2 (spo2 del snapshot {spo2})")
+    other = UnifiedPhysiologicalState(
+        patient_id=pid, timestamp=datetime.now(timezone.utc), events=[],
+        cardiovascular=DomainState(domain="cardiovascular", descriptors={"heart_rate": fake}),
+        respiratory=DomainState(domain="respiratory", descriptors={"spo2": PhysiologicalDescriptor(
+            name="spo2", value=88.0, unit="%", provenance=Provenance.SIMULACION, confidence=0.85,
+            source_detail=f"spo2 copiado del snapshot {spo2} para la regla HIPOXIA_TAQUICARDIA_2")}),
+        neurological=DomainState(domain="neurological", descriptors={}),
+        muscular=DomainState(domain="muscular", descriptors={}))
+    with sf() as s:
+        save_state(s, other)
+        r = evaluate_rule_for_patient(s, pid, HIPOXIA_TAQUICARDIA, scenario=None)
+    assert r.wrote_snapshot and not r.already_evaluated

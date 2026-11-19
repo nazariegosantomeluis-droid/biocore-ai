@@ -30,7 +30,7 @@ from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.orm import Session
 
 from .models import EventRecord, SnapshotRecord, ValueRecord
-from .repository import _event_from_record, _to_aware_utc
+from .repository import _event_from_record, _to_aware_utc, is_composer_copy, not_composer_copy_clause
 from .schema import DomainState, PhysiologicalDescriptor, Provenance, UnifiedPhysiologicalState
 
 __all__ = ["CarryOrigin", "ComposedPatient", "DERIVED_INPUTS", "derived_inputs_of", "get_composed_patient", "horizon_of"]
@@ -137,6 +137,7 @@ def _latest_values(session: Session, patient_id: str, max_rowid: int) -> list:
         .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
         .where(SnapshotRecord.patient_id == patient_id)
         .where(text("ups_snapshots.rowid <= :max_rowid").bindparams(max_rowid=max_rowid))
+        .where(not_composer_copy_clause())             # revisión final de la T6: una copia no es un valor nuevo
         .subquery()
     )
     return session.execute(
@@ -146,6 +147,43 @@ def _latest_values(session: Session, patient_id: str, max_rowid: int) -> list:
         .where(ranked.c.rn == 1)
         .order_by(text("ups_snapshots.rowid DESC"), text("ups_values.rowid DESC"))
     ).all()
+
+
+def _latest_real_snapshot(session: Session, patient_id: str, max_rowid: int):
+    """`(SnapshotRecord, rowid)` del último snapshot del paciente sin copias de un compositor, o `None`."""
+    copies = select(ValueRecord.snapshot_id).where(~not_composer_copy_clause())
+    return session.execute(
+        select(SnapshotRecord, literal_column("ups_snapshots.rowid"))
+        .where(SnapshotRecord.patient_id == patient_id)
+        .where(text("ups_snapshots.rowid <= :max_rowid").bindparams(max_rowid=max_rowid))
+        .where(SnapshotRecord.id.not_in(copies))
+        .order_by(text("ups_snapshots.rowid DESC"))
+        .limit(1)
+    ).first()
+
+
+def _rowid_after(session: Session, snapshot_id: str, rowid: int) -> bool:
+    """¿El snapshot se escribió después del snapshot `rowid`? (un compositor, tras el último momento real)."""
+    found = session.execute(
+        select(literal_column("ups_snapshots.rowid")).select_from(SnapshotRecord).where(SnapshotRecord.id == snapshot_id)
+    ).scalar_one_or_none()
+    return found is not None and found > rowid
+
+
+_COPY_SOURCE_RE = re.compile(r"del snapshot ([0-9A-Za-z-]+)")
+
+
+def _copy_sources(session: Session, snapshot_id: str) -> Dict[Tuple[str, str], str]:
+    """En un snapshot de un compositor: `(dominio, descriptor)` de cada copia → el snapshot de la medición original."""
+    out = {}
+    for domain, name, detail in session.execute(
+        select(ValueRecord.domain, ValueRecord.descriptor, ValueRecord.source_detail)
+        .where(ValueRecord.snapshot_id == snapshot_id)
+    ).all():
+        match = _COPY_SOURCE_RE.search(detail or "") if is_composer_copy(detail) else None
+        if match:
+            out[(domain, name)] = match.group(1)
+    return out
 
 
 def get_composed_patient(
@@ -162,7 +200,12 @@ def get_composed_patient(
     ).first()
     if head is None:
         return None
-    latest, latest_rowid = head
+    _head, latest_rowid = head
+    # Revisión final de la T6: un snapshot de un compositor (copias + el valor acoplado) no es un momento nuevo del
+    # paciente. Los eventos y las edades salen del último snapshot SIN copias; lo que un compositor escribió después
+    # (el valor acoplado) cuenta como actual. Sin esto, la composición escondía los puntos NEWS2 y el aviso de SpO₂.
+    real = _latest_real_snapshot(session, patient_id, latest_rowid)
+    latest, real_rowid = real if real is not None else head
     latest_ts = _to_aware_utc(latest.timestamp)
 
     delivered: Dict[Tuple[str, str], Tuple[PhysiologicalDescriptor, str]] = {}
@@ -179,7 +222,7 @@ def get_composed_patient(
             confidence=value.confidence,
             source_detail=value.source_detail,
         )
-        if snapshot.id != latest.id:
+        if snapshot.id != latest.id and not _rowid_after(session, snapshot.id, real_rowid):
             ts = _to_aware_utc(snapshot.timestamp)
             age_s = abs((latest_ts - ts).total_seconds())
             if max_age_s is not None and age_s > max_age_s:
@@ -203,7 +246,10 @@ def get_composed_patient(
         else:
             inputs = derived_inputs_of(key[0], key[1], raw_detail.get(key))
             own_sid = delivered[key][1]
-            drop = bool(inputs) and any(inp not in read or read[inp][1] != own_sid for inp in inputs)
+            # En un snapshot de un compositor, la entrada es la copia de una medición: vale su original.
+            sources = _copy_sources(session, own_sid) if key[1].endswith("_acoplado") else {}
+            drop = bool(inputs) and any(inp not in read or read[inp][1] != sources.get(inp, own_sid)
+                                        for inp in inputs)
         if drop:
             del delivered[key]
             origins.pop(key, None)

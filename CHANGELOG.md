@@ -11,7 +11,7 @@ Pedido de Luis: «Repara todo, aunque sea menor, todos los detalles de la tanda 
    - **escenarios bloqueados** (los globales y los de la regla): no evalúa ni escribe nada; el llamador pasa el escenario del paciente;
    - no acopla dos veces las mismas dos mediciones (tampoco repite una composición en la que la regla no se cumplió).
 
-   El compositor neurocardiaco de siempre (`compose_neuro_cardiac_snapshot`, el del gemelo) no cambia. Nueva consulta: `repository.get_snapshot_ids_with_descriptor`.
+   El compositor neurocardiaco de siempre (`compose_neuro_cardiac_snapshot`, el del gemelo) no cambia. Consultas nuevas: `repository.get_latest_measured_value` y `get_composer_copies`.
 2. **La regla dispara en el flujo normal de la Ruta** (`app/supermodules/ruta/coupling_station.py`). Ya no hay botón «Componer»:
    - **Cerebro** (`AROUSAL_TAQUICARDIA_BAR`): guardar el EEG en «Mide» o la FC en el cierre evalúa la regla con el escenario de la unidad.
    - **Respiración** (`HIPOXIA_TAQUICARDIA`): igual con la SpO₂ de «Mide» y la FC del cierre; bloqueada en hipoxia, apnea, EPOC y sepsis por su ficha. Sale del riel el pendiente «Evaluar la regla de hipoxia con tu paciente».
@@ -20,9 +20,16 @@ Pedido de Luis: «Repara todo, aunque sea menor, todos los detalles de la tanda 
    - Ahora `derived_inputs_of` lee la regla del propio valor («acoplamiento:<regla>»). Un valor acoplado que no nombra una regla del catálogo no se entrega.
    - El gemelo (`physiological_state`) usa la misma función: mover la SpO₂ quita la FC acoplada por la hipoxia.
    - La comprobación se hace contra lo leído antes de quitar nada, así que el resultado ya no depende del orden de las filas.
-4. **Pruebas:**
-   - `tests/test_t6_compositor_reglas.py` (dominio, 16);
-   - `tests/test_t6_acoplamientos_ruta.py` (recorrido de Cerebro y Respiración, 12);
+4. **Revisión final (Art. I), cada hallazgo con su prueba en rojo antes:**
+   - **Crítico: la composición escondía los puntos NEWS2 y el aviso de SpO₂.** El snapshot de la regla (copias) pasaba a ser el último del paciente; los puntos NEWS2 de la SpO₂ y del pulso y el evento `SPO2_NEWS2_3_POINTS` se perdían justo cuando la regla de hipoxia declara la hipoxia. Ahora las dos entradas de ese snapshot son copias marcadas («… del snapshot <id> … para la regla <R>», `repository.COPY_FOR_RULE_MARK`, también la marca del compositor neurocardiaco). El paciente compuesto las salta y lee los originales con su edad. Los eventos y las edades salen del último snapshot sin copias, y la FC acoplada se valida contra los snapshots que nombran sus copias.
+   - **Dos reglas sobre la misma FC en un guardado:** evaluar una regla sola saltaba la política firmada de no combinar, y la otra decía «ya evaluaste». Ahora se pasan todas las reglas no bloqueadas y la estación dice que, sin una política firmada, no se escribe ninguna. «Ya evaluada» se busca por el nombre completo de la regla.
+   - **Un EEG nuevo sin BAR** (alfa ≈ 0) ya no se empareja con el BAR del EEG anterior: dice por qué no se evalúa.
+   - **Un arrastre dentro de un guardado del gemelo** ya no esconde los valores frescos de ese guardado: se filtra valor por valor, sin límite de búsqueda.
+   - **Un resultado viejo** no se muestra junto a mediciones guardadas fuera de la unidad: el cierre dice que hay mediciones nuevas.
+   - **Rótulos:** fuera «T6:» de la estación y «DERIVADO_ACOPLAMIENTO» del texto de la regla BAR. Los horizontes de las trayectorias van en palabras en todo el banner («horizonte 7 días», no «7d»). La prueba de «Empezar de nuevo» ahora sí pulsa el botón.
+5. **Pruebas:**
+   - `tests/test_t6_compositor_reglas.py` (dominio, 21);
+   - `tests/test_t6_acoplamientos_ruta.py` (recorrido de Cerebro y Respiración, 16);
    - las pruebas de la T4 que usaban el botón «Componer» se actualizaron al flujo nuevo.
 
 ## 2026-11-18 · T5: el menú baja a cinco destinos

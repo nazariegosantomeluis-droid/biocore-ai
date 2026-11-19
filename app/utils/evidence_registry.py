@@ -94,7 +94,7 @@ _NEWS2_SOURCE = Fuente(cita=_c("Royal College of Physicians. National Early Warn
 
 ENTRIES: Tuple[Evidencia, ...] = (
     # ── Banner del paciente activo: la procedencia es la del descriptor del UPS en ejecución ──
-    *(Evidencia(f"banner.{campo}", "banner", etiqueta, f"{BANNER}:217", "app.utils.patient_banner.read_active_vitals",
+    *(Evidencia(f"banner.{campo}", "banner", etiqueta, f"{BANNER}:218", "app.utils.patient_banner.read_active_vitals",
                 f"{BANNER}:90", "variable", _BANNER_PROV, _BANNER_RULE, _BANNER_ASSUMPTION, None, None)
       for campo, etiqueta in (("fc", "FC"), ("fr", "FR"), ("spo2", "SpO₂"))),
 
