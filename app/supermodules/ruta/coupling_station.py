@@ -27,7 +27,7 @@ ALREADY_NOTE = ("Ya evaluaste la regla con estas dos mediciones; no se acopla do
 COUPLED_NOTE = ("La FC acoplada es un cálculo de la regla (derivado por acoplamiento), no una medición. Se guarda junto "
                 "a las dos mediciones que la produjeron.")
 DESCRIPTOR_ES = {"bar": "BAR", "spo2": "SpO₂", "heart_rate": "FC"}
-UNIT_ES = {"bpm": "lpm", "%": "%", "": ""}
+UNIT_ES = {"bpm": "lpm", "%": "%", "": "", "ratio (adimensional)": ""}       # el BAR es un cociente sin unidad
 OPERATOR_ES = {"<": "<", "<=": "≤", ">": ">", ">=": "≥"}
 
 
@@ -161,8 +161,8 @@ def render_result(prefix: str, rule, observed_note: Optional[str] = None, curren
     elif r.get("above_limit"):
         c = rule.condition
         st.info(f"La regla {r['rule_id']} se evaluó y no se aplicó: {r['condition']} pasa el techo de la regla "
-                f"({c.upper_limit:.1f}, {c.upper_limit_basis.split('.')[0]}). Fuera del rango que describen sus "
-                "fuentes, la regla no suma nada.")
+                f"({c.upper_limit:.1f}, {c.upper_limit_nature}). Fuera del rango que describen sus fuentes, la "
+                "regla no suma nada.")
     elif r.get("combined_with"):
         st.info(f"La regla {r['rule_id']} se cumplió ({r['condition']}), pero en este guardado también se cumple "
                 f"{', '.join(r['combined_with'])}, que cambia la misma FC. Por la política firmada de no combinar, "

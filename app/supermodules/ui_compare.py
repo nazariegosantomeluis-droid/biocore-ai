@@ -1,4 +1,4 @@
-"""Comparar pacientes (Explorar), con la estructura del comparador de Apple (2026-11-17).
+"""Comparar pacientes (Paciente, antes Explorar), con la estructura del comparador de Apple (2026-11-17).
 
 Hasta tres columnas, cada una un estado guardado del UPS: pacientes distintos o el mismo paciente en distintos
 momentos. Las filas van por sistema (los dominios del UPS) y cada celda trae el valor con su procedencia, o «Sin dato».

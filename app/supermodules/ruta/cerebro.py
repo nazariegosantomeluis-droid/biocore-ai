@@ -39,8 +39,9 @@ SOURCE_RANGE_NOTE = ("Rango que describe la fuente (Schutter 2006): BAR basal 0.
                      "paciente es {observed:.2f}. La regla suma una cantidad fija: el aumento de la FC no crece con el "
                      "BAR.")
 PATTERN_NOTE = ("Para ver la regla aplicarse, en «Mide» elige «{arousal}»: es una vigilia simulada con alfa reducido y "
-                "beta, y su BAR cae en el rango de arousal. «Beta (activo)» es una sola banda, casi sin alfa: su BAR "
-                "sale cerca de 100 y pasa el techo de la regla.")
+                "beta, y con el ruido por defecto su BAR cae en el rango de arousal (con mucho ruido puede pasar el "
+                "techo). «Beta (activo)» es una sola banda, casi sin alfa: su BAR sale cerca de 100 y pasa el techo. "
+                "Los patrones de sueño («Theta», «Delta») no son de vigilia y la regla no se evalúa con ellos.")
 
 
 def station_patient() -> None:
@@ -93,13 +94,16 @@ def _render_rule() -> None:
 
     c, e = RULE.condition, RULE.effect
     st.markdown(f"**Regla firmada `{RULE.rule_id}`:** si el BAR de tu paciente es mayor que {c.threshold:g} y no pasa "
-                f"el techo de {c.upper_limit:.1f}, su FC aumenta {e.magnitude_delta:+.0f} lpm (rango de la fuente: "
-                f"{e.magnitude_hint.replace('bpm', 'lpm')}).")
+                f"el techo de {c.upper_limit:.1f}, su FC aumenta {e.magnitude_delta:+.0f} lpm. Rango de la fuente: "
+                f"{e.magnitude_hint.replace('bpm', 'lpm')}.")
     confidence = confidence_for_validation_status(RULE.validation_status)
     status = "validada por su fuente" if RULE.validation_status.name == "VALIDADO_POR_FUENTE" else "transcrita sin validar"
     st.caption(f"Fuente: {RULE.source}. Regla {status}; la FC acoplada se guarda como cálculo de la regla "
                f"(derivado por acoplamiento) con confianza {confidence:.2f}: sigue siendo un cálculo, no una medición.")
     st.caption(f"Techo de {c.upper_limit:.1f}: {c.upper_limit_basis}")
+    from domain.physiology.coupling import WAKE_EEG_BASIS
+
+    st.caption(f"Solo con un EEG de vigilia: {WAKE_EEG_BASIS}")
 
 
 def _evaluate(patient_id: Optional[str]) -> None:

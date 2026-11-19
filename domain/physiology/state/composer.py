@@ -146,6 +146,22 @@ def compose_neuro_cardiac_snapshot(
             hr_age_s=hr_age_s,
         )
 
+    # T6.1 (revisión final, 2026-11-19): sin esto, con un BAR por encima del techo o de un EEG de sueño el gemelo
+    # componía y decía «el BAR no supera el umbral», que era falso. No se compone lo que la regla no puede evaluar.
+    from ..coupling.catalog import AROUSAL_TAQUICARDIA_BAR as _BAR_RULE
+    from ..coupling.rules import WAKE_EEG_BANDS, wake_eeg_reason
+
+    bands = {n: (None if bar_state.neurological.get(n) is None else bar_state.neurological.get(n).value)
+             for n in WAKE_EEG_BANDS}
+    not_wake = wake_eeg_reason(bands)
+    if not_wake is not None:
+        return ComposeResult(available=False, reason=not_wake, hr_age_s=hr_age_s)
+    c = _BAR_RULE.condition
+    if c.above_limit(bar_desc.value):
+        return ComposeResult(available=False, hr_age_s=hr_age_s, reason=(
+            f"el BAR de tu paciente ({bar_desc.value:.2f}) pasa el techo de la regla ({c.upper_limit:.1f}, "
+            f"{c.upper_limit_nature}): fuera del rango que describen sus fuentes, la regla no suma nada"))
+
     carried_hr = PhysiologicalDescriptor(
         name="heart_rate",
         value=hr_desc.value,

@@ -46,9 +46,13 @@ from .rules import (
     CouplingRule,
     EffectDirection,
     ValidationStatus,
+    WAKE_EEG_BASIS,
+    wake_eeg_reason,
 )
 
 __all__ = [
+    "WAKE_EEG_BASIS",
+    "wake_eeg_reason",
     "ProposedCoupling",
     "evaluate",
     "COUPLABLE_DESCRIPTORS",

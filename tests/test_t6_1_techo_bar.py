@@ -74,7 +74,7 @@ def test_la_regla_de_hipoxia_no_tiene_techo():
 @pytest.mark.parametrize("alpha,beta,coupled", [(10.0, 25.0, True), (0.25, 30.0, False)])
 def test_el_compositor_no_acopla_por_encima_del_techo(sf, pid, alpha, beta, coupled):
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, age_s=10)
-    _save(sf, pid, {"eeg": {"alpha_power": alpha, "beta_power": beta}})
+    _save(sf, pid, {"eeg": {"alpha_power": alpha, "beta_power": beta, "theta_power": 0.2, "delta_power": 0.2}})
     with sf() as s:
         r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario="healthy")
     assert r.available and (r.coupled is not None) is coupled
@@ -108,3 +108,89 @@ def test_la_estacion_muestra_el_techo_con_la_regla():
 
     text = _texts(_go(_start("cerebro"), "cerebro", "cierre"))
     assert "techo" in text and "3.0" in text and "Goncharova" in text
+
+
+# ── Revisión final de la T6.1 ───────────────────────────────────────────────────────────────────────────────────────
+SLEEP = {"alpha_power": 10.0, "beta_power": 25.0, "theta_power": 50.0, "delta_power": 5.0}     # BAR 2.5, domina theta
+WAKE = {"alpha_power": 10.0, "beta_power": 25.0, "theta_power": 1.0, "delta_power": 1.0}       # BAR 2.5, vigilia
+
+
+def test_la_regla_bar_exige_un_eeg_de_vigilia_y_lo_declara():
+    from domain.physiology.coupling import WAKE_EEG_BASIS, wake_eeg_reason
+
+    assert AROUSAL_TAQUICARDIA_BAR.requires_wake_eeg and "Kane 2017" in WAKE_EEG_BASIS
+    assert wake_eeg_reason(WAKE) is None
+    assert "no es de vigilia" in wake_eeg_reason(SLEEP)
+    assert "bandas" in wake_eeg_reason({"alpha_power": 10.0, "beta_power": 25.0})
+
+
+def test_un_eeg_de_sueno_con_bar_en_rango_no_acopla_en_la_ruta(sf, pid):
+    """Hallazgo de la revisión: «Theta (sueño ligero)» da BAR 2.8–4.1 y 1 de cada 5 veces caía bajo el techo."""
+    _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, age_s=10)
+    _save(sf, pid, {"eeg": SLEEP})
+    with sf() as s:
+        r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario="healthy")
+    assert not r.available and "no es de vigilia" in r.reason
+
+
+def test_el_motor_no_aplica_la_regla_bar_a_un_eeg_de_sueno(sf, pid):
+    from domain.physiology.coupling import VALIDATED_RULES, apply_couplings
+
+    snap = _save(sf, pid, {"ecg": {"heart_rate": 70.0}, "eeg": SLEEP})
+    with sf() as s:
+        assert apply_couplings(s, snap, VALIDATED_RULES, scenario=None) == []
+    snap = _save(sf, pid, {"ecg": {"heart_rate": 70.0}, "eeg": WAKE})
+    with sf() as s:
+        assert [a.rule_id for a in apply_couplings(s, snap, VALIDATED_RULES, scenario=None)] == [
+            "AROUSAL_TAQUICARDIA_BAR"]
+
+
+@pytest.mark.parametrize("eeg,word", [({"alpha_power": 0.25, "beta_power": 30.0, "theta_power": 1.0,
+                                         "delta_power": 1.0}, "techo"), (SLEEP, "vigilia")])
+def test_el_compositor_del_gemelo_dice_por_que_no_acopla(sf, pid, eeg, word):
+    """Hallazgo de la revisión: con BAR 119 el gemelo decía «el BAR no supera el umbral»."""
+    from domain.physiology.state import compose_neuro_cardiac_snapshot
+
+    _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, age_s=10)
+    _save(sf, pid, {"eeg": eeg})
+    with sf() as s:
+        r = compose_neuro_cardiac_snapshot(s, pid)
+    assert not r.available and word in r.reason
+
+
+def test_el_techo_no_se_presenta_como_firmado_y_tiene_su_naturaleza_corta():
+    c = AROUSAL_TAQUICARDIA_BAR.condition
+    assert c.upper_limit_nature == "Criterio BIOCORE, heurística"
+    assert "firmado por Luis" not in c.upper_limit_basis and "pendiente de que Luis confirme" in c.upper_limit_basis
+    assert "a lo sumo" not in c.upper_limit_basis
+
+
+def test_en_la_ruta_un_eeg_de_sueno_dice_que_no_es_de_vigilia():
+    from tests.test_ruta_unidades_t4 import _composed, _go, _save_eeg, _start, _texts
+    from tests.test_t6_acoplamientos_ruta import _measure_hr
+
+    at = _go(_save_eeg(_start("cerebro"), "Theta (sueño ligero)"), "cerebro", "cierre")
+    _measure_hr(at, "cerebro")
+    assert _composed(at).state.cardiovascular.get("heart_rate_acoplado") is None
+    assert "no es de vigilia" in _texts(at)
+
+
+def test_el_mensaje_del_techo_se_lee_bien_y_la_nota_avisa_del_ruido():
+    from tests.test_ruta_unidades_t4 import _go, _save_eeg, _start, _texts
+    from tests.test_t6_acoplamientos_ruta import _measure_hr
+
+    at = _go(_save_eeg(_start("cerebro"), "Beta (activo)"), "cerebro", "cierre")
+    _measure_hr(at, "cerebro")
+    text = _texts(at)
+    assert "(3.0, Criterio BIOCORE, heurística)" in text and "heurística))" not in text and "Test))" not in text
+    assert "ratio (adimensional)" not in text
+    assert "ruido" in text and "vigilia" in text
+
+
+def test_la_leyenda_del_eeg_menciona_el_techo_y_la_vigilia():
+    import inspect
+
+    import app.instruments.eeg as E
+
+    src = inspect.getsource(E)
+    assert "BAR>1.8)" not in src and "techo" in src

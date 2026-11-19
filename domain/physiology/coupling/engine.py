@@ -71,7 +71,24 @@ def evaluate(state: UnifiedPhysiologicalState, rules: Iterable[CouplingRule]) ->
         if descriptor is None:
             continue
 
+        if rule.requires_wake_eeg and _not_wake(state):
+            continue                         # T6.1: un EEG de sueño no es arousal (`rules.wake_eeg_reason`)
+
         if rule.condition.is_triggered_by(descriptor.value):
             proposals.append(ProposedCoupling(rule=rule, observed_value=descriptor.value))
 
     return proposals
+
+
+def _not_wake(state) -> bool:
+    """¿Este snapshot trae un EEG que NO es de vigilia? Sin las cuatro bandas aquí (un snapshot compuesto lleva solo el
+    BAR), no se decide en el motor: lo deciden los compositores con el EEG de origen."""
+    from .rules import WAKE_EEG_BANDS, wake_eeg_reason
+
+    neuro = state.all_domains().get("neurological")
+    if neuro is None:
+        return False
+    bands = {name: (None if neuro.get(name) is None else neuro.get(name).value) for name in WAKE_EEG_BANDS}
+    if any(v is None for v in bands.values()):
+        return False
+    return wake_eeg_reason(bands) is not None

@@ -34,7 +34,7 @@ EN = {
     "Inicio": "Home", "Aprender": "Learn", "Practicar": "Practice", "Explorar": "Explore", "Ajustes": "Settings",
     # T5 (2026-11-18): los cinco destinos y el «continúa en» del Hoy
     "Hoy": "Today", "Paciente": "Patient", "Biblioteca": "Library", "Continúa en": "Continue at",
-    "Ir a la Biblioteca": "Go to the Library", "Ir a la Ruta": "Go to the Path", "Ir a Paciente": "Go to Patient",
+    "Camino del órgano": "Organ path", "Ir a la Biblioteca": "Go to the Library", "Ir a la Ruta": "Go to the Path", "Ir a Paciente": "Go to Patient",
     "Empezar la Ruta": "Start the Path", "estación": "station", "Tu paciente": "Your patient", "Observa": "Observe",
     "Mide": "Measure", "Practica": "Practice", "Altera": "Alter", "Cierre": "Closing",
     "Temas": "Topics", "Teoría (Academia)": "Theory (Academy)",
@@ -84,10 +84,10 @@ EN = {
         "This system has no signed topic yet; it is covered in its labs.",
     "Concepto": "Concept", "Ficha de estudio": "Study card", "Pista": "Hint", "Ver respuesta": "Show answer",
     "De la teoría firmada": "From the signed theory", "Fuente": "Source", "Abrir el tema": "Open the topic",
-    "Ir a Teoría": "Go to Theory", "Avance de esta sesión": "Progress this session",
+    "Avance de esta sesión": "Progress this session",
     "Todavía no hay respuestas registradas en esta sesión.": "No answers recorded in this session yet.",
     "respuestas correctas en esta sesión": "correct answers this session", "de": "of",
-    "Ir a Practicar": "Go to Practice", "Expediente": "Record", "Paciente": "Patient",
+    "Expediente": "Record", "Paciente": "Patient",
     "estados guardados en el UPS": "states saved in the UPS", "Ir al gemelo digital": "Go to the digital twin",
     "La IA (narrador y explicaciones) es opcional: sin clave, todo lo demás funciona igual.":
         "AI (narrator and explanations) is optional: without a key, everything else works the same.",

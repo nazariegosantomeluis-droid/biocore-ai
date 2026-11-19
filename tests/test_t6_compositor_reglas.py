@@ -50,6 +50,10 @@ def pid(sf):
         return create_patient(s, display_name="t6")
 
 
+# T6.1: la regla BAR exige un EEG de vigilia (las cuatro bandas; theta y delta bajas).
+_SLOW = {"theta_power": 0.5, "delta_power": 0.5}
+
+
 def _save(sf, pid, sensors, detail="prueba:medida", age_s=0.0):
     o = DigitalTwinOrganism()
     o.update_from_sensors(sensors)
@@ -83,7 +87,7 @@ def test_un_guardado_ya_evaluado_no_se_vuelve_a_acoplar(sf, pid):
 
 def test_bar_y_fc_en_guardados_distintos_se_componen_con_la_mas_vieja_como_arrastre(sf, pid):
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, detail="hrv_lab:prueba", age_s=30)
-    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0}}, detail="eeg_neuro_lab:prueba")
+    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}}, detail="eeg_neuro_lab:prueba")
     with sf() as s:
         r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario="healthy")
         assert r.available and r.wrote_snapshot and r.gap_s == pytest.approx(30, abs=2)
@@ -95,7 +99,7 @@ def test_bar_y_fc_en_guardados_distintos_se_componen_con_la_mas_vieja_como_arras
 
 
 def test_fuera_de_la_ventana_no_compone_y_dice_cual_es_mas_viejo(sf, pid):
-    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0}}, age_s=300)
+    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}}, age_s=300)
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}})
     with sf() as s:
         r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)
@@ -111,7 +115,7 @@ def test_la_fc_proyectada_de_un_escenario_no_cuenta_como_medicion(sf, pid):
 
 def test_las_copias_de_una_composicion_no_se_vuelven_a_componer(sf, pid):
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, age_s=10)
-    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0}})
+    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}})
     with sf() as s:
         first = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)
         measured = latest_measured(s, pid, "cardiovascular", "heart_rate")
@@ -124,7 +128,7 @@ def test_las_copias_de_una_composicion_no_se_vuelven_a_componer(sf, pid):
                                            (AROUSAL_TAQUICARDIA_BAR, "anxiety")])
 def test_un_escenario_bloqueado_no_escribe_nada(sf, pid, rule, scenario):
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}, "respiratory": {"spo2": 85.0},
-                    "eeg": {"alpha_power": 10.0, "beta_power": 30.0}})
+                    "eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}})
     with sf() as s:
         r = evaluate_rule_for_patient(s, pid, rule, scenario=scenario)
         assert not r.available and scenario in r.reason
@@ -141,7 +145,7 @@ def test_sin_condicion_o_sin_fc_dice_que_falta(sf, pid):
 def test_una_composicion_sin_acoplar_tampoco_se_repite(sf, pid):
     """BAR bajo (la regla no se cumple): la composición se escribe una vez; evaluar de nuevo no escribe otra."""
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}}, age_s=10)
-    _save(sf, pid, {"eeg": {"alpha_power": 30.0, "beta_power": 10.0}})
+    _save(sf, pid, {"eeg": {"alpha_power": 30.0, "beta_power": 10.0, **_SLOW}})
     with sf() as s:
         first = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)
         second = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)
@@ -232,7 +236,7 @@ def test_una_composicion_no_esconde_los_puntos_news2_ni_el_aviso_de_spo2(sf, pid
 def test_dos_reglas_que_cambian_la_fc_en_el_mismo_guardado_no_escriben_nada(sf, pid):
     """Política firmada de no combinar: evaluar una regla sola la saltaba; y la otra decía «ya evaluaste»."""
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}, "respiratory": {"spo2": 88.0},
-                    "eeg": {"alpha_power": 10.0, "beta_power": 30.0}})
+                    "eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}})
     with sf() as s:
         bar = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario="healthy")
         hyp = evaluate_rule_for_patient(s, pid, HIPOXIA_TAQUICARDIA, scenario="healthy")
@@ -242,8 +246,8 @@ def test_dos_reglas_que_cambian_la_fc_en_el_mismo_guardado_no_escriben_nada(sf, 
 
 
 def test_un_eeg_nuevo_sin_bar_no_usa_el_bar_anterior(sf, pid):
-    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0}}, age_s=50)
-    _save(sf, pid, {"eeg": {"alpha_power": 0.0, "beta_power": 30.0}}, age_s=20)
+    _save(sf, pid, {"eeg": {"alpha_power": 10.0, "beta_power": 30.0, **_SLOW}}, age_s=50)
+    _save(sf, pid, {"eeg": {"alpha_power": 0.0, "beta_power": 30.0, **_SLOW}}, age_s=20)
     _save(sf, pid, {"ecg": {"heart_rate": 70.0}})
     with sf() as s:
         r = evaluate_rule_for_patient(s, pid, AROUSAL_TAQUICARDIA_BAR, scenario=None)

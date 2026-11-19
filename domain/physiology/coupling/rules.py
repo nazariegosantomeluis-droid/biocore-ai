@@ -122,11 +122,12 @@ class CouplingCondition:
     # describen sus fuentes). `upper_limit_basis` dice de dónde sale y de qué naturaleza es (obligatorio con techo).
     upper_limit: Optional[float] = None
     upper_limit_basis: Optional[str] = None
+    upper_limit_nature: Optional[str] = None      # rótulo corto para la pantalla («Criterio BIOCORE, heurística»)
 
     def __post_init__(self) -> None:
         _validate_domain_and_descriptor(self.domain, self.descriptor)
-        if self.upper_limit is not None and not self.upper_limit_basis:
-            raise ValueError("Un techo necesita su fundamento (upper_limit_basis): de dónde sale y de qué naturaleza es.")
+        if self.upper_limit is not None and not (self.upper_limit_basis and self.upper_limit_nature):
+            raise ValueError("Un techo necesita su fundamento (upper_limit_basis) y su naturaleza (upper_limit_nature).")
 
     def above_limit(self, value: float) -> bool:
         """¿El valor pasa el techo de la regla?"""
@@ -206,6 +207,9 @@ class CouplingRule:
     # cada regla nueva trae la suya en su ficha»): la condición y la señal que modula deben venir de momentos separados
     # como mucho por esta ventana. `None`: la regla no se compone (T6, 2026-11-18).
     window_s: Optional[float] = None
+    # T6.1 (revisión final): la condición solo tiene sentido con un EEG de vigilia (`wake_eeg_reason`). La regla BAR:
+    # en el sueño el alfa casi desaparece y el BAR sale alto sin que haya arousal.
+    requires_wake_eeg: bool = False
 
     def __post_init__(self) -> None:
         if not self.rule_id or not self.rule_id.strip():
@@ -215,3 +219,24 @@ class CouplingRule:
                 "CouplingRule.source es obligatorio -- una regla de acoplamiento no puede "
                 "construirse sin una fuente citable (libro, capítulo/página)"
             )
+
+
+# ── EEG de vigilia (T6.1, revisión final, 2026-11-19) ──────────────────────────────────────────────────────────────
+WAKE_EEG_BANDS = ("delta_power", "theta_power", "alpha_power", "beta_power")
+WAKE_EEG_BASIS = (
+    "Criterio BIOCORE (heurística) con el glosario IFCN (Kane 2017): el alfa es el ritmo de vigilia y el delta domina "
+    "el sueño profundo. Si la mayor de las potencias delta o theta supera a la mayor de alfa o beta, el EEG no es de "
+    "vigilia y el BAR no mide arousal."
+)
+
+
+def wake_eeg_reason(bands) -> Optional[str]:
+    """`None` si el EEG es de vigilia según `WAKE_EEG_BASIS`; si no, o si faltan bandas para saberlo, el motivo."""
+    if any(bands.get(name) is None for name in WAKE_EEG_BANDS):
+        return "el EEG guardado no trae las cuatro bandas (delta, theta, alfa y beta) para saber si es de vigilia"
+    slow = max(float(bands["delta_power"]), float(bands["theta_power"]))
+    fast = max(float(bands["alpha_power"]), float(bands["beta_power"]))
+    if slow > fast:
+        return ("el EEG de tu paciente no es de vigilia: la potencia delta o theta supera a la alfa y a la beta "
+                "(Criterio BIOCORE con el glosario IFCN, Kane 2017); en el sueño el BAR no mide arousal")
+    return None

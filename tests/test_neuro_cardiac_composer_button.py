@@ -58,7 +58,11 @@ def seeded(tmp_path):
                     "bar", bar, "ratio (adimensional)", Provenance.SIMULACION, 0.75,
                     "beta_alpha_ratio | Schutter DJLG 2006",
                 )
-                save_state(s, _state(now, neuro={"bar": d}))
+                # T6.1: la regla BAR exige un EEG de vigilia; el BAR viaja con sus cuatro bandas (theta y delta bajas).
+                bands = {name: PhysiologicalDescriptor(name, value, "µV²", Provenance.SIMULACION, 0.75, "eeg_lab:prueba")
+                         for name, value in (("alpha_power", 10.0), ("beta_power", 10.0 * bar),
+                                             ("theta_power", 0.5), ("delta_power", 0.5))}
+                save_state(s, _state(now, neuro={"bar": d, **bands}))
 
     return sf, pid, seed_fn
 

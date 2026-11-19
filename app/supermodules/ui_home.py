@@ -197,7 +197,7 @@ def _render_path(organ: C.Organ) -> None:
     from app.utils import navigation as nav
     from app.utils.design_system import route_arrow_html
 
-    st.markdown(f"#### {t('Ruta')}")
+    st.markdown(f"#### {t('Camino del órgano')}")      # T6.1: «Ruta» es el destino del menú y su tarjeta
     for i, (label, kind, target) in enumerate(C.PATHS[organ.key]):
         side = "a" if i % 2 == 0 else "b"
         if i:   # flecha desde el nodo anterior: a la derecha si este nodo va a la derecha (zigzag)

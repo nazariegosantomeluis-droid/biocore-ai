@@ -49,7 +49,7 @@ from ..state.repository import (
 from ..state.schema import DomainState, PhysiologicalDescriptor, Provenance, UnifiedPhysiologicalState
 from .bridge import COUPLING_DISABLED_SCENARIOS, AppliedCoupling, apply_couplings
 from .catalog import VALIDATED_RULES
-from .rules import CouplingRule
+from .rules import WAKE_EEG_BANDS, CouplingRule, wake_eeg_reason
 
 __all__ = ["MeasuredValue", "RuleEvaluation", "latest_measured", "rule_input_check", "evaluate_rule_for_patient"]
 
@@ -143,6 +143,13 @@ def rule_input_check(session: Session, patient_id: str, rule: CouplingRule, scen
         missing = _missing_derived_reason(session, patient_id, cond)
         if missing:
             return cond, base, missing
+    if rule.requires_wake_eeg:
+        source = get_state_by_snapshot_id(session, cond.snapshot_id)       # el EEG de origen (nunca una copia)
+        bands = {n: (None if source.neurological.get(n) is None else source.neurological.get(n).value)
+                 for n in WAKE_EEG_BANDS}
+        not_wake = wake_eeg_reason(bands)
+        if not_wake:
+            return cond, base, not_wake
     for value in (cond, base):
         horizon = horizon_of(value.descriptor.source_detail)
         if horizon is not None:

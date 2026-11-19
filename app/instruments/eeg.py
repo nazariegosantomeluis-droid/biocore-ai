@@ -613,7 +613,8 @@ def guardar(ctx: InstrumentContext, s: EegSeries, overall) -> InstrumentResult:
     else:
         st.caption(
             f"{ctx.deco('🔗')}Acoplamiento AROUSAL_TAQUICARDIA_BAR: sin FC medida en este snapshot, "
-            "nada que modular (se aplicaría si el paciente tuviera FC medida y BAR>1.8)."
+            "nada que modular (se aplicaría si el paciente tuviera FC medida y un BAR mayor que 1.8 y no mayor que su "
+            "techo de 3.0, en un EEG de vigilia)."
         )
     st.caption(
         f"cardiovascular: {len(eeg_ups_state.cardiovascular.descriptors)} descriptores "

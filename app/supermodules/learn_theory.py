@@ -1,4 +1,4 @@
-"""Teoría en capas de la sección Aprender (fase 1 de la propuesta, tanda 2, 2026-11-15).
+"""Teoría en capas de la Biblioteca (antes la sección Aprender; fase 1 de la propuesta, tanda 2, 2026-11-15).
 
 Cada tema se lee en tres capas (`design_system.render_theory_topic`): (1) la idea en una frase, (2) el mecanismo y
 (3) el detalle con su fuente; las capas 2 y 3 se abren a demanda.
@@ -499,7 +499,7 @@ LEARN_TOPICS = {
     "ecg-3d": [SIGNED_VCG],
 }
 
-# Encabezado de sección que va antes de un tema en su página de Aprender (teoría citada 2).
+# Encabezado de sección que va antes de un tema en su página de la Biblioteca (teoría citada 2).
 SECTION_BEFORE: Dict[str, str] = {
     SIGNED_EMG_A1.title: "EMG de superficie",
     SIGNED_HRV_B1.title: "Variabilidad de la frecuencia cardiaca (HRV)",
