@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-19 · Fase 0 de la evolución: auditoría de base (solo documentos)
+
+Pedido de Luis: «empieza a hacer la primera parte de lo que dice el documento nuevo». El documento es «BIOCORE AI: cómo convertirlo en una plataforma biomédica extraordinaria», y su §10 dice: «START WITH PHASE 0 ONLY … produce the four audit documents». Esta tanda no cambia código, ni el UPS, ni `domain/`, ni la base.
+
+1. `docs/evolution/00_BASELINE_AUDIT.md`: qué funciona hoy y qué no, con las cuatro categorías del documento (implementado y probado; implementado, no suficientemente probado; diseñado, no implementado; descartado o diferido). Trae los defectos de hoy, los ya corregidos desde el inventario del 5 de noviembre, y el inventario de las heurísticas visibles (33 puntos, de 88 textos que juntó un recorrido con AppTest), con el tratamiento de cada uno y las fuentes verificadas.
+2. `docs/evolution/01_DEPENDENCY_MAP.md`: el grafo de importaciones entre paquetes y la inversión de capas `domain → app` (16 importaciones). También los módulos que la app no alcanza, entre ellos `app/utils.py`, que queda tapado por el paquete `app/utils/`, y los flujos de datos.
+3. `docs/evolution/02_REGRESSION_BASELINE.md`: 3,047 pruebas pasan y 10 se omiten por el entorno. La cobertura total es del 80 % (62 % el 5 de noviembre), con el desglose por paquete y la matriz mínima de regresión del documento, con sus huecos.
+4. `docs/evolution/03_ARCHITECTURE_DECISIONS.md`: la matriz de compatibilidad de los cinco contratos frente a los esquemas actuales y las decisiones AD-1 a AD-8. Las que tocan `domain/`, la base o el borrado de módulos quedan para aprobación de Luis.
+
 ## 2026-11-19 · T6.1: techo de la regla BAR, firmas y nombres de Hoy
 
 Decisiones de Luis (2026-11-19): «[La regla de arousal] necesita un techo explícito […] Tu pon ese límite con la literatura que encuentres, apruebo la regla de no combinar, mi firmo cubre todo y si, cambialo».
