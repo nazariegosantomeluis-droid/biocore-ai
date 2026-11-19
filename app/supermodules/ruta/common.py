@@ -21,7 +21,7 @@ SCENARIO_SEED = 0          # la instancia de «sano» se declara con su semilla,
 SAVED_NOW_KEY = "ruta_saved_now"
 
 START_NOTE = ("El paciente se crea nuevo con el escenario elegido y pasa a ser el paciente activo de toda la app (el "
-              "banner, el gemelo y las páginas de Explorar lo verán). Todos sus valores son simulación: el simulador "
+              "banner, el gemelo y los instrumentos de Paciente lo verán). Todos sus valores son simulación: el simulador "
               "los calcula en 6 horizontes (ahora, 5 min, 30 min, 2 h, 24 h y 7 días) y el último es el que queda.")
 
 

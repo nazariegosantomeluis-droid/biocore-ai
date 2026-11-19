@@ -242,7 +242,7 @@ from app.utils.design_system import render_theory_topic
 st.markdown("##### 🎓 ¿Qué es un ECG de 12 derivaciones?")
 st.markdown(SIGNED_TWELVE_LEADS.idea)
 st.markdown(SIGNED_ISCHEMIA.idea)
-nav.link("teoria", "Teoría del ECG en Aprender: de dónde salen las 12 derivaciones y la tabla de isquemia", icon="📖")
+nav.link("teoria", "Teoría del ECG en la Biblioteca: de dónde salen las 12 derivaciones y la tabla de isquemia", icon="📖")
 
 # Two column layout
 col1, col2 = st.columns([2, 1])

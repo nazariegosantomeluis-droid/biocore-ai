@@ -120,7 +120,7 @@ def test_bar_absent_when_alpha_is_zero(session_factory):
 # --- La regla validada -------------------------------------------------------
 
 def test_the_validated_rule_is_the_expert_signed_arousal_rule():
-    assert VALIDATED_RULES == (AROUSAL_TAQUICARDIA_BAR,)
+    assert VALIDATED_RULES[0] is AROUSAL_TAQUICARDIA_BAR       # la segunda, firmada el 2026-11-18: test_coupling_hipoxia.py
     r = AROUSAL_TAQUICARDIA_BAR
     assert r.enabled is True
     assert r.validation_status == ValidationStatus.VALIDADO_POR_FUENTE

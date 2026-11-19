@@ -119,12 +119,38 @@ def render_news2_lines(vitals, scenario: Optional[str] = None) -> None:
     st.caption(NEWS2_NOTE)
 
 
+def render_hypoxia_rule(scenario: Optional[str]) -> None:
+    """La regla firmada HIPOXIA_TAQUICARDIA (ficha 1, 2026-11-18) con su fuente y por qué todavía no se evalúa aquí."""
+    from app.utils.design_system import render_no_data
+    from domain.physiology.coupling import COUPLING_DISABLED_SCENARIOS, HIPOXIA_TAQUICARDIA as RULE
+    from domain.physiology.coupling import confidence_for_validation_status
+
+    c, e = RULE.condition, RULE.effect
+    st.markdown("#### Hipoxia y frecuencia cardiaca")
+    st.markdown(f"**Regla firmada `{RULE.rule_id}`:** si la SpO₂ de tu paciente es de {c.threshold:g} % o menos, su FC "
+                f"aumenta {e.magnitude_delta:+.0f} lpm (dato de la fuente: {e.magnitude_hint}).")
+    st.caption(f"Fuente: {RULE.source}. El umbral de {c.threshold:g} % es la banda de 3 puntos NEWS2 de la SpO₂ (Criterio "
+               f"BIOCORE: la respuesta de la fuente es continua). Confianza "
+               f"{confidence_for_validation_status(RULE.validation_status):.2f}: es un cálculo, no una medición.")
+    if scenario in RULE.blocked_scenarios or scenario in COUPLING_DISABLED_SCENARIOS:
+        render_no_data("Acoplamiento", f"no se evalúa en el escenario {common.SCENARIO_LABELS[scenario]}: el simulador "
+                                       "ya modela la FC junto con la caída de la SpO₂ y la regla la contaría dos veces")
+    else:
+        # Revisión final de la T5: el escenario SÍ guarda la SpO₂ y la FC juntas; lo que falta es que ese guardado
+        # (o el del gemelo) evalúe las reglas: hoy solo las evalúan el compositor neurocardiaco y el guardado del EEG.
+        render_no_data("Acoplamiento", "todavía no se evalúa en la ruta: ningún guardado que tenga la SpO₂ y la FC "
+                                       "evalúa todavía las reglas de acoplamiento (hoy solo lo hacen el EEG y el "
+                                       "compositor del EEG con la FC)")
+
+
 def station_closing() -> None:
     from app.utils import navigation as nav
     from app.utils.patient_banner import read_active_vitals
 
     common.render_closing_summary(UNIT_KEY, UNIT_TITLE)
-    render_news2_lines(read_active_vitals(), M.progress(UNIT_KEY)["scenario"])
+    scenario = M.progress(UNIT_KEY)["scenario"]
+    render_news2_lines(read_active_vitals(), scenario)
+    render_hypoxia_rule(scenario)
     st.markdown("#### Caso de cierre")
     st.caption(DETECTIVE_NOTE)
     nav.link("detective", "Detective fisiológico")
@@ -140,4 +166,6 @@ UNIT = M.Unit(UNIT_KEY, UNIT_TITLE, organ="respiracion", stations=(
     M.Station("cierre", "cierre", "Tu paciente al final", station_closing),
 ), pending=(
     ("La explicación clínica por escenario del Detective", "su texto firmado (hoy dice que está pendiente)"),
+    ("Evaluar la regla de hipoxia con tu paciente", "que los guardados con la SpO₂ y la FC evalúen las reglas de "
+                                                    "acoplamiento (la regla ya está firmada)"),
 ))

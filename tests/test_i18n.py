@@ -45,6 +45,9 @@ def test_every_text_the_home_translates_has_a_translation():
     texts |= {word for _kind, word in (*H.PROVENANCE_SEAL.values(), H.NO_DATA_SEAL)}
     texts |= {o.label for o in C.ORGANS} | {label for nodes in C.PATHS.values() for label, _, _ in nodes}
     texts |= {label for _key, label, *_ in VITALS}
+    # T5: la tarjeta «Continúa en» del Hoy (`hubs.continue_target`) traduce su marco y el tipo de estación.
+    from app.supermodules.ruta.model import KIND_LABELS
+    texts |= {"Ruta", "Continúa en", "Empezar la Ruta", "estación", *KIND_LABELS.values()}
     missing = sorted(x for x in texts - SAME_IN_BOTH if x not in i18n.EN)
     assert missing == [], missing
 

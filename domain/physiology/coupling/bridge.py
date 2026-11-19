@@ -43,6 +43,13 @@ el de mayor magnitud / precedencia por `validation_status`) ANTES de
 habilitarlas -- ver `_combine_proposals_for_same_effect()`, el gancho
 reservado.
 
+2026-11-18 (ficha 1 firmada, segunda regla sobre `heart_rate`): no hay una
+política de combinación firmada, así que la política es NO COMBINAR: si
+más de una regla dispara sobre el mismo descriptor efecto en el mismo
+snapshot, no se escribe ningún valor acoplado para ese efecto (sumar o
+elegir sería inventar fisiología). Hoy no ocurre en el flujo vivo: el
+compositor junta `bar` + `heart_rate`, sin `spo2`.
+
 *** LISTA DE ESCENARIOS ***
 `COUPLING_DISABLED_SCENARIOS` -- escritores/escenarios donde el
 acoplamiento NO debe aplicarse porque su CV YA incluye el efecto
@@ -53,6 +60,7 @@ aplica, por doctrina, a escritores neuro-sin-CV-correlacionada (EEG Lab
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import FrozenSet, Iterable, List, Optional
 
@@ -62,6 +70,8 @@ from ..state.repository import append_descriptors, get_state_by_snapshot_id
 from ..state.schema import PhysiologicalDescriptor, Provenance
 from .engine import ProposedCoupling, evaluate
 from .rules import CouplingRule, EffectDirection, ValidationStatus
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "COUPLING_DISABLED_SCENARIOS",
@@ -152,11 +162,18 @@ class AppliedCoupling:
 
 
 def _combine_proposals_for_same_effect(proposals: List[ProposedCoupling]) -> List[ProposedCoupling]:
-    """Gancho reservado para la política de combinación multi-regla (ver
-    docstring del módulo). Sub-fase A: identidad -- con <=1 regla habilitada
-    no hay nada que combinar. NO inventar una política sin >1 regla que la
-    ejercite."""
-    return proposals
+    """Política de combinación multi-regla (ver docstring del módulo). Sin una
+    política firmada, NO se combina: los efectos que reciben una sola propuesta
+    pasan tal cual; un efecto que recibe más de una se descarta entero."""
+    targets: dict = {}
+    for proposal in proposals:
+        key = (proposal.effect.domain, proposal.effect.descriptor)
+        targets[key] = targets.get(key, 0) + 1
+    dropped = [p.rule.rule_id for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] > 1]
+    if dropped:
+        logger.warning("Acoplamiento no combinado (sin política firmada): %s apuntan a la misma señal; no se escribe "
+                       "ningún valor acoplado", ", ".join(dropped))
+    return [p for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] == 1]
 
 
 def _coupled_descriptor_from_proposal(
@@ -226,6 +243,13 @@ def apply_couplings(
     if state is None:
         raise ValueError(f"snapshot {snapshot_id!r} no existe -- nada que acoplar")
 
+    if scenario is not None:
+        rules = list(rules)
+        blocked = [r.rule_id for r in rules if scenario in r.blocked_scenarios]
+        if blocked:
+            logger.info("Reglas bloqueadas por regla en el escenario %r (ya modela su efecto): %s", scenario,
+                        ", ".join(blocked))
+        rules = [r for r in rules if scenario not in r.blocked_scenarios]
     proposals = _combine_proposals_for_same_effect(evaluate(state, rules))
 
     applied: List[AppliedCoupling] = []

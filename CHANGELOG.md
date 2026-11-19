@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-11-18 · T5: el menú baja a cinco destinos
+
+Pedido de Luis: «sigue con T5» (visto bueno de la regla 7, que el diseño exige antes de retirar páginas del menú). Diseño firmado, «Navegación nueva (T5)».
+
+1. **Cinco destinos en el menú: Hoy, Ruta, Paciente, Biblioteca y Ajustes** (`DESTINATIONS` en `app/main.py`). Antes eran 32 páginas en cinco secciones.
+   - Las demás páginas siguen registradas en `st.navigation` con `visibility="hidden"`, así que ninguna dirección vieja se rompe.
+   - Cada página abre con un enlace «Destino › Página» de vuelta a su destino (`_render_where_it_lives`, `DESTINATION_OF`).
+2. **Qué hay en cada destino** (`app/supermodules/hubs.py`). Cada destino enlaza todas sus páginas, con una línea que dice qué se hace en cada una; ninguna línea hace una afirmación clínica.
+   - **Hoy** (`inicio`): el tablero de siempre, con una tarjeta «Continúa en: Unidad … · estación N» (o «Empezar la Ruta»), leída del avance de la Ruta en la sesión.
+   - **Ruta:** las unidades y, con el selector «Práctica libre» (`ruta_mode`), los cuestionarios y los casos que antes eran «Practicar», incluido «Tu aprendizaje en esta sesión».
+   - **Paciente** (`paciente`, nuevo): el banner del paciente activo, el gemelo, medir con un instrumento, historia y comparación, conectar un equipo real (cada tutorial, con su pestaña) y el taller 3D.
+   - **Biblioteca** (`biblioteca`, nuevo): la teoría firmada y sus fuentes, lo que antes era «Aprender».
+   - **Ajustes:** la clave de IA, los textos legales (también siguen al pie de cada página) y la versión.
+3. **Ninguna función queda sin alcanzar** (anti-meta del diseño). `tests/test_t5_navegacion.py` comprueba:
+   - el menú y la tabla del diseño;
+   - que cada una de las 29 páginas que dejaron el menú abre y dice dónde vive;
+   - que cada destino las enlaza todas.
+
+   Las pruebas de navegación anteriores se actualizaron a los destinos nuevos.
+4. **Íconos:** Paciente y Biblioteca reusan íconos del kit (el del gemelo y el de la academia). No se dibujó ninguno nuevo.
+5. **Revisión final (Art. I):**
+   - **Motivo de la regla de hipoxia:** el cierre de Respiración decía que no se evaluaba porque «ningún guardado junta la SpO₂ y la FC». Era falso: el escenario y el gemelo sí las guardan juntas. El motivo real es que esos guardados no evalúan las reglas de acoplamiento. Se corrigió en la estación, el catálogo, la ficha y CLAUDE.md.
+   - **La Ruta olvidaba la unidad abierta** al ir a «Práctica libre» o a otra página: Streamlit borra el estado de un control que no se dibuja. Ahora la unidad y el modo también viven en claves propias (`ruta_open_unit`, `ruta_open_mode`).
+   - **«Continúa en» de Hoy:** ahora es un botón que abre la Ruta en esa unidad y en «Unidades».
+   - **Textos de las tarjetas:** Paciente ya no dice que todo escribe en el paciente (solo lo que tiene «Guardar al gemelo», y al guardarlo). Biblioteca ya no dice «solo contenido firmado»: también tiene texto citado de los laboratorios. Fusión de sensores dice que sus canales son de demostración.
+   - **Menores:**
+     - los enlaces que decían «en Aprender» ahora dicen «en la Biblioteca», y la etiqueta «Explorar» de Comparar ahora dice «Paciente»;
+     - el tipo de estación de la tarjeta de Hoy se traduce;
+     - la fuente de la regla de hipoxia incluye el DOI de Lucy 2000;
+     - el piso de la SpO₂ se declara Criterio BIOCORE;
+     - el puente registra en el log las reglas que no combina.
+6. **Detalles de la tanda** (pedido de Luis: «repara todo, aunque sea menor»):
+   - El puente también registra en el log las reglas que no evalúa porque su escenario las bloquea. Una prueba exige que cada escenario bloqueado exista en el simulador.
+   - Con una SpO₂ basal por debajo de 90 %, el instrumento de Respiración avisa que las tasas de desaturación y recuperación (Howarth 2026) no se midieron desde una basal tan baja. El control del piso dice por qué empieza 5 puntos debajo de la basal.
+   - Hay una prueba para una SpO₂ por debajo de 70 % en la estación «Mide»: no se ofrece guardar.
+   - Un enlace fuera de la app dice en qué destino del menú está la página.
+
+## 2026-11-18 · T4.1: fichas de acoplamiento firmadas y detalles de la Ruta
+
+Pedido de Luis: «Resuelve detalles menores, amplía el rango de control, resuelve (la confirmación del guardado… el BAR cerca de 100…), firmo las dos fichas de acoplamiento y sigue con T5».
+
+1. **Fichas firmadas** (`docs/contenido/fichas_acoplamientos.md`, hoja de firma). Se firmaron las propuestas de cada una.
+   - **Ficha 1, hipoxia → taquicardia:** transcrita al catálogo como `HIPOXIA_TAQUICARDIA`:
+     - ancla `spo2 ≤ 91 %`, +13 lpm, confianza 0.70;
+     - bloqueada por regla en hipoxia, apnea, EPOC y sepsis (`CouplingRule.blocked_scenarios`, cambio en `domain/`).
+     - Todavía no dispara en el flujo vivo, porque ningún guardado junta la SpO₂ y la FC del mismo momento (compositor de la T6). El cierre de la Unidad Respiración la muestra con su fuente y dice por qué aún no se evalúa.
+   - **Ficha 2, contracción → taquicardia:** opción A. Firmada y pendiente de la calibración de la contracción máxima del EMG; no entra al catálogo antes. El cierre de Músculo lo dice.
+   - **Política para dos reglas sobre la misma señal:** no hay una firmada, así que el puente no combina. Si las dos disparan en el mismo snapshot, no escribe ningún valor acoplado.
+2. **Rango de la SpO₂ basal del instrumento de Respiración: 70–100 %** (antes 90–100). La estación «Mide» empieza ahora en la SpO₂ de hipoxia (80 %), apnea (82 %) y EPOC (85 %) y puede guardarla. Con una basal ≤ 85 %, el piso empieza 5 puntos debajo, para que los parámetros sean posibles. La apnea sigue sin guardar por su FR de 0: el generador no simula FR 0, y la estación lo dice.
+3. **Confirmación del guardado dentro de la estación.** Antes, la página se volvía a dibujar y la confirmación del instrumento se perdía. Ahora la estación dice «Guardado en tu paciente: …» con los valores y su procedencia, además de la franja.
+4. **BAR fuera del rango de la fuente.** Con la señal «Beta (activo)», el BAR sale cerca de 100. El resultado de «Componer» dice el rango que describe la fuente (basal 0.8–1.2, arousal > 1.8), que el aumento de la FC no crece con el BAR y que un valor así sale de una señal sintética, no de una persona.
+
+Pruebas:
+- `tests/test_coupling_hipoxia.py` (nueva): la regla firmada, el umbral de 91 %, el bloqueo por escenario y que dos reglas no se combinen.
+- Agregadas a `tests/test_ruta_unidades_t4.py` y `tests/test_integracion_paciente.py`.
+
 ## 2026-11-18 · T4 (segunda parte): las unidades Respiración, Cerebro y Músculo
 
 Pedido de Luis: «haz lo que tengas que hacer para que ya todo quede bien, incluido cerebro, músculo y respiración y también detalles menores».

@@ -66,13 +66,14 @@ def test_claude_md_states_the_ups_domains_the_schema_really_models():
 
 
 def test_claude_md_menu_matches_the_real_navigation():
-    """Tanda 1 de la fase 1: el menú es por intención (st.navigation); CLAUDE.md nombra sus secciones y páginas."""
+    """T5 (2026-11-18): el menú son cinco destinos (st.navigation); CLAUDE.md nombra los destinos y todas las páginas."""
     import app.main as m
 
     text = _text("CLAUDE.md")
     specs = m._page_specs()
     sections = [s for s in dict.fromkeys(s for s, *_ in specs) if s]
-    assert f"{len(specs)} páginas" in text and "Inicio, " + ", ".join(sections[:-1]) + f" y {sections[-1]}" in text
+    assert sections == [title for _url, title in m.DESTINATIONS]
+    assert f"{len(specs)} páginas" in text and ", ".join(sections[:-1]) + f" y {sections[-1]}" in text
     for _, url, title, _, _ in specs:
         assert title in text and f"`{url}`" in text, title
     assert "hubs y" not in text

@@ -929,7 +929,7 @@ def _render_emg_lab(sig, emg_live) -> None:
 
     with st.expander(LAB_SECTION_THEORY, expanded=False):
         # Teoría citada 2 (2026-11-17): los temas A1–A9 firmados (también en Aprender → Referencias de los laboratorios).
-        nav.link('referencias', 'Teoría del EMG y de la HRV en Aprender (con sus fuentes)', icon='📚')
+        nav.link('referencias', 'Teoría del EMG y de la HRV en la Biblioteca (con sus fuentes)', icon='📚')
         for topic in EMG_TOPICS:
             render_theory_topic(topic, inside_expander=True)
 
@@ -1173,7 +1173,7 @@ def render_ecg_monitor_page() -> None:
     # él: sus 4 controles (FC, PR, QRS, QT) no movían nada (nadie leía su valor), solo acompañaban ese texto. El código
     # queda, sin montar, en `_ecg_monitor_unsourced_material()` (abajo), con la fuente que le haría falta.
     with st.expander(LAB_SECTION_THEORY, expanded=False):
-        nav.link('teoria', 'Teoría del ECG en Aprender: el papel, la frecuencia, las ondas, las 12 derivaciones y la '
+        nav.link('teoria', 'Teoría del ECG en la Biblioteca: el papel, la frecuencia, las ondas, las 12 derivaciones y la '
                            'isquemia (con sus fuentes)', icon='📖')
         # El «Diagnóstico diferencial (ejemplo)» que vivía en la vista Clínica (elevación del ST en V2-V4 = «infarto
         # anterior (LAD)», sin cita) se retiró: lo sustituye la tabla de isquemia firmada (tema 5), con su advertencia.
@@ -1420,8 +1420,8 @@ def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecor
     render_discovery_lab('Multisensor Gemelo', sim_channels)
 
     with st.expander(LAB_SECTION_THEORY, expanded=False):
-        nav.link('referencias', 'Referencias de los laboratorios en Aprender (NEWS2, respiración, patrones)', icon='📚')
-        nav.link('teoria', 'Teoría del ECG y frecuencia cardiaca en Aprender', icon='📖')
+        nav.link('referencias', 'Referencias de los laboratorios en la Biblioteca (NEWS2, respiración, patrones)', icon='📚')
+        nav.link('teoria', 'Teoría del ECG y frecuencia cardiaca en la Biblioteca', icon='📖')
 
     with st.expander(LAB_SECTION_AI, expanded=False):
         render_findings_narrator('Multisensor Fusion Lab', [
@@ -1490,7 +1490,7 @@ def render_hrv_page() -> None:
             st.caption('Serie RR de este análisis (ms):')
             st.line_chart(rr_ms)
         with st.expander(LAB_SECTION_THEORY, expanded=False):
-            nav.link('referencias', 'Teoría del EMG y de la HRV en Aprender (con sus fuentes)', icon='📚')
+            nav.link('referencias', 'Teoría del EMG y de la HRV en la Biblioteca (con sus fuentes)', icon='📚')
             for topic in HRV_TOPICS:
                 render_theory_topic(topic, inside_expander=True)
         with st.expander('🤖 Explicación con IA de estos valores', expanded=False):
@@ -1783,8 +1783,10 @@ def render_home_page() -> None:
     """Inicio (decisión 2, rediseño Duolingo + Apple del 2026-11-17): las tres puertas (Aprender, Practicar, Clinical
     Hub) son las tarjetas de la derecha del tablero; arriba, el monitoreo del paciente activo y los órganos; al centro,
     el gemelo, la ruta del órgano y un registro real. La clave de IA sigue en Ajustes."""
+    from app.supermodules.hubs import render_continue_card
     from app.supermodules.ui_home import render_home_dashboard
 
+    render_continue_card()      # T5: «Hoy» dice dónde seguir la Ruta (diseño: «continúa en: Corazón · estación 4»)
     render_home_dashboard()
 
 
@@ -1903,11 +1905,26 @@ def render_compare_patients_page() -> None:
     render_compare_page()
 
 
+ROUTE_MODES = {"unidades": "Unidades", "practica": "Práctica libre"}
+ROUTE_MODE_KEEP = "ruta_open_mode"
+
+
 def render_route_page() -> None:
-    """La ruta (T3 de la ruta integrada, 2026-11-18): la Unidad Corazón, estación por estación, sobre un paciente."""
+    """La Ruta (T3–T5 de la ruta integrada, 2026-11-18): las unidades, estación por estación, sobre un paciente, y la
+    práctica libre (T5: las páginas de Practicar dejaron el menú y viven aquí)."""
+    from app.supermodules.hubs import render_practice_library
     from app.supermodules.ruta.page import render_route_page as render
 
-    render()
+    # El modo vive también en una clave propia: Streamlit borra el del control cuando la Ruta no se dibuja.
+    if "ruta_mode" not in st.session_state:
+        st.session_state["ruta_mode"] = st.session_state.get(ROUTE_MODE_KEEP, "unidades")
+    mode = st.radio("Ruta", list(ROUTE_MODES), horizontal=True, key="ruta_mode", format_func=ROUTE_MODES.get,
+                    label_visibility="collapsed")
+    st.session_state[ROUTE_MODE_KEEP] = mode
+    if mode == "practica":
+        render_practice_library()
+    else:
+        render()
 
 
 def render_practice_what_if_page() -> None:
@@ -1930,50 +1947,78 @@ def render_practice_session_learning_page() -> None:
     render_session_learning_page()
 
 
-CLINICAL_HUB = "Explorar"   # la sección conserva su nombre (decisión de José Miguel, 2026-11-17); títulos del manual, p. 7
-
-
 def render_settings_and_version_page() -> None:
-    """Ajustes: la clave de IA y, al final, qué versión del código corre (`app/utils/version.py`, 2026-11-17)."""
+    """Ajustes: la clave de IA, los textos legales (T5: dejaron el menú) y, al final, qué versión del código corre
+    (`app/utils/version.py`, 2026-11-17)."""
+    from app.supermodules.hubs import render_settings_links
+
     render_settings_page()
+    render_settings_links()
     st.markdown("### Versión")
     st.caption(app_version.version_text())
 
 
+# T5 de la ruta integrada (2026-11-18; diseño firmado, «Navegación nueva (T5)»; visto bueno de Luis: «sigue con
+# T5»): el menú baja de 32 páginas a cinco destinos. Las demás páginas siguen abriendo en su `url_path` (ninguna
+# dirección vieja se rompe), fuera del menú; dicen en qué destino viven y ese destino las enlaza (`app/supermodules/
+# hubs.py`). La sección de cada página en `_page_specs()` es su destino.
+DESTINATIONS = (("inicio", "Hoy"), ("ruta", "Ruta"), ("paciente", "Paciente"), ("biblioteca", "Biblioteca"),
+                ("ajustes", "Ajustes"))
+_DEST_BY_TITLE = {title: url for url, title in DESTINATIONS}
+
+
+def is_destination(url: str) -> bool:
+    return url in dict(DESTINATIONS)
+
+
+def render_patient_hub_page() -> None:
+    from app.supermodules.hubs import render_patient_hub
+
+    render_patient_hub()
+
+
+def render_library_hub_page() -> None:
+    from app.supermodules.hubs import render_library_hub
+
+    render_library_hub()
+
+
 def _page_specs() -> list:
-    """(sección, url_path, título, ícono, función). La sección "" es Inicio (sin encabezado). Sin ícono en `st.Page`
-    (manual de marca v1.1: sin emoji ni librerías genéricas de íconos); los íconos dibujados del kit los pone el CSS de
-    `inject_global_theme` en el menú. Títulos con los nombres de la página 7 del manual."""
+    """(destino, url_path, título, ícono, función). Sin ícono en `st.Page` (manual de marca v1.1: sin emoji ni librerías
+    genéricas de íconos); los íconos dibujados del kit los pone el CSS de `inject_global_theme` en el menú. Títulos con
+    los nombres de la página 7 del manual. Solo los cinco destinos (`DESTINATIONS`) se ven en el menú."""
     return [
-        ("", "inicio", "Inicio", None, render_home_page),
-        ("", "ruta", "Ruta", None, render_route_page),          # T3 (2026-11-18): la ruta por unidades
-        ("Aprender", "temas", "Temas", None, render_learn_topics_page),
-        ("Aprender", "teoria", "Teoría (Academia)", None, render_learn_theory_page),
-        ("Aprender", "referencias", "Referencias de los laboratorios", None, render_learn_references_page),
-        ("Aprender", "ecg-3d", "ECG en 3D", None, render_learn_ecg3d_page),
-        ("Aprender", "bibliografia", "Bibliografía", None, render_learn_bibliography_page),
-        ("Aprender", "pregunta", "Pregunta a BIOCORE", None, render_learn_ask_page),
-        ("Practicar", "quiz", "Quiz de la Academia", None, render_practice_quiz_page),
-        ("Practicar", "caso-ciego", "Caso ciego", None, render_practice_blind_case_page),
-        ("Practicar", "desafio-ecg", "Desafío ECG de 12 derivaciones", None, render_practice_ecg_challenge_page),
-        ("Practicar", "caso-guiado", "Caso guiado de ECG", None, render_practice_guided_case_page),
-        ("Practicar", "cuestionarios", "Cuestionarios de los laboratorios", None, render_practice_lab_quizzes_page),
-        ("Practicar", "casos-simulador", "Casos clínicos del simulador", None, render_practice_simulator_cases_page),
-        ("Practicar", "what-if", "¿Qué pasa si…?", None, render_practice_what_if_page),
-        ("Practicar", "detective", "Detective fisiológico", None, render_practice_detective_page),
-        ("Practicar", "mi-sesion", "Tu aprendizaje en esta sesión", None, render_practice_session_learning_page),
-        (CLINICAL_HUB, "gemelo", "Gemelo digital", None, render_twin_shell_page),
-        (CLINICAL_HUB, "ecg", "ECG", None, render_ecg_lab_page),
-        (CLINICAL_HUB, "multisensor", "Fusión de sensores", None, render_multisensor_page),
-        (CLINICAL_HUB, "respiratorio", "Respiración", None, render_respiratory_lab_page),
-        (CLINICAL_HUB, "eeg", "EEG", None, render_eeg_neuro_lab_page),
-        (CLINICAL_HUB, "emg", "EMG", None, render_emg_page),
-        (CLINICAL_HUB, "hrv", "Variabilidad cardiaca", None, render_hrv_page),
-        (CLINICAL_HUB, "biomarcadores", "Biomarcadores", None, render_biomarkers_page),
-        (CLINICAL_HUB, "calculadoras", "Calculadoras clínicas", None, render_calculators_page),
-        (CLINICAL_HUB, "pacientes", "Pacientes", None, render_patient_pipeline_page),
-        (CLINICAL_HUB, "comparar", "Comparar pacientes", None, render_compare_patients_page),
-        (CLINICAL_HUB, "modelo-3d", "Taller 3D", None, render_model3d_page),
+        ("Hoy", "inicio", "Hoy", None, render_home_page),
+        ("Ruta", "ruta", "Ruta", None, render_route_page),          # T3 (2026-11-18): la ruta por unidades
+        ("Ruta", "quiz", "Quiz de la Academia", None, render_practice_quiz_page),
+        ("Ruta", "caso-ciego", "Caso ciego", None, render_practice_blind_case_page),
+        ("Ruta", "desafio-ecg", "Desafío ECG de 12 derivaciones", None, render_practice_ecg_challenge_page),
+        ("Ruta", "caso-guiado", "Caso guiado de ECG", None, render_practice_guided_case_page),
+        ("Ruta", "cuestionarios", "Cuestionarios de los laboratorios", None, render_practice_lab_quizzes_page),
+        ("Ruta", "casos-simulador", "Casos clínicos del simulador", None, render_practice_simulator_cases_page),
+        ("Ruta", "what-if", "¿Qué pasa si…?", None, render_practice_what_if_page),
+        ("Ruta", "detective", "Detective fisiológico", None, render_practice_detective_page),
+        ("Ruta", "mi-sesion", "Tu aprendizaje en esta sesión", None, render_practice_session_learning_page),
+        ("Paciente", "paciente", "Paciente", None, render_patient_hub_page),
+        ("Paciente", "gemelo", "Gemelo digital", None, render_twin_shell_page),
+        ("Paciente", "ecg", "ECG", None, render_ecg_lab_page),
+        ("Paciente", "multisensor", "Fusión de sensores", None, render_multisensor_page),
+        ("Paciente", "respiratorio", "Respiración", None, render_respiratory_lab_page),
+        ("Paciente", "eeg", "EEG", None, render_eeg_neuro_lab_page),
+        ("Paciente", "emg", "EMG", None, render_emg_page),
+        ("Paciente", "hrv", "Variabilidad cardiaca", None, render_hrv_page),
+        ("Paciente", "biomarcadores", "Biomarcadores", None, render_biomarkers_page),
+        ("Paciente", "calculadoras", "Calculadoras clínicas", None, render_calculators_page),
+        ("Paciente", "pacientes", "Pacientes", None, render_patient_pipeline_page),
+        ("Paciente", "comparar", "Comparar pacientes", None, render_compare_patients_page),
+        ("Paciente", "modelo-3d", "Taller 3D", None, render_model3d_page),
+        ("Biblioteca", "biblioteca", "Biblioteca", None, render_library_hub_page),
+        ("Biblioteca", "temas", "Temas", None, render_learn_topics_page),
+        ("Biblioteca", "teoria", "Teoría (Academia)", None, render_learn_theory_page),
+        ("Biblioteca", "referencias", "Referencias de los laboratorios", None, render_learn_references_page),
+        ("Biblioteca", "ecg-3d", "ECG en 3D", None, render_learn_ecg3d_page),
+        ("Biblioteca", "bibliografia", "Bibliografía", None, render_learn_bibliography_page),
+        ("Biblioteca", "pregunta", "Pregunta a BIOCORE", None, render_learn_ask_page),
         ("Ajustes", "ajustes", "Ajustes", None, render_settings_and_version_page),
         # Textos legales (2026-11-17, `app/utils/legal.py`; originales y ajustes en docs/legal/textos_legales.md).
         ("Ajustes", "terminos", "Términos y condiciones", None, legal.render_terms_page),
@@ -1981,23 +2026,36 @@ def _page_specs() -> list:
     ]
 
 
+# url_path de cada página -> url_path de su destino (el diseño: «cada url_path actual redirige a su nuevo lugar»).
+DESTINATION_OF = {url: _DEST_BY_TITLE[dest] for dest, url, *_ in _page_specs()}
+
+
+def _render_where_it_lives(url: str, pages: dict) -> None:
+    """Una página fuera del menú dice en qué destino vive, con un enlace de vuelta (T5)."""
+    dest = DESTINATION_OF.get(url)
+    if dest is None or is_destination(url):
+        return
+    st.page_link(pages[dest], label=f"{i18n.t(dict(DESTINATIONS)[dest])} › {pages[url].title}")
+
+
 def main() -> None:
     init_state()
     i18n.init_language()                  # español por defecto; inglés con el selector o con ?lang=en
     inject_global_theme()
     start = st.session_state.get(nav.START_PAGE, "inicio")
-    pages, sections, menu = {}, {}, {}
+    pages, sections, menu = {}, {}, []
     for section, url, title, icon, render in _page_specs():
-        page = st.Page(render, title=i18n.t(title), icon=icon, url_path=url, default=(url == start))
-        pages[url], sections[url] = page, section or "Inicio"
-        menu.setdefault(i18n.t(section), []).append(page)
+        page = st.Page(render, title=i18n.t(title), icon=icon, url_path=url, default=(url == start),
+                       visibility="visible" if is_destination(url) else "hidden")
+        pages[url], sections[url] = page, section
+        menu.append(page)
     nav.register(pages, sections)
     # Esquina superior del menú: OmniCore, la empresa matriz (2026-11-18, app/static/marca/omnicore/LEEME.txt). El
     # favicon, el título de la pestaña y el logo del Inicio siguen siendo Biocore.
     st.logo(os.path.join(ROOT_DIR, "app", "static", "marca", "omnicore", "omnicore-logotipo-1024px.png"),
             icon_image=os.path.join(ROOT_DIR, "app", "static", "marca", "omnicore", "omnicore-isotipo-256px.png"),
             size="large")
-    current = st.navigation(menu, position="sidebar", expanded=True)   # todas las páginas a la vista, sin «ver más»
+    current = st.navigation(menu, position="sidebar", expanded=True)   # los cinco destinos; las demás, ocultas
     i18n.render_language_selector()
     render_sidebar_status()
     with st.container(key=CONTENT_KEY):        # pulido profesional (Parte B): ancho máximo y medida de párrafo
@@ -2008,6 +2066,7 @@ def main() -> None:
         else:
             # En inglés: qué sigue en español y por qué. La página por defecto tiene url_path "" (Streamlit).
             i18n.render_page_notice(current.url_path or start)
+            _render_where_it_lives(current.url_path or start, pages)
             current.run()
         legal.render_legal_footer()
         app_version.render_stale_warning()    # solo si el código cambió después de arrancar el proceso

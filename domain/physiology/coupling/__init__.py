@@ -29,7 +29,7 @@ from .bridge import (
     apply_couplings,
     confidence_for_validation_status,
 )
-from .catalog import AROUSAL_TAQUICARDIA_BAR, VALIDATED_RULES
+from .catalog import AROUSAL_TAQUICARDIA_BAR, HIPOXIA_TAQUICARDIA, VALIDATED_RULES
 from .engine import ProposedCoupling, evaluate
 from .rules import (
     COUPLABLE_DESCRIPTORS,
@@ -60,4 +60,5 @@ __all__ = [
     "confidence_for_validation_status",
     "VALIDATED_RULES",
     "AROUSAL_TAQUICARDIA_BAR",
+    "HIPOXIA_TAQUICARDIA",
 ]

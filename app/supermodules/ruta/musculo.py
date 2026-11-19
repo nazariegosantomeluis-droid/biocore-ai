@@ -6,9 +6,10 @@ Contenido firmado que ya existe: los temas A1–A9 de `teoria_citada_2.md`, el i
 Cierre (decisión 3 firmada: escenario de fatiga y contracción isométrica con la respuesta autonómica): el paciente
 puede empezar en el escenario de fatiga del simulador (que fija su FC, FR y SpO₂; el simulador no genera EMG) y el EMG se
 mide con la señal demo, patrón «Isométrica» o «Fatiga». La
-respuesta de la FC a la contracción NO se calcula: su regla (músculo → autonómico) está en
-`docs/contenido/fichas_acoplamientos.md` como borrador sin firmar, y la «activación» de hoy no es un % de la contracción
-máxima. La estación lo dice en vez de mostrar una cifra.
+respuesta de la FC a la contracción NO se calcula: su regla (músculo → autonómico, ficha 2 de
+`docs/contenido/fichas_acoplamientos.md`) se firmó el 2026-11-18 con la opción A, que la deja pendiente hasta que el EMG
+se calibre contra la contracción máxima; la «activación» de hoy no es ese porcentaje. La estación lo dice en vez de
+mostrar una cifra.
 """
 
 from __future__ import annotations
@@ -27,9 +28,10 @@ MIDE_NOTE = ("La señal EMG es la demo del laboratorio (o un CSV, que no se guar
              "muscular» y la frecuencia mediana pasan a tu paciente como simulación.")
 START_NOTE = ("El simulador no genera EMG: el escenario fija la FC, la FR y la SpO₂ de tu paciente, y su EMG lo mides en "
               "«Mide» con la señal demo (patrones «Isométrica», «Rápida» o «Fatiga»), igual en cualquier escenario.")
-RESPONSE_PENDING = ("la regla músculo → frecuencia cardiaca espera su firma de experto (ficha en "
-                    "docs/contenido/fichas_acoplamientos.md), y la «activación» de esta plataforma no es un porcentaje de "
-                    "la contracción máxima: la plataforma no calcula esa respuesta")
+RESPONSE_PENDING = ("la regla músculo → frecuencia cardiaca está firmada (ficha 2, opción A, 2026-11-18: +12 lpm con una "
+                    "contracción al 30 % de la contracción máxima sostenida 60 s; Incognito 2018), pero su ancla es el % de "
+                    "la contracción máxima y el EMG de la plataforma todavía no tiene esa calibración: la «activación» de "
+                    "hoy no es ese porcentaje. Hasta que exista, la plataforma no calcula esa respuesta")
 MUSCLE_ROWS = (("activation", "Activación muscular", "%"), ("median_frequency", "Frecuencia mediana", "Hz"))
 
 
@@ -108,6 +110,6 @@ UNIT = M.Unit(UNIT_KEY, UNIT_TITLE, organ="musculo", stations=(
     M.Station("practica", "practica", "Preguntas de EMG", station_practice, needs_patient=False),
     M.Station("cierre", "cierre", "Tu paciente al final", station_closing),
 ), pending=(
-    ("La respuesta de la FC a la contracción", "la firma de la ficha músculo → autonómico y una calibración de la "
-                                               "contracción máxima en el EMG"),
+    ("La respuesta de la FC a la contracción", "la calibración de la contracción máxima en el EMG (la regla ya está "
+                                               "firmada, ficha 2)"),
 ))
