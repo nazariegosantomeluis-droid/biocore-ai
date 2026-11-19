@@ -109,7 +109,7 @@ def test_respiracion_mide_empieza_en_la_fr_del_paciente_y_guarda_como_simulacion
     assert "Guardaste FR" in _texts(at) and "Guardaste FC" not in _texts(at)   # la franja dice lo que se guardó
 
 
-def test_respiracion_mide_con_spo2_fuera_del_control_no_ofrece_guardar():
+def _old_spo2_range_test():
     at = _go(_start("respiracion", "hypoxia"), "respiracion", "mide")
     assert "fuera del rango de la simulación" in _texts(at)
     assert _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups") is None
@@ -183,7 +183,7 @@ def test_musculo_mide_guarda_la_activacion_como_simulacion():
 def test_musculo_cierre_no_calcula_la_respuesta_de_la_fc_sin_firma():
     at = _go(_start("musculo", "fatigue"), "musculo", "cierre")
     text = _texts(at)
-    assert "Respuesta de la FC a la contracción" in text and "espera su firma" in text
+    assert "Respuesta de la FC a la contracción" in text and "está firmada" in text
     assert "todavía no guardaste el EMG" in text
     assert "Pendiente: La respuesta de la FC a la contracción" in text   # en el riel
 
@@ -255,3 +255,47 @@ def test_respiracion_el_enlace_a_la_calculadora_no_lleva_emoji_en_la_estacion():
     at = _go(_start("respiracion"), "respiracion", "mide")
     links = [p for p in at.main.get("page_link") if "calculadora" in p.proto.label]
     assert links and all(not p.proto.icon for p in links)
+
+
+# ── T4.1 (2026-11-18): rango de la SpO₂, confirmación del guardado, BAR fuera del rango de la fuente, fichas ────────
+def test_respiracion_mide_empieza_en_la_spo2_de_la_hipoxia_y_la_guarda():
+    at = _go(_start("respiracion", "hypoxia"), "respiracion", "mide")
+    spo2 = round(_composed(at).state.respiratory.get("spo2").value)
+    assert at.number_input(key="ruta_respiracion_mide__resp_spo2_basal").value == spo2
+    assert "fuera del rango de la simulación" not in _texts(at)
+    _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups").click().run()
+    assert at.exception == [], at.exception
+    assert round(_composed(at).state.respiratory.get("spo2").value) == spo2
+
+
+def test_respiracion_mide_con_fr_de_apnea_no_ofrece_guardar():
+    at = _go(_start("respiracion", "apnea"), "respiracion", "mide")
+    assert "fuera del rango de la simulación" in _texts(at)
+    assert _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups") is None
+
+
+def test_el_guardado_se_confirma_en_la_estacion():
+    at = _go(_start("respiracion"), "respiracion", "mide")
+    _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups").click().run()
+    assert any("Guardado en tu paciente" in s.value and "FR" in s.value for s in at.main.success)
+
+
+def test_cerebro_dice_el_rango_de_la_fuente_y_que_el_aumento_no_crece_con_el_bar():
+    at = _cierre_cerebro_con_fc_medida()
+    at.button(key="ruta_cerebro_compose").click().run()
+    text = _texts(at)
+    assert "basal 0.8–1.2" in text and "no crece con el BAR" in text
+
+
+def test_musculo_dice_que_su_regla_esta_firmada_y_espera_la_calibracion():
+    at = _go(_start("musculo"), "musculo", "cierre")
+    text = _texts(at)
+    assert "firmada" in text and "calibración" in text and "espera su firma" not in text
+
+
+def test_respiracion_cierre_muestra_la_regla_de_hipoxia_firmada_y_por_que_no_se_evalua():
+    at = _go(_start("respiracion"), "respiracion", "cierre")
+    text = _texts(at)
+    assert "HIPOXIA_TAQUICARDIA" in text and "Halliwill" in text and "falta su compositor" in text
+    at2 = _go(_start("respiracion", "hypoxia"), "respiracion", "cierre")
+    assert "no se evalúa en el escenario Hipoxia" in _texts(at2)

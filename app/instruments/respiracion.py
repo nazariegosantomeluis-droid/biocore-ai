@@ -39,9 +39,12 @@ RESPIRATORY_PATTERNS = {
     "Cheyne-Stokes": "cheyne_stokes",
     "Respiración Atáxica": "ataxic",
 }
-# Rangos de los controles (los de siempre; con nombre para que una estación los lea).
+# Rangos de los controles (con nombre para que una estación los lea). T4.1 (2026-11-18, decisión de Luis): la SpO₂ basal
+# baja hasta 70 % para que el instrumento empiece en la SpO₂ de los escenarios de hipoxia (80 %), apnea (82 %) y EPOC
+# (85 %); antes empezaba en 90 % y la estación no podía guardar. El generador solo exige que el piso quede por debajo.
 RR_RANGE = (6, 40)
-SPO2_BASAL_RANGE = (90, 100)
+SPO2_BASAL_RANGE = (70, 100)
+SPO2_FLOOR_DEFAULT = 85            # el piso de siempre; con una basal ≤ 85 % empieza 5 puntos por debajo de la basal
 
 
 @dataclass
@@ -198,7 +201,7 @@ def patron(ctx: InstrumentContext) -> Optional[RespRun]:
             "SpO2 Mínimo (%)",
             min_value=50,
             max_value=95,
-            value=85,
+            value=SPO2_FLOOR_DEFAULT if _spo2_start > SPO2_FLOOR_DEFAULT else int(_spo2_start) - 5,
             step=1,
             help="Piso de la SpO₂ durante un evento (nunca baja de aquí)",
             key=k("resp_spo2_min"),

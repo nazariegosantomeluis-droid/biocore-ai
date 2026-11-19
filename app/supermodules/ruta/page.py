@@ -52,7 +52,7 @@ def _seal(descriptor, origin) -> str:
     return img + (f"<span class='bc-franja-when'>{when}</span>" if when else "")
 
 
-def _render_franja(unit: M.Unit, p: dict) -> None:
+def _render_franja(unit: M.Unit, p: dict, saved: str = None) -> None:
     """La franja fija del paciente (CSS: fija abajo al centro). Se dibuja al FINAL de la pasada, así dice lo que una
     estación acaba de guardar."""
     from app.supermodules.ui_home import icon_html
@@ -75,7 +75,6 @@ def _render_franja(unit: M.Unit, p: dict) -> None:
             d = vitals.values[key]
             parts.append(f"<span>{label} <b>{'—' if d is None else f'{d.value:.0f}'}</b></span>"
                          + _seal(d, vitals.origins.get(key)))
-    saved = st.session_state.pop(common.SAVED_NOW_KEY, None)
     if saved:
         text = _saved_text(saved)
         if text:
@@ -92,7 +91,7 @@ DOMAIN_ES = {"cardiovascular": "corazón", "respiratory": "respiración", "neuro
              "muscular": "músculo"}
 
 
-def _saved_text(snapshot_id: str) -> str:
+def _saved_text(snapshot_id: str, html: bool = True) -> str:
     """Lo que se acaba de guardar, leído del snapshot (T4: antes decía siempre «Guardaste FC», también cuando una
     estación guardaba la respiración o el EEG). Las constantes vitales con su valor y su sello; lo demás, por sistema."""
     from app.utils.patient_banner import UNIT_ES, VITALS
@@ -103,11 +102,14 @@ def _saved_text(snapshot_id: str) -> str:
         state = get_state_by_snapshot_id(session, snapshot_id)
     if state is None:
         return ""
+    from app.utils.patient_banner import vital_provenance_text
+
     vitals = []
     for _key, label, domain, name, _component in VITALS:
         d = getattr(state, domain).get(name)
         if d is not None:
-            vitals.append(f"{label} {d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} {_seal(d, None)}")
+            seal = _seal(d, None) if html else f"({vital_provenance_text(d, None)})"
+            vitals.append(f"{label} {d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} {seal}")
     if vitals:
         return "Guardaste " + " · ".join(vitals)
     domains = [DOMAIN_ES[dom] for dom in DOMAIN_ES if getattr(state, dom).descriptors]
@@ -145,6 +147,9 @@ def render_route_page() -> None:
 
     # T4: una unidad a la vez, cada una con su paciente y su avance (no se mezclan). Las que aún no se pueden recorrer
     # se listan como pendientes, con lo que les falta.
+    # T4.1: lo que una estación guardó en la pasada anterior (antes de volver a dibujar la página). Lo dicen la
+    # franja y, dentro de la estación, una confirmación: la del instrumento se perdía al volver a dibujar.
+    saved = st.session_state.pop(common.SAVED_NOW_KEY, None)
     unit_key = st.radio("Unidad", [u.key for u in units.UNITS], horizontal=True, key=UNIT_KEY,
                         format_func=lambda k: units.UNIT_BY_KEY[k].title)
     for title, missing in units.PENDING_UNITS:
@@ -177,6 +182,10 @@ def render_route_page() -> None:
                           on_click=_back_to_unit_patient, args=(unit_pid,))
             elif unit_pid is not None and p["station"] != 0:
                 st.markdown(f"Tu paciente ahora: {_vitals_line(read_active_vitals())}")
+            confirmation = _saved_text(saved, html=False) if saved else ""
+            if confirmation:
+                st.success(confirmation.replace("Guardaste", "Guardado en tu paciente:", 1)
+                           + f" (guardado `{saved[:8]}`).")
             # Con otro paciente activo solo se dibujan las estaciones que no lo leen (teoría, registro real, preguntas)
             # y la estación 0, que puede empezar de nuevo.
             if not (mismatch and station.needs_patient):
@@ -189,4 +198,4 @@ def render_route_page() -> None:
             following = unit.stations[p["station"] + 1]
             nxt.button(f"Siguiente: {following.title}", key="ruta_next", type="primary",
                        on_click=M.go_to, args=(unit.key, p["station"] + 1))
-    _render_franja(unit, p)
+    _render_franja(unit, p, saved)

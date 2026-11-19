@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, FrozenSet, Optional
+from typing import Dict, FrozenSet, Optional, Tuple
 
 __all__ = [
     "ComparisonOperator",
@@ -183,6 +183,10 @@ class CouplingRule:
     validation_status: ValidationStatus
     enabled: bool = False
     notes: Optional[str] = None
+    # Escenarios donde ESTA regla no se evalúa porque el escenario ya modela su efecto (doble contabilidad), además de
+    # la lista global `COUPLING_DISABLED_SCENARIOS` (bridge.py). Ficha 1 de `docs/contenido/fichas_acoplamientos.md`,
+    # firmada el 2026-11-18: la hipoxia no se acopla en hypoxia/apnea/copd/sepsis, pero la regla BAR sí puede.
+    blocked_scenarios: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.rule_id or not self.rule_id.strip():

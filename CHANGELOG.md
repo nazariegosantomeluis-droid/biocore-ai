@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-18 · T4.1: fichas de acoplamiento firmadas y detalles de la Ruta
+
+Pedido de Luis: «Resuelve detalles menores, amplía el rango de control, resuelve (la confirmación del guardado… el BAR cerca de 100…), firmo las dos fichas de acoplamiento y sigue con T5».
+
+1. **Fichas firmadas** (`docs/contenido/fichas_acoplamientos.md`, hoja de firma). Se firmaron las propuestas de cada una.
+   - **Ficha 1, hipoxia → taquicardia:** transcrita al catálogo como `HIPOXIA_TAQUICARDIA`:
+     - ancla `spo2 ≤ 91 %`, +13 lpm, confianza 0.70;
+     - bloqueada por regla en hipoxia, apnea, EPOC y sepsis (`CouplingRule.blocked_scenarios`, cambio en `domain/`).
+     - Todavía no dispara en el flujo vivo, porque ningún guardado junta la SpO₂ y la FC del mismo momento (compositor de la T6). El cierre de la Unidad Respiración la muestra con su fuente y dice por qué aún no se evalúa.
+   - **Ficha 2, contracción → taquicardia:** opción A. Firmada y pendiente de la calibración de la contracción máxima del EMG; no entra al catálogo antes. El cierre de Músculo lo dice.
+   - **Política para dos reglas sobre la misma señal:** no hay una firmada, así que el puente no combina. Si las dos disparan en el mismo snapshot, no escribe ningún valor acoplado.
+2. **Rango de la SpO₂ basal del instrumento de Respiración: 70–100 %** (antes 90–100). La estación «Mide» empieza ahora en la SpO₂ de hipoxia (80 %), apnea (82 %) y EPOC (85 %) y puede guardarla. Con una basal ≤ 85 %, el piso empieza 5 puntos debajo, para que los parámetros sean posibles. La apnea sigue sin guardar por su FR de 0: el generador no simula FR 0, y la estación lo dice.
+3. **Confirmación del guardado dentro de la estación.** Antes, la página se volvía a dibujar y la confirmación del instrumento se perdía. Ahora la estación dice «Guardado en tu paciente: …» con los valores y su procedencia, además de la franja.
+4. **BAR fuera del rango de la fuente.** Con la señal «Beta (activo)», el BAR sale cerca de 100. El resultado de «Componer» dice el rango que describe la fuente (basal 0.8–1.2, arousal > 1.8), que el aumento de la FC no crece con el BAR y que un valor así sale de una señal sintética, no de una persona.
+
+Pruebas:
+- `tests/test_coupling_hipoxia.py` (nueva): la regla firmada, el umbral de 91 %, el bloqueo por escenario y que dos reglas no se combinen.
+- Agregadas a `tests/test_ruta_unidades_t4.py` y `tests/test_integracion_paciente.py`.
+
 ## 2026-11-18 · T4 (segunda parte): las unidades Respiración, Cerebro y Músculo
 
 Pedido de Luis: «haz lo que tengas que hacer para que ya todo quede bien, incluido cerebro, músculo y respiración y también detalles menores».

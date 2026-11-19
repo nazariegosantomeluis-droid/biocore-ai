@@ -1,6 +1,8 @@
 # Fichas de acoplamiento: hipoxia → taquicardia y músculo → autonómico
 
-**Estado: BORRADOR — PENDIENTE DE FIRMA DE LUIS.** Nada de este documento está activo en el código. `VALIDATED_RULES` (`domain/physiology/coupling/catalog.py`) sigue con una sola regla (`AROUSAL_TAQUICARDIA_BAR`) hasta que Luis firme. Cuando firme, cada regla se transcribe literalmente al catálogo con el mismo formato que la regla BAR.
+**Estado: FIRMADO por Luis Nazariego Santome el 2026-11-18** («firmo las dos fichas de acoplamiento»). Se firmaron las **propuestas** de cada ficha (ver la hoja de firma al final):
+- **Ficha 1:** transcrita al catálogo como `HIPOXIA_TAQUICARDIA` (`domain/physiology/coupling/catalog.py`, `VALIDATED_RULES`). Ningún guardado junta todavía la SpO₂ y la FC del mismo momento, así que la regla aún no dispara en el flujo vivo: falta el compositor que los una (T6 del diseño).
+- **Ficha 2:** opción A. La regla queda firmada y **pendiente** hasta que el EMG tenga una calibración de la contracción máxima; no entra al catálogo antes, porque su ancla no existe hoy.
 
 Preparado el 2026-11-18 a pedido de Luis («busca la literatura para poder firmarla»). Formato: el de la ficha de `AROUSAL_TAQUICARDIA_BAR` (dirección, ancla, magnitud, fuente, confianza y escenarios bloqueados), más la ventana fisiológica que pide la decisión 5 del diseño.
 
@@ -135,5 +137,7 @@ Escribir hoy una regla con «activación > X» sería anclar una cifra de la fue
 ## Hoja de firma
 | Ficha | Decisión de Luis | Fecha |
 |---|---|---|
-| 1 · HIPOXIA_TAQUICARDIA | | |
-| 2 · CONTRACCION_ISOMETRICA_TAQUICARDIA | | |
+| 1 · HIPOXIA_TAQUICARDIA | Propuestas: ancla `spo2 ≤ 91 %`; +13 lpm fijos; confianza 0.70 (`VALIDADO_POR_FUENTE`); bloqueada en `hypoxia`, `apnea`, `copd`, `sepsis` (por regla) y `seizure`, `stress`, `anxiety` (lista global); ventana de 120 s | 2026-11-18 |
+| 2 · CONTRACCION_ISOMETRICA_TAQUICARDIA | Opción A: pendiente de la calibración de la CVM; entonces ancla 30 % de la CVM ≥ 60 s, +12 lpm, confianza 0.70, bloqueos `exercise`, `seizure`, `stress`, `anxiety`, ventana de 120 s | 2026-11-18 |
+
+Al transcribir la ficha 1 hizo falta una política para dos reglas sobre la misma señal (ya son dos sobre `heart_rate`). Sin una política firmada, el puente **no combina**: si las dos disparan en el mismo snapshot, no se escribe ningún valor acoplado (`bridge._combine_proposals_for_same_effect`). Sumar o elegir quedaría para otra firma.

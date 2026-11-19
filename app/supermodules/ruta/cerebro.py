@@ -41,6 +41,15 @@ COMPOSED_NOTE = ("El compositor escribió un snapshot nuevo con el BAR (su proce
                  "guardado).")
 
 
+# T4.1 (2026-11-18): con la señal sintética «Beta (activo)» el alfa casi desaparece y el BAR sale cerca de 100. La
+# regla solo compara con el umbral y suma una cantidad fija; la estación lo dice con el rango que describe la fuente
+# (`AROUSAL_TAQUICARDIA_BAR.source`: Schutter 2006, basal 0.8-1.2, arousal > 1.8).
+SOURCE_RANGE_NOTE = ("Rango que describe la fuente (Schutter 2006): BAR basal 0.8–1.2 y de arousal > 1.8; el de tu "
+                     "paciente es {bar:.2f}. La regla solo compara con el umbral y suma una cantidad fija: el aumento de "
+                     "la FC no crece con el BAR. Un BAR muy por encima de esos valores sale de una señal sintética con "
+                     "casi nada de alfa (patrón «Beta (activo)»), no de una persona.")
+
+
 def station_patient() -> None:
     common.render_patient_station(UNIT_KEY, UNIT_TITLE, PREFIX, SCENARIOS, note=START_NOTE)
 
@@ -218,6 +227,8 @@ def _render_compose_result() -> None:
         st.info("El BAR y la FC de tu paciente quedaron juntos en un snapshot, pero la regla no se aplicó: el BAR no "
                 "supera su umbral.")
     st.caption(COMPOSED_NOTE + f" Edad de la FC arrastrada: {r['hr_age_s']:.0f} s.")
+    if r["coupled"]:
+        st.caption(SOURCE_RANGE_NOTE.format(bar=r["coupled"][0]["observed"]))
 
 
 def station_closing() -> None:

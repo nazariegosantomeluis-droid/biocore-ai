@@ -338,11 +338,19 @@ def test_respiratorio_sin_paciente_se_ve_como_siempre():
 
 
 def test_respiratorio_spo2_fuera_del_rango_del_control_no_se_recorta():
-    patient_id = _patient_with({"respiratory": {"respiratory_rate": 22.0, "spo2": 85.0}})
+    # T4.1 (2026-11-18): el control baja hasta 70 % (los escenarios de hipoxia, apnea y EPOC ya caben); 65 % sigue fuera.
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 22.0, "spo2": 65.0}})
     at = _open("respiratorio", **{PATIENT_KEY: patient_id})
-    assert _sidebar_number(at, RESP_SPO2) == 98, "85 % no cabe en 90–100: no se recorta a 90 (sería otro paciente)"
+    assert _sidebar_number(at, RESP_SPO2) == 98, "65 % no cabe en 70–100: no se recorta a 70 (sería otro paciente)"
     assert "fuera del rango de este control" in _sidebar_captions(at)
     assert _sidebar_number(at, RESP_RR) == 22
+
+
+def test_respiratorio_empieza_en_una_spo2_de_hipoxia_con_el_piso_debajo():
+    patient_id = _patient_with({"respiratory": {"respiratory_rate": 28.0, "spo2": 80.0}})
+    at = _open("respiratorio", **{PATIENT_KEY: patient_id})
+    assert _sidebar_number(at, RESP_SPO2) == 80 and _sidebar_number(at, "SpO2 Mínimo (%)") == 75
+    assert not at.error, [e.value for e in at.error]          # el piso por debajo de la basal: parámetros posibles
 
 
 def test_hrv_empieza_en_la_fc_y_fr_del_paciente_y_no_usa_su_hrv():
