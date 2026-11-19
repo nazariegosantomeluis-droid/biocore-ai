@@ -1,7 +1,7 @@
 # Fichas de acoplamiento: hipoxia → taquicardia y músculo → autonómico
 
 **Estado: FIRMADO por Luis Nazariego Santome el 2026-11-18** («firmo las dos fichas de acoplamiento»). Se firmaron las **propuestas** de cada ficha (ver la hoja de firma al final):
-- **Ficha 1:** transcrita al catálogo como `HIPOXIA_TAQUICARDIA` (`domain/physiology/coupling/catalog.py`, `VALIDATED_RULES`). Ningún guardado junta todavía la SpO₂ y la FC del mismo momento, así que la regla aún no dispara en el flujo vivo: falta el compositor que los una (T6 del diseño).
+- **Ficha 1:** transcrita al catálogo como `HIPOXIA_TAQUICARDIA` (`domain/physiology/coupling/catalog.py`, `VALIDATED_RULES`). Los escenarios y el gemelo ya guardan la SpO₂ y la FC en un mismo snapshot, pero esos guardados no evalúan las reglas de acoplamiento (hoy solo lo hacen el compositor del EEG con la FC y el guardado del EEG), así que la regla aún no dispara en el flujo vivo: eso es la T6 del diseño.
 - **Ficha 2:** opción A. La regla queda firmada y **pendiente** hasta que el EMG tenga una calibración de la contracción máxima; no entra al catálogo antes, porque su ancla no existe hoy.
 
 Preparado el 2026-11-18 a pedido de Luis («busca la literatura para poder firmarla»). Formato: el de la ficha de `AROUSAL_TAQUICARDIA_BAR` (dirección, ancla, magnitud, fuente, confianza y escenarios bloqueados), más la ventana fisiológica que pide la decisión 5 del diseño.

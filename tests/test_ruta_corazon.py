@@ -65,7 +65,7 @@ def test_ruta_esta_en_el_menu_con_su_icono():
     from app.utils import design_system as DS
 
     specs = {url: (section, title) for section, url, title, *_ in _page_specs()}
-    assert specs["ruta"] == ("", "Ruta")
+    assert specs["ruta"] == ("Ruta", "Ruta")                   # T5: uno de los cinco destinos
     assert (Path(DS.ICONS_URL.replace("app/static", "app/static")) / DS.NAV_ICONS["ruta"]).exists()
 
 

@@ -92,7 +92,7 @@ def render_views():
     with st.expander(LAB_SECTION_SIMULATE, expanded=False):
         _render_simulacion_tab()
     with st.expander(LAB_SECTION_THEORY, expanded=False):
-        nav.link("referencias", "Referencias de los laboratorios en Aprender: NEWS2, cómo se mide la respiración, "
+        nav.link("referencias", "Referencias de los laboratorios en la Biblioteca: NEWS2, cómo se mide la respiración, "
                                 "patrones, Cheyne-Stokes, Biot y apnea (con sus fuentes)", icon="📚")
 
 

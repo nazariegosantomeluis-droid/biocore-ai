@@ -723,6 +723,9 @@ ROUTE_URL = "app/static/marca/ruta"
 NAV_ICONS = {
     "inicio": "biocore-icono-app-inicio-monitor.svg",
     "ruta": "biocore-icono-app-ruta-monitor.svg",
+    # T5 (2026-11-18): los destinos nuevos usan íconos del kit que ya existen (el del gemelo y el de la academia).
+    "paciente": "biocore-icono-gemelo-digital-monitor.svg",
+    "biblioteca": "biocore-icono-academia-monitor.svg",
     "temas": "biocore-icono-app-temas-monitor.svg",
     "teoria": "biocore-icono-academia-monitor.svg",
     "referencias": "biocore-icono-app-referencias-monitor.svg",
@@ -842,6 +845,7 @@ def inject_global_theme() -> None:
             [class*="st-key-bc_"] button {{ min-height: 44px; }}
             .bc-hero {{ font-size: 2.4rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; color: {PALETTE.TEXT};
                 margin: 0 0 6px 0; }}
+            .bc-hub-icon {{ width: 28px; height: 28px; opacity: .85; margin-bottom: 2px; }}
             .bc-eyebrow {{ color: {PALETTE.TRAZO}; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.04em;
                 text-transform: uppercase; }}
             .bc-chip {{ display: inline-flex; align-items: center; gap: 6px; border: 1px solid {PALETTE.GRID};

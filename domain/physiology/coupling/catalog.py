@@ -98,8 +98,10 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
 #   - Escenarios bloqueados por regla: hypoxia, apnea, copd, sepsis (su
 #     simulador ya modela la FC con la caída de SpO2); más la lista global.
 #   - Ventana: la SpO2 y la FC de la misma ventana de 120 s (la del
-#     compositor). Hoy ningún guardado junta SpO2 y FC en un snapshot: la
-#     regla no dispara en el flujo vivo hasta que un compositor los una (T6).
+#     compositor). Los escenarios y el gemelo guardan SpO2 y FC en un mismo
+#     snapshot, pero esos guardados no llaman a `apply_couplings()`: hoy solo
+#     lo hacen el compositor neurocardiaco (sin SpO2) y el guardado del EEG
+#     (sin FC). La regla no dispara en el flujo vivo hasta la T6.
 HIPOXIA_TAQUICARDIA = CouplingRule(
     rule_id="HIPOXIA_TAQUICARDIA",
     condition=CouplingCondition(
@@ -121,7 +123,8 @@ HIPOXIA_TAQUICARDIA = CouplingRule(
         "Halliwill JR, Morgan BJ, Charkoudian N. J Physiol 2003;552(Pt 1):295-302. "
         "doi:10.1113/jphysiol.2003.050708 | Niewinski P, Tubek S, Josiak K, Nowak K, Ponikowski P. "
         "Sci Rep 2025;15:6633. doi:10.1038/s41598-025-91214-6 | Lucy SD y cols. Exp Physiol "
-        "2000;85(2):227-237 | Umbral: banda de 3 puntos NEWS2 de la SpO2 escala 1 (RCP 2017)"
+        "2000;85(2):227-237. doi:10.1111/j.1469-445X.2000.01932.x | Umbral: banda de 3 puntos NEWS2 de la "
+        "SpO2 escala 1 (RCP 2017)"
     ),
     validation_status=ValidationStatus.VALIDADO_POR_FUENTE,
     enabled=True,

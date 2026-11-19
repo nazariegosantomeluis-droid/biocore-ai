@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-11-18 · T5: el menú baja a cinco destinos
+
+Pedido de Luis: «sigue con T5» (visto bueno de la regla 7, que el diseño exige antes de retirar páginas del menú). Diseño firmado, «Navegación nueva (T5)».
+
+1. **Cinco destinos en el menú: Hoy, Ruta, Paciente, Biblioteca y Ajustes** (`DESTINATIONS` en `app/main.py`). Antes eran 32 páginas en cinco secciones.
+   - Las demás páginas siguen registradas en `st.navigation` con `visibility="hidden"`, así que ninguna dirección vieja se rompe.
+   - Cada página abre con un enlace «Destino › Página» de vuelta a su destino (`_render_where_it_lives`, `DESTINATION_OF`).
+2. **Qué hay en cada destino** (`app/supermodules/hubs.py`). Cada destino enlaza todas sus páginas, con una línea que dice qué se hace en cada una; ninguna línea hace una afirmación clínica.
+   - **Hoy** (`inicio`): el tablero de siempre, con una tarjeta «Continúa en: Unidad … · estación N» (o «Empezar la Ruta»), leída del avance de la Ruta en la sesión.
+   - **Ruta:** las unidades y, con el selector «Práctica libre» (`ruta_mode`), los cuestionarios y los casos que antes eran «Practicar», incluido «Tu aprendizaje en esta sesión».
+   - **Paciente** (`paciente`, nuevo): el banner del paciente activo, el gemelo, medir con un instrumento, historia y comparación, conectar un equipo real (cada tutorial, con su pestaña) y el taller 3D.
+   - **Biblioteca** (`biblioteca`, nuevo): la teoría firmada y sus fuentes, lo que antes era «Aprender».
+   - **Ajustes:** la clave de IA, los textos legales (también siguen al pie de cada página) y la versión.
+3. **Ninguna función queda sin alcanzar** (anti-meta del diseño). `tests/test_t5_navegacion.py` comprueba:
+   - el menú y la tabla del diseño;
+   - que cada una de las 29 páginas que dejaron el menú abre y dice dónde vive;
+   - que cada destino las enlaza todas.
+
+   Las pruebas de navegación anteriores se actualizaron a los destinos nuevos.
+4. **Íconos:** Paciente y Biblioteca reusan íconos del kit (el del gemelo y el de la academia). No se dibujó ninguno nuevo.
+5. **Revisión final (Art. I):**
+   - **Motivo de la regla de hipoxia:** el cierre de Respiración decía que no se evaluaba porque «ningún guardado junta la SpO₂ y la FC». Era falso: el escenario y el gemelo sí las guardan juntas. El motivo real es que esos guardados no evalúan las reglas de acoplamiento. Se corrigió en la estación, el catálogo, la ficha y CLAUDE.md.
+   - **La Ruta olvidaba la unidad abierta** al ir a «Práctica libre» o a otra página: Streamlit borra el estado de un control que no se dibuja. Ahora la unidad y el modo también viven en claves propias (`ruta_open_unit`, `ruta_open_mode`).
+   - **«Continúa en» de Hoy:** ahora es un botón que abre la Ruta en esa unidad y en «Unidades».
+   - **Textos de las tarjetas:** Paciente ya no dice que todo escribe en el paciente (solo lo que tiene «Guardar al gemelo», y al guardarlo). Biblioteca ya no dice «solo contenido firmado»: también tiene texto citado de los laboratorios. Fusión de sensores dice que sus canales son de demostración.
+   - **Menores:**
+     - los enlaces que decían «en Aprender» ahora dicen «en la Biblioteca», y la etiqueta «Explorar» de Comparar ahora dice «Paciente»;
+     - el tipo de estación de la tarjeta de Hoy se traduce;
+     - la fuente de la regla de hipoxia incluye el DOI de Lucy 2000;
+     - el piso de la SpO₂ se declara Criterio BIOCORE;
+     - el puente registra en el log las reglas que no combina.
+
 ## 2026-11-18 · T4.1: fichas de acoplamiento firmadas y detalles de la Ruta
 
 Pedido de Luis: «Resuelve detalles menores, amplía el rango de control, resuelve (la confirmación del guardado… el BAR cerca de 100…), firmo las dos fichas de acoplamiento y sigue con T5».

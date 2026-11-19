@@ -44,8 +44,9 @@ def _links(block):
 
 
 def test_the_menu_is_the_five_intentions_and_nothing_without_identity():
+    # T5 (2026-11-18): el menú son cinco destinos; lo que eran las secciones vive dentro de cada destino.
     sections = [s for s, *_ in _specs()]
-    assert list(dict.fromkeys(sections)) == ["", "Aprender", "Practicar", "Explorar", "Ajustes"]
+    assert list(dict.fromkeys(sections)) == ["Hoy", "Ruta", "Paciente", "Biblioteca", "Ajustes"]
     titles = " ".join(t for _, _, t, _, _ in _specs())
     assert "progreso" not in titles.lower() and "docente" not in titles.lower()
     urls = [u for _, u, *_ in _specs()]
@@ -57,16 +58,16 @@ def test_each_section_holds_what_the_signed_decision_lists():
     by_section = {}
     for section, url, *_ in _specs():
         by_section.setdefault(section, []).append(url)
-    # Pulido profesional (2026-11-16): Bibliografía, pedida en la tanda (todas las referencias, con enlaces).
-    # Rediseño Duolingo + Apple (2026-11-17): «Temas» en Aprender y «Comparar pacientes» en Explorar.
-    assert by_section["Aprender"] == ["temas", "teoria", "referencias", "ecg-3d", "bibliografia", "pregunta"]
-    # 2026-11-17: «Tu aprendizaje en esta sesión» (solo la sesión del navegador; no es «Mi progreso»).
-    assert by_section["Practicar"] == ["quiz", "caso-ciego", "desafio-ecg", "caso-guiado", "cuestionarios",
-                                       "casos-simulador", "what-if", "detective", "mi-sesion"]
-    assert by_section["Explorar"] == ["gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
+    # Lo que antes era Aprender (con Bibliografía, Temas y Pregunta a BIOCORE) vive en Biblioteca.
+    assert by_section["Biblioteca"] == ["biblioteca", "temas", "teoria", "referencias", "ecg-3d", "bibliografia",
+                                        "pregunta"]
+    # Lo que era Practicar (con «Tu aprendizaje en esta sesión», que no es «Mi progreso») vive en la Ruta.
+    assert by_section["Ruta"] == ["ruta", "quiz", "caso-ciego", "desafio-ecg", "caso-guiado", "cuestionarios",
+                                  "casos-simulador", "what-if", "detective", "mi-sesion"]
+    # Lo que era Explorar vive en Paciente.
+    assert by_section["Paciente"] == ["paciente", "gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv",
                                       "biomarcadores", "calculadoras", "pacientes", "comparar", "modelo-3d"]
-    # T3 (2026-11-18): la Ruta, junto a Inicio (diseño firmado: «Ruta» es uno de los cinco destinos de la T5).
-    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section[""] == ["inicio", "ruta"]
+    assert by_section["Ajustes"] == ["ajustes", "terminos", "privacidad"] and by_section["Hoy"] == ["inicio"]
 
 
 def test_the_twelve_old_entries_all_map_to_existing_pages():

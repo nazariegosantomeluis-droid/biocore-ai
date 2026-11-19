@@ -109,12 +109,6 @@ def test_respiracion_mide_empieza_en_la_fr_del_paciente_y_guarda_como_simulacion
     assert "Guardaste FR" in _texts(at) and "Guardaste FC" not in _texts(at)   # la franja dice lo que se guardó
 
 
-def _old_spo2_range_test():
-    at = _go(_start("respiracion", "hypoxia"), "respiracion", "mide")
-    assert "fuera del rango de la simulación" in _texts(at)
-    assert _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups") is None
-
-
 def test_respiracion_cierre_muestra_los_puntos_news2_del_paciente():
     at = _go(_start("respiracion", "hypoxia"), "respiracion", "cierre")
     text = _texts(at)
@@ -296,6 +290,7 @@ def test_musculo_dice_que_su_regla_esta_firmada_y_espera_la_calibracion():
 def test_respiracion_cierre_muestra_la_regla_de_hipoxia_firmada_y_por_que_no_se_evalua():
     at = _go(_start("respiracion"), "respiracion", "cierre")
     text = _texts(at)
-    assert "HIPOXIA_TAQUICARDIA" in text and "Halliwill" in text and "falta su compositor" in text
+    assert "HIPOXIA_TAQUICARDIA" in text and "Halliwill" in text and "evalúa todavía las reglas" in text
+    assert "falta su compositor" not in text           # falso: el escenario ya guarda la SpO₂ y la FC juntas
     at2 = _go(_start("respiracion", "hypoxia"), "respiracion", "cierre")
     assert "no se evalúa en el escenario Hipoxia" in _texts(at2)

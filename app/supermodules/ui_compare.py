@@ -75,7 +75,7 @@ def render_compare_page() -> None:
     from app.utils.design_system import render_empty_state
     from app.utils.patient_banner import peek_active_patient_id
 
-    st.markdown("<span class='bc-eyebrow'>Explorar</span><div class='bc-hero'>Comparar pacientes</div>",
+    st.markdown("<span class='bc-eyebrow'>Paciente</span><div class='bc-hero'>Comparar pacientes</div>",
                 unsafe_allow_html=True)
     st.caption("Hasta tres estados guardados en el UPS: pacientes distintos o el mismo paciente en distintos momentos. "
                "Cada valor lleva su procedencia.")

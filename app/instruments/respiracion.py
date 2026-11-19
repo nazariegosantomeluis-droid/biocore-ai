@@ -45,6 +45,9 @@ RESPIRATORY_PATTERNS = {
 RR_RANGE = (6, 40)
 SPO2_BASAL_RANGE = (70, 100)
 SPO2_FLOOR_DEFAULT = 85            # el piso de siempre; con una basal ≤ 85 % empieza 5 puntos por debajo de la basal
+# (Criterio BIOCORE: solo hace posibles los parámetros, el generador exige piso < basal; no es un dato clínico). Con una
+# basal de 70–89 % el modelo aplica las mismas tasas de desaturación y recuperación (Howarth 2026, cohorte SHHS), que no
+# se midieron desde una basal tan baja.
 
 
 @dataclass

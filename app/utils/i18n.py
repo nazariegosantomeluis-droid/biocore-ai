@@ -32,6 +32,10 @@ COURTESY_NOTE = "Courtesy translation. The signed Spanish text below is the one 
 EN = {
     # Menú: secciones y páginas
     "Inicio": "Home", "Aprender": "Learn", "Practicar": "Practice", "Explorar": "Explore", "Ajustes": "Settings",
+    # T5 (2026-11-18): los cinco destinos y el «continúa en» del Hoy
+    "Hoy": "Today", "Paciente": "Patient", "Biblioteca": "Library", "Continúa en": "Continue at",
+    "Empezar la Ruta": "Start the Path", "estación": "station", "Tu paciente": "Your patient", "Observa": "Observe",
+    "Mide": "Measure", "Practica": "Practice", "Altera": "Alter", "Cierre": "Closing",
     "Temas": "Topics", "Teoría (Academia)": "Theory (Academy)",
     "Referencias de los laboratorios": "Lab references", "ECG en 3D": "3D ECG", "Bibliografía": "Bibliography",
     "Pregunta a BIOCORE": "Ask BIOCORE", "Quiz de la Academia": "Academy quiz", "Caso ciego": "Blind case",

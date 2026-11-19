@@ -136,8 +136,11 @@ def render_hypoxia_rule(scenario: Optional[str]) -> None:
         render_no_data("Acoplamiento", f"no se evalúa en el escenario {common.SCENARIO_LABELS[scenario]}: el simulador "
                                        "ya modela la FC junto con la caída de la SpO₂ y la regla la contaría dos veces")
     else:
-        render_no_data("Acoplamiento", "todavía no se evalúa en la ruta: ningún guardado junta la SpO₂ y la FC de tu "
-                                       "paciente del mismo momento (falta su compositor)")
+        # Revisión final de la T5: el escenario SÍ guarda la SpO₂ y la FC juntas; lo que falta es que ese guardado
+        # (o el del gemelo) evalúe las reglas: hoy solo las evalúan el compositor neurocardiaco y el guardado del EEG.
+        render_no_data("Acoplamiento", "todavía no se evalúa en la ruta: ningún guardado que tenga la SpO₂ y la FC "
+                                       "evalúa todavía las reglas de acoplamiento (hoy solo lo hacen el EEG y el "
+                                       "compositor del EEG con la FC)")
 
 
 def station_closing() -> None:
@@ -163,6 +166,6 @@ UNIT = M.Unit(UNIT_KEY, UNIT_TITLE, organ="respiracion", stations=(
     M.Station("cierre", "cierre", "Tu paciente al final", station_closing),
 ), pending=(
     ("La explicación clínica por escenario del Detective", "su texto firmado (hoy dice que está pendiente)"),
-    ("Evaluar la regla de hipoxia con tu paciente", "un compositor que junte la SpO₂ y la FC del mismo momento (la regla "
-                                                    "ya está firmada)"),
+    ("Evaluar la regla de hipoxia con tu paciente", "que los guardados con la SpO₂ y la FC evalúen las reglas de "
+                                                    "acoplamiento (la regla ya está firmada)"),
 ))

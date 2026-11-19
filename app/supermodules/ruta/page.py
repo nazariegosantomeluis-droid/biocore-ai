@@ -15,6 +15,7 @@ from app.supermodules.ruta import model as M
 
 FRANJA_KEY = "ruta_franja"
 UNIT_KEY = "ruta_unit"
+OPEN_UNIT_KEY = "ruta_open_unit"     # la unidad abierta, aunque el selector no se dibuje (Hoy la lee)
 
 
 def _vitals_line(vitals) -> str:
@@ -150,8 +151,13 @@ def render_route_page() -> None:
     # T4.1: lo que una estación guardó en la pasada anterior (antes de volver a dibujar la página). Lo dicen la
     # franja y, dentro de la estación, una confirmación: la del instrumento se perdía al volver a dibujar.
     saved = st.session_state.pop(common.SAVED_NOW_KEY, None)
+    # Revisión final de la T5: Streamlit borra el estado de un control que no se dibujó en la pasada anterior (al ir a
+    # «Práctica libre» o a otra página). La unidad abierta vive también en una clave propia y siembra el control.
+    if UNIT_KEY not in st.session_state and st.session_state.get(OPEN_UNIT_KEY) in units.UNIT_BY_KEY:
+        st.session_state[UNIT_KEY] = st.session_state[OPEN_UNIT_KEY]
     unit_key = st.radio("Unidad", [u.key for u in units.UNITS], horizontal=True, key=UNIT_KEY,
                         format_func=lambda k: units.UNIT_BY_KEY[k].title)
+    st.session_state[OPEN_UNIT_KEY] = unit_key
     for title, missing in units.PENDING_UNITS:
         st.caption(f"{title} (pendiente): falta {missing}.")
     unit = units.UNIT_BY_KEY[unit_key]

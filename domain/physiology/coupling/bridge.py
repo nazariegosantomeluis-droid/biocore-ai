@@ -60,6 +60,7 @@ aplica, por doctrina, a escritores neuro-sin-CV-correlacionada (EEG Lab
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import FrozenSet, Iterable, List, Optional
 
@@ -69,6 +70,8 @@ from ..state.repository import append_descriptors, get_state_by_snapshot_id
 from ..state.schema import PhysiologicalDescriptor, Provenance
 from .engine import ProposedCoupling, evaluate
 from .rules import CouplingRule, EffectDirection, ValidationStatus
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "COUPLING_DISABLED_SCENARIOS",
@@ -166,6 +169,10 @@ def _combine_proposals_for_same_effect(proposals: List[ProposedCoupling]) -> Lis
     for proposal in proposals:
         key = (proposal.effect.domain, proposal.effect.descriptor)
         targets[key] = targets.get(key, 0) + 1
+    dropped = [p.rule.rule_id for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] > 1]
+    if dropped:
+        logger.warning("Acoplamiento no combinado (sin política firmada): %s apuntan a la misma señal; no se escribe "
+                       "ningún valor acoplado", ", ".join(dropped))
     return [p for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] == 1]
 
 

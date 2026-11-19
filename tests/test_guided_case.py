@@ -204,7 +204,7 @@ def test_el_caso_aparece_en_su_pagina_de_practicar():
     from streamlit.testing.v1 import AppTest
     import app.main as m
 
-    urls = [url for section, url, *_ in m._page_specs() if section == "Practicar"]
+    urls = [url for section, url, *_ in m._page_specs() if section == "Ruta"]       # T5: Practicar vive en la Ruta
     assert urls.index("caso-guiado") == urls.index("desafio-ecg") + 1
 
     at = AppTest.from_file(str(Path("app/main.py").resolve()), default_timeout=180)
