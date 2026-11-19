@@ -225,7 +225,7 @@ def patron(ctx: InstrumentContext) -> Optional[RespRun]:
         value=19.4,
         step=0.1,
         help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Empieza en 19.4 s, la mediana de Kwon 2020 "
-             "(598 estudios de sueño, MESA); Hsia 2026 da el límite normal < 20 s. Rango 5–30 s.",
+             "(598 adultos con apnea moderada a grave, MESA); Hsia 2026 da el límite normal < 20 s. Rango 5–30 s.",
         key=k("resp_tc"),
     )
     panel.caption(f"{BADGES.tag(BADGES.CLINICAL)} Tc: {views.TC_LABEL}")
@@ -412,7 +412,7 @@ def spo2(ctx: InstrumentContext, run: RespRun) -> None:
     fig_spo2 = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
-        subplot_titles=("SpO2 simulada — modelo BIOCORE (Tc valor BIOCORE; r y recuperación, Howarth 2026)", "Flujo de Aire (referencia)"),
+        subplot_titles=("SpO2 simulada — modelo BIOCORE (Tc: mediana de Kwon 2020; r y recuperación, Howarth 2026)", "Flujo de Aire (referencia)"),
         vertical_spacing=0.12,
         row_heights=[0.7, 0.3]
     )

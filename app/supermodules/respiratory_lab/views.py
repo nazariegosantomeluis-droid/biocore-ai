@@ -27,7 +27,8 @@ EDUCATION_CITATION = (
     "obstructive sleep apnea in adults. J Clin Sleep Med 2009;5(3):263–276 (AASM)"
 )
 APNEA_CITATION = "Berry RB et al. J Clin Sleep Med 2012;8(5):597–619 (AASM): caída ≥ 90 % de la excursión durante ≥ 10 s"
-TC_LABEL = ("19.4 s por omisión: la mediana del tiempo pulmón-dedo en 598 estudios de sueño (Kwon 2020, MESA); "
+TC_LABEL = ("19.4 s por omisión: la mediana del tiempo pulmón-dedo en 598 adultos con apnea moderada a grave "
+            "(índice ≥ 15/h; Kwon 2020, MESA); "
             "Hsia 2026 da el límite normal < 20 s")
 EVENT_TYPE_LABELS = {
     "central": "central",
@@ -203,10 +204,11 @@ def render_events_table(analysis) -> None:
             f"{BADGES.tag(BADGES.CLINICAL)} Apnea = caída ≥ 90 % de la excursión respecto a la línea basal previa durante ≥ 10 s "
             "(Berry 2012, AASM). "
             f"{BADGES.tag(BADGES.CLINICAL)} Tipo por esfuerzo (Berry 2012): obstructiva = esfuerzo en todo el evento; central = "
-            "ausente en todo el evento; mixta = ausente al principio y se reanuda después. «Ausente» usa la misma caída "
-            "≥ 90 %, aplicada al esfuerzo; un esfuerzo que no sigue ninguna de las tres queda sin clasificar."
+            "ausente en todo el evento; mixta = ausente al principio y se reanuda después. Cómo lo mide BIOCORE (Berry no "
+            "da cifras para esto): «ausente» = la misma caída ≥ 90 % de la regla de apnea, aplicada al esfuerzo, y «en todo "
+            "el evento» admite el 10 % del tramo; un esfuerzo que no sigue ninguna de las tres queda sin clasificar."
         )
-        st.caption(f"{BADGES.tag(BADGES.CLINICAL)} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
+        st.caption(f"Duración: {DURATION_CRITERION_LABEL}.")
         if any(e.get("gradual_edge") for e in analysis.apnea_events):
             st.caption("«≈ X s, borde gradual ± U s»: U es cuánto cambia la duración del evento si la basal (y con ella el umbral "
                        "del 10 %) se mueve un 2 %, el p95 medido del error de la basal del detector. Puede ser grande en un borde "
@@ -368,7 +370,7 @@ def render_clinical_references() -> None:
         Berry 2012 (§4.1.1, AASM): la clasificación de una apnea como obstructiva, mixta o central **se basa en el esfuerzo
         respiratorio**. Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).
 
-        - **Central (Berry 2012):** esfuerzo ausente en todo el evento (caída ≥ 90 % del esfuerzo respecto a su basal)
+        - **Central (Berry 2012):** esfuerzo ausente en todo el evento (BIOCORE lo mide como una caída ≥ 90 % del esfuerzo respecto a su basal)
         - **Obstructiva (Berry 2012):** esfuerzo presente en todo el evento; Berry 2012 señala que el movimiento paradójico del tórax y el
           abdomen se observa a menudo durante una apnea u hipopnea obstructiva
         - **Mixta (Berry 2012):** esfuerzo ausente al principio del evento, que se reanuda en la segunda parte

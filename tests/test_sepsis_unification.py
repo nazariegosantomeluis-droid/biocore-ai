@@ -69,7 +69,7 @@ def test_the_trajectory_evolves_from_early_sepsis_to_shock_with_the_cited_start(
     assert end["hr"] > start["hr"] and end["respiratory_rate"] > start["respiratory_rate"]
     assert end["spo2"] < start["spo2"] and end["hrv"] < start["hrv"]
     assert [sepsis.phase_of(h) for h in _HORIZONS] == ["temprana"] * 3 + ["progresion"] + ["shock"] * 2
-    assert "PENDING_VALIDATION" in sepsis.declare_trajectory()
+    assert "Pendiente de validación" in sepsis.declare_trajectory()      # sin la palabra de código (2026-11-19)
 
 
 @pytest.mark.parametrize("horizon", _HORIZONS)
@@ -333,7 +333,7 @@ def test_scenario_simulator_declares_the_canonical_trajectory_only_for_sepsis(tm
     at.selectbox(key="twin_shell_rich_scenario_select").set_value(SimulationScenario.SEPSIS)
     at.run(timeout=60)
     text = " ".join(i.value for i in at.info)
-    assert "Trayectoria canónica de sepsis" in text and "PENDING_VALIDATION" in text
+    assert "Trayectoria canónica de sepsis" in text and "Pendiente de validación" in text
     assert "| 24h | shock | 150 | 32 | 85 |" in text
     assert "solo modela la fase de **shock**" in text and "se declina (no se muestra)" in text
     assert "NO representa" not in text

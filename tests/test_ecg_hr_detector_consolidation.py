@@ -114,7 +114,7 @@ def test_ecg_monitor_demo_source_shows_measured_hr_not_saturated():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    slider = next(s for s in at.sidebar.slider if s.label == "FC demo (lpm)")
+    slider = next(s for s in at.sidebar.slider if s.label == "FC de la simulación (lpm)")
     slider.set_value(130)
     at.run(timeout=30)
     assert at.exception == []

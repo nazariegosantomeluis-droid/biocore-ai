@@ -91,7 +91,7 @@ Existe código en la ruta de ejecución de la app y hay pruebas que fijan su com
 | Multisensor: «Health Score» con bandas y valores por defecto sin cita | Retirado | CHANGELOG fase 0 |
 | Botón «Entropía» que no calculaba nada (fachada) | Retirado | CHANGELOG tanda 1 |
 | Organismo con valores por defecto mostrados como datos | Corregido: el organismo no tiene defaults; «sin dato» con motivo | CHANGELOG fase 0, `test_fase0_organismo.py` |
-| Explicabilidad «SHAP/LIME» que solo narraba diferencias | Retirada del texto; `shap`/`lime` salieron de `requirements.txt` | CHANGELOG 2026-11-17 |
+| Explicabilidad «SHAP» y «LIME» que solo narraba diferencias | Retirada del texto; `shap`/`lime` salieron de `requirements.txt` | CHANGELOG 2026-11-17 |
 | Guardar un laboratorio borraba los demás valores del banner | Corregido con el paciente compuesto | T0 |
 | El gemelo no veía lo que medían los laboratorios | Corregido | T1 |
 

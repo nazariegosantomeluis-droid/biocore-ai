@@ -8,7 +8,7 @@ controles sin clave en el menú lateral); una estación de la ruta los monta con
   EEG en vivo (como la placa ECG: pide consentimiento y un equipo), ni un CSV (no se sabe de quién viene), ni los dos
   patrones con evento inyectado (imaginación motora y tarea de engagement), cuyos controles viven en el menú lateral.
 - `senales`: el trazo y la potencia de banda por canal.
-- `metricas`: banda dominante, clasificación (solo con la señal sintética) y DAR, TBR y BAR con su cita.
+- `metricas`: banda dominante y DAR, TBR y BAR con su cita (sin «Clasificación» banda → estado desde el 2026-11-19).
 - `guardar`: el único camino de escritura al UPS de este laboratorio (botón explícito)."""
 
 from __future__ import annotations

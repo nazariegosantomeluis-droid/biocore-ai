@@ -238,5 +238,6 @@ def wake_eeg_reason(bands) -> Optional[str]:
     fast = max(float(bands["alpha_power"]), float(bands["beta_power"]))
     if slow > fast:
         return ("el EEG de tu paciente no es de vigilia: la potencia delta o theta supera a la alfa y a la beta "
-                "(Criterio BIOCORE con el glosario IFCN, Kane 2017); en el sueño el BAR no mide arousal")
+                "(Criterio BIOCORE firmado por Luis, con el glosario IFCN, Kane 2017); en el sueño el BAR no mide "
+                "arousal")
     return None

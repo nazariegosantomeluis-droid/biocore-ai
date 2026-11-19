@@ -24,13 +24,11 @@ from streamlit.testing.v1 import AppTest
 from tests.test_fase1_t2_pulido import MAIN, SOURCES, _page_urls, _strip, visible_texts
 
 HEURISTIC = re.compile(r"heur[ií]stic|\bdemo\b|demostraci[oó]n|PENDING_VALIDATION", re.IGNORECASE)
-METHOD = re.compile(r"Criterio BIOCORE|Valor BIOCORE")
-# Criterios BIOCORE firmados por Luis, que siguen a la vista con su fundamento:
-SIGNED_CRITERIA = (
-    "techo",                      # techo de la regla BAR (T6.1, «Si, confirmo ambos», 2026-11-19)
-    "vigilia",                    # requisito de un EEG de vigilia de la regla BAR (mismo día)
-    "capacitancia venosa 2×",     # sepsis: en revisión clínica, declarado así (pendiente de firma; ver la auditoría)
-)
+METHOD = re.compile(r"criterio biocore|valor biocore", re.IGNORECASE)
+# Un «Criterio BIOCORE» solo se ve si el MISMO texto dice que Luis lo firmó (el techo y la vigilia de la regla BAR,
+# «Si, confirmo ambos», 2026-11-19), o si es la capacitancia venosa 2× de la sepsis, que no está firmada y por eso se
+# declara «en revisión clínica» junto a la cifra (pendiente de la firma de Luis; ver la auditoría).
+SIGNED_CRITERIA = ("firmado por Luis", "confirmado por Luis", "capacitancia venosa 2×")
 
 
 # Textos FIRMADOS por Luis que nombran la palabra: cambiarlos pide su firma (se le informó el 2026-11-19). Cada uno se
@@ -96,6 +94,8 @@ def test_el_guardia_atrapa_lo_que_vigila():
     assert _offenders(["Canales demo"])
     assert _offenders(["RMS — Criterio BIOCORE (metodología propia)"])
     assert not _offenders(["el techo de 3.0: Criterio BIOCORE firmado por Luis"])
+    assert _offenders(["onda delta si ≥ 30 ms, criterio BIOCORE"]) and _offenders(["Tc valor BIOCORE"])
+    assert _offenders(["el techo de 3.0, Criterio BIOCORE"])              # «techo» solo ya no basta
     assert _offenders(["Índice de riesgo heurístico (pesos fijos)"]) and _offenders(["(PENDING_VALIDATION)"])
 
 

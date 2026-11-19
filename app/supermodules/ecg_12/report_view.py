@@ -54,7 +54,10 @@ def render_twelve_lead_report(report: TwelveLeadReport, truth: Optional[TwelveLe
         return
 
     found = findings(report)
+    for_reader = [c for c in report.criteria if c.met is None and c.for_reader]
     summary = ", ".join(finding_title(c) for c in found) if found else "ninguno de los criterios evaluados se cumple"
+    if for_reader:
+        summary += "; para que lo juzgues tú: " + ", ".join(c.title for c in for_reader)
     st.markdown(f"> **Hallazgos automáticos:** {summary}.")
 
     st.markdown(f"**Mediciones** (latido mediano de {report.n_beats} latidos)")
@@ -81,7 +84,13 @@ def render_twelve_lead_report(report: TwelveLeadReport, truth: Optional[TwelveLe
         st.markdown(f"- **{finding_title(c)}.** {c.detail}")
         st.caption(f"Fuente: {c.source}")
 
-    undetermined = [c for c in report.criteria if c.met is None]
+    if for_reader:
+        st.markdown("**Para que lo juzgues tú** (una parte del criterio no tiene un corte con fuente)")
+        for c in for_reader:
+            st.markdown(f"- **{c.title}.** {c.detail}")
+            st.caption(f"Fuente: {c.source}")
+
+    undetermined = [c for c in report.criteria if c.met is None and not c.for_reader]
     if undetermined:
         st.markdown("**No evaluables en este registro**")
         for c in undetermined:

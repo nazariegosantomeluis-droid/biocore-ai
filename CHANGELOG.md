@@ -21,7 +21,16 @@ Pedido de Luis: «todo lo que aparezca como heurístico se arregle por algo que 
 7. **Aviso a quien mantiene `twin_shell/`:** la tanda tocó lo mínimo: `pages.py` ya no llama a `render_ml_risk_panel` (la función sigue ahí) y `baroreflex_panel.py` dice «pendiente de validación» en vez de la palabra de código. Si quieres volver a mostrar el índice de riesgo, necesita pesos con fuente.
 8. **Equipos en vivo:** las tablas de los tutoriales ya no dicen «Heurísticos»: describen las comprobaciones del equipo (saturación, contacto, ruido) y dicen que solo deciden si se calcula, no un juicio clínico. Los umbrales siguen siendo internos de BIOCORE.
 9. **`domain/`:** solo textos de la regla BAR («Criterio BIOCORE de modelo, firmado por Luis» en vez de «…, heurística»), también en `docs/contenido/fichas_acoplamientos.md`.
-10. **Pruebas:** se movieron a propósito las que fijaban las etiquetas viejas (respiratorio, EMG, ECG, EEG, calculadoras, HRV, pasaporte de evidencia, navegación de Fusión de sensores y Biomarcadores, gemelo).
+10. **Revisión independiente (mismo día), corregido:**
+   - la guardia ya no distingue mayúsculas («criterio BIOCORE», «valor BIOCORE») y solo deja pasar un criterio propio si el mismo texto dice «firmado por Luis» o «confirmado por Luis» (o la capacitancia venosa 2×, declarada en revisión clínica);
+   - preexcitación: «onda delta si ≥ 30 ms» no tenía fuente; con PR < 120 y QRS > 120 (Surawicz 2009) el criterio queda «para que lo juzgues tú», con el inicio lento medido, y no se evalúa un bloqueo de rama encima. El informe separa «Para que lo juzgues tú» de «No evaluables»;
+   - la nota del método de 12 derivaciones vuelve a decir que la delineación usa umbrales técnicos propios;
+   - la duración de la apnea ya no se atribuye a Berry: es una medición de BIOCORE, más corta que la de Berry (de nadir a nadir); y el tipo por esfuerzo dice qué cifras pone BIOCORE (Berry no da ninguna);
+   - «Cálculo directo» ya no dice «sin umbral»: puede depender de un detector con umbrales técnicos, pero no juzga;
+   - la tarjeta «¿Ya se puede leer?» de la temperatura ya no dice «Validado por fuente»: Marui lo usó para un termómetro timpánico;
+   - el título de la gráfica de SpO₂, la explicación del EEG, el exporte del ECG, el signo del ERD frente al artículo de 1999 y la población de Kwon (apnea moderada a grave).
+   - **Para Luis:** el detalle firmado del tema A7 todavía dice «con la señal demo»; hoy el índice de fatiga no se muestra con ninguna fuente. Cambiarlo pide tu firma.
+11. **Pruebas:** se movieron a propósito las que fijaban las etiquetas viejas (respiratorio, EMG, ECG, EEG, calculadoras, HRV, pasaporte de evidencia, navegación de Fusión de sensores y Biomarcadores, gemelo).
 
 ## 2026-11-19 · Fase 0 de la evolución: auditoría de base (solo documentos)
 

@@ -24,6 +24,8 @@ DESIGN = {
     "ajustes": ["terminos", "privacidad"],
 }
 ABSORBED = sorted(u for urls in DESIGN.values() for u in urls)
+# Retiradas del menú (2026-11-19, decisión de Luis): la dirección abre y dice por qué, pero su destino no la enlaza.
+RETIRED = {"biomarcadores"}
 
 
 def _open(url, **state):
@@ -75,7 +77,8 @@ def test_cada_direccion_vieja_sigue_abriendo_y_dice_donde_vive(url):
 def test_cada_destino_enlaza_todas_sus_paginas(dest, state):
     at = _open(dest, **state)
     linked = {page for page, _label in _links(at)}
-    assert set(DESIGN[dest]) <= linked, sorted(set(DESIGN[dest]) - linked)
+    assert set(DESIGN[dest]) - RETIRED <= linked, sorted(set(DESIGN[dest]) - RETIRED - linked)
+    assert not RETIRED & linked
 
 
 def test_paciente_empieza_por_el_paciente_activo():
@@ -136,7 +139,7 @@ def test_las_tarjetas_de_paciente_y_biblioteca_no_prometen_de_mas():
     at = _open("paciente")
     text = " ".join(c.value for c in at.main.caption)
     assert "Todo lo de aquí lee y escribe" not in text and "Guardar al gemelo" in text
-    assert any("demostración" in d for _h, cards in hubs.PATIENT_GROUPS for url, d in cards if url == "multisensor")
+    assert any("en vivo" in d for _h, cards in hubs.PATIENT_GROUPS for url, d in cards if url == "multisensor")
     at = _open("biblioteca")
     assert "Solo contenido firmado" not in " ".join(c.value for c in at.main.caption)
 

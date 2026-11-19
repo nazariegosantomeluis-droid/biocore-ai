@@ -227,7 +227,8 @@ APNEA_BY_EFFORT = TheoryTopic(
     mechanism="**Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo "
               "del colapso repetitivo de la vía aérea superior",
     detail="Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).\n\n"
-           "- **Central (Berry 2012):** esfuerzo ausente en todo el evento (caída ≥ 90 % del esfuerzo respecto a su "
+           "- **Central (Berry 2012):** esfuerzo ausente en todo el evento (BIOCORE lo mide como una caída ≥ 90 % del "
+           "esfuerzo respecto a su "
            "basal)\n"
            "- **Obstructiva (Berry 2012):** esfuerzo presente en todo el evento; Berry 2012 señala que el movimiento "
            "paradójico "

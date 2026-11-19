@@ -23,8 +23,8 @@ MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
 # Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este módulo (firma AASM de la Tanda Final) se
 # RETIRÓ porque `RespiratoryAnalyzer` devolvía FR = 60.0 constante y 0 apneas con cualquier señal. Fase 3 (2026-11-07): el
-# detector se reparó contra golden tests. Fase 4 (2026-11-09): tampoco vuelve la insignia GLOBAL (la apnea mixta sigue
-# PENDING_VALIDATION); la confianza se declara VALOR POR VALOR (ver `views.BADGE_LEGEND`).
+# detector se reparó contra golden tests. Fase 4 (2026-11-09): tampoco vuelve la insignia GLOBAL; la confianza se declara
+# VALOR POR VALOR (ver `views.BADGE_LEGEND`). Desde el 2026-11-19 la mixta sigue la regla de Berry 2012 (ya no pendiente).
 class VistaClinicaOmitida(Exception):
     """La vista clínica no se dibuja (parámetros imposibles). Se captura aquí para que las demás pestañas se
     sigan dibujando, en vez del `st.stop()` que dejaba toda la página a medias."""
@@ -59,8 +59,8 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado mientras la apnea mixta siga
-    # PENDING_VALIDATION; la confianza va por valor (ver `RESPIRATORY_STATUS_NOTICE` y `views.BADGE_LEGEND`).
+    # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado (la duración de la apnea y la
+    # SpO₂ son mediciones o simulaciones de BIOCORE); la confianza va por valor (`RESPIRATORY_STATUS_NOTICE`, `BADGE_LEGEND`).
     render_module_header("Laboratorio respiratorio", icon="💨", validation=None)
     # Tanda 2 de la fase 1: el recuadro ocupaba toda la pantalla de un teléfono. Queda plegado; su etiqueta es el resumen
     # de una línea y el detalle (sin cambios) se abre a demanda.

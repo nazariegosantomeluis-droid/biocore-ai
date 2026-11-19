@@ -563,8 +563,8 @@ def _biomarkers_ghost_history() -> None:  # pragma: no cover -- SIN MONTAR, a pr
 
 BIOMARKERS_RETIRED = (
     "Retirado el 2026-11-19 (decisión de Luis): sus índices (PLV neurocardíaco, disposición para el aprendizaje, índice "
-    "de recuperación) se calculaban sobre presets sin paciente y con pesos sin fuente. Vuelve cuando cada índice tenga "
-    "su cita. Lo que sí tiene fuente sigue en Variabilidad cardiaca (SDNN, RMSSD, razón LF/HF) y en EEG.")
+    "de recuperación) se calculaban sobre valores fijos de ejemplo, sin paciente, y con pesos sin fuente. Vuelve "
+    "cuando cada índice tenga su cita. Lo que sí tiene fuente sigue en Variabilidad cardiaca (SDNN, RMSSD) y en EEG.")
 
 
 def render_biomarkers_retired_page() -> None:
@@ -872,11 +872,8 @@ def render_biomarkers_page() -> None:
 # ==================== EMG PAGE (COMPLETE) ====================
 
 def render_emg_page() -> None:
-    # Consolidación Visual, Tanda Final (2026-09-22): firma del experto --
-    # la activación RMS es fisiológica real, pero `fatigue_index` opera
-    # sobre umbrales sintéticos fijos (no calibrados) -- `validation=
-    # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
-    # dos partes del lab en la propia cita.
+    # Consolidación Visual, Tanda Final (2026-09-22): `validation="HEURISTIC"` (◇, sin validar contra datos). Tanda de
+    # heurísticas (2026-11-19): la firma dice qué tiene fuente ([DL1997]) y que el índice de fatiga ya no se muestra.
     render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
     render_module_header(
         "Laboratorio de EMG", icon="🦾",
@@ -1137,14 +1134,17 @@ def render_ecg_monitor_page() -> None:
             # Consolidación Visual Tanda 2 (2026-09-21): `hr` es HEURISTIC, no CLINICAL: esta lectura NO pasó por la
             # compuerta de calidad (pRRx/metrónomo/Vpp) que sí exige `_render_ecg_save_to_twin()`. `hr is None`
             # exporta con `unavailable_reason` -- nunca un número inventado.
+            # Tanda de heurísticas (2026-11-19): «Cálculo directo» con lo que le falta dicho en la cita, no «Heurística».
+            hr_note = 'detector TKEO sobre el segmento, sin la compuerta de calidad que exige el guardado'
             if hr is not None:
                 honesty_cards = [
-                    resolve_metric_card('Frecuencia cardíaca', f'{hr:.0f} lpm', provenance=BADGES.HEURISTIC),
+                    resolve_metric_card('Frecuencia cardíaca', f'{hr:.0f} lpm', provenance=BADGES.MEASURED,
+                                        citation=hr_note),
                 ]
             else:
                 honesty_cards = [
                     resolve_metric_card(
-                        'Frecuencia cardíaca', provenance=BADGES.HEURISTIC,
+                        'Frecuencia cardíaca', provenance=BADGES.MEASURED,
                         unavailable_reason='El detector TKEO no encontró suficientes picos R en esta señal.',
                     ),
                 ]

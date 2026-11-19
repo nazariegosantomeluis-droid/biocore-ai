@@ -53,9 +53,10 @@ HEURISTIC_SIGNATURES = {
         "Índices compuestos (Carga cognitiva, Índice de recuperación y Resiliencia fisiológica) derivados "
         "analíticamente, sin calibración de dispositivo médico."
     ),
+    # Tanda de heurísticas (2026-11-19): la firma dice lo que tiene fuente y lo que no; el índice de fatiga no se muestra.
     "EMG Muscle Lab": (
-        "Activación RMS fisiológica; el índice de fatiga muscular (fatigue_index) opera bajo umbrales "
-        "sintéticos fijos."
+        "RMS y frecuencia mediana: los índices que recomienda [DL1997] (temas A5 y A7). La «activación» es un cociente de "
+        "la forma de la señal, no %MVC. El índice de fatiga no se muestra: no tiene fuente."
     ),
 }
 
@@ -117,7 +118,8 @@ def test_hrv_lab_shows_validated_signature_verbatim_not_truncated():
 
 # --- Los 3 HEURISTIC (estrato de ingeniería) --------------------------------
 
-def test_multisensor_shows_heuristic_signature_verbatim_not_truncated():
+def test_multisensor_live_page_carries_no_lab_signature():
+    """Tanda de heurísticas (2026-11-19, decisión de Luis): sin canales demo, la página no lleva firma de laboratorio."""
     def _script():
         import app.main as m
         m.render_multisensor_page()
@@ -125,12 +127,7 @@ def test_multisensor_shows_heuristic_signature_verbatim_not_truncated():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    markers = _marker_div(at)
-    assert len(markers) == 1
-    assert PALETTE.NEUTRAL in markers[0]
-    assert "◇" in markers[0]
-    assert VALIDATED_SIGNATURES.get("Multisensor Fusion Lab") is None  # sanity: no está en el set VALIDATED
-    assert HEURISTIC_SIGNATURES["Multisensor Fusion Lab"] in markers[0]
+    assert _marker_div(at) == []
 
 
 def test_biomarkers_shows_heuristic_signature_verbatim_not_truncated():
@@ -230,7 +227,7 @@ def test_patient_pipeline_stays_deliberately_mute(tmp_path):
 
 def test_validated_and_heuristic_labs_are_visually_distinct():
     """La prueba que pide la tanda: un lab VALIDATED (ECG) y uno HEURISTIC
-    (Multisensor) deben verse con autoridad visualmente distinta --
+    (EMG; antes Multisensor, sin canales demo desde el 2026-11-19) deben verse con autoridad visualmente distinta --
     colores de marco y símbolos distintos, no solo un campo de datos
     diferente en algún lado."""
     def _script_ecg():
@@ -239,7 +236,7 @@ def test_validated_and_heuristic_labs_are_visually_distinct():
 
     def _script_multi():
         import app.main as m
-        m.render_multisensor_page()
+        m.render_emg_page()
 
     at_ecg = AppTest.from_function(_script_ecg)
     at_ecg.run(timeout=30)
@@ -297,25 +294,25 @@ def test_ecg_export_shows_validated_mark_multisensor_export_shows_heuristic(repo
     assert PALETTE.STABLE in ecg_content
     assert VALIDATED_SIGNATURES["ECG Lab"] in ecg_content, "firma verbatim, no truncada, en el export"
 
-    # Multisensor Research
+    # EMG Research (antes Multisensor, que perdió sus canales demo el 2026-11-19)
     def _script_multi():
         import app.main as m
-        m.render_multisensor_page()
+        m.render_emg_page()
 
     at_multi = AppTest.from_function(_script_multi)
     at_multi.run(timeout=30)
     # Pulido profesional: sin selector de vistas; el export está en «Cómo se calcula», en la misma página.
-    btn2 = next(b for b in at_multi.main.button if "Exportar multisensor" in b.label)
+    btn2 = next(b for b in at_multi.main.button if b.label == "Exportar EMG para investigación")
     btn2.click()
     at_multi.run(timeout=30)
     assert at_multi.exception == []
 
-    multi_htmls = glob.glob(os.path.join(reports_dir, "*Multisensor_Research*.html"))
-    assert multi_htmls, "no se generó el HTML de Multisensor Research"
+    multi_htmls = glob.glob(os.path.join(reports_dir, "*EMG_Research*.html"))
+    assert multi_htmls, "no se generó el HTML de EMG Research"
     multi_content = open(multi_htmls[0], encoding="utf-8").read()
     assert 'class="validation"' in multi_content
     assert PALETTE.NEUTRAL in multi_content
-    assert HEURISTIC_SIGNATURES["Multisensor Fusion Lab"] in multi_content
+    assert HEURISTIC_SIGNATURES["EMG Muscle Lab"] in multi_content
 
     # las dos marcas de export (el div class="validation", no la página
     # entera -- el color NEUTRAL también aparece en badges HEURISTIC de

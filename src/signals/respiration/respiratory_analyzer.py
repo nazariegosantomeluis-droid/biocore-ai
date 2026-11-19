@@ -67,7 +67,10 @@ HEURISTICS = {
 }
 
 
-DURATION_CRITERION_LABEL = "la regla de Berry 2012 aplicada muestra a muestra"   # antes «Criterio BIOCORE: …» (2026-11-19)
+# Tanda de heurísticas (2026-11-19): sin la etiqueta «Criterio BIOCORE», pero sin atribuirla a Berry: Berry mide la
+# duración de nadir a nadir; BIOCORE mide solo el tramo por debajo del umbral, que da eventos más cortos.
+DURATION_CRITERION_LABEL = ("medición de BIOCORE, más corta que la de Berry 2012 (de nadir a nadir): el tramo contiguo "
+                            "con excursión < 10 % de la basal, muestra a muestra")
 
 
 def round_half_up(x: float) -> int:

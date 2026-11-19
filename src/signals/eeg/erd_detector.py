@@ -94,9 +94,10 @@ MIN_CLEAN_EVENT_S: float = 1.0
 # ("índice de E/I cortical por analogía LFP, sobre EEG de superficie").
 # Tanda de heurísticas (2026-11-19): la fórmula con su fuente, para la tarjeta del ERD%.
 ERD_CITATION: str = (
-    "ERD% = (potencia de referencia − potencia del evento) / potencia de referencia × 100: Pfurtscheller G, Lopes da "
-    "Silva FH. Event-related EEG/MEG synchronization and desynchronization: basic principles. Clin Neurophysiol "
-    "1999;110(11):1842–57"
+    "ERD% = (potencia de referencia − potencia del evento) / potencia de referencia × 100, positivo cuando la potencia "
+    "baja. Pfurtscheller G, Lopes da Silva FH. Event-related EEG/MEG synchronization and desynchronization: basic "
+    "principles. Clin Neurophysiol 1999;110(11):1842–57, la escriben como (evento − referencia) / referencia × 100: el "
+    "mismo número con el signo contrario"
 )
 MU_ERD_SCOPE_NOTE: str = (
     "ERD central temporal, sin localización espacial -- demuestra el fenómeno de "

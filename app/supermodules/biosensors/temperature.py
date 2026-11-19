@@ -112,8 +112,11 @@ def render_temp_view(x_c: np.ndarray, fs: float, height: int = 260) -> None:
             state = 'Estable'
         else:
             state = 'Todavía cambia: espera'
-        render_metric_card('¿Ya se puede leer?', state, provenance=BADGES.CLINICAL,
-                           citation=f'±{STABLE_BAND_C:g} °C durante {STABLE_WINDOW_S / 60:.0f} min: {MARUI_2017}')
+        # Revisión de la tanda: sin «Validado por fuente»: Marui lo usó para un termómetro timpánico, no para esta sonda.
+        render_metric_card('¿Ya se puede leer?', state,
+                           citation=f'±{STABLE_BAND_C:g} °C durante {STABLE_WINDOW_S / 60:.0f} min, el criterio de '
+                                    f'estabilidad de un termómetro timpánico en {MARUI_2017}; aquí se aplica a la sonda '
+                                    'DS18B20, que no se validó con él')
 
 
 # ---------------------------------------------------------------- medición

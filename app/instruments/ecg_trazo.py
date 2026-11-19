@@ -311,19 +311,19 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
 
     if source_label == ECG_SIM_SOURCE_LABEL:
         st.info(
-            "Fuente simulada -- nunca escribe HR al gemelo. El HR de esta fuente es un valor "
+            "Fuente simulada -- nunca escribe FC al gemelo. La FC de esta fuente es un valor "
             "que TÚ elegiste en el slider, no algo medido de un paciente -- guardarlo confundiría "
             "'lo que pediste' con 'lo que se observó', aunque el generador ya sea fiel a ese valor "
             "(Fase 5B). Cambia a MIT-BIH, PTB-XL, un caso clínico o hardware ESP32 para guardar "
-            "un HR real."
+            "una FC real."
         )
         return
 
     from app.supermodules.ecg_live.monitor_source import SIMULATED_BOARD_SOURCE
 
     if source_label == SIMULATED_BOARD_SOURCE:          # antes caía en la rama «demo» por la palabra en su etiqueta
-        st.info("La placa simulada nunca escribe HR al gemelo: es una simulación, no una medición. Conecta la placa "
-                "real para guardar un HR medido.")
+        st.info("La placa simulada nunca escribe FC al gemelo: es una simulación, no una medición. Conecta la placa "
+                "real para guardar una FC medida.")
         return
 
     st.caption(

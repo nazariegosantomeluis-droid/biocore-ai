@@ -191,7 +191,7 @@ def test_ecg_estacion_no_guarda_demo():
     at = _ecg_at().run()
     assert not at.exception, at.exception
     assert not [b for b in at.button if b.key and b.key.endswith("ecg_lab_save_to_ups")]
-    assert any("Fuente demo (sintética) -- nunca escribe HR al gemelo" in i.value for i in at.info)
+    assert any("Fuente simulada -- nunca escribe" in i.value for i in at.info)          # antes «Fuente demo» (2026-11-19)
 
     before = _value_rows()
     at.radio(key="e1__ecg_monitor_source").set_value("Caso clínico (61 disponibles)").run()

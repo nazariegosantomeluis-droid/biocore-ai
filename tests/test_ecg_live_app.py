@@ -92,7 +92,7 @@ def test_sin_placa_dice_por_que_y_usa_la_demo(en_vivo):
     at = _monitoreo_con_hardware()
     assert at.exception == [], at.exception
     assert 'Buscando un dispositivo de ECG' in _textos(at.sidebar.info)
-    assert [s for s in at.sidebar.slider if s.label == 'FC demo (lpm)']     # la página cae a la demo
+    assert [s for s in at.sidebar.slider if s.label == 'FC de la simulación (lpm)']     # la página cae a la simulación
     assert 'SENSOR_REAL' not in _textos(at.sidebar.success, at.sidebar.warning)
 
 
