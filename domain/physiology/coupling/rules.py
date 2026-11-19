@@ -118,11 +118,26 @@ class CouplingCondition:
     operator: ComparisonOperator
     threshold: float
     unit: str
+    # T6.1 (2026-11-19, decisión de Luis): techo explícito. Por encima, la regla no se aplica (fuera del rango que
+    # describen sus fuentes). `upper_limit_basis` dice de dónde sale y de qué naturaleza es (obligatorio con techo).
+    upper_limit: Optional[float] = None
+    upper_limit_basis: Optional[str] = None
 
     def __post_init__(self) -> None:
         _validate_domain_and_descriptor(self.domain, self.descriptor)
+        if self.upper_limit is not None and not self.upper_limit_basis:
+            raise ValueError("Un techo necesita su fundamento (upper_limit_basis): de dónde sale y de qué naturaleza es.")
+
+    def above_limit(self, value: float) -> bool:
+        """¿El valor pasa el techo de la regla?"""
+        return self.upper_limit is not None and value > self.upper_limit
 
     def is_triggered_by(self, value: float) -> bool:
+        if self.above_limit(value):
+            return False
+        return self._meets_threshold(value)
+
+    def _meets_threshold(self, value: float) -> bool:
         if self.operator == ComparisonOperator.LESS_THAN:
             return value < self.threshold
         if self.operator == ComparisonOperator.LESS_THAN_OR_EQUAL:

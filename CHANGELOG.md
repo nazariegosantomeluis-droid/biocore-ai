@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-19 · T6.1: techo de la regla BAR, firmas y nombres de Hoy
+
+Decisiones de Luis (2026-11-19): «[La regla de arousal] necesita un techo explícito […] Tu pon ese límite con la literatura que encuentres, apruebo la regla de no combinar, mi firmo cubre todo y si, cambialo».
+
+1. **Techo de la regla BAR** (Art. I). `CouplingCondition` gana `upper_limit` y su fundamento obligatorio (`upper_limit_basis`); `is_triggered_by` no dispara por encima, así que el techo rige en todo camino que evalúe la regla (motor, puente, compositor neurocardiaco y compositor por regla).
+   - `AROUSAL_TAQUICARDIA_BAR`: BAR > 1.8 y ≤ 3.0. El techo es **Criterio BIOCORE (heurística)**: ninguna fuente da un BAR máximo. Motivo y fuentes en `docs/contenido/fichas_acoplamientos.md`: Li 2020 (la fracción de beta se duplica con una tarea), Vanhollebeke 2022 (el estrés baja el alfa, g = 0.6) y Goncharova 2003 (la actividad muscular imita la beta).
+   - **Hallazgo al medirlo:** no solo «Beta (activo)» (BAR ≈ 119) pasaba el umbral. «Theta (sueño ligero)» (≈ 3.5), «Delta (sueño profundo)» (≈ 3.9) y «Crisis (espigas)» (≈ 4.3) también: la regla sumaba +15 lpm «por arousal» a un paciente dormido. Con el techo, ninguno se aplica.
+   - **Patrón nuevo, simulado:** «Vigilia con arousal (alfa y beta)» en el instrumento de EEG (`awake_arousal` en `src/signals/eeg/eeg_generator.py`: alfa reducido + beta, BAR ≈ 2.4–2.6). Los demás patrones son de una sola banda. La estación de cierre de Cerebro lo sugiere para ver la regla aplicarse, y con «Beta (activo)» dice que el BAR pasa el techo.
+   - La estación muestra el techo y su fundamento junto a la regla. El resultado dice «pasa el techo de la regla (3.0, Criterio BIOCORE …)» cuando corresponde (`RuleEvaluation.above_limit`).
+2. **Firmas registradas:** la política de no combinar queda firmada (`bridge._combine_proposals_for_same_effect`, la estación y las fichas ya no dicen «sin política firmada»). «Mi firmo cubre todo»: la firma del 2026-11-18 cubre las propuestas de cada ficha.
+3. **Hoy:** las tres tarjetas llevan el nombre de su destino de la T5 y lo enlazan: Biblioteca (antes Aprender), Ruta (antes Practicar) y Paciente (antes Explorar), con su traducción.
+4. **Pruebas:**
+   - nuevo `tests/test_t6_1_techo_bar.py`: umbral y techo, sin techo en la regla de hipoxia, el compositor, el patrón nuevo, y la estación con «Beta (activo)»;
+   - dos pruebas de `test_coupling_subfase_b.py` pasan de BAR 4.0 a 2.5;
+   - las de la Ruta guardan el EEG con el patrón nuevo;
+   - las de las puertas de Hoy usan los nombres nuevos.
+
 ## 2026-11-18 · T6: las reglas firmadas disparan en la Ruta y se declaran
 
 Pedido de Luis: «Repara todo, aunque sea menor, todos los detalles de la tanda y empieza con T6». Diseño firmado, T6: «la estación de cierre de la Unidad Cerebro llama al compositor justo después de guardar el EEG, si hay una FC del paciente dentro de la ventana. La regla dispara en el flujo normal y la estación lo declara: qué regla, con qué cita, con qué confianza» y «Generalizar el compositor a pares de descriptores definidos por las reglas firmadas, en vez de solo bar + heart_rate, cuando exista la segunda regla». Ya existe: `HIPOXIA_TAQUICARDIA` (ficha 1).

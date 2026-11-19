@@ -127,7 +127,7 @@ def test_respiracion_practica_registra_news2():
 
 
 # ── Unidad Cerebro ─────────────────────────────────────────────────────────────────────────────────────────────────
-def _save_eeg(at, pattern="Beta (activo)"):
+def _save_eeg(at, pattern="Vigilia con arousal (alfa y beta)"):     # T6.1: BAR dentro del rango y del techo
     _go(at, "cerebro", "mide")
     at.selectbox(key="ruta_cerebro_mide__eeg_pattern").set_value(pattern).run()
     _button(at, "ruta_cerebro_mide__eeg_lab_save_to_ups").click().run()

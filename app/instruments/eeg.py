@@ -71,8 +71,13 @@ except Exception:
 
 SYNTHETIC_SOURCE = "Generar EEG sintético"
 CSV_SOURCE = "Cargar EEG desde CSV"
+# T6.1 (2026-11-19): vigilia con arousal simulada (alfa reducido + beta), la que da un BAR dentro del rango de la
+# fuente de la regla BAR; «Beta (activo)» es una sola banda y su BAR (≈ 100) pasa el techo de la regla.
+AROUSAL_PATTERN = "Vigilia con arousal (alfa y beta)"
+
 BASE_PATTERNS = [
     "Alfa (relajado)",
+    AROUSAL_PATTERN,
     "Beta (activo)",
     "Theta (sueño ligero)",
     "Delta (sueño profundo)",
@@ -82,6 +87,7 @@ BASE_PATTERNS = [
 ]
 PATTERN_MAP = {
     "Alfa (relajado)": "alpha",
+    AROUSAL_PATTERN: "awake_arousal",
     "Beta (activo)": "beta",
     "Theta (sueño ligero)": "theta",
     "Delta (sueño profundo)": "delta",

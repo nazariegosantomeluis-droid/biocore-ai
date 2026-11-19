@@ -140,4 +140,26 @@ Escribir hoy una regla con «activación > X» sería anclar una cifra de la fue
 | 1 · HIPOXIA_TAQUICARDIA | Propuestas: ancla `spo2 ≤ 91 %`; +13 lpm fijos; confianza 0.70 (`VALIDADO_POR_FUENTE`); bloqueada en `hypoxia`, `apnea`, `copd`, `sepsis` (por regla) y `seizure`, `stress`, `anxiety` (lista global); ventana de 120 s | 2026-11-18 |
 | 2 · CONTRACCION_ISOMETRICA_TAQUICARDIA | Opción A: pendiente de la calibración de la CVM; entonces ancla 30 % de la CVM ≥ 60 s, +12 lpm, confianza 0.70, bloqueos `exercise`, `seizure`, `stress`, `anxiety`, ventana de 120 s | 2026-11-18 |
 
-Al transcribir la ficha 1 hizo falta una política para dos reglas sobre la misma señal (ya son dos sobre `heart_rate`). Sin una política firmada, el puente **no combina**: si las dos disparan en el mismo snapshot, no se escribe ningún valor acoplado (`bridge._combine_proposals_for_same_effect`). Sumar o elegir quedaría para otra firma.
+Al transcribir la ficha 1 hizo falta una política para dos reglas sobre la misma señal (ya son dos sobre `heart_rate`): el puente **no combina**; si las dos disparan en el mismo snapshot, no se escribe ningún valor acoplado (`bridge._combine_proposals_for_same_effect`). Sumar o elegir quedaría para otra firma.
+
+**Firmas del 2026-11-19 (Luis):** «apruebo la regla de no combinar» (la política de arriba queda firmada) y «mi firmo cubre todo» (la firma del 2026-11-18 cubre las propuestas de cada ficha, como dice la hoja). La regla BAR gana un techo (sección siguiente).
+
+## Techo de la regla `AROUSAL_TAQUICARDIA_BAR` (T6.1, 2026-11-19)
+
+**Decisión de Luis (2026-11-19):** «Si el BAR ya está cerca de 100 (como ocurre con «Beta (activo)»), sumar +15 lpm a ciegas es un error de saturación […] Hay que acotar la regla con un límite superior explícito […] declarando explícitamente el tope y su naturaleza heurística/de modelo. Tu pon ese límite con la literatura que encuentres».
+
+**Techo: BAR ≤ 3.0.** Por encima, la regla no se aplica y la estación lo dice. Naturaleza: **Criterio BIOCORE (heurística)**. No es una cifra de ninguna fuente: ninguna de las que se leyeron da un BAR máximo.
+
+**Qué se encontró y cómo se leyó:**
+- La fuente de la regla (Schutter 2006, en su `source`) describe un BAR basal de 0.8–1.2 y de arousal > 1.8, sin valores más altos.
+- Li G y cols. 2020, *BMC Neurosci* 21:20, doi:10.1186/s12868-020-00569-1 *(texto completo, Discusión)*: con una tarea de aritmética mental, la fracción de beta sube de 15 % a 28 % (≈ el doble). Es un estudio de fatiga mental en 18 varones; no reporta el BAR.
+- Vanhollebeke G y cols. 2022, *Neurobiol Stress* 18:100452, doi:10.1016/j.ynstr.2022.100452 *(texto completo)*: metaanálisis del estrés psicosocial. El alfa baja de forma moderada a grande (g = 0.6, 7 estudios); el cambio de beta no es significativo (g = −0.31). No estudia el BAR.
+- Goncharova II y cols. 2003, *Clin Neurophysiol* 114(8):1580–1593, doi:10.1016/S1388-2457(03)00093-2 *(texto completo)*: «even weak contractions can produce EMG that obscures or mimics EEG alpha, mu, or beta rhythms over the entire scalp»; el efecto de la contracción muscular es mayor en beta que en alfa.
+
+**Cómo se llega a 3.0:** el doble del tope basal (1.2 × 2 = 2.4) cubre la beta que se duplica con alfa estable; 3.0 deja margen para la caída del alfa con el estrés. Más arriba, un BAR es más compatible con un alfa casi ausente (sueño, o una señal sintética de una sola banda) o con actividad muscular en beta que con arousal.
+
+**Qué cambió con el techo:** con el instrumento de EEG, los patrones de una sola banda dan un BAR fuera de rango («Beta (activo)» ≈ 119; «Theta (sueño ligero)» ≈ 3.5; «Delta (sueño profundo)» ≈ 3.9; «Crisis (espigas)» ≈ 4.3, medidos el 2026-11-19). Antes del techo, los cuatro habrían sumado +15 lpm «por arousal», incluido un paciente dormido. Se agregó el patrón simulado «Vigilia con arousal (alfa y beta)» (alfa reducido + beta; BAR ≈ 2.4–2.6), el que la estación de cierre de Cerebro sugiere para ver la regla aplicarse.
+
+| Regla | Decisión de Luis | Fecha |
+|---|---|---|
+| AROUSAL_TAQUICARDIA_BAR | Techo explícito con literatura y su naturaleza declarada («Tu pon ese límite con la literatura que encuentres»; «mi firmo cubre todo»): BAR ≤ 3.0, Criterio BIOCORE | 2026-11-19 |

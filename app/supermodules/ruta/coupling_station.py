@@ -91,6 +91,7 @@ def evaluate_after_save(prefix: str, rule, scenario: Optional[str], patient_id: 
         "coupled": None if c is None else {"base": c.base_value, "coupled": c.coupled_value,
                                            "confidence": c.confidence},
         "combined_with": list(r.combined_with),
+        "above_limit": r.above_limit,
         "inputs": _input_ids(r.condition, r.base),
     }
 
@@ -157,9 +158,14 @@ def render_result(prefix: str, rule, observed_note: Optional[str] = None, curren
         st.caption(COUPLED_NOTE)
         if observed_note:
             st.caption(observed_note.format(observed=r["observed"]))
+    elif r.get("above_limit"):
+        c = rule.condition
+        st.info(f"La regla {r['rule_id']} se evaluó y no se aplicó: {r['condition']} pasa el techo de la regla "
+                f"({c.upper_limit:.1f}, {c.upper_limit_basis.split('.')[0]}). Fuera del rango que describen sus "
+                "fuentes, la regla no suma nada.")
     elif r.get("combined_with"):
         st.info(f"La regla {r['rule_id']} se cumplió ({r['condition']}), pero en este guardado también se cumple "
-                f"{', '.join(r['combined_with'])}, que cambia la misma FC. Sin una política firmada para combinarlas, "
+                f"{', '.join(r['combined_with'])}, que cambia la misma FC. Por la política firmada de no combinar, "
                 "no se escribe ninguna.")
     else:
         confidence = confidence_for_validation_status(rule.validation_status)

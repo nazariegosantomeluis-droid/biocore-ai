@@ -70,7 +70,7 @@ def test_home_in_english_translates_the_interface_and_flags_signed_content():
     at = _open("inicio", "en")
     text = _markdown(at)
     assert "Active patient monitoring" in text and "Get it wrong here." in text
-    assert all(f"### {door}" in text for door in ("Learn", "Practice", "Explore"))
+    assert all(f"### {door}" in text for door in ("Library", "Path", "Patient"))       # 2026-11-19: los destinos
     assert "Monitoreo del paciente activo" not in text and "### Aprender" not in text
     assert i18n.SIGNED_CONTENT_NOTE in " ".join(c.value for c in at.main.caption)
     assert not at.main.info                              # el Inicio está traducido: sin aviso de página en español

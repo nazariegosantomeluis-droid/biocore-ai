@@ -83,6 +83,7 @@ class RuleEvaluation:
     base: Optional[MeasuredValue] = None
     coupled: Optional[AppliedCoupling] = field(default=None)
     combined_with: Tuple[str, ...] = ()
+    above_limit: bool = False               # T6.1: la condición pasa el techo de la regla; no se aplica
 
 
 def latest_measured(session: Session, patient_id: str, domain: str, name: str) -> Optional[MeasuredValue]:
@@ -233,4 +234,5 @@ def evaluate_rule_for_patient(session: Session, patient_id: str, rule: CouplingR
                if a.rule_id == rule.rule_id]
     competing = _competing(get_state_by_snapshot_id(session, target), rule, scenario) if not applied else ()
     return RuleEvaluation(rule.rule_id, True, snapshot_id=target, wrote_snapshot=wrote, gap_s=gap, condition=cond,
-                          base=base, coupled=applied[0] if applied else None, combined_with=competing)
+                          base=base, coupled=applied[0] if applied else None, combined_with=competing,
+                          above_limit=rule.condition.above_limit(cond.descriptor.value))

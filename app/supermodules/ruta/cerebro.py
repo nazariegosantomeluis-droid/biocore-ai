@@ -33,13 +33,14 @@ FLOW_NOTE = ("La regla se evalúa sola cada vez que guardas el EEG de tu pacient
              "Solo junta un BAR y una FC medidos, nunca la FC proyectada del escenario ni la copia de una evaluación "
              "anterior, y solo si los separa como mucho la ventana firmada de la regla.")
 
-# T4.1 (2026-11-18): con la señal sintética «Beta (activo)» el alfa casi desaparece y el BAR sale cerca de 100. La
-# regla solo compara con el umbral y suma una cantidad fija; la estación lo dice con el rango que describe la fuente
-# (`AROUSAL_TAQUICARDIA_BAR.source`: Schutter 2006, basal 0.8-1.2, arousal > 1.8).
+# T4.1 y T6.1 (2026-11-19): la regla compara con su umbral y su techo y suma una cantidad fija. La estación lo dice
+# con el rango que describe la fuente (Schutter 2006, basal 0.8-1.2, arousal > 1.8) y el techo firmado (3.0).
 SOURCE_RANGE_NOTE = ("Rango que describe la fuente (Schutter 2006): BAR basal 0.8–1.2 y de arousal > 1.8; el de tu "
-                     "paciente es {observed:.2f}. La regla solo compara con el umbral y suma una cantidad fija: el aumento de "
-                     "la FC no crece con el BAR. Un BAR muy por encima de esos valores sale de una señal sintética con "
-                     "casi nada de alfa (patrón «Beta (activo)»), no de una persona.")
+                     "paciente es {observed:.2f}. La regla suma una cantidad fija: el aumento de la FC no crece con el "
+                     "BAR.")
+PATTERN_NOTE = ("Para ver la regla aplicarse, en «Mide» elige «{arousal}»: es una vigilia simulada con alfa reducido y "
+                "beta, y su BAR cae en el rango de arousal. «Beta (activo)» es una sola banda, casi sin alfa: su BAR "
+                "sale cerca de 100 y pasa el techo de la regla.")
 
 
 def station_patient() -> None:
@@ -91,12 +92,14 @@ def _render_rule() -> None:
     from domain.physiology.coupling import confidence_for_validation_status
 
     c, e = RULE.condition, RULE.effect
-    st.markdown(f"**Regla firmada `{RULE.rule_id}`:** si el BAR de tu paciente es mayor que {c.threshold:g}, su FC "
-                f"aumenta {e.magnitude_delta:+.0f} lpm (rango de la fuente: {e.magnitude_hint.replace('bpm', 'lpm')}).")
+    st.markdown(f"**Regla firmada `{RULE.rule_id}`:** si el BAR de tu paciente es mayor que {c.threshold:g} y no pasa "
+                f"el techo de {c.upper_limit:.1f}, su FC aumenta {e.magnitude_delta:+.0f} lpm (rango de la fuente: "
+                f"{e.magnitude_hint.replace('bpm', 'lpm')}).")
     confidence = confidence_for_validation_status(RULE.validation_status)
     status = "validada por su fuente" if RULE.validation_status.name == "VALIDADO_POR_FUENTE" else "transcrita sin validar"
     st.caption(f"Fuente: {RULE.source}. Regla {status}; la FC acoplada se guarda como cálculo de la regla "
                f"(derivado por acoplamiento) con confianza {confidence:.2f}: sigue siendo un cálculo, no una medición.")
+    st.caption(f"Techo de {c.upper_limit:.1f}: {c.upper_limit_basis}")
 
 
 def _evaluate(patient_id: Optional[str]) -> None:
@@ -116,6 +119,9 @@ def station_closing() -> None:
     st.markdown("#### Arousal y frecuencia cardiaca")
     _render_rule()
     st.caption(FLOW_NOTE)
+    from app.instruments.eeg import AROUSAL_PATTERN
+
+    st.caption(PATTERN_NOTE.format(arousal=AROUSAL_PATTERN))
     CS.render_station(PREFIX, RULE, p["patient_id"], p["scenario"], observed_note=SOURCE_RANGE_NOTE)
 
 

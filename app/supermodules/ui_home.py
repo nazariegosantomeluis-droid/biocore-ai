@@ -3,7 +3,7 @@
 Arriba, el logo, el lema y la franja de monitoreo del paciente activo con una vista previa de la tira; al bajar, el
 logo y el monitoreo suben y se quedan arriba en pequeño (CSS de `inject_global_theme`). Debajo, el selector de órganos;
 al centro, el gemelo (lo que el UPS tiene de ese órgano, con su sello) y la ruta del órgano; a la derecha, las tres
-puertas de la decisión 2 como tarjetas (Aprender, Practicar y Explorar).
+puertas de la decisión 2 como tarjetas, con el nombre de su destino desde el 2026-11-19 (Biblioteca, Ruta y Paciente).
 
 Art. I: la franja muestra el ÚLTIMO estado guardado en el UPS, no una señal en vivo; la vista previa es la tira del kit
 (registro real MIT-BIH 100) con su rótulo de procedencia, no la señal del paciente. Cada valor lleva su sello (manual
@@ -254,7 +254,7 @@ def _render_learn_card(organ: C.Organ) -> None:
 
     topics = C.topics_for(organ.key)
     with st.container(key="bc_card_learn"):
-        st.markdown(f"### {t('Aprender')}")
+        st.markdown(f"### {t('Biblioteca')}")          # 2026-11-19: el nombre del destino de la T5 (antes «Aprender»)
         if not topics:
             st.caption(t("Este sistema todavía no tiene un tema firmado; está en sus laboratorios."))
         else:
@@ -277,7 +277,7 @@ def _render_learn_card(organ: C.Organ) -> None:
                     if q.source:
                         st.caption(f"{t('Fuente')}: {q.source}")
             st.button(t("Abrir el tema"), key=f"bc_open_topic_{organ.key}", on_click=_go_to_topic, args=(topic.key,))
-        nav.link("teoria", t("Ir a Teoría"))
+        nav.link("biblioteca", t("Ir a la Biblioteca"))
 
 
 def _render_practice_card() -> None:
@@ -287,7 +287,7 @@ def _render_practice_card() -> None:
 
     summary = summarize(get_session_log())
     with st.container(key="bc_card_practice"):
-        st.markdown(f"### {t('Practicar')}")
+        st.markdown(f"### {t('Ruta')}")                # antes «Practicar»
         st.markdown(f"**{t('Avance de esta sesión')}**")
         if summary.total == 0:
             st.caption(t("Todavía no hay respuestas registradas en esta sesión."))
@@ -295,7 +295,7 @@ def _render_practice_card() -> None:
             correct = sum(row.correct for row in summary.concepts)
             st.markdown(f"<span class='bc-value'>{correct} {t('de')} {summary.total}</span>", unsafe_allow_html=True)
             st.caption(t("respuestas correctas en esta sesión"))
-        nav.link("cuestionarios", t("Ir a Practicar"))
+        nav.link("ruta", t("Ir a la Ruta"))
         nav.link("mi-sesion", t("Tu aprendizaje en esta sesión"))
 
 
@@ -305,12 +305,13 @@ def _render_labs_card() -> None:
 
     pid = peek_active_patient_id()
     with st.container(key="bc_card_clinical"):
-        st.markdown(f"### {t('Explorar')}")
+        st.markdown(f"### {t('Paciente')}")            # antes «Explorar»
         st.markdown(f"**{t('Expediente')}**")
         if pid is None:
             st.caption(t("Sin paciente activo."))
         else:
             st.markdown(f"{t('Paciente')} `{pid[:8]}` · {snapshot_count(pid)} {t('estados guardados en el UPS')}")
+        nav.link("paciente", t("Ir a Paciente"))
         nav.link("gemelo", t("Ir al gemelo digital"))
         nav.link("comparar", t("Comparar pacientes"))
         nav.link("pacientes", t("Pacientes"))
