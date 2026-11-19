@@ -148,7 +148,7 @@ Al transcribir la ficha 1 hizo falta una política para dos reglas sobre la mism
 
 **Decisión de Luis (2026-11-19):** «Si el BAR ya está cerca de 100 (como ocurre con «Beta (activo)»), sumar +15 lpm a ciegas es un error de saturación […] Hay que acotar la regla con un límite superior explícito […] declarando explícitamente el tope y su naturaleza heurística/de modelo. Tu pon ese límite con la literatura que encuentres».
 
-**Techo: BAR ≤ 3.0.** Por encima, la regla no se aplica y la estación lo dice. Naturaleza: **Criterio BIOCORE (heurística)**. No es una cifra de ninguna fuente: ninguna de las que se leyeron da un BAR máximo. Luis encargó elegirla con la literatura; **la cifra 3.0 está pendiente de que Luis la confirme**.
+**Techo: BAR ≤ 3.0.** Por encima, la regla no se aplica y la estación lo dice. Naturaleza: **Criterio BIOCORE (heurística)**. No es una cifra de ninguna fuente: ninguna de las que se leyeron da un BAR máximo. Luis encargó elegirla con la literatura y **la confirmó el 2026-11-19** («Si, confirmo ambos»: el techo y el requisito de vigilia).
 
 **Qué se encontró y cómo se leyó:**
 - La fuente de la regla (Schutter 2006, en su `source`) describe un BAR basal de 0.8–1.2 y de arousal > 1.8, sin valores más altos.
@@ -164,4 +164,4 @@ Al transcribir la ficha 1 hizo falta una política para dos reglas sobre la mism
 
 | Regla | Decisión de Luis | Fecha |
 |---|---|---|
-| AROUSAL_TAQUICARDIA_BAR | Techo explícito con literatura y su naturaleza declarada («Tu pon ese límite con la literatura que encuentres»; «mi firmo cubre todo»). Elegido: BAR ≤ 3.0 y solo con un EEG de vigilia, Criterio BIOCORE. ☐ Luis confirma la cifra 3.0 | 2026-11-19 |
+| AROUSAL_TAQUICARDIA_BAR | Techo explícito con literatura y su naturaleza declarada («Tu pon ese límite con la literatura que encuentres»; «mi firmo cubre todo»). Elegido: BAR ≤ 3.0 y solo con un EEG de vigilia, Criterio BIOCORE. ☑ Confirmado por Luis («Si, confirmo ambos») | 2026-11-19 |

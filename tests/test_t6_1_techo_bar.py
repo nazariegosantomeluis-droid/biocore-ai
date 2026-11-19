@@ -161,7 +161,8 @@ def test_el_compositor_del_gemelo_dice_por_que_no_acopla(sf, pid, eeg, word):
 def test_el_techo_no_se_presenta_como_firmado_y_tiene_su_naturaleza_corta():
     c = AROUSAL_TAQUICARDIA_BAR.condition
     assert c.upper_limit_nature == "Criterio BIOCORE, heurística"
-    assert "firmado por Luis" not in c.upper_limit_basis and "pendiente de que Luis confirme" in c.upper_limit_basis
+    # Luis confirmó la cifra y el requisito de vigilia el 2026-11-19 («Si, confirmo ambos»).
+    assert "confirmado por Luis el 2026-11-19" in c.upper_limit_basis and "pendiente" not in c.upper_limit_basis
     assert "a lo sumo" not in c.upper_limit_basis
 
 

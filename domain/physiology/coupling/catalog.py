@@ -63,7 +63,8 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
         upper_limit_nature="Criterio BIOCORE, heurística",
         upper_limit_basis=(
             "Criterio BIOCORE (heurística, no es una cifra de la fuente). Elegido el 2026-11-19 por encargo de Luis "
-            "(«Tu pon ese límite con la literatura que encuentres»), pendiente de que Luis confirme la cifra. La fuente "
+            "(«Tu pon ese límite con la literatura que encuentres») y confirmado por Luis el 2026-11-19 («Si, confirmo "
+            "ambos»), con el requisito de un EEG de vigilia. La fuente "
             "describe BAR basal 0.8-1.2 y arousal > 1.8, sin valores más altos. En un estudio, con una tarea mental la "
             "fracción de beta subió de 15 a 28 %, cerca del doble (Li 2020, BMC Neurosci 21:20), y el estrés baja el "
             "alfa de forma moderada (Vanhollebeke 2022, Neurobiol Stress 18:100452, g = 0.6): el doble del tope basal "
