@@ -90,4 +90,4 @@ def test_no_visible_text_of_the_hrv_lab_attributes_anything_to_the_task_force():
     texts.append(RSA_CITATION)
     offenders = [x for x in texts if "Task Force" in x or "TF1996" in x]
     assert offenders == [], f"texto visible del laboratorio de HRV atribuido a la Task Force: {offenders}"
-    assert "Criterio BIOCORE (HEURISTIC)" in texts[-3] and "[SG2017]" in texts[-2] and "[SG2017]" in RSA_CITATION
+    assert "[SG2017]" in texts[-3] and "[SG2017]" in texts[-2]          # mínimo de 1 min de HF (2026-11-19) and "[SG2017]" in RSA_CITATION

@@ -90,20 +90,20 @@ def save_blocker(live: Optional[LiveData], channel: str) -> Optional[str]:
     return f"El canal {channel} tiene problemas de calidad: " + " ".join(live.quality[channel].messages)
 
 
-def channel_summary(result, interpretation_applies: bool) -> str:
-    """Resumen de un canal. Con EEG real, solo lo medido: sin «Clasificación» ni «Interpretación»."""
-    if interpretation_applies:
-        return result.summary
+def channel_summary(result) -> str:
+    """Resumen de un canal: solo lo medido, sin «Clasificación» ni «Interpretación». Tanda de heurísticas
+    (2026-11-19): la traducción banda → estado («Despierto relajado»…) no tenía fuente; antes se mostraba con la señal
+    sintética."""
     bp = result.band_power
-    return (f"Banda con más potencia: {band_label_es(result.dominant_band)} (no se traduce a un estado con EEG real). "
+    return (f"Banda con más potencia: {band_label_es(result.dominant_band)} (no se traduce a un estado: BIOCORE no "
+            f"tiene una fuente para hacerlo). "
             f"Potencia: Δ={bp['delta']:.2f}, θ={bp['theta']:.2f}, α={bp['alpha']:.2f}, β={bp['beta']:.2f}, "
             f"γ={bp['gamma']:.2f}.")
 
 
-def visible_findings(findings: Dict[str, str], interpretation_applies: bool) -> Dict[str, str]:
-    """Con EEG real se ocultan las frases que traducen la banda dominante a un estado (ver `REAL_EEG_NOTE`)."""
-    if interpretation_applies:
-        return dict(findings)
+def visible_findings(findings: Dict[str, str]) -> Dict[str, str]:
+    """Sin las frases que traducen la banda dominante a un estado (ver `REAL_EEG_NOTE`; desde la tanda de heurísticas,
+    2026-11-19, con cualquier fuente: no tienen fuente)."""
     return {k: v for k, v in findings.items() if k not in HIDDEN_FOR_REAL_EEG}
 
 

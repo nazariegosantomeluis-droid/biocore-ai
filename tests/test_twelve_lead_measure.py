@@ -28,7 +28,7 @@ HR = {"tachycardia": 120.0, "bradycardia": 45.0, "af": 130.0, "flutter": 150.0}
 EXPECTED = {
     "normal": set(), "tachycardia": {"sinus_tachycardia"}, "bradycardia": {"sinus_bradycardia"},
     "anterior_stemi": {"stemi"}, "inferior_stemi": {"stemi"}, "lateral_stemi": {"stemi"}, "rbbb": {"rbbb"},
-    "lbbb": {"lbbb"}, "lvh": {"lvh"}, "af": {"af"}, "flutter": set(), "wpw": {"preexcitation"},
+    "lbbb": {"lbbb"}, "lvh": {"lvh"}, "af": set(), "flutter": set(), "wpw": set(),
     "long_qt": {"qtc", "qtc_500"},
 }
 NORMAL_WHEN_MET = {"sinus", "t_wave"}
@@ -152,9 +152,38 @@ def test_eight_independent_leads_are_completed_by_einthoven_and_goldberger():
 
 def test_flutter_is_not_called_anything_the_analyzer_cannot_identify():
     rep = analyze_twelve_lead(generate_twelve_lead("flutter", 150.0)[0])
-    assert rep.criterion("af").met is False and rep.criterion("rhythm_unidentified").met is None
+    assert rep.criterion("af").met is not True and rep.criterion("rhythm_unidentified").met is None
     assert "ondas F" in rep.criterion("rhythm_unidentified").detail
     assert rep.criterion("t_wave").met is None
+
+
+def test_preexcitation_measures_the_slow_qrs_onset_but_does_not_judge_the_delta_wave():
+    """Tanda de heurísticas (2026-11-19): «onda delta si ≥ 30 ms» no tiene fuente. Con PR < 120 y QRS > 120 (cifras de
+    [Surawicz 2009]) el criterio queda sin juzgar y muestra el inicio lento medido; sin ellas se descarta. Mientras la
+    preexcitación sea posible, no se evalúa un bloqueo de rama encima."""
+    import src.signals.ecg.twelve_lead_measure as M
+
+    assert not hasattr(M, "DELTA_SLOW_MS")
+    rep = analyze_twelve_lead(generate_twelve_lead("wpw", 75.0)[0])
+    c = rep.criterion("preexcitation")
+    assert c.met is None and "inicio lento del QRS" in c.detail and "criterio BIOCORE" not in c.detail
+    assert rep.criterion("rbbb").met is None and rep.criterion("lbbb").met is None
+    assert analyze_twelve_lead(generate_twelve_lead("normal", 75.0)[0]).criterion("preexcitation").met is False
+    assert "umbrales técnicos propios de BIOCORE" in M.METHOD_NOTE
+
+
+def test_without_p_waves_the_rr_pattern_is_left_to_the_student_with_the_measured_cv():
+    """Tanda de heurísticas (2026-11-19): el corte de 8 % del coeficiente de variación no tiene fuente. Sin onda P
+    discernible, el criterio de FA [ESC 2024] no se juzga solo: muestra el CV medido y pide mirar si los RR tienen
+    patrón. Con P sinusal la FA se descarta (la definición pide P ausentes)."""
+    import src.signals.ecg.twelve_lead_measure as M
+
+    assert not hasattr(M, "RR_REGULAR_CV")
+    af = analyze_twelve_lead(generate_twelve_lead("af", 130.0)[0])
+    assert af.regular is None and af.rr_cv > 0
+    c = af.criterion("af")
+    assert c.met is None and "Coeficiente de variación" in c.detail and "heurística" not in c.detail
+    assert analyze_twelve_lead(generate_twelve_lead("normal", 75.0)[0]).criterion("af").met is False
 
 
 def test_too_short_or_empty_records_do_not_invent_values():

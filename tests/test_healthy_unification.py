@@ -88,7 +88,7 @@ def test_seizure_after_the_ictal_phase_returns_to_the_same_declared_healthy_pers
 
 def test_the_declaration_shows_the_ranges_the_seed_and_this_instance():
     text = SimulationEngine(seed=9).instance_declaration(SimulationScenario.HEALTHY)
-    assert "FC 60-85" in text and "semilla 9" in text and "PENDING_VALIDATION" in text
+    assert "FC 60-85" in text and "semilla 9" in text and "Pendiente de validación" in text and "PENDING_VALIDATION" not in text
     assert f"FC {hb.instance(9)['hr']:.1f}" in text.split("Esta instancia")[1]
     assert "referencia" in SimulationEngine(seed=0).instance_declaration(SimulationScenario.HEALTHY)
     assert SimulationEngine().instance_declaration(SimulationScenario.SEPSIS) is None

@@ -153,7 +153,8 @@ def test_the_differentiation_quiz_answer_comes_from_berry_and_the_wrong_options_
     assert not any("✓" in o for o in options)
     answers.set_value("En el esfuerzo respiratorio").run()
     ok = " ".join(s.value for s in at.success)
-    assert "Berry 2012 (§4.1.1)" in ok and "esfuerzo respiratorio" in ok and "Criterio BIOCORE" in ok and "PENDING_VALIDATION" in ok
+    assert "Berry 2012 (§4.1.1)" in ok and "esfuerzo respiratorio" in ok and "se reanuda" in ok      # mixta: Berry 2012
+    assert "Criterio BIOCORE" not in ok and "PENDING_VALIDATION" not in ok                          # 2026-11-19
     for wrong in [o for o in options if o != "En el esfuerzo respiratorio"]:
         [r for r in at.radio if r.label == "Tu respuesta:"][0].set_value(wrong).run()
         err = " ".join(e.value for e in at.error)
@@ -168,7 +169,7 @@ def test_references_classify_the_apnea_by_effort_with_labels_and_no_unsourced_as
     at = _app(tmp_path)
     text = " ".join(" ".join(m.value for m in at.markdown).split())
     assert "se basa en el esfuerzo respiratorio" in text and "§4.1.1" in text
-    assert "Central (Criterio BIOCORE)" in text and "Obstructiva (Criterio BIOCORE)" in text
+    assert "Central (Berry 2012)" in text and "Obstructiva (Berry 2012)" in text and "Mixta (Berry 2012)" in text
     assert "se observa a menudo durante una apnea u hipopnea obstructiva" in text            # Berry 2012 (RIP)
     assert "resultado directo del colapso repetitivo de la vía aérea superior" in text         # Epstein 2009
     assert "Atáxica (descripción de la simulación)" in text and "no hay afirmación clínica sobre su causa" in text

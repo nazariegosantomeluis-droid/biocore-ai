@@ -32,7 +32,7 @@ Fase 2b (2026-11-07, criterios firmados por Luis):
   profundidad `desaturation_rate · T` y recuperación en rampa a TASA CONSTANTE `resaturation_rate`
   (la duración de la recuperación resulta de la profundidad, por eso `recovery_time` se retiró).
   `desaturation_level` es el piso. Fuentes y estado de cada valor en `SPO2_MODEL_SOURCES`.
-- Atáxica: duración y profundidad aleatorias por respiración (parámetro `irregularity`, HEURISTIC).
+- Atáxica: duración y profundidad aleatorias por respiración (parámetro `irregularity` de la simulación).
 - Cheyne-Stokes: cada valle es una apnea CENTRAL anotada en el ground truth (esfuerzo ausente).
 
 Unidades de la señal de flujo (verificado por ejecución, 2026-11-07): es FLUJO en L/min con pico =
@@ -53,7 +53,9 @@ AIRFLOW_UNITS = "L/min (escala del generador: pico = volumen_corriente x FR; el 
 
 # Estado de cada valor del modelo de SpO2 (criterios firmados por Luis, 2026-11-07).
 SPO2_MODEL_SOURCES = {
-    "circulation_delay_s": "Valor BIOCORE (Tc = 15 s; la fuente solo da el límite normal < 20 s: Hsia 2026, Sensors 26(15):4849)",
+    # Tanda de heurísticas (2026-11-19): Tc pasa de 15 s («Valor BIOCORE») a la mediana publicada de Kwon 2020.
+    "circulation_delay_s": ("Kwon 2020 (Sleep Med 75:8–11, MESA: mediana del tiempo pulmón-dedo 19.4 s); Hsia 2026 "
+                            "(Sensors 26(15):4849) da el límite normal < 20 s"),
     "desaturation_rate_pct_s": "Howarth 2026 (Sleep Breath, SHHS: media 0.30 %/s)",
     "resaturation_rate_pct_s": "Howarth 2026 (Sleep Breath, SHHS: media 0.70 %/s)",
     "buffer_latency": "no modelada (L = 0)",
@@ -104,8 +106,8 @@ class RespiratoryPattern:
     # SpO2 related
     baseline_spo2: float = 98  # %
     desaturation_level: float = 85  # % PISO de la SpO2 durante un evento
-    # Modelo de SpO2 (fase 2b). Tc = "Valor BIOCORE"; las tasas son medias de Howarth 2026 (SHHS).
-    circulation_delay: float = 15.0  # s, rango 5-30
+    # Modelo de SpO2 (fase 2b). Tc = mediana de Kwon 2020 (antes 15 s, «Valor BIOCORE»); tasas: medias de Howarth 2026.
+    circulation_delay: float = 19.4  # s, rango 5-30
     desaturation_rate: float = 0.30  # %/s
     resaturation_rate: float = 0.70  # %/s
 

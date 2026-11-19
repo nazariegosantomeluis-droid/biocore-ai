@@ -219,7 +219,8 @@ def test_hrv_lab_shows_the_three_metrics_and_the_real_vs_noise_contrast():
         assert re.search(rf"<strong>{label}[^<]*</strong>: ", md), label
     assert "casi periódica" in md and "sin estructura autonómica" in md
     assert "alfa2" in md and ">1000 latidos" in md
-    assert "PENDING_VALIDATION" in " ".join(i.value for i in at.info)
+    info = " ".join(i.value for i in at.info)                 # tanda de heurísticas (2026-11-19): sin la etiqueta de código
+    assert "PENDING_VALIDATION" not in info and "no tiene firma del experto" in info
     assert any("Poincar" in c.proto.spec for c in at.get("plotly_chart"))
 
 

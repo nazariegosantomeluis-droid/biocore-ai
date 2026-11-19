@@ -203,12 +203,9 @@ REACHABLE = {
         "IA → Narración con IA (opcional)": ["Narración con IA (opcional)"],
         "Tutorial → pestaña": ["Laboratorio"],
     },
+    # Tanda de heurísticas (2026-11-19): Luis retiró los canales demo; queda la vista de los sensores en vivo.
     "multisensor": {
-        "Educativa → arriba": ["Canales"],
-        "Investigación → Cómo se calcula": ["Cómo se calcula", "Exportar multisensor para investigación"],
-        "Simulación → Simular": ["Simular", "FC (lpm)", "SpO₂ (%)", "FR (resp/min)"],
-        "IA → Narración con IA (opcional)": ["Narración con IA (opcional)"],
-        "Sensores en vivo → pestaña": ["Canales demo", "Sensor", "Qué quieres hacer"],
+        "Sensores en vivo → arriba": ["Sensor", "Qué quieres hacer"],
     },
     "respiratorio": {
         "Investigación → Cómo se calcula": ["Cómo se calcula"],
@@ -235,7 +232,7 @@ def test_every_function_of_the_old_views_is_still_on_the_page(url):
 def test_the_narrators_are_reachable_and_still_honest_without_a_key():
     from app.utils.ai_session import AI_OFF
 
-    for url in ("ecg", "emg", "multisensor", "pacientes"):
+    for url in ("ecg", "emg", "pacientes"):                 # multisensor: sin canales demo no hay qué narrar (2026-11-19)
         at = _open(url)
         expander = next(e for e in at.expander if e.label == "Narración con IA (opcional)")
         assert not expander.proto.expanded

@@ -136,35 +136,40 @@ ENTRIES: Tuple[Evidencia, ...] = (
     _calc("pao2_alveolar", "PAO₂ (alveolar)", 400, "clinical.calculators.alveolar_po2", 447,
           _c("PAO₂ = FiO₂·(Patm − 47) − PaCO₂/R (`ALVEOLAR_GAS_CITATION`).", 449),
           fuente=Fuente(cita=_c("Ecuación del gas alveolar, forma simplificada: PAO₂ = FiO₂·(Patm − PH₂O) − PaCO₂/R", 112))),
-    Evidencia("calculadoras.aa_gradient", "calculadoras", "Gradiente A–a", f"{PAGE}:409",
+    Evidencia("calculadoras.aa_gradient", "calculadoras", "Gradiente A–a", f"{PAGE}:404",
               "app.supermodules.calculators.pages._render_oxygenation_tab", f"{PAGE}:391", None, None,
               _c("gradient = alveolar - pao2", 392, PAGE),
-              _c("la regla del valor esperado (edad/4 + 4) solo aplica en aire ambiente", 414, PAGE),
-              _c("estimación, no un estándar validado -- se muestra como heurística", 463), None),
-    _calc("pf_ratio", "PaO₂/FiO₂", 415, "clinical.calculators.pf_ratio", 470, _c("return pao2_mmhg / fio2", 474),
+              _c("El gradiente A–a esperado para la edad (2.5 + 0.21·edad) solo aplica en aire ambiente.", 409, PAGE),
+              None, None),
+    # Tanda de heurísticas (2026-11-19): el esperado con fuente (antes edad/4 + 4, sin fuente, y un semáforo con él).
+    _calc("aa_expected", "Gradiente A–a esperado para la edad", 406, "clinical.calculators.expected_aa_gradient", 462,
+          _c("return 2.5 + 0.21 * age_years", 467),
+          supuestos=_c("valor esperado, no un límite de lo normal: la calculadora no juzga el gradiente con él.", 464),
+          fuente=_bib("EXPECTED_AA_CITATION")),
+    _calc("pf_ratio", "PaO₂/FiO₂", 410, "clinical.calculators.pf_ratio", 470, _c("return pao2_mmhg / fio2", 474),
           fuente=_bib("BERLIN_CITATION")),
 
     # ── Calculadoras: antropometría ──
-    _calc("bmi", "IMC", 486, "clinical.calculators.body_mass_index", 353, _c("return weight_kg / (h_m * h_m)", 357),
+    _calc("bmi", "IMC", 481, "clinical.calculators.body_mass_index", 353, _c("return weight_kg / (h_m * h_m)", 357),
           supuestos=_c("Las categorías de IMC de la OMS son para adultos; en niños y adolescentes se usan percentiles por "
-                       "edad y sexo.", 493, PAGE),
+                       "edad y sexo.", 488, PAGE),
           fuente=_bib("WHO_BMI_CITATION")),
-    _calc("bsa_mosteller", "ASC (Mosteller)", 488, "clinical.calculators.bsa_mosteller", 403,
+    _calc("bsa_mosteller", "ASC (Mosteller)", 483, "clinical.calculators.bsa_mosteller", 403,
           _c("ASC (m²) = √(talla_cm × peso_kg / 3600).", 404), fuente=_bib("MOSTELLER_CITATION")),
-    _calc("bsa_dubois", "ASC (Du Bois)", 491, "clinical.calculators.bsa_dubois", 410,
+    _calc("bsa_dubois", "ASC (Du Bois)", 486, "clinical.calculators.bsa_dubois", 410,
           _c("ASC (m²) = 0.007184 × peso^0.425 × talla^0.725.", 411), fuente=_bib("DUBOIS_CITATION")),
 
     # ── Calculadoras: escalas ──
-    _calc("news2", "NEWS2", 515, "clinical.calculators.news2_score", 703,
+    _calc("news2", "NEWS2", 510, "clinical.calculators.news2_score", 703,
           _c("NEWS2 (`NEWS2_CITATION`). `alert=False` = cualquier categoría CVPU (confusión nueva, responde a la voz, al "
              "dolor, o no responde) → 3.", 705), fuente=_NEWS2_SOURCE),
-    _calc("qsofa", "qSOFA", 532, "clinical.calculators.qsofa_score", 751,
+    _calc("qsofa", "qSOFA", 527, "clinical.calculators.qsofa_score", 751,
           _c("qSOFA (`QSOFA_CITATION`): FR ≥22, PAS ≤100, alteración mental.", 752),
           fuente=Fuente(cita=_c("Seymour CW, Liu VX, Iwashyna TJ, et al. Assessment of clinical criteria for sepsis "
                                 "(Sepsis-3).", 124))),
-    _calc("gcs", "Glasgow", 548, "clinical.calculators.glasgow_coma_scale", 772,
+    _calc("gcs", "Glasgow", 543, "clinical.calculators.glasgow_coma_scale", 772,
           _c("GCS = O + V + M (3–15) (`GCS_CITATION`).", 773), fuente=_bib("GCS_CITATION")),
-    _calc("osa_severity", "Índice de eventos por hora", 567, "clinical.calculators.event_index_per_hour", 379,
+    _calc("osa_severity", "Índice de eventos por hora", 562, "clinical.calculators.event_index_per_hour", 379,
           _c("Índice de eventos respiratorios por hora = eventos / horas (de sueño en polisomnografía, de registro en un "
              "monitor portátil; `OSA_SEVERITY_CITATION`).", 380),
           fuente=Fuente(cita=_c("Epstein LJ, Kristo D, Strollo PJ Jr, et al. Clinical guideline for the evaluation, "

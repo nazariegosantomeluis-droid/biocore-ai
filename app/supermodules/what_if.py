@@ -30,11 +30,11 @@ import streamlit as st
 PROVENANCE = "calculado por el motor de lazo cerrado de BIOCORE"
 GRADED_AGAINST = "Se califica contra lo que calcula el modelo de BIOCORE, no contra un paciente real."
 
-# Criterio BIOCORE (HEURISTIC): por debajo de este cambio relativo respecto al valor basal, la salida cuenta como «sin
-# cambio». Sin cita: es un valor de ingeniería para separar el redondeo numérico de un cambio que se lee en pantalla.
-NO_CHANGE_REL = 0.02
-NO_CHANGE_LABEL = (f"Criterio BIOCORE (HEURISTIC): un cambio menor que el {NO_CHANGE_REL:.0%} del valor basal cuenta "
-                   "como «sin cambio».")
+# Tanda de heurísticas (2026-11-19): antes, un cambio menor que el 2 % del basal contaba como «sin cambio» (Criterio
+# BIOCORE, sin cita). Ahora cuenta como «sin cambio» lo que no se ve con los decimales de la tabla: el alumno ve los dos
+# números iguales. No es un umbral clínico; es la misma resolución con que se muestran.
+NO_CHANGE_LABEL = ("Un cambio que no se ve con los decimales de la tabla (PAM y volumen sistólico con 1, gasto "
+                   "cardiaco con 2) cuenta como «sin cambio».")
 
 # La cadena tal como la escribe el código (docstring de `domain/physiology/hemodynamics/closed_loop.py`).
 MODEL_CHAIN = ("retorno venoso -> EDV (con techo diastólico, Módulo 4B-i) -> SV (Frank-Starling, eslabón 1) -> "
@@ -101,19 +101,20 @@ def engine_outputs(scenario: str, heart_rate_bpm: float) -> Dict[str, float]:
     }
 
 
-def direction(base: float, new: float) -> str:
-    """Signo del cambio, con el umbral de «sin cambio» (`NO_CHANGE_REL`)."""
-    if abs(new - base) < NO_CHANGE_REL * abs(base):
+def direction(base: float, new: float, decimals: int) -> str:
+    """Signo del cambio a la resolución con que se muestra (`decimals`): iguales en la tabla = «sin cambio»."""
+    base_shown, new_shown = round(base, decimals), round(new, decimals)
+    if base_shown == new_shown:
         return SAME
-    return UP if new > base else DOWN
+    return UP if new_shown > base_shown else DOWN
 
 
 def grade(case: WhatIfCase, predictions: Dict[str, str]) -> Dict[str, dict]:
     """Corre el motor (basal e intervención) y compara cada predicción con el signo que calculó."""
     base, new = engine_outputs(case.scenario, case.hr_base), engine_outputs(case.scenario, case.hr_new)
     out = {}
-    for key, *_ in OUTPUTS:
-        actual = direction(base[key], new[key])
+    for key, _name, _unit, decimals in OUTPUTS:
+        actual = direction(base[key], new[key], decimals)
         out[key] = {"base": base[key], "new": new[key], "actual": actual, "predicted": predictions[key],
                     "correct": predictions[key] == actual}
     out["_converged"] = base["converged"] and new["converged"]

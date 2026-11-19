@@ -130,7 +130,7 @@ def test_iteration_label_and_compliance_pending_are_visible():
     assert PHYSIOLOGICAL_PARAMETERS_PENDING_VALIDATION is True
     warning = " ".join(w.value for w in at.warning)
     assert "Compliancia C pendiente de validación" in warning
-    assert "S/D hereda el PENDING de la compliancia" in _markdown(at)
+    assert "S/D hereda el pendiente de validación de la compliancia" in _markdown(at)      # sin la palabra de código (2026-11-19)
     # Streamlit 1.66 escapa los no-ASCII del JSON del gráfico: se lee el JSON, no se busca el texto crudo.
     layout = json.loads(at.get("plotly_chart")[0].proto.spec)["layout"]
     assert layout["xaxis3"]["title"]["text"] == "Iteración hacia el equilibrio (no segundos)"

@@ -87,7 +87,8 @@ def test_the_twin_risk_panel_gives_no_recommendation_even_at_high_risk(ups):
                                                      source_detail="prueba de contención"))
     at = _twin(sf, pid)
     texts = visible_texts(at)
-    assert any("RIESGO CARDIOVASCULAR" in t for t in texts), [t for t in texts if "snapshot" in t]
+    # Tanda de heurísticas (2026-11-19): Luis retiró el índice de riesgo de pesos fijos; el gemelo ya no lo muestra.
+    assert not any("RIESGO CARDIOVASCULAR" in t for t in texts)
     hits = sorted({m.group(0) for t in texts for m in TREATMENT.finditer(t)})
     assert hits == [], hits
 

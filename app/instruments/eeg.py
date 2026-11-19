@@ -8,7 +8,7 @@ controles sin clave en el menú lateral); una estación de la ruta los monta con
   EEG en vivo (como la placa ECG: pide consentimiento y un equipo), ni un CSV (no se sabe de quién viene), ni los dos
   patrones con evento inyectado (imaginación motora y tarea de engagement), cuyos controles viven en el menú lateral.
 - `senales`: el trazo y la potencia de banda por canal.
-- `metricas`: banda dominante, clasificación (solo con la señal sintética) y DAR, TBR y BAR con su cita.
+- `metricas`: banda dominante y DAR, TBR y BAR con su cita (sin «Clasificación» banda → estado desde el 2026-11-19).
 - `guardar`: el único camino de escritura al UPS de este laboratorio (botón explícito)."""
 
 from __future__ import annotations
@@ -298,7 +298,7 @@ def senales(ctx: InstrumentContext, s: EegSeries) -> List[Tuple[str, Any]]:
                 if not result.available:
                     st.caption(f"{ctx.deco('⚠️')}{result.reason}")
                     continue
-                st.write(eeg_live_source.channel_summary(result, s.interpretation_applies))
+                st.write(eeg_live_source.channel_summary(result))
                 band_table = {
                     'Delta': f"{result.band_power['delta']:.2f}",
                     'Theta': f"{result.band_power['theta']:.2f}",
@@ -329,30 +329,25 @@ def metricas(ctx: InstrumentContext, s: EegSeries):
     """Banda dominante, clasificación y DAR/TBR/BAR con su cita (y, en la página, el informe exportable). Devuelve el
     resultado del primer canal, el que se guarda (o `None`)."""
     analysis_cards = s.cards
-    st.markdown(f"## {ctx.deco('📊')}Métricas y Clasificación")
+    st.markdown(f"## {ctx.deco('📊')}Métricas")
     overall = analysis_cards[0][1] if analysis_cards else None
     # Arco 2A (2026-09-11): degradación tipo-PLV -- `overall.available` puede ser `False` (rechazo de artefactos dejó
     # menos de `MIN_CLEAN_EEG_DURATION_S` de señal limpia). Entonces `dominant_band`/`classification` son `None`.
     if overall is not None and not overall.available:
         st.info(f"Canal {analysis_cards[0][0]}: {overall.reason}")
     elif overall is not None:
-        # `dominant_band`/`classification`: cálculo real de `EegAnalyzer` sin cita clínica externa -- HEURISTIC.
+        # Tanda de heurísticas (2026-11-19): la banda dominante es la de más potencia (Welch) entre las bandas del
+        # glosario IFCN: un cálculo directo, no una «Heurística». La «Clasificación» (banda → estado: «Despierto
+        # relajado»…) no tenía fuente y ya no se muestra con ninguna fuente.
         render_metric_card(
             "Banda dominante", band_label_es(overall.dominant_band),
-            provenance=BADGES.HEURISTIC,
+            provenance=BADGES.MEASURED, citation="la banda con más potencia (Welch); bandas del glosario [IFCN2017]",
         )
-        if s.interpretation_applies:
-            render_metric_card("Clasificación", overall.classification, provenance=BADGES.HEURISTIC)
-        else:
-            render_metric_card("Clasificación", None, unavailable_reason=eeg_live_source.REAL_EEG_NOTE)
-        shown_findings = eeg_live_source.visible_findings(overall.findings, s.interpretation_applies)
+        shown_findings = eeg_live_source.visible_findings(overall.findings)
         with st.expander("Interpretación y hallazgos: DAR, TBR, BAR y potencias", expanded=False):
             st.markdown("### Interpretación Clínica")
-            st.write(
-                "Este laboratorio simula ondas EEG típicas y las clasifica en patrones de alerta, relajación y sueño."
-                if s.interpretation_applies else
-                "Con EEG real se muestran las mediciones (potencias, cocientes con su fuente) sin traducirlas a un estado."
-            )
+            st.write("Se muestran las mediciones (potencias, cocientes con su fuente) sin traducirlas a un estado: "
+                     "la traducción banda → estado no tiene una fuente que BIOCORE pueda citar.")
             st.markdown("### Hallazgos clínicos EEG")
             # Consolidación Visual Tanda 3 (2026-09-21): DAR/TBR/BAR con `render_metric_card` (misma expresión que el
             # informe exportado, cero cambio de valor); las tres claves de ratio se excluyen del loop genérico.
@@ -411,7 +406,7 @@ def _export_report(s: EegSeries, overall, shown_findings) -> None:
         'data_source': s.data_source,
         'fs': fs,
         'dominant_band': overall.dominant_band,
-        'classification': overall.classification if s.interpretation_applies else 'no se interpreta (EEG real)',
+        'classification': 'no se interpreta (sin fuente)',
     }
     for bname, val in overall.band_power.items():
         metrics[f'band_{bname}'] = float(val)

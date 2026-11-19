@@ -53,15 +53,20 @@ DERIVATIVE_SMOOTH_MS = 8.0     # media móvil antes de derivar (baja el ruido de
 P_MIN_MV = 0.04                # una P menor no se distingue del ruido del latido mediano
 P_ONSET_FRACTION = 0.05        # inicio de P: donde baja al 5 % de su pico
 P_CONSISTENT_FRACTION = 0.8    # P «constante»: en ≥ 80 % de los latidos, mismo signo y ≥ 50 % de la altura mediana
-RR_REGULAR_CV = 0.08           # RR con coeficiente de variación < 8 %: regular (heurística)
+# Tanda de heurísticas (2026-11-19): se retiró RR_REGULAR_CV (CV < 8 % = «regular», sin fuente). El CV se mide y se
+# muestra; si los RR tienen patrón lo juzga quien lee el trazado.
 Q_WAVE_MIN_MV = 0.05           # una deflexión inicial negativa ≥ 0.05 mV cuenta como onda q
 LOBE_MIN_MV = 0.02             # amplitud mínima para contar un lóbulo positivo o negativo del QRS
 BROAD_R_FRACTION = 0.6         # «R ancha»: la parte positiva ocupa ≥ 60 % del QRS
-DELTA_SLOW_MS = 30.0           # «onda delta»: ≥ 30 ms desde el inicio del QRS hasta la subida rápida
+# Tanda de heurísticas (2026-11-19): se retiró DELTA_SLOW_MS («onda delta» si el inicio lento dura ≥ 30 ms, sin
+# fuente). El inicio lento se mide y se muestra; si es una onda delta lo juzga quien lee el trazado.
 MORPH_SMOOTH_MS = 8.0          # media móvil antes de leer morfología, amplitudes y el ST (el ruido partía los lóbulos)
+# Tanda de heurísticas (2026-11-19): sin la etiqueta «Criterio BIOCORE», pero sin esconder lo propio: la delineación
+# usa umbrales técnicos de BIOCORE; los cortes clínicos de cada criterio llevan su fuente.
 METHOD_NOTE = (
-    "Medición automática de BIOCORE sobre el latido mediano (umbrales técnicos propios, probados contra la "
-    "verdad del generador sintético); puede diferir de la medición experta."
+    "Medición automática sobre el latido mediano, con umbrales técnicos propios de BIOCORE para encontrar las ondas "
+    "(comprobados contra la verdad del generador sintético); puede diferir de la medición experta. Los cortes clínicos "
+    "de cada criterio dicen su fuente."
 )
 
 # --- Umbrales de los criterios citados -----------------------------------------------------------------
@@ -92,6 +97,9 @@ class Criterion:
     met: Optional[bool]       # None: no evaluable (o depende del sexo y la edad); `detail` dice por qué
     detail: str
     source: str
+    # Tanda de heurísticas (2026-11-19): True cuando el criterio queda sin juzgar porque una parte no tiene corte con
+    # fuente (la onda delta, el patrón de los RR); el informe lo pone «para que lo juzgues tú», no «no evaluable».
+    for_reader: bool = False
 
     def __post_init__(self):
         if self.met is not None:                       # un bool de NumPy no es `True` para `is True`
@@ -340,7 +348,7 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
     rr = np.diff(peaks) / fs
     hr = 60.0 / float(np.mean(rr))
     rr_cv = float(np.std(rr) / np.mean(rr))
-    regular = rr_cv < RR_REGULAR_CV
+    regular = None                                       # sin corte con fuente: no se juzga (tanda de heurísticas)
 
     beat, on, off, vel = _build_beat(present, _align(present, peaks, fs), fs)
     if beat.n < 2:
@@ -461,16 +469,19 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
             brady_detail += " Está por debajo de 60, el corte de la convención docente, pero no de 50."
         criteria.append(Criterion("sinus_bradycardia", "Bradicardia sinusal (< 50 lpm)", hr < 50, brady_detail,
                                   KUSUMOTO_2018 + " (tabla 3)"))
-    af_met = (not regular) and p_wave == "ausente"
+    # La FA pide P ausentes Y RR sin patrón: con P se descarta; sin P, el patrón de los RR lo juzga quien lee.
+    af_met = None if p_wave == "ausente" else False
+    af_detail = f"Onda P: {p_wave}. Coeficiente de variación de los RR: {rr_cv * 100:.0f} %."
+    if af_met is None:
+        af_detail += (" Sin P discernibles: si los RR no siguen ningún patrón, el trazado es compatible con FA. Mira "
+                      "la tira de ritmo; BIOCORE no tiene un corte con fuente para decirlo solo.")
     criteria.append(Criterion(
-        "af", "Compatible con fibrilación auricular: sin P discernibles y RR sin patrón", af_met,
-        f"RR {'irregulares' if not regular else 'regulares'} (coeficiente de variación {rr_cv * 100:.0f} %; "
-        f"irregular si ≥ {RR_REGULAR_CV * 100:.0f} %, heurística BIOCORE); onda P: {p_wave}.",
-        VAN_GELDER_2024 + " (sección 3.1)",
+        "af", "Compatible con fibrilación auricular: sin P discernibles y RR sin patrón", af_met, af_detail,
+        VAN_GELDER_2024 + " (sección 3.1)", for_reader=af_met is None,
     ))
-    if regular and p_wave in ("no sinusal", "ausente"):
+    if p_wave in ("no sinusal", "ausente"):
         criteria.append(Criterion(
-            "rhythm_unidentified", "Ritmo regular sin P sinusal", None,
+            "rhythm_unidentified", "Ritmo sin P sinusal", None,
             "El analizador no identifica este ritmo (puede ser flutter, taquicardia auricular, de la unión u otro): "
             "mira la actividad auricular en II, III, aVF y V1. El flutter típico da ondas F negativas «en sierra» "
             "en II, III y aVF.", PAGE_2015 + " (tabla 3: flutter típico)",
@@ -517,20 +528,25 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
     v_max = float(vel[on:off + 1].max())
     above = np.where(vel[on:off + 1] >= 0.5 * v_max)[0]
     slow_ms = float(above[0]) * dt_ms if above.size else 0.0
-    delta = slow_ms >= DELTA_SLOW_MS
-    pre = None if pr_ms is None else (pr_ms < 120 and delta and qrs_ms > 120)
+    # PR < 120 y QRS > 120 son cifras de Surawicz 2009; la onda delta no tiene un corte con fuente: con las dos cifras
+    # el criterio queda sin juzgar y muestra el inicio lento medido.
+    possible = pr_ms is not None and pr_ms < 120 and qrs_ms > 120
+    pre = None if pr_ms is None or possible else False
+    pre_detail = ((f"PR {pr_ms:.0f} ms; " if pr_ms is not None else "PR no medible; ")
+                  + f"inicio lento del QRS de {slow_ms:.0f} ms; QRS {qrs_ms:.0f} ms.")
+    if possible:
+        pre_detail += (" PR corto y QRS ancho: si el QRS empieza con una subida lenta (onda delta), es compatible con "
+                       "preexcitación. Míralo en el trazado; BIOCORE no tiene un corte con fuente para la onda delta.")
     criteria.append(Criterion(
-        "preexcitation", "Preexcitación ventricular (PR < 120 ms, onda delta, QRS > 120 ms)", pre,
-        (f"PR {pr_ms:.0f} ms; " if pr_ms is not None else "PR no medible; ")
-        + f"inicio lento del QRS de {slow_ms:.0f} ms (onda delta si ≥ {DELTA_SLOW_MS:.0f} ms, criterio BIOCORE); "
-          f"QRS {qrs_ms:.0f} ms.", SURAWICZ_2009,
+        "preexcitation", "Preexcitación ventricular (PR < 120 ms, onda delta, QRS > 120 ms)", pre, pre_detail,
+        SURAWICZ_2009, for_reader=possible,
     ))
     rbbb = None if rbbb_morph is None else (qrs_ms >= 120 and rbbb_morph)
     lbbb = None if lbbb_morph is None else (qrs_ms >= 120 and lbbb_morph and not rbbb_morph)
-    if pre:
+    if possible:
         rbbb = lbbb = None
-        note = (" Con preexcitación el QRS ancho tiene otra causa: el analizador no evalúa un bloqueo de rama encima "
-                "(Surawicz 2009 los describe como trastornos distintos).")
+        note = (" Con PR corto y QRS ancho puede ser preexcitación, y entonces el QRS ancho tiene otra causa: el "
+                "analizador no evalúa un bloqueo de rama encima (Surawicz 2009 los describe como trastornos distintos).")
         rbbb_detail += note
         lbbb_detail += note
     criteria.append(Criterion("rbbb", "Bloqueo de rama derecha completo", rbbb,
@@ -541,7 +557,7 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
         criteria.append(Criterion("rbbb_incomplete", "Bloqueo de rama derecha incompleto", True,
                                   f"QRS {qrs_ms:.0f} ms (110–120) con morfología de bloqueo derecho.", SURAWICZ_2009))
 
-    if qrs_ms > 110 and not rbbb and not lbbb and not pre and not (rbbb_morph and qrs_ms >= 110):
+    if qrs_ms > 110 and not rbbb and not lbbb and not possible and not (rbbb_morph and qrs_ms >= 110):
         criteria.append(Criterion("ivcd", "Trastorno inespecífico de la conducción intraventricular (QRS > 110 ms)",
                                   True, f"QRS {qrs_ms:.0f} ms sin morfología de bloqueo de rama ni preexcitación.",
                                   SURAWICZ_2009))

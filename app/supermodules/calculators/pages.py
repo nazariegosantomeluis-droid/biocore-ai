@@ -395,23 +395,18 @@ def _render_oxygenation_tab() -> None:
 
     cols = st.columns(2)
     with cols[0]:
-        _card("patm", "Presión barométrica estimada", f"{patm:.0f} mmHg", provenance=BADGES.HEURISTIC,
+        _card("patm", "Presión barométrica estimada", f"{patm:.0f} mmHg", provenance=BADGES.CLINICAL,
               citation=calc.ISA_CITATION)
         _card("pao2_alveolar", "PAO₂ (alveolar)", f"{alveolar:.0f} mmHg", citation=calc.ALVEOLAR_GAS_CITATION)
     with cols[1]:
+        # Tanda de heurísticas (2026-11-19): el esperado sale de 2.5 + 0.21·edad (Mellemgaard 1966; Kanber 1968), no de
+        # la regla sin fuente edad/4 + 4. Es un valor esperado, no un límite: se muestra al lado, sin semáforo.
+        _card("aa_gradient", "Gradiente A–a", f"{gradient:.0f} mmHg", citation=calc.ALVEOLAR_GAS_CITATION)
         if abs(fio2 - 0.21) < 1e-9:
-            expected = calc.expected_aa_gradient(age)
-            classification = (
-                ("leve", f"mayor que el esperado para la edad (≈{expected:.0f} mmHg)", "🟡")
-                if gradient > expected else
-                ("normal", f"dentro del esperado para la edad (≈{expected:.0f} mmHg)", "🟢")
-            )
-            _card("aa_gradient", "Gradiente A–a", f"{gradient:.0f} mmHg", classification=classification,
-                  provenance=BADGES.HEURISTIC,
-                  citation="valor esperado por la regla clínica habitual edad/4 + 4 (aire ambiente)")
+            _card("aa_expected", "Gradiente A–a esperado para la edad", f"{calc.expected_aa_gradient(age):.0f} mmHg",
+                  provenance=BADGES.CLINICAL, citation=calc.EXPECTED_AA_CITATION)
         else:
-            _card("aa_gradient", "Gradiente A–a", f"{gradient:.0f} mmHg",
-                  citation="la regla del valor esperado (edad/4 + 4) solo aplica en aire ambiente")
+            st.caption("El gradiente A–a esperado para la edad (2.5 + 0.21·edad) solo aplica en aire ambiente.")
         _card("pf_ratio", "PaO₂/FiO₂", f"{pf:.0f} mmHg", classification=calc.classify_pf_ratio(pf),
               citation=calc.BERLIN_CITATION)
     _render_altitude_chart(altitude, fio2, paco2, place)

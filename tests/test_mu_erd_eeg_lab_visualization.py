@@ -182,7 +182,10 @@ def test_scope_note_is_prominent_not_a_tiny_footnote():
     para avisos que no deben perderse -- no `st.caption` (el texto
     pequeño ya usado para notas secundarias en esta misma página)."""
     src = open("app/supermodules/eeg_neuro_lab/mu_erd_panel.py", encoding="utf-8").read()
-    assert 'st.warning(f"**Alcance de esta demostración:** {result.scope_note}")' in src
+    # Tanda de heurísticas (2026-11-19): «Alcance:» sin «demostración»; el ERD% lleva su fuente, no «Criterio BIOCORE».
+    assert 'st.warning(f"**Alcance:** {result.scope_note}")' in src
+    assert "demostración" not in src.split("def render_mu_erd_panel", 1)[-1].split("st.warning", 1)[-1].split('"""')[0]
+    assert "provenance=BADGES.CLINICAL" in src and "ERD_CITATION" in src
 
 
 # --- Degradación honesta -----------------------------------------------------

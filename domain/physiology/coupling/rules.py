@@ -224,7 +224,7 @@ class CouplingRule:
 # ── EEG de vigilia (T6.1, revisión final, 2026-11-19) ──────────────────────────────────────────────────────────────
 WAKE_EEG_BANDS = ("delta_power", "theta_power", "alpha_power", "beta_power")
 WAKE_EEG_BASIS = (
-    "Criterio BIOCORE (heurística) con el glosario IFCN (Kane 2017): el alfa es el ritmo de vigilia y el delta domina "
+    "Criterio BIOCORE firmado por Luis (2026-11-19), con el glosario IFCN (Kane 2017): el alfa es el ritmo de vigilia y el delta domina "
     "el sueño profundo. Si la mayor de las potencias delta o theta supera a la mayor de alfa o beta, el EEG no es de "
     "vigilia y el BAR no mide arousal."
 )
@@ -238,5 +238,6 @@ def wake_eeg_reason(bands) -> Optional[str]:
     fast = max(float(bands["alpha_power"]), float(bands["beta_power"]))
     if slow > fast:
         return ("el EEG de tu paciente no es de vigilia: la potencia delta o theta supera a la alfa y a la beta "
-                "(Criterio BIOCORE con el glosario IFCN, Kane 2017); en el sueño el BAR no mide arousal")
+                "(Criterio BIOCORE firmado por Luis, con el glosario IFCN, Kane 2017); en el sueño el BAR no mide "
+                "arousal")
     return None

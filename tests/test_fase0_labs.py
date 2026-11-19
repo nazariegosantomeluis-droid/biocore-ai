@@ -24,7 +24,7 @@ def test_the_renamed_copies_are_never_in_the_contract(domain, field):
     assert not derived_is_writable(domain, field, {"stress_level", "beta_power", "efficiency", field})
 
 
-def _emg(view, source="Demo"):
+def _emg(view, source="Simulación"):
     at = AppTest.from_file(MAIN, default_timeout=240)
     at.session_state["biocore_start_page"] = "emg"          # menú por intención (tanda 1 de la fase 1)
     at.run()
@@ -38,12 +38,13 @@ def _emg(view, source="Demo"):
 
 def test_emg_lab_demo_signal_does_not_show_a_fatigue_index_number():
     """Sin clave de IA el narrador no dibuja los hallazgos (solo avisa), así que el valor se verifica en la fuente: con
-    `source == 'Demo'` el hallazgo `fatigue_index` dice «no disponible con la señal demo», nunca `0/100`."""
+    la simulación el índice de fatiga nunca es `0/100`. Tanda de heurísticas (2026-11-19): el índice (sin fuente) ya no
+    va al narrador en ninguna fuente."""
     at = _emg("IA")
     text = " ".join(" ".join(str(e.value).split()) for e in list(at.markdown) + list(at.caption) + list(at.info))
     assert not re.search(r"fatigue_index[^a-z]{0,20}\d+/100", text)
     source = Path("app/main.py").read_text(encoding="utf-8")
-    assert "if source != 'Demo' else 'no disponible con la señal demo'" in source
+    assert "('fatigue_index'," not in source
     assert "Activación muscular" in " ".join(str(e.value) for e in _emg("Clínica").markdown)   # lo medido sí se muestra
 
 

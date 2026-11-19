@@ -1,13 +1,12 @@
 """Vistas compartidas del Respiratory Lab (arco respiratorio, fase 4, 2026-11-09, Art. I).
 
-Solo muestran lo que tiene golden test, y cada valor lleva su insignia propia (no hay una insignia global de
-"validado": la apnea mixta sigue PENDING_VALIDATION):
+Solo muestran lo que tiene golden test, y cada valor lleva su insignia propia. Tanda de heurísticas (2026-11-19):
 
-- [Validado por fuente]: banda NEWS2 de la FR, apnea (≥ 90 % de caída durante ≥ 10 s, Berry 2012, AASM).
-- [Criterio BIOCORE] metodología propia / valor BIOCORE: FR (60 / media de intervalos), duración del ciclo, tipo por esfuerzo
-  (Criterio BIOCORE), tasa equivalente por hora de registro, SpO₂ del modelo BIOCORE, Tc (Valor BIOCORE).
-- [Heurística]: descripción del patrón respiratorio e irregularidad del generador atáxico.
-- [Pendiente de validación]: apnea mixta.
+- [Validado por fuente]: banda NEWS2 de la FR, apnea (≥ 90 % de caída durante ≥ 10 s) y su tipo por esfuerzo, con la
+  mixta en su orden (Berry 2012, AASM).
+- [Cálculo directo]: FR (60 / media de intervalos), duración del ciclo y su variabilidad, conteo de respiraciones, tasa
+  equivalente por hora de registro, variación de los intervalos (sin el corte de «regular»).
+- [Simulación]: SpO₂ del modelo (Tc = 19.4 s, mediana de Kwon 2020) y la irregularidad pedida al generador atáxico.
 
 Siguen fuera: hipopneas, relación I:E, ODI y la categoría de severidad (vive en Calculadoras Clínicas).
 """
@@ -22,27 +21,28 @@ from clinical.calculators import NEWS2_CITATION, news2_respiratory_rate_score
 from educational.quiz_bank import numeric_choices
 from src.signals.respiration.respiratory_analyzer import DURATION_CRITERION_LABEL
 
-SPO2_PROVENANCE = "Simulación — modelo BIOCORE: Tc valor BIOCORE; r y recuperación, Howarth 2026"
+SPO2_PROVENANCE = "Simulación — modelo BIOCORE: Tc, mediana de Kwon 2020; r y recuperación, Howarth 2026"
 EDUCATION_CITATION = (
     "Epstein LJ, Kristo D, Strollo PJ Jr, et al. Clinical guideline for the evaluation, management and long-term care of "
     "obstructive sleep apnea in adults. J Clin Sleep Med 2009;5(3):263–276 (AASM)"
 )
 APNEA_CITATION = "Berry RB et al. J Clin Sleep Med 2012;8(5):597–619 (AASM): caída ≥ 90 % de la excursión durante ≥ 10 s"
-TC_LABEL = "Valor BIOCORE (la fuente, Hsia 2026, solo da el límite normal < 20 s)"
+TC_LABEL = ("19.4 s por omisión: la mediana del tiempo pulmón-dedo en 598 adultos con apnea moderada a grave "
+            "(índice ≥ 15/h; Kwon 2020, MESA); "
+            "Hsia 2026 da el límite normal < 20 s")
 EVENT_TYPE_LABELS = {
     "central": "central",
     "obstructive": "obstructiva",
-    "mixed": "mixta (PENDING_VALIDATION)",
-    "unknown": "sin canal de esfuerzo",
+    "mixed": "mixta",
+    "unknown": "sin clasificar",                  # sin canal de esfuerzo, o un esfuerzo que no sigue ninguna regla
 }
 
-# Por debajo de este coeficiente de variación de los intervalos entre inspiraciones el patrón se describe como regular.
-# HEURISTIC (decisión firmada de la fase 4): sin fuente clínica.
-PATTERN_REGULAR_CV = 0.10
+# Tanda de heurísticas (2026-11-19): se retiró PATTERN_REGULAR_CV (CV < 10 % = «regular», sin fuente). La variación se
+# muestra; si es regular lo juzga quien mira la señal.
 # Una desaturación se muestra como tal a partir de 3 puntos bajo la basal (el 3 % de Berry 2012 para desaturación).
 DESATURATION_NOTE_POINTS = 3.0
 
-BADGE_LEGEND = " · ".join(BADGES.label(b) for b in (BADGES.CLINICAL, BADGES.METHOD, BADGES.HEURISTIC, BADGES.PENDING))
+BADGE_LEGEND = " · ".join(BADGES.label(b) for b in (BADGES.CLINICAL, BADGES.MEASURED, BADGES.SIMULATION))
 
 
 # ----------------------------------------------------------------------------------------------- texto (funciones puras)
@@ -65,14 +65,12 @@ def interval_cv(analysis) -> Optional[float]:
 
 
 def pattern_description(analysis) -> str:
-    """Descripción HEURISTIC del patrón: SOLO describe la señal, no diagnostica."""
+    """Descripción del patrón: SOLO describe la señal, no diagnostica ni juzga si es regular (sin corte con fuente)."""
     cv = interval_cv(analysis)
     if cv is None:
         head = "Intervalos entre respiraciones: no disponibles (menos de 3 respiraciones)"
-    elif cv < PATTERN_REGULAR_CV:
-        head = f"Intervalos entre respiraciones regulares (variación del {cv * 100:.0f} %)"
     else:
-        head = f"Intervalos entre respiraciones variables (variación del {cv * 100:.0f} %)"
+        head = f"Variación de los intervalos entre respiraciones: {cv * 100:.0f} %"
     parts = [head]
     if analysis.event_period_s is not None:
         parts.append(f"Eventos repetidos cada ~{analysis.event_period_s:.0f} s")
@@ -145,7 +143,7 @@ def render_rate_cards(analysis) -> None:
         return
     render_metric_card(
         "Frecuencia Respiratoria", f"{analysis.respiratory_rate:.1f} resp/min",
-        provenance=BADGES.METHOD, citation="60 / media de los intervalos entre inspiraciones (golden test)",
+        provenance=BADGES.MEASURED, citation="60 / media de los intervalos entre inspiraciones (golden test)",
     )
     render_band_card(analysis)
 
@@ -179,7 +177,7 @@ def render_apnea_cards(analysis) -> None:
     with c3:
         render_metric_card(
             "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)",
-            f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.METHOD,
+            f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.MEASURED,
         )
 
 
@@ -196,21 +194,21 @@ def render_events_table(analysis) -> None:
             rows.append({
                 "Inicio (s)": round(e["start_time"], 1),
                 "Duración": duration_text(e),
-                "Tipo (Criterio BIOCORE)": (f"{BADGES.tag(BADGES.PENDING)} {kind}" if e["mixed_pending"] else f"{BADGES.tag(BADGES.METHOD)} {kind}"),
+                "Tipo (Berry 2012)": f"{kind}: {e['type_detail']}",
                 "Borde": "recortado por el final del registro" if e["truncated"] else "completo",
                 "Línea basal": f"{b['n_breaths']} respiraciones previas, {b['window_s']:.0f} s; {b['rule']}"
                                + (" — registro corto: basal disponible declarada" if b["declared_short"] else ""),
             })
         st.dataframe(rows, hide_index=True, width="stretch")
-        if any(e["mixed_pending"] for e in analysis.apnea_events):
-            st.caption(f"{BADGES.tag(BADGES.PENDING)} Mixta: PENDING_VALIDATION (la definición del manual AASM no está verificada); "
-                       "se calcula y se marca.")
         st.caption(
             f"{BADGES.tag(BADGES.CLINICAL)} Apnea = caída ≥ 90 % de la excursión respecto a la línea basal previa durante ≥ 10 s "
             "(Berry 2012, AASM). "
-            f"{BADGES.tag(BADGES.METHOD)} Tipo: «esfuerzo ausente» = caída ≥ 90 % del esfuerzo respecto a su basal (Criterio BIOCORE)."
+            f"{BADGES.tag(BADGES.CLINICAL)} Tipo por esfuerzo (Berry 2012): obstructiva = esfuerzo en todo el evento; central = "
+            "ausente en todo el evento; mixta = ausente al principio y se reanuda después. Cómo lo mide BIOCORE (Berry no "
+            "da cifras para esto): «ausente» = la misma caída ≥ 90 % de la regla de apnea, aplicada al esfuerzo, y «en todo "
+            "el evento» admite el 10 % del tramo; un esfuerzo que no sigue ninguna de las tres queda sin clasificar."
         )
-        st.caption(f"{BADGES.tag(BADGES.METHOD)} Duración: {DURATION_CRITERION_LABEL} (excursión < 10 % de la basal, medida muestra a muestra).")
+        st.caption(f"Duración: {DURATION_CRITERION_LABEL}.")
         if any(e.get("gradual_edge") for e in analysis.apnea_events):
             st.caption("«≈ X s, borde gradual ± U s»: U es cuánto cambia la duración del evento si la basal (y con ella el umbral "
                        "del 10 %) se mueve un 2 %, el p95 medido del error de la basal del detector. Puede ser grande en un borde "
@@ -223,16 +221,16 @@ def render_events_table(analysis) -> None:
 
 
 def render_pattern_cards(analysis, selected_pattern: Optional[str] = None, ground_truth: Optional[dict] = None) -> None:
-    """Descripción del patrón (HEURISTIC), aviso de Cheyne-Stokes e irregularidad del generador atáxico (HEURISTIC)."""
-    render_metric_card("Patrón (descripción de la señal)", pattern_description(analysis), provenance=BADGES.HEURISTIC,
-                       citation=f"umbral de variación {PATTERN_REGULAR_CV:.0%} sin fuente clínica")
+    """Descripción del patrón (cálculo directo), aviso de Cheyne-Stokes e irregularidad pedida al generador atáxico."""
+    render_metric_card("Patrón (descripción de la señal)", pattern_description(analysis), provenance=BADGES.MEASURED,
+                       citation="coeficiente de variación de los intervalos entre inspiraciones")
     notice = cheyne_stokes_notice(analysis, selected_pattern)
     if notice:
         st.warning(notice)
     if ground_truth and ground_truth.get("pattern") == "ataxic" and "irregularity" in ground_truth:
         render_metric_card("Irregularidad pedida al generador (CV de duración y profundidad por respiración)",
-                           f"{ground_truth['irregularity']:.2f}", provenance=BADGES.HEURISTIC,
-                           citation="0.20 por defecto; sin fuente clínica")
+                           f"{ground_truth['irregularity']:.2f}", provenance=BADGES.SIMULATION,
+                           citation="parámetro del generador (0.20 por omisión); no es un dato clínico")
 
 
 def render_clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> None:
@@ -257,7 +255,7 @@ def render_calculator_link(decorated: bool = True) -> None:
 def render_spo2_cards(analysis) -> None:
     """SpO2 basal y mínima del modelo de eventos (fase 2b): con su procedencia de simulación. Las métricas «Tiempo <90 %»
     y «<85 %» se retiraron (fase 4.1): sus umbrales no tenían cita."""
-    kw = dict(provenance=BADGES.METHOD, citation=SPO2_PROVENANCE)
+    kw = dict(provenance=BADGES.SIMULATION, citation=SPO2_PROVENANCE)
     cols = st.columns(2)
     with cols[0]:
         render_metric_card("SpO2 Basal", f"{analysis.baseline_spo2:.1f}%", **kw)
@@ -268,7 +266,7 @@ def render_spo2_cards(analysis) -> None:
 def render_hidden_notice() -> None:
     st.info(
         "**Sigue fuera** (sin golden test o sin criterio firmado): hipopneas, relación I:E, ODI y la categoría de "
-        "severidad (vive en Calculadoras Clínicas). La apnea **mixta** se calcula y se marca [Pendiente de validación] (PENDING_VALIDATION)."
+        "severidad (vive en Calculadoras Clínicas)."
     )
 
 
@@ -362,7 +360,7 @@ def render_clinical_references() -> None:
         - **Cheyne-Stokes (Berry 2012):** ≥ 3 apneas/hipopneas centrales consecutivas separadas por un cambio creciente y decreciente
           de la amplitud, con ciclo ≥ 40 s (típicamente 45–90 s) y ≥ 5 por hora en ≥ 2 h de registro
         - **Atáxica (descripción de la simulación):** el generador sortea la duración y la profundidad de cada respiración
-          (irregularidad 0.20, HEURISTIC); no hay afirmación clínica sobre su causa
+          (irregularidad 0.20, un parámetro de la simulación); no hay afirmación clínica sobre su causa
         """)
 
     with col2:
@@ -372,10 +370,10 @@ def render_clinical_references() -> None:
         Berry 2012 (§4.1.1, AASM): la clasificación de una apnea como obstructiva, mixta o central **se basa en el esfuerzo
         respiratorio**. Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).
 
-        - **Central (Criterio BIOCORE):** esfuerzo ausente (caída ≥ 90 % del esfuerzo respecto a su basal)
-        - **Obstructiva (Criterio BIOCORE):** esfuerzo presente; Berry 2012 señala que el movimiento paradójico del tórax y el
+        - **Central (Berry 2012):** esfuerzo ausente en todo el evento (BIOCORE lo mide como una caída ≥ 90 % del esfuerzo respecto a su basal)
+        - **Obstructiva (Berry 2012):** esfuerzo presente en todo el evento; Berry 2012 señala que el movimiento paradójico del tórax y el
           abdomen se observa a menudo durante una apnea u hipopnea obstructiva
-        - **Mixta:** [Pendiente de validación] (PENDING_VALIDATION; se calcula y se marca; la definición del manual no está verificada)
+        - **Mixta (Berry 2012):** esfuerzo ausente al principio del evento, que se reanuda en la segunda parte
         - **Obesidad:** Epstein 2009 incluye la obesidad (IMC > 35) entre los pacientes de alto riesgo que deben evaluarse
           para apnea obstructiva del sueño
         - **Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo del colapso
@@ -427,8 +425,8 @@ CONCEPT_QUIZ = {
         ],
         correct=1,
         ok=("✅ Correcto: Berry 2012 (§4.1.1) clasifica la apnea según el esfuerzo respiratorio. En este laboratorio, "
-            "central = esfuerzo ausente y obstructiva = esfuerzo presente (Criterio BIOCORE); la mixta queda "
-            "[Pendiente de validación] (PENDING_VALIDATION)."),
+            "central = esfuerzo ausente en todo el evento, obstructiva = esfuerzo presente en todo el evento y mixta = "
+            "ausente al principio y se reanuda después."),
         wrong=("❌ Incorrecto: todas las apneas cumplen la misma regla: caída ≥ 90 % de la excursión del flujo durante ≥ 10 s "
                "(Berry 2012); una caída de ≥ 30 % es el criterio de hipopnea, no de apnea. Lo que las separa es el esfuerzo "
                "respiratorio."),

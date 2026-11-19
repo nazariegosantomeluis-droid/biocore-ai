@@ -28,6 +28,9 @@ from clinical.calculators import news2_reading_note
 from domain.physiology.narrator.privacy import DataOrigin
 from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
 
+# Tanda de heurísticas (2026-11-19): la fuente sintética se llama «Simulación», nunca «demo».
+ECG_SIM_OPTION = 'Simulación (sintética)'
+ECG_SIM_SOURCE_LABEL = 'simulación (generador dinámico de McSharry et al. 2003)'
 ECG_DEMO_FS = 500   # muestras/s de la demo: lo que pide [K2007] para un corte de 150 Hz con error de amplitud < 1 %
 
 
@@ -49,7 +52,7 @@ def _ecg_monitor_filter_label(source: str) -> str:
 
 
 _ECG_SOURCE_ORIGIN = {
-    'Demo (sintético)': 'simulado', 'Caso clínico (61 disponibles)': 'simulado',
+    ECG_SIM_OPTION: 'simulado', 'Caso clínico (61 disponibles)': 'simulado',
     'Base de datos MIT-BIH': 'base_publica', 'Base de datos PTB-XL': 'base_publica',
 }
 
@@ -291,7 +294,7 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
 
     T2 (2026-11-18): `ctx` da la clave del botón (con `PAGE`, la de siempre); devuelve el snapshot escrito o `None`."""
     st.markdown(f"#### {_deco(ctx, '🔗')}Guardar estado al gemelo")
-    source_label = metadata.get('source', 'demo')
+    source_label = metadata.get('source', ECG_SIM_SOURCE_LABEL)
 
     # Contención (2026-11-16, Art. I): un CSV cargado no escribe al gemelo, con el mismo criterio y mensaje que el EMG.
     # Antes no escribía por accidente (sus metadatos no traían 'source' y caía en la rama demo) y la página le decía
@@ -306,14 +309,21 @@ def _render_ecg_save_to_twin(signal: np.ndarray, fs: float, metadata: dict, ECGA
                 "ningún dato (sería escribir el mismo valor otra vez).")
         return
 
-    if 'demo' in source_label.lower():
+    if source_label == ECG_SIM_SOURCE_LABEL:
         st.info(
-            "Fuente demo (sintética) -- nunca escribe HR al gemelo. El HR de esta fuente es un valor "
+            "Fuente simulada -- nunca escribe FC al gemelo. La FC de esta fuente es un valor "
             "que TÚ elegiste en el slider, no algo medido de un paciente -- guardarlo confundiría "
             "'lo que pediste' con 'lo que se observó', aunque el generador ya sea fiel a ese valor "
             "(Fase 5B). Cambia a MIT-BIH, PTB-XL, un caso clínico o hardware ESP32 para guardar "
-            "un HR real."
+            "una FC real."
         )
+        return
+
+    from app.supermodules.ecg_live.monitor_source import SIMULATED_BOARD_SOURCE
+
+    if source_label == SIMULATED_BOARD_SOURCE:          # antes caía en la rama «demo» por la palabra en su etiqueta
+        st.info("La placa simulada nunca escribe FC al gemelo: es una simulación, no una medición. Conecta la placa "
+                "real para guardar una FC medida.")
         return
 
     st.caption(
@@ -384,7 +394,7 @@ def _deco(ctx: InstrumentContext, emoji: str) -> str:
     return "" if ctx.in_station else f"{emoji} "
 
 
-SOURCES = ['Demo (sintético)', 'CSV local', 'Caso clínico (61 disponibles)', 'Base de datos MIT-BIH',
+SOURCES = [ECG_SIM_OPTION, 'CSV local', 'Caso clínico (61 disponibles)', 'Base de datos MIT-BIH',
            'Base de datos PTB-XL', 'Hardware ESP32 en vivo', ECG_PATIENT_SOURCE]
 LIVE_SOURCE = 'Hardware ESP32 en vivo'
 
@@ -425,7 +435,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
     source_key = ctx.k(ECG_SOURCE_KEY)
     if source_key not in st.session_state:
         st.session_state[source_key] = (
-            ECG_PATIENT_SOURCE if read_active_vitals().values['hr'] is not None else 'Demo (sintético)')
+            ECG_PATIENT_SOURCE if read_active_vitals().values['hr'] is not None else ECG_SIM_OPTION)
     source = panel.radio('Origen del ECG', sources(ctx), key=source_key)
     signal = None
     fs = 250
@@ -448,7 +458,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
                     exception=e,
                 )
         elif uploaded:
-            st.warning('Carga de CSV detectada, pero faltan módulos de `src`. Usando demo.')
+            st.warning('Carga de CSV detectada, pero faltan módulos de `src`. Usando la simulación.')
 
     elif source == 'Caso clínico (61 disponibles)':
         case_db = get_case_database()
@@ -480,7 +490,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
         if not ecg_ok:
             panel.warning(
                 'El loader MIT-BIH no está disponible en este entorno (falta `wfdb` o '
-                '`signals.loaders`). Usando demo.'
+                '`signals.loaders`). Usando la simulación.'
             )
         else:
             mitbih_records = get_mitbih_records()
@@ -579,7 +589,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
             signal, fs, metadata = live
 
     if signal is None:
-        hr_demo = panel.slider('FC demo (lpm)', 40, 140, 72, key=ctx.auto_key('ecg_demo_hr'))
+        hr_demo = panel.slider('FC de la simulación (lpm)', 40, 140, 72, key=ctx.auto_key('ecg_demo_hr'))
         # Fase 5B (2026-08-30): DynamicECGGenerator (McSharry et al. 2003)
         # reemplaza a generate_demo_ecg_signal() -- ver
         # src/signals/ecg/dynamic_ecg_generator.py. El generador viejo
@@ -590,7 +600,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
         # superior de 150 Hz con error de amplitud < 1 % (antes 250).
         fs = ECG_DEMO_FS
         signal = DynamicECGGenerator(fs=fs).generate(duration=20, hr=hr_demo)
-        metadata['source'] = 'demo'
+        metadata['source'] = ECG_SIM_SOURCE_LABEL
 
     valid, msg = validate_signal(signal)
     if not valid:
@@ -632,7 +642,7 @@ def render(ctx: InstrumentContext = PAGE) -> Optional[EcgTrace]:
         # La explicación es el tema 2 firmado (docs/contenido/teoria_citada.md); las capas genéricas se retiraron.
         render_metric_explained('Frecuencia cardíaca', f'{hr:.0f}', unit='lpm', topic=SIGNED_HEART_RATE)
         st.caption(news2_reading_note(pulse=hr))     # integración: la FC siempre con sus puntos NEWS2 (misma tabla del gemelo)
-    st.markdown(f"**Fuente:** {metadata.get('source', 'demo')}  |  **Muestreo:** {fs:g} Hz")
+    st.markdown(f"**Fuente:** {metadata.get('source', ECG_SIM_SOURCE_LABEL)}  |  **Muestreo:** {fs:g} Hz")
 
     st.divider()
     saved = _render_ecg_save_to_twin(signal, fs, metadata, ECGAnalyzer, ctx=ctx)

@@ -60,9 +60,9 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
         unit="ratio (adimensional)",
         # T6.1 (2026-11-19, decisión de Luis: «pon ese límite con la literatura que encuentres»).
         upper_limit=3.0,
-        upper_limit_nature="Criterio BIOCORE, heurística",
+        upper_limit_nature="Criterio BIOCORE de modelo, firmado por Luis",   # antes «…, heurística» (2026-11-19)
         upper_limit_basis=(
-            "Criterio BIOCORE (heurística, no es una cifra de la fuente). Elegido el 2026-11-19 por encargo de Luis "
+            "Criterio BIOCORE de modelo (no es una cifra de la fuente). Elegido el 2026-11-19 por encargo de Luis "
             "(«Tu pon ese límite con la literatura que encuentres») y confirmado por Luis el 2026-11-19 («Si, confirmo "
             "ambos»), con el requisito de un EEG de vigilia. La fuente "
             "describe BAR basal 0.8-1.2 y arousal > 1.8, sin valores más altos. En un estudio, con una tarea mental la "

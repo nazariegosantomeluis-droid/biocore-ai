@@ -91,7 +91,7 @@ Existe código en la ruta de ejecución de la app y hay pruebas que fijan su com
 | Multisensor: «Health Score» con bandas y valores por defecto sin cita | Retirado | CHANGELOG fase 0 |
 | Botón «Entropía» que no calculaba nada (fachada) | Retirado | CHANGELOG tanda 1 |
 | Organismo con valores por defecto mostrados como datos | Corregido: el organismo no tiene defaults; «sin dato» con motivo | CHANGELOG fase 0, `test_fase0_organismo.py` |
-| Explicabilidad «SHAP/LIME» que solo narraba diferencias | Retirada del texto; `shap`/`lime` salieron de `requirements.txt` | CHANGELOG 2026-11-17 |
+| Explicabilidad «SHAP» y «LIME» que solo narraba diferencias | Retirada del texto; `shap`/`lime` salieron de `requirements.txt` | CHANGELOG 2026-11-17 |
 | Guardar un laboratorio borraba los demás valores del banner | Corregido con el paciente compuesto | T0 |
 | El gemelo no veía lo que medían los laboratorios | Corregido | T1 |
 
@@ -103,6 +103,8 @@ Pedido de Luis (2026-11-19): «todo lo que aparezca como heurístico se arregle 
 - **Fusión de sensores:** pierde los canales demo.
 - **Índice de riesgo del gemelo:** se retira, con aviso a quien lleva `twin_shell/`.
 - **Umbral sin fuente:** «quitar el juicio, dejar la medida».
+
+> **Estado (2026-11-19, rama `heuristicas-citadas`):** ejecutado. Lo que se hizo con cada fila está en el CHANGELOG («Tanda de heurísticas»). Diferencias con esta tabla: la compliancia C del gemelo y la capacitancia venosa 2× de la sepsis siguen pendientes de la firma de Luis (no se encontró una fuente que dé esas cifras para este modelo); los umbrales de calidad de los equipos en vivo siguen siendo internos, sin la palabra en pantalla.
 
 **Tratamientos:**
 

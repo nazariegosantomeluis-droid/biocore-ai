@@ -242,7 +242,8 @@ def test_emg_research_export_has_no_bare_numbers(_isolated_reports_dir):
     assert htmls, "no se generó el HTML de EMG Research"
     content = open(htmls[0], encoding="utf-8").read()
     assert "Frecuencia mediana" in content
-    assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba el número desnudo, sin procedencia"
+    # Tanda de heurísticas (2026-11-19): la frecuencia mediana lleva su fuente ([DL1997], tema A7).
+    assert BADGES.label(BADGES.CLINICAL) in content, "antes exportaba el número desnudo, sin procedencia"
 
 
 def test_ecg_segment_export_has_no_bare_numbers_and_validation_marker(_isolated_reports_dir):
@@ -263,12 +264,13 @@ def test_ecg_segment_export_has_no_bare_numbers_and_validation_marker(_isolated_
     assert htmls, "no se generó el HTML de ECG Segment"
     content = open(htmls[0], encoding="utf-8").read()
     assert "Frecuencia cardíaca" in content
-    assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba solo {'length': ...}, cero honestidad"
+    assert BADGES.label(BADGES.MEASURED) in content and "sin la compuerta de calidad" in content, "antes exportaba solo {'length': ...}, cero honestidad"
     assert "MIT-BIH" in content, "ECG Segment debe heredar el nivel de validación ya declarado para ECG Lab"
     assert PALETTE.STABLE in content
 
 
-def test_multisensor_research_export_has_no_bare_numbers_and_heuristic_marker(_isolated_reports_dir):
+def test_multisensor_has_no_demo_export_since_its_demo_channels_were_retired():
+    """Tanda de heurísticas (2026-11-19, decisión de Luis): sin canales demo no hay exporte de investigación."""
     def _script():
         import app.main as m
         m.render_multisensor_page()
@@ -276,18 +278,7 @@ def test_multisensor_research_export_has_no_bare_numbers_and_heuristic_marker(_i
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    _click_view(at, "Investigación")
-    btn = next(b for b in at.main.button if "Exportar multisensor" in b.label)
-    btn.click()
-    at.run(timeout=30)
-    assert at.exception == [], f"excepción al exportar: {at.exception}"
-
-    htmls = glob.glob(os.path.join(str(_isolated_reports_dir), "*Multisensor_Research*.html"))
-    assert htmls, "no se generó el HTML de Multisensor Research"
-    content = open(htmls[0], encoding="utf-8").read()
-    assert "Health Score" not in content and "SpO₂" in content and "Frecuencia cardíaca" in content   # decisión 8
-    assert BADGES.label(BADGES.HEURISTIC) in content, "antes exportaba solo {'channels': [...]}, cero honestidad"
-    assert PALETTE.NEUTRAL in content, "Multisensor es heurístico -- marco NEUTRAL, no una alarma"
+    assert not [b for b in at.main.button if "Exportar multisensor" in b.label]
 
 
 def test_eeg_neuro_lab_export_includes_dar_tbr_bar_and_chi_with_full_scope_clause(_isolated_reports_dir):

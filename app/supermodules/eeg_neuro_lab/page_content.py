@@ -188,10 +188,11 @@ with col2:
     with tab_how:
         st.markdown("### Cómo funciona esta plataforma")
         st.write(
-            "Este laboratorio estudia la señal EEG en tres fases: adquisición, espectro y clasificación clínica. "
+            "Este laboratorio estudia la señal EEG en dos fases: adquisición y espectro. "
             "Primero convertimos la señal temporal en densidad espectral usando el método de Welch. "
             "Luego integramos la potencia dentro de las bandas Delta, Theta, Alfa, Beta y Gamma para obtener una descripción cuantitativa del ritmo cerebral. "
-            "Finalmente, el módulo de interpretación asocia la banda dominante con estados como relajación, alerta, somnolencia o sueño profundo."
+            "La banda dominante no se traduce a un estado (relajación, alerta, sueño): BIOCORE no tiene una fuente para "
+            "hacerlo. Los cocientes que sí la tienen (DAR, TBR, BAR) se muestran con su cita."
         )
 
         st.markdown('<a id="como-interpretar-eeg"></a>', unsafe_allow_html=True)

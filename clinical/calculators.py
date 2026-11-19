@@ -460,11 +460,11 @@ def aa_gradient(fio2: float, pao2_mmhg: float, paco2_mmhg: float, patm_mmhg: flo
 
 
 def expected_aa_gradient(age_years: float) -> float:
-    """Regla clínica habitual en aire ambiente: edad/4 + 4 mmHg (estimación,
-    no un estándar validado -- se muestra como heurística)."""
+    """Gradiente A–a esperado para la edad en aire ambiente: 2.5 + 0.21·edad mmHg (`EXPECTED_AA_CITATION`). Es un
+    valor esperado, no un límite de lo normal: la calculadora no juzga el gradiente con él."""
     if age_years is None or not math.isfinite(age_years) or age_years < 0:
         raise ValueError("edad inválida")
-    return age_years / 4.0 + 4.0
+    return 2.5 + 0.21 * age_years
 
 
 def pf_ratio(pao2_mmhg: float, fio2: float) -> float:
@@ -787,3 +787,12 @@ def classify_gcs(total: Optional[int]) -> Classification:
     if total >= 9:
         return ("leve", f"{total}/15 — alteración moderada (9–12)", "🟡")
     return ("severo", f"{total}/15 — alteración grave (3–8)", "🔴")
+
+
+# Tanda de heurísticas (2026-11-19): el gradiente A–a esperado para la edad, con fuente (antes edad/4 + 4, sin fuente).
+EXPECTED_AA_CITATION = (
+    "Gradiente A–a esperado = 2.5 + 0.21·edad mmHg, en aire ambiente: Mellemgaard K. The alveolar-arterial oxygen "
+    "difference: its size and components in normal man. Acta Physiol Scand 1966;67(1):10–20; Kanber GJ, King FW, "
+    "Eshchar YR, et al. The alveolar-arterial oxygen gradient in young and elderly men during air and oxygen "
+    "breathing. Am Rev Respir Dis 1968;97(3):376–81 (fórmula de la calculadora «A-a Gradient» del Manual MSD)"
+)

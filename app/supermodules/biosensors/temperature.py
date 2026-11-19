@@ -21,8 +21,8 @@ from app.supermodules.biosensors.source import (BoardSignal, render_board_source
 from app.supermodules.biosensors.tutorial import render_sensor_tutorial
 from app.utils.design_system import BADGES, render_metric_card
 from hardware.biosensors import TEMP
-from hardware.biosensors.quality import (STABLE_SLOPE_C_PER_MIN, STABLE_WINDOW_S, TEMP_ISSUE_TEXT, is_stable,
-                                         temp_quality, temp_trend, valid_temperatures)
+from hardware.biosensors.quality import (MARUI_2017, STABLE_BAND_C, STABLE_WINDOW_S, TEMP_ISSUE_TEXT, TREND_WINDOW_S,
+                                         is_stable, temp_quality, temp_trend, valid_temperatures)
 
 TITLE = 'Temperatura (DS18B20)'
 TUTORIAL_TITLE = 'Temperatura (DS18B20): tutorial'
@@ -36,8 +36,8 @@ ORIGIN_TABLE = [
                                                                                   'sin calibrar aquí'),
     ('Tendencia', 'Pendiente de una recta por mínimos cuadrados sobre el último minuto, en °C por minuto',
      'Cálculo estándar'),
-    ('«Estable»', f'La tendencia cambia menos de {STABLE_SLOPE_C_PER_MIN:g} °C por minuto', 'Heurística, sin criterio '
-                                                                                            'clínico citado'),
+    ('«Estable»', f'Las lecturas de los últimos {STABLE_WINDOW_S / 60:.0f} minutos caben en ±{STABLE_BAND_C:g} °C',
+     'Criterio publicado de Marui et al. 2017 (para su termómetro timpánico), aplicado a la sonda'),
     ('Fiebre', 'No se evalúa', 'La sonda mide piel, no temperatura central (Taylor 2014)'),
 ]
 INTRO = (
@@ -52,7 +52,8 @@ PRACTICE_INTRO = (
 )
 PRACTICE_OBSERVE = [
     '**Pon la sonda en la axila.** La curva sube rápido y luego cada vez más despacio. La app dice «estable» cuando '
-    f'cambia menos de {STABLE_SLOPE_C_PER_MIN:g} °C en un minuto: en el simulador tarda unos 3 minutos.',
+    f'las lecturas de {STABLE_WINDOW_S / 60:.0f} minutos caben en ±{STABLE_BAND_C:g} °C (Marui 2017): en el simulador '
+    'tarda unos 5 minutos.',
     '**Sácala al aire.** Baja hacia la temperatura del cuarto. Una lectura tomada antes de estabilizarse depende de '
     'cuánto esperaste, no solo de la persona.',
     '**Desconecta el cable.** El estado pasa a «sin conexión» y la app reintenta sola.',
@@ -102,15 +103,20 @@ def render_temp_view(x_c: np.ndarray, fs: float, height: int = 260) -> None:
         render_metric_card('Última lectura', f'{x[-1]:.2f} °C', citation=ACCURACY)
     with cols[1]:
         render_metric_card('Tendencia (último minuto)', None if trend is None else f'{trend:+.2f} °C/min',
-                           unavailable_reason=f'No disponible todavía: hacen falta {STABLE_WINDOW_S:.0f} s de lecturas.')
+                           unavailable_reason=f'No disponible todavía: hacen falta {TREND_WINDOW_S:.0f} s de lecturas.')
     with cols[2]:
-        if trend is None:
-            state = 'Juntando un minuto de lecturas'
-        elif is_stable(trend):
+        stable = is_stable(x, fs)
+        if stable is None:
+            state = f'Juntando {STABLE_WINDOW_S / 60:.0f} minutos de lecturas'
+        elif stable:
             state = 'Estable'
         else:
             state = 'Todavía cambia: espera'
-        render_metric_card('¿Ya se puede leer?', state, provenance=BADGES.HEURISTIC)
+        # Revisión de la tanda: sin «Validado por fuente»: Marui lo usó para un termómetro timpánico, no para esta sonda.
+        render_metric_card('¿Ya se puede leer?', state,
+                           citation=f'±{STABLE_BAND_C:g} °C durante {STABLE_WINDOW_S / 60:.0f} min, el criterio de '
+                                    f'estabilidad de un termómetro timpánico en {MARUI_2017}; aquí se aplica a la sonda '
+                                    'DS18B20, que no se validó con él')
 
 
 # ---------------------------------------------------------------- medición

@@ -29,7 +29,7 @@ from src.signals.ecg.hrv_nonlinear import (
 
 SURROGATE_SEED = 0
 _VALIDATION_DETAIL = (
-    "PENDING_VALIDATION: métodos citados y validados contra ground truth sintético (ruido blanco, 1/f, "
+    "Métodos citados y comprobados contra series sintéticas de resultado conocido (ruido blanco, 1/f, "
     "SD1 = RMSSD/√2); la interpretación clínica de la complejidad autonómica no tiene firma del experto."
 )
 

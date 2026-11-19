@@ -150,9 +150,9 @@ def test_emg_hrv_biomarkers_show_their_signed_validation_marker():
     from app.utils.design_system import PALETTE
 
     for script, expected_color, fragment in (
-        (_script_emg, PALETTE.NEUTRAL, "Activación RMS fisiológica"),
+        (_script_emg, PALETTE.NEUTRAL, "RMS y frecuencia mediana"),        # tanda de heurísticas (2026-11-19)
         (_script_hrv, PALETTE.STABLE, "[SG2017]"),  # residuos del PR #8: antes «Task Force»
-        (_script_biomarkers, PALETTE.NEUTRAL, "Índices compuestos"),
+        (_script_biomarkers, PALETTE.NEUTRAL, "Índices compuestos"),       # contenido sin montar desde el 2026-11-19
     ):
         at = AppTest.from_function(script)
         at.run(timeout=30)
@@ -228,11 +228,11 @@ def test_ecg_lab_still_shows_validated_marker_and_multisensor_heuristic_marker()
     ecg_marker = next(md.value for md in at_ecg.main.markdown if "MIT-BIH" in md.value)
     assert PALETTE.STABLE in ecg_marker and "✓" in ecg_marker
 
+    # Tanda de heurísticas (2026-11-19): Fusión de sensores perdió sus canales demo y su marcador heurístico.
     at_multi = AppTest.from_function(_script_multi)
     at_multi.run(timeout=30)
     assert at_multi.exception == []
-    multi_marker = next(md.value for md in at_multi.main.markdown if "Detección heurística de FC y SpO₂" in md.value)
-    assert PALETTE.NEUTRAL in multi_marker and "◇" in multi_marker
+    assert not any("Detección heurística" in md.value or "◇" in md.value for md in at_multi.main.markdown)
 
 
 # --- Biomarkers: los 3 "no disponible" reales de este panel ---------------
@@ -314,7 +314,7 @@ def test_emg_median_frequency_card_shows_heuristic_badge():
     _click_view(at, "Investigación")
     assert at.exception == []
     card = next(md.value for md in at.main.markdown if "Frecuencia mediana" in md.value)
-    assert BADGES.label(BADGES.HEURISTIC) in card
+    assert BADGES.label(BADGES.CLINICAL) in card and "[DL1997]" in card     # tema A7 (2026-11-19)
     assert "Hz" in card
 
 
@@ -367,7 +367,9 @@ def test_emg_median_frequency_card_matches_exported_value_same_execution(tmp_pat
 
 # --- Multisensor: Health Score / Heart Rate / SpO2, badge HEURISTIC -------
 
-def test_multisensor_clinica_cards_show_heuristic_badge_never_alarm_colors():
+def test_multisensor_no_longer_shows_demo_channel_cards():
+    """Tanda de heurísticas (2026-11-19, decisión de Luis): sin canales demo, ni tarjetas «heurísticas» ni colores de
+    alarma: la página es la vista de los sensores en vivo."""
     def _script():
         import app.main as m
         m.render_multisensor_page()
@@ -375,38 +377,19 @@ def test_multisensor_clinica_cards_show_heuristic_badge_never_alarm_colors():
     at = AppTest.from_function(_script)
     at.run(timeout=30)
     assert at.exception == []
-    assert not any("Health Score" in md.value for md in at.main.markdown)   # decisión 8: retirado
-    for label in ("Frecuencia cardíaca", "SpO₂"):
-        # "Health Score" también aparece en el `render_metric_explained()`
-        # educativo que se conserva arriba (mismo label, div distinto) --
-        # se filtra específicamente por la tarjeta de render_metric_card
-        # (identificable por su borde), no por cualquier markdown que
-        # mencione el label.
-        card = next(
-            md.value for md in at.main.markdown
-            if label in md.value and "border-left:4px solid" in md.value
-        )
-        assert BADGES.label(BADGES.HEURISTIC) in card, f"{label}: falta el badge heurístico"
-        # Multisensor es heurístico, no una alarma -- el marco de estas
-        # tarjetas (sin `classification=`) debe ser NEUTRAL, nunca CRITICAL/WARNING.
-        assert PALETTE.CRITICAL not in card
-        assert PALETTE.WARNING not in card
+    text = " ".join(md.value for md in at.main.markdown)
+    assert "canal demo" not in text and "ECG demo" not in text and BADGES.label(BADGES.HEURISTIC) not in text
 
 
-def test_multisensor_simulacion_cards_show_heuristic_badge():
+def test_multisensor_has_no_simulation_section_since_its_demo_channels_were_retired():
     def _script():
         import app.main as m
         m.render_multisensor_page()
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    _click_view(at, "Simulación")
     assert at.exception == []
-    assert not any("Health Score" in md.value for md in at.main.markdown)   # decisión 8: retirado
-    labels = ("FC detectada del ECG demo", "SpO₂ recalculada del canal demo")
-    for label in labels:
-        card = next(md.value for md in at.main.markdown if label in md.value)
-        assert BADGES.label(BADGES.HEURISTIC) in card, f"{label}: falta el badge heurístico"
+    assert not [e for e in at.main.expander if e.label == "Simular"]
 
 
 # --- Confirmaciones de las 3 reglas duras ----------------------------------

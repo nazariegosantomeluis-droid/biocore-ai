@@ -24,6 +24,9 @@ from hardware.ecg_plugplay import latest_clean_segment
 MIN_SECONDS = 4.0
 TUTORIAL_TAB = 'Placa en vivo (tutorial)'
 
+# Tanda de heurísticas (2026-11-19): antes «ESP32 simulado (demo, SIMULACIÓN)». No escribe al gemelo (ecg_trazo).
+SIMULATED_BOARD_SOURCE = 'ESP32 simulado (SIMULACIÓN)'
+
 
 def render_live_source() -> Optional[Tuple[np.ndarray, float, Dict[str, str]]]:
     """Dibuja los controles de la placa en la barra lateral.
@@ -62,7 +65,7 @@ def render_live_source() -> Optional[Tuple[np.ndarray, float, Dict[str, str]]]:
         metadata = {'source': f"ESP32 + AD8232 en {snap['port']} (SENSOR_REAL)"}
     else:
         st.sidebar.warning('PROCEDENCIA: SIMULACIÓN — la placa se declaró simulador; no es un sensor.')
-        metadata = {'source': 'ESP32 simulado (demo, SIMULACIÓN)'}
+        metadata = {'source': SIMULATED_BOARD_SOURCE}
     st.sidebar.caption('Una derivación, filtro de monitoreo de 0.5 a 40 Hz y mV aproximados: sirve para ritmo y '
                        'frecuencia, no para el ST ni para amplitudes. Detalles en el tutorial.')
     return limpia, float(snap['fs']), metadata

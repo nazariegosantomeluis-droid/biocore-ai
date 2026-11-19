@@ -245,7 +245,7 @@ def test_e15_an_obstructive_apnea_is_obstructive_at_any_tidal_volume(tv):
     # el flujo se corta pero el esfuerzo (tórax) continúa al 100 %
     t, x, c = tidal(15, 120.0, tv=tv, gaps=[(40.0, 14.0)], effort_gaps=[])
     ev = one_event(run(t, x, c))
-    assert ev["type"] == "obstructive" and ev["type_label"] == "Criterio BIOCORE" and ev["mixed_pending"] is False
+    assert ev["type"] == "obstructive" and ev["type_label"].startswith("Berry 2012") and ev["mixed_pending"] is False
 
 
 @pytest.mark.parametrize("tv", [0.1, 0.5, 1.5])
@@ -259,10 +259,15 @@ def test_e16_a_central_apnea_has_the_effort_dropped_at_least_90_percent(tv):
         assert one_event(run(t, x, c2))["type"] == "central"
 
 
-def test_e17_a_mixed_apnea_is_computed_and_marked_pending_validation():
+def test_e17_a_mixed_apnea_follows_the_berry_2012_order():
+    """Tanda de heurísticas (2026-11-19): la mixta es la regla de Berry 2012 (esfuerzo ausente al principio, que se
+    reanuda después) y deja de estar pendiente. El orden inverso no es ninguna de las tres reglas: sin clasificar."""
     t, x, c = tidal(15, 120.0, gaps=[(40.0, 20.0)], effort_gaps=[(40.0, 10.0)])
     ev = one_event(run(t, x, c))
-    assert ev["type"] == "mixed" and ev["mixed_pending"] is True
+    assert ev["type"] == "mixed" and ev["mixed_pending"] is False and "se reanuda" in ev["type_detail"]
+    t, x, c = tidal(15, 120.0, gaps=[(40.0, 20.0)], effort_gaps=[(50.0, 10.0)])      # presente y luego ausente
+    ev = one_event(run(t, x, c))
+    assert ev["type"] == "unknown" and "sin clasificar" in ev["type_detail"]
 
 
 def test_without_an_effort_channel_the_type_is_unknown_not_guessed():
@@ -346,8 +351,8 @@ def test_cheyne_stokes_valley_duration_matches_the_annotation_within_2_seconds()
         assert a.apnea_count == len(truth) >= 3, (rr, cycle)
         for det, ann in zip(a.apnea_events, truth):
             assert det["start_time"] < ann["start_s"] + ann["duration_s"] and det["end_time"] > ann["start_s"]
-            assert det["type"] in ("central", "mixed")                  # 'mixed' = esfuerzo >= 10 % en las colas (PENDING_VALIDATION)
-            assert det["mixed_pending"] == (det["type"] == "mixed")
+            assert det["type"] in ("central", "mixed")                  # 'mixed' = ausente y luego se reanuda (Berry 2012)
+            assert det["mixed_pending"] is False
             # control independiente de la anotación: el tramo detectado contiene la ventana de flujo cero del patrón
             assert det["start_time"] <= ann["construction_start_s"] + 0.5 or ann["near_threshold"]
             assert det["end_time"] >= ann["construction_start_s"] + ann["construction_duration_s"] - 0.5 or ann["near_threshold"] or det["truncated"]

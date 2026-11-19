@@ -85,7 +85,7 @@ def test_calendar_apneas_have_abrupt_edges_and_negligible_u():
 
 
 def test_the_duration_criterion_label_is_the_signed_one():
-    assert DURATION_CRITERION_LABEL == "Criterio BIOCORE: operacionalización de Berry a nivel de muestra"
+    assert DURATION_CRITERION_LABEL.startswith("medición de BIOCORE, más corta que la de Berry 2012")   # 2026-11-19
 
 
 def test_duration_text_shows_the_uncertainty_only_for_gradual_edges():

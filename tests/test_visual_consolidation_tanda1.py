@@ -132,47 +132,42 @@ def test_ecg_lab_shows_validated_confidence_marker():
     assert "✓" in markers[0]
 
 
-def test_multisensor_shows_heuristic_confidence_marker():
-    """NOTA (Tanda Final, 2026-09-22): la firma verbatim del experto ya no
-    contiene la palabra "heurístico" -- se busca por "Health Score", el
-    fragmento estable de su propio texto."""
+def test_multisensor_live_page_has_no_confidence_marker():
+    """Tanda de heurísticas (2026-11-19, decisión de Luis): sin los canales demo, Fusión de sensores es la vista de los
+    sensores en vivo y no lleva marcador de laboratorio (cada lectura lleva su propia etiqueta)."""
     def _script():
         import app.main as m
         m.render_multisensor_page()
 
     at = AppTest.from_function(_script)
     at.run(timeout=30)
-    markers = [md.value for md in at.main.markdown if "Detección heurística de FC y SpO₂" in md.value]
-    assert len(markers) == 1
-    assert PALETTE.NEUTRAL in markers[0], "heurístico no es una alarma -- debe ser NEUTRAL, no WARNING/CRITICAL"
-    assert "no validado" in markers[0]
-    assert "◇" in markers[0]
+    assert at.exception == []
+    assert not [md.value for md in at.main.markdown if "◇" in md.value or "Detección heurística" in md.value]
 
 
 def test_confidence_markers_are_visually_distinguishable_between_extremes():
-    """La prueba del lenguaje: ECG (validado) y Multisensor (heurístico)
-    deben verse con autoridad distinta -- colores de marco distintos,
-    símbolos distintos."""
+    """La prueba del lenguaje: ECG (validado) y EMG (◇, sin validar contra datos) deben verse con autoridad distinta --
+    colores de marco distintos, símbolos distintos. (Antes con Multisensor, que perdió sus canales demo el
+    2026-11-19.)"""
     def _script_ecg():
         import app.main as m
         m.render_ecg_lab_page()
 
-    def _script_multi():
+    def _script_emg():
         import app.main as m
-        m.render_multisensor_page()
+        m.render_emg_page()
 
     at_ecg = AppTest.from_function(_script_ecg)
     at_ecg.run(timeout=30)
-    at_multi = AppTest.from_function(_script_multi)
-    at_multi.run(timeout=30)
+    at_emg = AppTest.from_function(_script_emg)
+    at_emg.run(timeout=30)
 
     ecg_marker = next(md.value for md in at_ecg.main.markdown if "MIT-BIH" in md.value)
-    multi_marker = next(md.value for md in at_multi.main.markdown if "Detección heurística de FC y SpO₂" in md.value)
+    emg_marker = next(md.value for md in at_emg.main.markdown if "RMS y frecuencia mediana" in md.value)
 
-    assert PALETTE.STABLE in ecg_marker and PALETTE.STABLE not in multi_marker
-    assert PALETTE.NEUTRAL in multi_marker and PALETTE.NEUTRAL not in ecg_marker
-    assert "✓" in ecg_marker and "✓" not in multi_marker
-    assert "◇" in multi_marker and "◇" not in ecg_marker
+    assert PALETTE.STABLE in ecg_marker and PALETTE.STABLE not in emg_marker
+    assert PALETTE.NEUTRAL in emg_marker and PALETTE.NEUTRAL not in ecg_marker
+    assert "✓" in ecg_marker and "✓" not in emg_marker
 
 
 # --- Parte A: la colisión de gramáticas, resuelta a nivel de marco --------

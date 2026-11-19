@@ -508,11 +508,11 @@ with col2:
         # `render_metric_card`. `heart_rate` es el parámetro de generación
         # (`generation_hr`: el del tipo de ritmo, o el slider), no una medición
         # sobre la señal -- pero es el MISMO con el que se generó el trazado
-        # (Unificación 3). `BADGES.HEURISTIC` (no hay `*_CITATION` que lo
-        # respalde; sin `classification=`, no se fabrica un semáforo de 3 niveles).
+        # (Unificación 3). Tanda de heurísticas (2026-11-19): es la FC pedida al generador, así que su etiqueta es
+        # «Simulación» (antes «Heurística»); sin `classification=`, no se fabrica un semáforo de 3 niveles.
         render_metric_card(
             "FC (lpm)", f"{st.session_state.heart_rate:g}",
-            provenance=BADGES.HEURISTIC,
+            provenance=BADGES.SIMULATION, citation="la FC con que se generó el trazado",
         )
         if st.session_state.get("heart_rate_note"):
             st.caption(st.session_state.heart_rate_note)
@@ -520,17 +520,18 @@ with col2:
     if "ecg_data" in st.session_state:
         analysis = st.session_state.ecg_data
 
-        # Lead quality metrics -- Consolidación Visual Tanda 3 (2026-09-21):
-        # `st.write` con SNR calculado en línea -> `render_metric_card`.
-        # SNR = max(|señal|)/std(señal), cálculo real sin cita clínica --
-        # `BADGES.HEURISTIC`.
-        st.markdown("### 📡 Calidad de Señal")
+        # Tanda de heurísticas (2026-11-19): decía «Calidad de señal» y «SNR», pero max(|señal|)/std(señal) no es una
+        # relación señal-ruido ni un juicio de calidad: es el pico entre la desviación estándar. Se queda la medida con
+        # su nombre.
+        st.markdown("### 📡 Pico entre desviación estándar")
+        st.caption("El pico absoluto de cada derivación dividido entre su desviación estándar. No es una relación "
+                   "señal-ruido ni un juicio de calidad.")
         for lead in ['I', 'II', 'V1', 'V4']:
             signal = analysis.get(lead, np.zeros(1))
-            snr = np.max(np.abs(signal)) / (np.std(signal) + 1e-6)
+            ratio = np.max(np.abs(signal)) / (np.std(signal) + 1e-6)
             render_metric_card(
-                f"{lead} SNR", f"{snr:.1f}",
-                provenance=BADGES.HEURISTIC,
+                f"{lead}: pico / desviación estándar", f"{ratio:.1f}",
+                provenance=BADGES.MEASURED,
             )
 
     st.markdown("---")

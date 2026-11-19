@@ -568,8 +568,8 @@ def test_twin_provenance_and_findings_filter():
     assert 'problemas de calidad' in save_blocker(live(SENSOR_REAL, ('red',)), 'O1')
     findings = {'Dominant Band': 'DELTA', 'Classification': 'Sueño profundo', 'Clinical Note': 'x', 'Alert': 'y',
                 'Delta Power': '1.0'}
-    assert visible_findings(findings, True) == findings
-    assert visible_findings(findings, False) == {'Dominant Band': 'DELTA', 'Delta Power': '1.0'}
+    # Tanda de heurísticas (2026-11-19): la traducción banda → estado no tiene fuente; se oculta con cualquier fuente.
+    assert visible_findings(findings) == {'Dominant Band': 'DELTA', 'Delta Power': '1.0'}
 
 
 def test_old_fabricating_hardware_path_is_gone():
@@ -634,7 +634,7 @@ def practice():
     prac.service.stop()
 
 
-def test_synthetic_source_keeps_its_interpretation(eeg_ups):
+def test_synthetic_source_shows_the_measures_without_a_state(eeg_ups):
     at = _apptest(eeg_ups)
     at.run(timeout=60)
     assert at.exception == []
@@ -642,8 +642,9 @@ def test_synthetic_source_keeps_its_interpretation(eeg_ups):
     assert [t.label for t in at.tabs] == ['Clínica', 'Cómo funciona', 'Referencias EEG', 'Quiz',
                                           'EEG en vivo (tutorial)']
     markdown = _texts(at.main.markdown)
-    assert 'Clasificación' in markdown and 'no se traduce a un estado' not in markdown
-    assert 'Interpretación:' in markdown                 # el generador sí trae su traducción banda → estado
+    # Tanda de heurísticas (2026-11-19): «Despierto relajado» y las demás traducciones banda → estado no tenían fuente.
+    assert 'Despierto relajado' not in markdown and 'Interpretación:' not in markdown
+    assert 'Banda con más potencia' in markdown and 'no se traduce a un estado' in markdown
 
 
 def test_live_source_without_connection_analyzes_nothing(eeg_ups):

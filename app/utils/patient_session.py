@@ -33,7 +33,7 @@ _SESSION_FACTORY_KEY = "twin_shell_ups_session_factory"
 _PATIENT_ID_KEY = "twin_shell_ups_patient_id"
 _DISPLAY_NAME_KEY = "twin_shell_ups_patient_display_name"
 
-DEFAULT_PATIENT_DISPLAY_NAME = "Paciente Demo (Twin Shell)"
+DEFAULT_PATIENT_DISPLAY_NAME = "Paciente de la sesión"   # antes «Paciente Demo (Twin Shell)» (2026-11-19)
 
 
 @st.cache_resource(show_spinner=False)

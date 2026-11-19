@@ -133,21 +133,21 @@ def render_mu_erd_panel(signal: np.ndarray, lead: str, fs: float, time: np.ndarr
 
     # Rótulo de alcance SIEMPRE visible (disponible o no la medición), con
     # peso de aviso -- `st.warning`, no `st.caption`.
-    st.warning(f"**Alcance de esta demostración:** {result.scope_note}")
+    st.warning(f"**Alcance:** {result.scope_note}")
     # Sin curva (señal demasiado corta para filtrar) no hay gráfico que
     # dibujar -- solo el motivo de abajo, nunca una curva de relleno.
     if result.power_curve is not None:
         st.plotly_chart(build_erd_figure(result, time, lead), use_container_width=True)
-        st.caption(f"Canal mostrado: {lead} -- demostración MONO-CANAL (ver rótulo de alcance arriba).")
+        st.caption(f"Canal mostrado: {lead} -- un solo canal (ver el rótulo de alcance arriba).")
 
     # Degradación honesta: el motivo, nunca un ERD% fabricado.
     if result.available:
         render_metric_card(
             'ERD (mu) recuperado', f'{result.erd_percent:.1f}%',
-            # METHOD: demostración de fenómeno con fórmula real
-            # (Pfurtscheller), no score clínico ni heurística sobre datos reales.
-            provenance=BADGES.METHOD, grammar=GRAMMAR_NEUTRAL_STATE,
-            citation=result.scope_note,
+            # Tanda de heurísticas (2026-11-19): la fórmula de Pfurtscheller con su fuente (antes «Criterio BIOCORE»);
+            # el alcance (un solo canal, sin lateralidad) sigue en la cita y en el aviso de arriba.
+            provenance=BADGES.CLINICAL, grammar=GRAMMAR_NEUTRAL_STATE,
+            citation=f"{erd_detector.ERD_CITATION}. {result.scope_note}",
         )
         st.caption(
             f"Evento en t={result.t_event:.1f}s · potencia baseline="

@@ -31,8 +31,7 @@ PATIENT_GROUPS: Sequence[Tuple[str, Sequence[Card]]] = (
         ("eeg", "Bandas del EEG y sus cocientes, con su cita."),
         ("emg", "Señal muscular de superficie: activación y RMS."),
         ("hrv", "Variabilidad cardiaca: dominio temporal, espectro y RSA."),
-        ("multisensor", "Varios canales de demostración, y el pulso por luz y la temperatura en vivo."),
-        ("biomarcadores", "Biomarcadores en modo demostración."),
+        ("multisensor", "El pulso por luz y la temperatura en vivo, con sus tutoriales."),
         ("calculadoras", "Calculadoras clínicas con su fuente, con los signos de tu paciente."),
     )),
     ("Historia y comparación", (

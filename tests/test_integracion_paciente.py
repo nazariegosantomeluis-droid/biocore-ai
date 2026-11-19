@@ -25,8 +25,9 @@ from src.clinical import sepsis_trajectory
 
 MAIN = str(Path("app/main.py").resolve())
 PATIENT_KEY = "twin_shell_ups_patient_id"
-EXPLORAR = ("gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv", "biomarcadores", "calculadoras",
-            "pacientes", "modelo-3d")
+# Biomarcadores salió del menú el 2026-11-19 (decisión de Luis): su página solo dice por qué y no lleva banner.
+EXPLORAR = ("gemelo", "ecg", "multisensor", "respiratorio", "eeg", "emg", "hrv", "calculadoras", "pacientes",
+            "modelo-3d")
 
 
 @pytest.fixture(autouse=True)
@@ -225,7 +226,7 @@ def test_sin_dato_no_lleva_puntos_news2():
     assert banner.count("NEWS2") == 1, banner               # solo el pulso; FR y SpO₂ dicen «Sin dato»
 
 
-@pytest.mark.parametrize("url", ["calculadoras", "ecg", "multisensor"])
+@pytest.mark.parametrize("url", ["calculadoras", "ecg"])        # multisensor: sin canales demo no hay lectura (2026-11-19)
 def test_las_pantallas_que_muestran_una_lectura_traen_sus_puntos_news2(url):
     at = _open(url)
     notes = [c.value for c in at.caption if c.value.startswith("NEWS2 (RCP 2017): ")]
@@ -269,7 +270,7 @@ def test_ecg_del_mismo_paciente_es_siempre_el_mismo_trazo():
 
 def test_ecg_sin_paciente_abre_en_la_demo_como_siempre():
     at = _open("ecg")
-    assert at.session_state[ECG_SOURCE_KEY] == "Demo (sintético)"
+    assert at.session_state[ECG_SOURCE_KEY] == "Simulación (sintética)"
 
 
 def test_ecg_paciente_sin_fc_en_el_ups_dice_sin_dato_y_no_cae_en_la_demo():

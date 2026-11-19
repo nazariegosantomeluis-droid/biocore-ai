@@ -46,8 +46,8 @@ ORIGIN_TABLE = [
     ('Ventanas descartadas', 'Rechazo por gradiente de EegAnalyzer (más de 5500 µV/s)',
      'Umbral de ingeniería calibrado con la señal del generador; sin probar con hardware real'),
     ('DAR, TBR, BAR y χ', 'Los mismos cálculos de la pestaña Clínica', 'Cada tarjeta dice su fuente'),
-    ('Avisos de calidad por canal', 'Umbrales de ingeniería (`QualityHeuristics`)', 'Heurísticos, sin criterio '
-                                                                                    'clínico citado'),
+    ('Avisos de calidad por canal', 'Comprobaciones del equipo: canal plano, canal muy distinto de los demás o '
+                                    'zumbido de la red', 'Solo avisan si el canal sirve; no son un juicio clínico'),
     ('Microvoltios', 'BrainFlow devuelve µV en los canales de EEG siempre que puede; un flujo LSL, lo que declare',
      'Del fabricante o del programa que publica; BIOCORE no calibra'),
 ]

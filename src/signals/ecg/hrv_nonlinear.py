@@ -54,9 +54,9 @@ POINCARE_CITATION: str = (
 ALPHA2_NOTE: str = "alfa2 (escalas 16-64) requiere >1000 latidos, no disponible en esta duración"
 
 NONLINEAR_SCOPE_NOTE: str = (
-    "demostración de métricas de complejidad sobre una serie RR. Las interpretaciones clínicas de la complejidad "
-    "autonómica (p. ej. alfa1 reducida) están en la literatura, pero BIOCORE no las firma todavía "
-    "(PENDING_VALIDATION): no es un índice de riesgo."
+    "métricas de complejidad sobre una serie RR, cada una con su método citado. Las interpretaciones clínicas de la "
+    "complejidad autonómica (p. ej. alfa1 reducida) están en la literatura, pero no en la teoría firmada de BIOCORE: "
+    "aquí no se interpretan y no es un índice de riesgo."
 )
 
 MIN_BEATS_NONLINEAR: int = 200

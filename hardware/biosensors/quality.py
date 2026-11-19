@@ -135,8 +135,15 @@ TEMP_ISSUE_TEXT = {
     'arranque': '85 °C exactos es el valor de encendido del DS18B20 (hoja de datos): esa lectura no terminó. Revisa '
                 'la alimentación (3V3) y la resistencia de 4.7 kΩ.',
 }
-STABLE_WINDOW_S = 60.0
-STABLE_SLOPE_C_PER_MIN = 0.1             # «estable»: cambia menos de 0.1 °C por minuto (heurística)
+TREND_WINDOW_S = 60.0                    # la tendencia: pendiente del último minuto (cálculo, sin juicio)
+# «Estable» (tanda de heurísticas, 2026-11-19): ±0.1 °C durante 3 min, el criterio con que Marui et al. 2017 dieron por
+# estable su termómetro timpánico («±0.1 °C for 3 min»). Aquí se aplica a la sonda: todas las lecturas de los últimos
+# 3 min caben en ±0.1 °C alrededor de su punto medio. Antes: pendiente < 0.1 °C/min, sin fuente.
+STABLE_WINDOW_S = 180.0
+STABLE_BAND_C = 0.1
+MARUI_2017 = ('Marui S, Misawa A, Tanaka Y, Nagashima K. Assessment of axillary temperature for the evaluation of '
+              'normal body temperature of healthy young adults at rest in a thermoneutral environment. J Physiol '
+              'Anthropol. 2017;36:18. doi:10.1186/s40101-017-0133-y')
 
 
 def temp_quality(x_c: np.ndarray) -> Tuple[str, ...]:
@@ -149,7 +156,7 @@ def valid_temperatures(x_c: np.ndarray) -> np.ndarray:
     return x[x != TEMP_POWER_ON_C]
 
 
-def temp_trend(x_c: np.ndarray, fs: float, window_s: float = STABLE_WINDOW_S) -> Optional[float]:
+def temp_trend(x_c: np.ndarray, fs: float, window_s: float = TREND_WINDOW_S) -> Optional[float]:
     """Pendiente en °C por minuto de los últimos `window_s` segundos (recta por mínimos cuadrados), o None si todavía
     no hay tantos segundos de señal."""
     x = valid_temperatures(x_c)
@@ -160,5 +167,11 @@ def temp_trend(x_c: np.ndarray, fs: float, window_s: float = STABLE_WINDOW_S) ->
     return float(np.polyfit(t, x[-n:], 1)[0] * 60.0)
 
 
-def is_stable(trend_c_per_min: Optional[float]) -> bool:
-    return trend_c_per_min is not None and abs(trend_c_per_min) < STABLE_SLOPE_C_PER_MIN
+def is_stable(x_c: np.ndarray, fs: float) -> Optional[bool]:
+    """¿Las lecturas válidas de los últimos 3 min caben en ±0.1 °C (Marui 2017)? None si todavía no hay 3 min."""
+    x = valid_temperatures(x_c)
+    n = int(round(STABLE_WINDOW_S * fs))
+    if n < 2 or x.size < n:
+        return None
+    window = x[-n:]
+    return bool(float(window.max() - window.min()) <= 2 * STABLE_BAND_C + 1e-9)

@@ -4,7 +4,7 @@ Diagnostico (Tanda 1.5, 2026-11-05): `tests/test_ai_session_key.py` arranca
 `app/main.py` completo por AppTest sin inyectar un factory propio. La app llama a
 `get_shared_ups_engine()` -> `make_engine()` sin ruta, que lee el global
 `domain.physiology.state.db.DEFAULT_DB_PATH` en el momento de la llamada, y
-`get_active_patient_id()` crea ahi un "Paciente Demo (Twin Shell)". Cada corrida de
+`get_active_patient_id()` crea ahi un "Paciente de la sesión". Cada corrida de
 la suite dejaba 4 pacientes huerfanos en `data/biocore_ups.db` (la base real).
 
 Se redirige ese mismo global (el mecanismo que el codigo ya usa) a un archivo

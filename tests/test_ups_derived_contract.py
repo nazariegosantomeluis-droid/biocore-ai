@@ -359,7 +359,8 @@ def test_twin_os_risk_panel_says_not_evaluable_for_a_respiratory_only_patient(up
     assert at.exception == []
     warnings = " ".join(w.value for w in at.warning)
     text = " ".join(" ".join(m.value.split()) for m in at.markdown)
-    assert "No evaluable" in warnings
+    # Tanda de heurísticas (2026-11-19): el panel de riesgo se retiró; no hay «No evaluable» que decir.
+    assert "Índice de riesgo" not in warnings + text
     assert "RIESGO CARDIOVASCULAR" not in text                       # ni «0 %» ni «Bajo riesgo»
     assert "ecg_pattern" not in text
 

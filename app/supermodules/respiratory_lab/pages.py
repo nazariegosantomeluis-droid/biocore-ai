@@ -23,20 +23,20 @@ MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
 # Tanda 1 de contención (2026-11-05, Art. I): la insignia de validación de este módulo (firma AASM de la Tanda Final) se
 # RETIRÓ porque `RespiratoryAnalyzer` devolvía FR = 60.0 constante y 0 apneas con cualquier señal. Fase 3 (2026-11-07): el
-# detector se reparó contra golden tests. Fase 4 (2026-11-09): tampoco vuelve la insignia GLOBAL (la apnea mixta sigue
-# PENDING_VALIDATION); la confianza se declara VALOR POR VALOR (ver `views.BADGE_LEGEND`).
+# detector se reparó contra golden tests. Fase 4 (2026-11-09): tampoco vuelve la insignia GLOBAL; la confianza se declara
+# VALOR POR VALOR (ver `views.BADGE_LEGEND`). Desde el 2026-11-19 la mixta sigue la regla de Berry 2012 (ya no pendiente).
 class VistaClinicaOmitida(Exception):
     """La vista clínica no se dibuja (parámetros imposibles). Se captura aquí para que las demás pestañas se
     sigan dibujando, en vez del `st.stop()` que dejaba toda la página a medias."""
 
 
 RESPIRATORY_STATUS_NOTICE = (
-    "**Estado del módulo (fase 4, 2026-11-09).** **[Validado por fuente]:** la banda NEWS2 de la FR (RCP 2017) y la apnea "
-    "(caída ≥ 90 % durante ≥ 10 s, Berry 2012, AASM). **[Criterio BIOCORE] con golden test, metodología propia:** FR = 60 / media de los "
-    "intervalos entre inspiraciones, duración del ciclo y su variabilidad, tipo de apnea por esfuerzo (Criterio BIOCORE), "
-    "tasa equivalente por hora de **registro** (extrapolada, sin valor diagnóstico) y la SpO₂ del modelo BIOCORE "
-    "(simulación; el retardo Tc es un valor BIOCORE). **[Heurística]:** la descripción del patrón y la irregularidad del "
-    "generador atáxico. **[Pendiente de validación]:** la apnea mixta (se calcula y se marca). **Sigue fuera:** "
+    "**Estado del módulo (2026-11-19).** **[Validado por fuente]:** la banda NEWS2 de la FR (RCP 2017), la apnea "
+    "(caída ≥ 90 % durante ≥ 10 s) y su tipo por esfuerzo, obstructiva, central o mixta (Berry 2012, AASM). "
+    "**[Cálculo directo], con golden test:** FR = 60 / media de los intervalos entre inspiraciones, duración del ciclo y "
+    "su variación, y la tasa equivalente por hora de **registro** (extrapolada, sin valor diagnóstico). "
+    "**[Simulación]:** la SpO₂ del modelo BIOCORE (retardo Tc de 19.4 s, la mediana de Kwon 2020) y la irregularidad "
+    "del generador atáxico. **Sigue fuera:** "
     "hipopneas, relación I:E, ODI y la categoría de severidad (vive en Calculadoras Clínicas). «Guardar al gemelo» escribe "
     "solo FR y SpO₂ basal, como simulación. La señal es simulada: los resultados no son una medición de un paciente."
 )
@@ -59,8 +59,8 @@ def render_views():
     # compartido -- este módulo no tenía ninguno propio (el card decorativo
     # de page_content.py, dentro de la pestaña Clínica, no cuenta como
     # título de módulo consistente con el resto de la app).
-    # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado mientras la apnea mixta siga
-    # PENDING_VALIDATION; la confianza va por valor (ver `RESPIRATORY_STATUS_NOTICE` y `views.BADGE_LEGEND`).
+    # `validation=None` EXPLÍCITO -- no un olvido: no hay insignia GLOBAL de validado (la duración de la apnea y la
+    # SpO₂ son mediciones o simulaciones de BIOCORE); la confianza va por valor (`RESPIRATORY_STATUS_NOTICE`, `BADGE_LEGEND`).
     render_module_header("Laboratorio respiratorio", icon="💨", validation=None)
     # Tanda 2 de la fase 1: el recuadro ocupaba toda la pantalla de un teléfono. Queda plegado; su etiqueta es el resumen
     # de una línea y el detalle (sin cambios) se abre a demanda.
@@ -151,21 +151,19 @@ def _render_simulacion_tab():
     airflow = sim_data['airflow']
     time_arr = sim_data['time']
 
-    # Consolidación Visual Tanda 3 (2026-09-21): `col.metric` crudo ->
-    # `render_metric_card`. `BADGES.HEURISTIC`: propiedades descriptivas
-    # de una señal SIMULADA (generador paramétrico bajo control de
-    # sliders) -- cálculo real, sin cita/umbral clínico detrás.
+    # Consolidación Visual Tanda 3 (2026-09-21): `col.metric` crudo -> `render_metric_card`. Tanda de heurísticas
+    # (2026-11-19): son propiedades de una señal SIMULADA: «Simulación», no «Heurística».
     col_ptp, col_cycles = st.columns(2)
     chest_ptp = float(np.max(chest) - np.min(chest))
     with col_ptp:
         render_metric_card(
             "Amplitud torácica (pico-a-pico)", f"{chest_ptp:.2f}",
-            provenance=BADGES.HEURISTIC,
+            provenance=BADGES.SIMULATION, citation="unidades relativas del generador",
         )
     with col_cycles:
         render_metric_card(
             "Ciclos objetivo en 30 s (calculado de la FR elegida, no medido)", f"{(30 * sim_rr / 60):.0f}",
-            provenance=BADGES.HEURISTIC,
+            provenance=BADGES.SIMULATION,
         )
 
     if PLOTLY_OK:

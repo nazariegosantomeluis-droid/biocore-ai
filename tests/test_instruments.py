@@ -166,7 +166,7 @@ def test_ecg_estacion_sin_menu_lateral_ni_placa_en_vivo():
     assert not (sb.radio or sb.slider or sb.selectbox or sb.button or sb.caption or sb.info or sb.warning)
     for radio in at.main.radio:
         assert "Hardware ESP32 en vivo" not in radio.options
-        assert "Demo (sintético)" in radio.options and "Paciente activo (simulación a su FC)" in radio.options
+        assert "Simulación (sintética)" in radio.options and "Paciente activo (simulación a su FC)" in radio.options
 
 
 def test_ecg_estacion_movida_no_mueve_la_otra():
@@ -191,7 +191,7 @@ def test_ecg_estacion_no_guarda_demo():
     at = _ecg_at().run()
     assert not at.exception, at.exception
     assert not [b for b in at.button if b.key and b.key.endswith("ecg_lab_save_to_ups")]
-    assert any("Fuente demo (sintética) -- nunca escribe HR al gemelo" in i.value for i in at.info)
+    assert any("Fuente simulada -- nunca escribe" in i.value for i in at.info)          # antes «Fuente demo» (2026-11-19)
 
     before = _value_rows()
     at.radio(key="e1__ecg_monitor_source").set_value("Caso clínico (61 disponibles)").run()
@@ -381,4 +381,4 @@ def test_eeg_se_monta_dos_veces_sin_choque_y_sin_fuente_en_vivo():
 def test_emg_se_monta_dos_veces_sin_choque_y_sin_sensor_en_vivo():
     at = _run_twice(_two_emg)
     assert sorted(b.key for b in at.button) == ["m1__emg_lab_save_to_ups", "m2__emg_lab_save_to_ups"]
-    assert at.radio(key="m1__emg_source").options == ["Demo", "CSV"]
+    assert at.radio(key="m1__emg_source").options == ["Simulación", "CSV"]

@@ -77,8 +77,10 @@ def test_the_real_engine_signs_and_the_no_change_threshold():
     result = W.grade(case, {k: W.SAME for k, *_ in W.OUTPUTS})
     assert [result[k]["actual"] for k, *_ in W.OUTPUTS] == [W.SAME, W.DOWN, W.UP] and result["_converged"]
     assert W.engine_outputs(case.scenario, case.hr_new) == W.engine_outputs(case.scenario, case.hr_new)  # determinista
-    assert W.direction(100.0, 100.0 * (1 + W.NO_CHANGE_REL * 0.99)) == W.SAME
-    assert W.direction(100.0, 100.0 * (1 + W.NO_CHANGE_REL * 1.01)) == W.UP
+    # Tanda de heurísticas (2026-11-19): sin el 2 % sin fuente; «sin cambio» = no se ve con los decimales de la tabla.
+    assert not hasattr(W, "NO_CHANGE_REL")
+    assert W.direction(93.333, 93.326, 1) == W.SAME and W.direction(5.04, 5.059, 2) == W.UP
+    assert W.direction(5.346, 5.314, 2) == W.DOWN
     for c in W.CASES:                                                       # toda la lista cerrada converge
         assert W.grade(c, {k: W.SAME for k, *_ in W.OUTPUTS})["_converged"], c.key
 
@@ -161,4 +163,5 @@ def test_values_carry_their_provenance_and_the_chain_is_quoted_from_the_code():
     assert W.MODEL_CHAIN in " ".join(m.value for m in chain.markdown)
     src = " ".join(Path("domain/physiology/hemodynamics/closed_loop.py").read_text(encoding="utf-8").split())
     assert W.MODEL_CHAIN in src                                                # literal del código, no texto nuevo
-    assert re.search(r"Criterio BIOCORE \(HEURISTIC\)", W.NO_CHANGE_LABEL)
+    assert "HEURISTIC" not in W.NO_CHANGE_LABEL and "Criterio BIOCORE" not in W.NO_CHANGE_LABEL
+    assert "decimales" in W.NO_CHANGE_LABEL

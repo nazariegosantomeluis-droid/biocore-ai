@@ -136,6 +136,21 @@ METHODS: Tuple[Reference, ...] = (
               "Wilson EB. Probable inference, the law of succession, and statistical inference. *J Am Stat Assoc*. "
               "1927;22(158):209–212.",
               (("doi:10.1080/01621459.1927.10502953", "https://doi.org/10.1080/01621459.1927.10502953"),)),
+    # Tanda de heurísticas (2026-11-19): reemplazan valores que se mostraban como «Heurística» o «Valor BIOCORE».
+    # Metadatos verificados en la página del artículo (Kwon: experts.umn.edu; Marui: el PDF de Springer) el 2026-11-19.
+    Reference("KWON2020", METHODS_GROUP,
+              "Kwon Y, Mariani S, Reid M, Jacobs D, Lima J, Kapur V, Punjabi N, Redline S. Lung to finger circulation "
+              "time in sleep study and coronary artery calcification: the Multi-Ethnic Study of Atherosclerosis. "
+              "*Sleep Med*. 2020;75:8–11.",
+              (("doi:10.1016/j.sleep.2020.05.033", "https://doi.org/10.1016/j.sleep.2020.05.033"),),
+              note="De aquí sale el retardo Tc de 19.4 s del laboratorio de Respiración (la mediana del estudio)."),
+    Reference("MARUI2017", METHODS_GROUP,
+              "Marui S, Misawa A, Tanaka Y, Nagashima K. Assessment of axillary temperature for the evaluation of "
+              "normal body temperature of healthy young adults at rest in a thermoneutral environment. *J Physiol "
+              "Anthropol*. 2017;36:18.",
+              (("doi:10.1186/s40101-017-0133-y", "https://doi.org/10.1186/s40101-017-0133-y"),),
+              note="De aquí sale «estable» del sensor de temperatura: ±0.1 °C durante 3 min (su criterio para el "
+                   "termómetro timpánico)."),
 )
 
 SIGNED_KEYS = tuple(r.key for r in SIGNED)
@@ -207,7 +222,7 @@ def repo_references() -> List[Reference]:
         C.QSOFA_CITATION.split("; Singer")[0],
         "Singer M, et al. The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3). "
         "JAMA 2016;315:801–810",                                                 # 2.ª cita de QSOFA_CITATION
-        C.GCS_CITATION, C.PRQ_REFERENCE,
+        C.GCS_CITATION, C.PRQ_REFERENCE, C.EXPECTED_AA_CITATION,
         G.SEECK_2017, G.TATUM_2011, vcg.TANGENT_CITATION,
     ]
     refs = []
