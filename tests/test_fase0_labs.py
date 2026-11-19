@@ -48,10 +48,12 @@ def test_emg_lab_demo_signal_does_not_show_a_fatigue_index_number():
 
 
 def test_emg_lab_save_caption_no_longer_claims_derived_values():
-    source = Path("app/main.py").read_text(encoding="utf-8")
+    source = (Path("app/main.py").read_text(encoding="utf-8")
+              + Path("app/instruments/emg.py").read_text(encoding="utf-8"))          # T4: el guardado se movió ahí
     assert '"health_score / risk_score / neuromuscular_efficiency / movement_smoothness "' not in source
     assert "sin derivados del organismo (fase 0" in source
-    eeg = Path("app/supermodules/eeg_neuro_lab/page_content.py").read_text(encoding="utf-8")
+    eeg = (Path("app/supermodules/eeg_neuro_lab/page_content.py").read_text(encoding="utf-8")
+           + Path("app/instruments/eeg.py").read_text(encoding="utf-8"))           # T4: el guardado se movió ahí
     assert "DEFAULTEADOS (35/65" not in eeg and "ya no deriva NADA del" in eeg
     for lab in (source, eeg):
         for name in ("stress_perception", "mental_workload", "neuromuscular_efficiency"):

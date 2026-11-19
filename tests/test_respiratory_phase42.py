@@ -79,7 +79,7 @@ def test_the_unsourced_figures_are_gone_from_every_screen_and_the_source(temp_up
     text = _all_ui_text(sf, pid)
     for gone in RETIRED:
         assert gone not in text, gone
-    for path in LAB.glob("*.py"):
+    for path in [*LAB.glob("*.py"), Path("app/instruments/respiracion.py")]:
         src = path.read_text(encoding="utf-8")
         for gone in ("10-30% adultos", "No diagnosticada:** 80", "↑ CV 3-4x", "**Gold Standard:**", "Volumen Corriente:** 400-600",
                      "Taquipnea:** >20", "Bradipnea:** <12", "Obesidad (IMC >30)"):
@@ -172,7 +172,7 @@ def test_the_two_marks_have_different_names_and_meanings():
     assert truth and all("near_threshold" in e and "borderline" not in e and "gradual_edge" not in e for e in truth)
     a = RespiratoryAnalyzer(FS).analyze_respiration(gen["airflow"], gen["time"], gen["spo2"], gen["chest_wall"])
     assert a.apnea_events and all("gradual_edge" in e and "borderline" not in e and "near_threshold" not in e for e in a.apnea_events)
-    for path in list(LAB.glob("*.py")) + list(Path("src/signals/respiration").glob("*.py")):
+    for path in [*LAB.glob("*.py"), Path("app/instruments/respiracion.py"), *Path("src/signals/respiration").glob("*.py")]:
         assert "borderline" not in path.read_text(encoding="utf-8").lower(), path.name
 
 

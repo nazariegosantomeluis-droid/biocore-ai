@@ -36,6 +36,10 @@ def _seal(descriptor, origin) -> str:
     from app.utils.patient_banner import HORIZON_ES, origin_when_text
     from domain.physiology.state import horizon_of
 
+    if descriptor is not None and origin is None and descriptor.provenance.name == "ARRASTRE_TEMPORAL":
+        # T4: la FC que el compositor copia (Unidad Cerebro) es un arrastre dentro del último guardado; el sello del kit
+        # para el arrastre sin origen dice «No disponible» dibujado, y aquí sí hay valor: se dice con palabras.
+        return "<span class='bc-franja-when'>arrastre temporal del compositor</span>"
     if descriptor is None:
         kind, word, when = *NO_DATA_SEAL, None
     elif origin is not None:
@@ -72,16 +76,43 @@ def _render_franja(unit: M.Unit, p: dict) -> None:
             parts.append(f"<span>{label} <b>{'—' if d is None else f'{d.value:.0f}'}</b></span>"
                          + _seal(d, vitals.origins.get(key)))
     saved = st.session_state.pop(common.SAVED_NOW_KEY, None)
-    hr = vitals.values["hr"]
-    if saved and hr is not None:
-        parts.append(f"<span class='bc-franja-saved'>Guardaste FC {hr.value:.0f} lpm "
-                     f"{_seal(hr, vitals.origins.get('hr'))}</span>")
+    if saved:
+        text = _saved_text(saved)
+        if text:
+            parts.append(f"<span class='bc-franja-saved'>{text}</span>")
     # Un solo bloque de HTML propio (clase `bc-franja`, fija por CSS): un contenedor de Streamlit con posición fija no
     # toma la altura de su contenido.
     with st.container(key=FRANJA_KEY):
         # El espacio de abajo evita que la franja tape el final de la página.
         st.markdown(f"<div class='bc-franja bc-mini'>{''.join(parts)}</div><div class='bc-franja-space'></div>",
                     unsafe_allow_html=True)
+
+
+DOMAIN_ES = {"cardiovascular": "corazón", "respiratory": "respiración", "neurological": "cerebro",
+             "muscular": "músculo"}
+
+
+def _saved_text(snapshot_id: str) -> str:
+    """Lo que se acaba de guardar, leído del snapshot (T4: antes decía siempre «Guardaste FC», también cuando una
+    estación guardaba la respiración o el EEG). Las constantes vitales con su valor y su sello; lo demás, por sistema."""
+    from app.utils.patient_banner import UNIT_ES, VITALS
+    from app.utils.patient_session import get_active_session_factory
+    from domain.physiology.state import get_state_by_snapshot_id
+
+    with get_active_session_factory()() as session:
+        state = get_state_by_snapshot_id(session, snapshot_id)
+    if state is None:
+        return ""
+    vitals = []
+    for _key, label, domain, name, _component in VITALS:
+        d = getattr(state, domain).get(name)
+        if d is not None:
+            vitals.append(f"{label} {d.value:.0f} {UNIT_ES.get(d.unit, d.unit)} {_seal(d, None)}")
+    if vitals:
+        return "Guardaste " + " · ".join(vitals)
+    domains = [DOMAIN_ES[dom] for dom in DOMAIN_ES if getattr(state, dom).descriptors]
+    count = sum(len(getattr(state, dom).descriptors) for dom in DOMAIN_ES)
+    return f"Guardaste {count} valores de {', '.join(domains)}" if domains else ""
 
 
 def _render_rail(unit: M.Unit, p: dict) -> None:

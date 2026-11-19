@@ -92,253 +92,30 @@ st.markdown(f"""
 st.sidebar.markdown("# 💨 LABORATORIO RESPIRATORIO")
 st.sidebar.markdown("---")
 
-# Pattern selection
-respiratory_patterns = {
-    "Normal (respiración tranquila)": "normal",
-    "Taquipnea (respiración rápida)": "tachypnea",
-    "Bradipnea (respiración lenta)": "bradypnea",
-    "Apnea Central": "apnea_central",
-    "Apnea Obstructiva": "apnea_obstructive",
-    "Cheyne-Stokes": "cheyne_stokes",
-    "Respiración Atáxica": "ataxic",
-}
+# T4 de la ruta integrada (2026-11-18): el código que estaba aquí se movió TAL CUAL a `app/instruments/respiracion.py`
+# (controles, generación, análisis y vistas); esta página es la composición de esos instrumentos con `PAGE`: mismos
+# controles sin clave en la barra lateral, mismas pestañas, mismos textos. Una estación de la Ruta monta los mismos
+# instrumentos con `station_context`.
+from app.instruments import respiracion as R
+from app.instruments.base import PAGE
 
-selected_pattern_display = st.sidebar.selectbox(
-    "🫁 Seleccionar Patrón Respiratorio",
-    list(respiratory_patterns.keys()),
-    index=0
-)
-selected_pattern = respiratory_patterns[selected_pattern_display]
-
-st.sidebar.markdown("### ⚙️ Parámetros Respiratorios")
-
-# Respiratory parameters
-col1, col2 = st.sidebar.columns(2)
-
-# Integración (2026-11-17): la FR y la SpO₂ basal EMPIEZAN en las del paciente activo del UPS (si las tiene y caben en
-# el rango del control); sin paciente, el laboratorio se ve como siempre. Ver `patient_start_value`.
-from app.utils.patient_banner import patient_start_value
-_rr_start, _rr_note = patient_start_value("rr", 6, 40, 15, "FR")
-_spo2_start, _spo2_note = patient_start_value("spo2", 90, 100, 98, "SpO₂ basal")
-
-with col1:
-    rr = st.number_input(
-        "Frecuencia Respiratoria (resp/min)",
-        min_value=6,
-        max_value=40,
-        value=int(_rr_start),
-        step=1,
-        help="12–20 resp/min puntúa 0 en NEWS2 (RCP 2017)"
-    )
-
-with col2:
-    tv = st.number_input(
-        "Volumen Corriente (L)",
-        min_value=0.1,
-        max_value=1.5,
-        value=0.5,
-        step=0.1,
-        help="Volumen corriente que pide la simulación (la escala de la señal no está calibrada)"
-    )
-
-# Un ValueError por parámetros imposibles se muestra JUNTO al control afectado (sin st.stop(): las demás pestañas
-# se siguen dibujando). Cada ranura se rellena más abajo si la validación falla.
-slot_rr = st.sidebar.empty()
-if _rr_note:
-    st.sidebar.caption(_rr_note)
-
-col3, col4 = st.sidebar.columns(2)
-
-with col3:
-    insp_time = st.number_input(
-        "Tiempo Inspiración (s)",
-        min_value=0.3,
-        max_value=3.0,
-        value=1.0,
-        step=0.1
-    )
-
-with col4:
-    # Arco respiratorio, fase 2a (2026-11-07): el control vuelve a estar activo porque el generador ya
-    # lo usa. 0.0 = automático: la espiración ocupa el resto del ciclo (lo que el generador hacía siempre,
-    # cuando este control no hacía nada). Un valor > 0 acota el flujo espiratorio a esa duración y deja
-    # el resto del ciclo en pausa; inspiración + espiración no pueden superar el ciclo (60 / FR).
-    exp_time = st.number_input(
-        "Tiempo Espiración (s)",
-        min_value=0.0,
-        max_value=3.0,
-        value=0.0,
-        step=0.1,
-        help="0 = automático (resto del ciclo). Un valor > 0 acota la espiración y deja pausa telespiratoria; "
-             "inspiración + espiración deben caber en el ciclo (60 / FR).",
-    )
-
-slot_insp = st.sidebar.empty()
-
-# SpO2 parameters
-st.sidebar.markdown("### 🫀 Parámetros de Oxigenación")
-st.sidebar.caption(
-    f"{views.SPO2_PROVENANCE}. La SpO₂ es estable sin eventos; cada apnea produce una desaturación en el dedo "
-    "con retardo Tc (la latencia de las reservas de O₂ no está modelada)."
-)
-
-col5, col6 = st.sidebar.columns(2)
-
-with col5:
-    baseline_spo2 = st.number_input(
-        "SpO2 Basal (%)",
-        min_value=90,
-        max_value=100,
-        value=int(_spo2_start),
-        step=1,
-        help="SpO₂ basal que simula el modelo BIOCORE"
-    )
-
-with col6:
-    min_spo2 = st.number_input(
-        "SpO2 Mínimo (%)",
-        min_value=50,
-        max_value=95,
-        value=85,
-        step=1,
-        help="Piso de la SpO₂ durante un evento (nunca baja de aquí)"
-    )
-
-if _spo2_note:
-    st.sidebar.caption(_spo2_note)
-
-circulation_delay = st.sidebar.number_input(
-    "Retardo circulatorio Tc (s) — Valor BIOCORE",
-    min_value=5.0,
-    max_value=30.0,
-    value=15.0,
-    step=1.0,
-    help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Valor BIOCORE: la fuente (Hsia 2026) solo da el "
-         "límite normal < 20 s. Rango 5–30 s.",
-)
-st.sidebar.caption(f"{BADGES.tag(BADGES.METHOD)} Tc: {views.TC_LABEL}")
-slot_spo2 = st.sidebar.empty()
-
-duration = st.sidebar.slider(
-    "⏱️ Duración Grabación (s)",
-    min_value=30,
-    max_value=300,
-    value=120,
-    step=10
-)
-slot_dur = st.sidebar.empty()
-
+run = R.patron(PAGE)
 st.sidebar.markdown("---")
-
-# ═══════════════════════════════════════════════════════════════
-# MAIN CONTENT
-# ═══════════════════════════════════════════════════════════════
-
-def _build_params(pattern, rr, tv, insp, exp, baseline, floor, tc):
-    return RespiratoryPattern(
-        respiratory_rate=rr,
-        tidal_volume=tv,
-        inspiration_time=insp,
-        expiration_time=(exp if exp > 0 else None),
-        pattern_type=pattern,
-        baseline_spo2=baseline,
-        desaturation_level=floor,
-        circulation_delay=tc,
-        cheyne_stokes_cycle=60.0,
-    )
-
-
-# Generate respiratory signal
-@st.cache_data
-def generate_respiration_data(pattern, rr, tv, insp, exp, baseline, floor, tc, duration):
-    generator = RespiratorySignalGenerator(sampling_rate=100)
-    params = _build_params(pattern, rr, tv, insp, exp, baseline, floor, tc)
-    return generator.generate_respiration(duration=duration, params=params)
-
-
-# Generate analysis
-@st.cache_data
-def analyze_respiration_data(airflow, time, spo2, chest):
-    analyzer = RespiratoryAnalyzer(sampling_rate=100)
-
-    analysis = analyzer.analyze_respiration(
-        airflow=airflow,
-        time=time,
-        spo2=spo2,
-        respiratory_effort=chest
-    )
-
-    return analysis
-
-
-# Validación ANTES de generar: el error sale junto al control afectado y la vista clínica se omite sin detener el
-# resto de la página (ver VistaClinicaOmitida en pages.py).
-_params = _build_params(selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, circulation_delay)
-try:
-    RespiratorySignalGenerator.validate_parameters(_params, duration)
-except ImpossibleParameters as _err:
-    _slot = {
-        "respiratory_rate": slot_rr, "tidal_volume": slot_rr,
-        "inspiration_time": slot_insp, "expiration_time": slot_insp,
-        "circulation_delay": slot_spo2, "desaturation_level": slot_spo2, "desaturation_rate": slot_spo2,
-        "resaturation_rate": slot_spo2, "duration": slot_dur,
-    }.get(_err.control, slot_insp)
-    _slot.error(f"⛔ {_err}")
-    st.error("⛔ La vista clínica no se dibuja con estos parámetros: corrige el control marcado en la barra lateral.")
-    st.session_state.pop('_respiratory_lab_analysis', None)  # que Investigación no muestre un análisis de OTROS parámetros
+if run is None:
     from app.supermodules.respiratory_lab.pages import VistaClinicaOmitida
-    raise VistaClinicaOmitida(str(_err))
+    raise VistaClinicaOmitida("parámetros imposibles")
 
-respiration_data = generate_respiration_data(
-    selected_pattern, rr, tv, insp_time, exp_time, baseline_spo2, min_spo2, circulation_delay, duration
-)
-
-airflow = respiration_data['airflow']
-time_array = respiration_data['time']
-spo2 = respiration_data['spo2']
-chest = respiration_data['chest_wall']
-abdomen = respiration_data['abdomen']
-
-# Perform analysis
-analysis = analyze_respiration_data(airflow, time_array, spo2, chest)
+analysis = run.analysis
 
 # Puente de sesión: expone el análisis ya calculado aquí a la pestaña "Investigación" de respiratory_lab/pages.py
 # (sin recalcular). `with tabs[0]:` (Clínica) corre en cada rerun, así que el dato existe cuando la otra pestaña lo lee.
 st.session_state['_respiratory_lab_analysis'] = {
     'analysis': analysis,
-    'pattern_display': selected_pattern_display,
-    'duration': duration,
+    'pattern_display': run.pattern_display,
+    'duration': run.duration,
 }
 
-render_section_header(f"Patrón: {selected_pattern_display}")
-st.caption(f"Insignias por valor: {views.BADGE_LEGEND}")
-
-# ═══════════════════════════════════════════════════════════════
-# METRICS ROW
-# ═══════════════════════════════════════════════════════════════
-
-# Fase 3 (2026-11-07, Art. I): solo valores con golden test. Sin tarjetas de patrón ni severidad (ocultas).
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    views.render_rate_cards(analysis)
-
-with col2:
-    if analysis.cycle_duration_s is None:
-        render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "sin FR disponible")
-    else:
-        render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
-
-with col3:
-    if analysis.apnea_count is None:
-        render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
-    else:
-        render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}", provenance=BADGES.METHOD)
-
-with col4:
-    render_metric_card(
-        "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE,
-    )
+R.valores(PAGE, run)
 
 st.markdown("---")
 
@@ -355,174 +132,13 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 with tab1:
-    st.markdown("### Señales Respiratorias (Flujo, Pared Torácica, Abdomen)")
-    
-    # Create respiratory signals visualization
-    fig = make_subplots(
-        rows=3, cols=1,
-        shared_xaxes=True,
-        subplot_titles=("Flujo de Aire (unidades relativas: la escala absoluta no corresponde al volumen corriente elegido)", "Pared Torácica", "Movimiento Abdominal"),
-        vertical_spacing=0.1
-    )
-    
-    # Airflow
-    fig.add_trace(
-        go.Scatter(
-            x=time_array,
-            y=airflow,
-            name="Flujo de Aire",
-            line=dict(color=PALETTE.ACCENT_ON_DARK, width=2),
-            fill="tozeroy",
-            fillcolor="rgba(142, 202, 230, 0.2)"
-        ),
-        row=1, col=1
-    )
-    fig.add_hline(y=0, line_dash="dash", line_color=PALETTE.NEUTRAL, row=1, col=1)
-    
-    # Chest wall
-    fig.add_trace(
-        go.Scatter(
-            x=time_array,
-            y=chest,
-            name="Pared Torácica",
-            line=dict(color=PALETTE.PRIMARY, width=2),
-            fill="tozeroy",
-            fillcolor="rgba(29, 78, 216, 0.2)"
-        ),
-        row=2, col=1
-    )
-    
-    # Abdomen
-    fig.add_trace(
-        go.Scatter(
-            x=time_array,
-            y=abdomen,
-            name="Abdomen",
-            line=dict(color=PALETTE.SERIES_2, width=2),
-            fill="tozeroy",
-            fillcolor="rgba(124, 58, 237, 0.2)"
-        ),
-        row=3, col=1
-    )
-    
-    fig.update_xaxes(title_text="Tiempo (segundos)", row=3, col=1)
-    fig.update_yaxes(title_text="Flujo (u. relativas)", row=1, col=1)
-    fig.update_yaxes(title_text="Movimiento", row=2, col=1)
-    fig.update_yaxes(title_text="Movimiento", row=3, col=1)
-    
-    fig.update_layout(
-        height=700,
-        template="plotly_dark",
-        paper_bgcolor=PALETTE.BACKGROUND,
-        plot_bgcolor=PALETTE.SECONDARY_BACKGROUND,
-        font=dict(color=PALETTE.TEXT),
-        showlegend=True,
-        hovermode="x unified"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Detected breaths summary
-    st.markdown("#### 📊 Resumen de Respiraciones Detectadas")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        render_metric_card("Respiraciones detectadas", f"{len(analysis.breaths)}", provenance=BADGES.METHOD)
-
-    with col2:
-        if analysis.cycle_duration_s is None:
-            render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "menos de 3 respiraciones")
-        else:
-            render_metric_card("Duración del ciclo (media de los intervalos entre inspiraciones)",
-                               f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
-
-    with col3:
-        if analysis.rr_variability is None:
-            render_metric_card("Variabilidad de los intervalos", None, unavailable_reason="menos de 3 respiraciones")
-        else:
-            render_metric_card("Variabilidad de los intervalos (desviación estándar, descriptiva)",
-                               f"{analysis.rr_variability:.2f} s", provenance=BADGES.METHOD)
-
-    with col4:
-        views.render_band_card(analysis)
-
-    st.caption("La relación I:E no se muestra: todavía no tiene golden test ni criterio firmado.")
+    R.senales(PAGE, run)
 
 with tab2:
-    st.markdown("### 🫀 Monitoreo de Oximetría (SpO2)")
-    st.info(
-        f"**{views.SPO2_PROVENANCE}.** Estable sin eventos (basal + ruido); cada apnea anotada desatura el dedo con retardo Tc "
-        "(nadir en el FIN del evento + Tc), profundidad r·T con r = 0.30 %/s y recuperación en rampa a 0.70 %/s. La latencia "
-        "de las reservas de O₂ no está modelada. Es una simulación, no una medición de un paciente.",
-        icon="🫀",
-    )
-
-    # Create SpO2 visualization
-    fig_spo2 = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        subplot_titles=("SpO2 simulada — modelo BIOCORE (Tc valor BIOCORE; r y recuperación, Howarth 2026)", "Flujo de Aire (referencia)"),
-        vertical_spacing=0.12,
-        row_heights=[0.7, 0.3]
-    )
-    
-    fig_spo2.add_trace(
-        go.Scatter(
-            x=time_array,
-            y=spo2,
-            name="SpO2",
-            line=dict(color=PALETTE.ACCENT_ON_DARK, width=3),
-            fill="tozeroy",
-            fillcolor="rgba(142, 202, 230, 0.3)"
-        ),
-        row=1, col=1
-    )
-    
-    # Airflow reference
-    fig_spo2.add_trace(
-        go.Scatter(
-            x=time_array,
-            y=airflow / np.max(np.abs(airflow)) * 20 + 60 if np.max(np.abs(airflow)) > 0 else np.zeros_like(airflow),
-            name="Flujo (normalizado)",
-            line=dict(color=PALETTE.NEUTRAL, width=1),
-            opacity=0.5
-        ),
-        row=2, col=1
-    )
-    
-    fig_spo2.update_yaxes(title_text="SpO2 (%)", range=[50, 100], row=1, col=1)
-    fig_spo2.update_yaxes(title_text="Flujo", row=2, col=1)
-    fig_spo2.update_xaxes(title_text="Tiempo (segundos)", row=2, col=1)
-    
-    fig_spo2.update_layout(
-        height=600,
-        template="plotly_dark",
-        paper_bgcolor=PALETTE.BACKGROUND,
-        plot_bgcolor=PALETTE.SECONDARY_BACKGROUND,
-        font=dict(color=PALETTE.TEXT),
-        showlegend=True,
-        hovermode="x unified"
-    )
-    
-    st.plotly_chart(fig_spo2, use_container_width=True)
-    
-    # SpO2 Statistics
-    st.markdown("#### 📊 Estadísticas de Oxigenación")
-    
-    views.render_spo2_cards(analysis)
+    R.spo2(PAGE, run)
 
 with tab3:
-    st.markdown("### 📈 Análisis Avanzado")
-    st.markdown("#### Apneas (≥ 10 s, caída ≥ 90 % respecto a la línea basal previa)")
-    views.render_apnea_cards(analysis)
-    views.render_events_table(analysis)
-    if analysis.event_period_s is not None:
-        st.caption(f"Los eventos se repiten cada ~{analysis.event_period_s:.0f} s (mediana de la separación entre inicios).")
-    views.render_pattern_cards(analysis, selected_pattern, respiration_data["ground_truth"])
-    views.render_clinical_notes(analysis, circulation_delay)
-    views.render_calculator_link()
-    views.render_hidden_notice()
+    R.apneas(PAGE, run)
 
 with tab4:
     views.render_clinical_references()
@@ -536,32 +152,7 @@ st.markdown("---")
 # CLINICAL SUMMARY
 # ═══════════════════════════════════════════════════════════════
 
-st.markdown("### 📋 Resumen Clínico")
-
-# Fase 3-4 (Art. I): el resumen muestra solo valores con golden test, cada uno con su insignia. Hipopneas, I:E y ODI
-# siguen fuera (ver el aviso de la pestaña Análisis Avanzado); el patrón y las notas son HEURISTIC y no diagnostican.
-col1, col2, col3 = st.columns(3)
-with col1:
-    views.render_rate_cards(analysis)
-    if analysis.cycle_duration_s is not None:
-        render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
-
-with col2:
-    if analysis.apnea_count is None:
-        render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
-    else:
-        render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}  ·  tiempo total {analysis.apnea_total_time_s:.1f} s",
-                           provenance=BADGES.METHOD)
-        render_metric_card("Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)",
-                           f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.METHOD)
-
-with col3:
-    render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
-    render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
-
-st.markdown(f"**Patrón** {BADGES.tag(BADGES.HEURISTIC)}: {views.pattern_description(analysis)}")
-views.render_clinical_notes(analysis, circulation_delay)
-st.caption("Hipopneas, relación I:E y ODI no se muestran (sin criterio firmado o sin golden test).")
+R.resumen(PAGE, run)
 
 # ═══════════════════════════════════════════════════════════════
 # EDUCATIONAL SIDEBAR

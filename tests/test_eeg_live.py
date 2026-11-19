@@ -573,7 +573,8 @@ def test_twin_provenance_and_findings_filter():
 
 
 def test_old_fabricating_hardware_path_is_gone():
-    page = Path('app/supermodules/eeg_neuro_lab/page_content.py').read_text(encoding='utf-8')
+    page = (Path('app/supermodules/eeg_neuro_lab/page_content.py').read_text(encoding='utf-8')
+            + Path('app/instruments/eeg.py').read_text(encoding='utf-8'))      # T4: los controles se movieron ahí
     for ghost in ('expand_hardware_eeg_to_channels', '"Simular si no hay hardware conectado"', 'ESP32SignalSource(',
                   '"Habilitar análisis en tiempo real"', 'señal de respaldo sintética'):
         assert ghost not in page, ghost              # las etiquetas de los widgets retirados, entre comillas

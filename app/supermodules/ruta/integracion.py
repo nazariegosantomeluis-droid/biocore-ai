@@ -54,8 +54,7 @@ def station_measure() -> None:
         out_of_range = []
     elif out_of_range:
         # Revisión final de la T4: la serie no empezó en el paciente (p. ej. la FC de la sepsis, 150, no cabe en 40–140).
-        st.warning("; ".join(out_of_range) + ". La serie empieza en otro valor, así que esta estación no ofrece guardar: "
-                   "no se le escribe a tu paciente una FC que no es la suya.")
+        common.render_out_of_range(out_of_range)
     else:
         st.caption(MIDE_NOTE)
     temporal = hrv.tiempo(ctx, series).values
@@ -71,14 +70,8 @@ def _out_of_simulation_range(vitals) -> list:
     """Qué valor del paciente no cabe en los controles de la simulación con RSA (entonces la serie no empieza en él)."""
     from app.instruments import hrv
 
-    problems = []
-    for key, label, unit, (lo, hi) in (("hr", "FC", "lpm", hrv.HR_BASE_RANGE),
-                                       ("rr", "FR", "rpm", hrv.RESP_RATE_RANGE)):
-        d = vitals.values[key]
-        if d is not None and not lo <= round(d.value) <= hi:
-            problems.append(f"La {label} de tu paciente ({d.value:.0f} {unit}) está fuera del rango de la simulación "
-                            f"({lo}–{hi} {unit})")
-    return problems
+    return common.out_of_control_range(vitals, (("hr", "FC", "lpm", hrv.HR_BASE_RANGE),
+                                                ("rr", "FR", "rpm", hrv.RESP_RATE_RANGE)))
 
 
 def station_practice_hrv() -> None:
@@ -121,7 +114,8 @@ def _render_closed_loop_pa(scenario: str) -> None:
         # la guardó), la fase no se identifica y tampoco se asume shock.
         origin = vitals.origins.get("hr")
         horizon = origin.horizon if origin is not None and origin.horizon else horizon_of(hr.source_detail)
-        phase = None if horizon is None else sepsis_trajectory.phase_of(horizon)
+        # Revisión final de la T4: un horizonte que la trayectoria no conoce no se identifica (antes, KeyError).
+        phase = sepsis_trajectory.HORIZON_PHASES.get(horizon, (None, None))[1]
         if phase not in sepsis_trajectory.PA_MODEL_PHASES:
             render_no_data("Presión arterial",
                            "se declina fuera de la fase de shock de la sepsis o si la fase no se identifica: "
@@ -155,4 +149,7 @@ UNIT = M.Unit(UNIT_KEY, UNIT_TITLE, organ="autonomo", stations=(
               needs_patient=False),
     M.Station("practica_hemo", "practica", "Preguntas de hemodinámica", station_practice_hemo, needs_patient=False),
     M.Station("cierre", "cierre", "Tu paciente al final", station_closing),
+), pending=(
+    ("La PA de la sepsis como dato firmado", "la firma de su modelo (capacitancia venosa 2×, Criterio BIOCORE sin "
+                                             "cita)"),
 ))

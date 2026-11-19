@@ -165,7 +165,7 @@ def test_the_spo2_chart_has_no_unsourced_hypoxemia_lines_and_the_flow_axis_is_re
     assert "Normal" not in specs                                                        # fase 4.1: tampoco la línea de 95 %
     assert "unidades relativas: la escala absoluta no corresponde al volumen corriente elegido" in specs
     assert "L/min" not in specs
-    for path in Path("app/supermodules/respiratory_lab").glob("*.py"):
+    for path in [*Path("app/supermodules/respiratory_lab").glob("*.py"), Path("app/instruments/respiracion.py")]:
         src = path.read_text(encoding="utf-8")
         assert "Hipoxemia leve" not in src and "Hipoxemia grave" not in src, path
 

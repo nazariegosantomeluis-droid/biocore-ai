@@ -241,15 +241,17 @@ def render_clinical_notes(analysis, spo2_lag_s: Optional[float] = None) -> None:
         st.markdown(f"- {note}")
 
 
-def render_calculator_link() -> None:
-    """Enlace a la calculadora de severidad (el lab no categoriza: su registro dura minutos)."""
+def render_calculator_link(decorated: bool = True) -> None:
+    """Enlace a la calculadora de severidad (el lab no categoriza: su registro dura minutos). `decorated=False` (una
+    estación de la ruta): sin emoji."""
     st.caption(
         "La severidad de la apnea del sueño se calcula con un índice **por hora de sueño** (Epstein 2009); este laboratorio no la "
         "muestra porque su registro dura minutos."
     )
     from app.utils import navigation as nav
 
-    nav.link("calculadoras", "Abrir la calculadora de severidad (Calculadoras clínicas → Escalas)", icon="🧮")
+    nav.link("calculadoras", "Abrir la calculadora de severidad (Calculadoras clínicas → Escalas)",
+             icon="🧮" if decorated else None)
 
 
 def render_spo2_cards(analysis) -> None:
@@ -306,11 +308,12 @@ def build_twin_state(analysis, patient_id: str, pattern_display: str):
     return replace(state, respiratory=DomainState(domain="respiratory", descriptors=kept))
 
 
-def render_save_to_twin(analysis, pattern_display: str, key: str) -> None:
-    """Botón explícito (nunca automático). Escribe solo FR y SpO₂ basal, con procedencia de simulación."""
-    st.markdown("#### 🔗 Guardar estado al gemelo")
+def render_save_to_twin(analysis, pattern_display: str, key: str, decorated: bool = True) -> Optional[str]:
+    """Botón explícito (nunca automático). Escribe solo FR y SpO₂ basal, con procedencia de simulación. Devuelve el
+    snapshot escrito en este rerun (o `None`). `decorated=False` (una estación de la ruta): sin emoji."""
+    st.markdown(f"#### {'🔗 ' if decorated else ''}Guardar estado al gemelo")
     st.caption(
-        "Escribe **solo dos valores** al Unified Physiological State: la **FR** (60 / media de los intervalos entre "
+        "Escribe **solo dos valores** al estado fisiológico unificado (UPS) del paciente activo: la **FR** (60 / media de los intervalos entre "
         "inspiraciones) y la **SpO₂ basal** del registro (no el nadir), con procedencia «Simulación» y su criterio. "
         "**No escribe** el conteo de apneas ni la tasa por hora de registro (no hay un campo con ese significado: el índice "
         "de apneas-hipopneas del UPS es por hora de sueño e incluye hipopneas) ni los valores derivados del organismo."
@@ -318,8 +321,8 @@ def render_save_to_twin(analysis, pattern_display: str, key: str) -> None:
     if analysis.respiratory_rate is None:
         st.warning("Desactivado: la frecuencia respiratoria no está disponible en este registro (no se guarda un valor "
                    "por defecto).")
-        return
-    if st.button("💾 Guardar FR y SpO₂ basal al gemelo", key=key):
+        return None
+    if st.button(f"{'💾 ' if decorated else ''}Guardar FR y SpO₂ basal al gemelo", key=key):
         from app.utils.patient_session import get_active_patient_id, get_active_session_factory
         from domain.physiology.state import save_state
 
@@ -332,6 +335,8 @@ def render_save_to_twin(analysis, pattern_display: str, key: str) -> None:
             f"({', '.join(state.respiratory.descriptors)}); cardiovascular: {len(state.cardiovascular.descriptors)} "
             "(vacío esperado: este laboratorio no mide el corazón)."
         )
+        return snapshot_id
+    return None
 
 
 def render_clinical_references() -> None:
