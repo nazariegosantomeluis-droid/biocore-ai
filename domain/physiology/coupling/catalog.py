@@ -79,6 +79,7 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
         "aplicar sobre escenarios que ya modelan la descarga simpatica (COUPLING_DISABLED_SCENARIOS). "
         "La direccion espejo (relajacion -> ↓FC) es una regla futura con su propia firma."
     ),
+    window_s=120.0,          # decisión 1 firmada (2026-11-17): la ventana fisiológica conserva los 120 s de la FC
 )
 
 
@@ -133,6 +134,7 @@ HIPOXIA_TAQUICARDIA = CouplingRule(
         "es continua). Ventana de 120 s entre la SpO2 y la FC. Firmada por Luis el 2026-11-18 (ficha 1)."
     ),
     blocked_scenarios=("hypoxia", "apnea", "copd", "sepsis"),
+    window_s=120.0,          # ficha 1 firmada: la SpO2 y la FC de la misma ventana de 120 s
 )
 
 

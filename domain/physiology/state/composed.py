@@ -33,7 +33,7 @@ from .models import EventRecord, SnapshotRecord, ValueRecord
 from .repository import _event_from_record, _to_aware_utc
 from .schema import DomainState, PhysiologicalDescriptor, Provenance, UnifiedPhysiologicalState
 
-__all__ = ["CarryOrigin", "ComposedPatient", "DERIVED_INPUTS", "get_composed_patient", "horizon_of"]
+__all__ = ["CarryOrigin", "ComposedPatient", "DERIVED_INPUTS", "derived_inputs_of", "get_composed_patient", "horizon_of"]
 
 _CV, _RESP, _NEURO = "cardiovascular", "respiratory", "neurological"
 
@@ -55,6 +55,34 @@ DERIVED_INPUTS: Dict[Tuple[str, str], Tuple[Tuple[str, str], ...]] = {
     (_NEURO, "dar"): ((_NEURO, "delta_power"), (_NEURO, "alpha_power")),
     (_NEURO, "tbr"): ((_NEURO, "theta_power"), (_NEURO, "beta_power")),
 }
+
+# T6 (2026-11-18): con dos reglas firmadas, la FC acoplada no siempre sale del BAR. Sus entradas son las de SU regla,
+# que el valor declara en su `source_detail` («acoplamiento:<regla> | …», `coupling/bridge.py`). La entrada fija de
+# arriba queda solo para quien no tiene el valor a mano (`physiological_state`), y es la de la regla BAR.
+_COUPLED_RULE_RE = re.compile(r"acoplamiento:([A-Za-z0-9_]+)")
+
+
+def _coupling_rule_inputs(source_detail: Optional[str]) -> Optional[Tuple[Tuple[str, str], ...]]:
+    """Las entradas de la regla firmada que escribió un valor acoplado, o `None` si el valor no nombra una regla del
+    catálogo (`VALIDATED_RULES`): entonces no se sabe de qué salió."""
+    from ..coupling.catalog import VALIDATED_RULES        # import diferido: coupling importa state
+
+    match = _COUPLED_RULE_RE.search(source_detail or "")
+    rule = next((r for r in VALIDATED_RULES if match and r.rule_id == match.group(1)), None)
+    if rule is None:
+        return None
+    return ((rule.condition.domain, rule.condition.descriptor), (rule.effect.domain, rule.effect.descriptor))
+
+
+def derived_inputs_of(domain: str, name: str,
+                      source_detail: Optional[str] = None) -> Optional[Tuple[Tuple[str, str], ...]]:
+    """Las entradas de un derivado: las de su regla si es un valor acoplado que la nombra, si no las de
+    `DERIVED_INPUTS`. `None`: no es un derivado conocido."""
+    if name.endswith("_acoplado"):
+        inputs = _coupling_rule_inputs(source_detail)
+        if inputs is not None:
+            return inputs
+    return DERIVED_INPUTS.get((domain, name))
 
 # Un paso de una trayectoria de escenario (`rich_engine.run_rich_scenario`) marca su `source_detail` con
 # `escenario_rico:<escenario>:modo:<modo>:horizonte:<tiempo>`. Sus pasos se guardan con segundos de diferencia, así que
@@ -139,8 +167,10 @@ def get_composed_patient(
 
     delivered: Dict[Tuple[str, str], Tuple[PhysiologicalDescriptor, str]] = {}
     origins: Dict[Tuple[str, str], CarryOrigin] = {}
+    raw_detail: Dict[Tuple[str, str], Optional[str]] = {}
     for value, snapshot in _latest_values(session, patient_id, latest_rowid):
         key = (value.domain, value.descriptor)
+        raw_detail[key] = value.source_detail
         descriptor = PhysiologicalDescriptor(
             name=value.descriptor,
             value=value.value,
@@ -163,9 +193,18 @@ def get_composed_patient(
             descriptor = replace(descriptor, provenance=Provenance.ARRASTRE_TEMPORAL, source_detail=detail)
         delivered[key] = (descriptor, snapshot.id)
 
-    for key in [k for k in delivered if k in DERIVED_INPUTS]:
-        own_sid = delivered[key][1]
-        if any(inp not in delivered or delivered[inp][1] != own_sid for inp in DERIVED_INPUTS[key]):
+    # Se comprueba contra lo leído ANTES de quitar nada (T6): el resultado no depende del orden de las filas. Un
+    # derivado viaja si sus entradas son las últimas y vienen de su mismo snapshot, aunque una de ellas no se muestre
+    # (el BAR copiado de una composición viaja sin sus bandas; la FC acoplada que salió de él, sí).
+    read = dict(delivered)
+    for key in list(delivered):
+        if key[1].endswith("_acoplado") and _coupling_rule_inputs(raw_detail.get(key)) is None:
+            drop = True                                            # no nombra una regla del catálogo
+        else:
+            inputs = derived_inputs_of(key[0], key[1], raw_detail.get(key))
+            own_sid = delivered[key][1]
+            drop = bool(inputs) and any(inp not in read or read[inp][1] != own_sid for inp in inputs)
+        if drop:
             del delivered[key]
             origins.pop(key, None)
 

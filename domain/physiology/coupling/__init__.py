@@ -31,6 +31,13 @@ from .bridge import (
 )
 from .catalog import AROUSAL_TAQUICARDIA_BAR, HIPOXIA_TAQUICARDIA, VALIDATED_RULES
 from .engine import ProposedCoupling, evaluate
+from .rule_composer import (
+    MeasuredValue,
+    RuleEvaluation,
+    evaluate_rule_for_patient,
+    latest_measured,
+    rule_input_check,
+)
 from .rules import (
     COUPLABLE_DESCRIPTORS,
     ComparisonOperator,
@@ -61,4 +68,9 @@ __all__ = [
     "VALIDATED_RULES",
     "AROUSAL_TAQUICARDIA_BAR",
     "HIPOXIA_TAQUICARDIA",
+    "MeasuredValue",
+    "RuleEvaluation",
+    "evaluate_rule_for_patient",
+    "latest_measured",
+    "rule_input_check",
 ]

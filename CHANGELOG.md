@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-18 · T6: las reglas firmadas disparan en la Ruta y se declaran
+
+Pedido de Luis: «Repara todo, aunque sea menor, todos los detalles de la tanda y empieza con T6». Diseño firmado, T6: «la estación de cierre de la Unidad Cerebro llama al compositor justo después de guardar el EEG, si hay una FC del paciente dentro de la ventana. La regla dispara en el flujo normal y la estación lo declara: qué regla, con qué cita, con qué confianza» y «Generalizar el compositor a pares de descriptores definidos por las reglas firmadas, en vez de solo bar + heart_rate, cuando exista la segunda regla». Ya existe: `HIPOXIA_TAQUICARDIA` (ficha 1).
+
+1. **Compositor por regla** (`domain/physiology/coupling/rule_composer.py`, `evaluate_rule_for_patient`). Junta la condición de UNA regla (`bar`, `spo2`) y la señal que modula (`heart_rate`) del paciente y evalúa solo esa regla:
+   - **solo mediciones:** nunca la copia de una composición anterior ni la proyección de un escenario (un valor con horizonte);
+   - **ventana de la regla:** cada regla declara la suya (`CouplingRule.window_s`; las dos firmadas: 120 s, decisión 1). Fuera de ella no compone y dice cuál de los dos valores es más viejo;
+   - **mismo guardado:** si las dos entradas están en un snapshot, evalúa ese snapshot; si no, escribe uno nuevo con la más reciente tal cual y la más vieja como `ARRASTRE_TEMPORAL` con su edad;
+   - **escenarios bloqueados** (los globales y los de la regla): no evalúa ni escribe nada; el llamador pasa el escenario del paciente;
+   - no acopla dos veces las mismas dos mediciones (tampoco repite una composición en la que la regla no se cumplió).
+
+   El compositor neurocardiaco de siempre (`compose_neuro_cardiac_snapshot`, el del gemelo) no cambia. Nueva consulta: `repository.get_snapshot_ids_with_descriptor`.
+2. **La regla dispara en el flujo normal de la Ruta** (`app/supermodules/ruta/coupling_station.py`). Ya no hay botón «Componer»:
+   - **Cerebro** (`AROUSAL_TAQUICARDIA_BAR`): guardar el EEG en «Mide» o la FC en el cierre evalúa la regla con el escenario de la unidad.
+   - **Respiración** (`HIPOXIA_TAQUICARDIA`): igual con la SpO₂ de «Mide» y la FC del cierre; bloqueada en hipoxia, apnea, EPOC y sepsis por su ficha. Sale del riel el pendiente «Evaluar la regla de hipoxia con tu paciente».
+   - El cierre declara la regla, su fuente y su confianza; las dos entradas con su procedencia en palabras (la FC del escenario se rotula «proyección del escenario, no cuenta como medición»), el tiempo entre ambas y la ventana; y el resultado: «se aplicó» (FC base → acoplada, confianza), «se evaluó y no se aplicó», «ya evaluaste…» o por qué no se evaluó. El resultado vive bajo el prefijo de la unidad: «Empezar de nuevo» lo borra.
+3. **La FC acoplada viaja con las entradas de SU regla** (Art. I). El paciente compuesto tenía fijas las entradas de `heart_rate_acoplado` (el BAR y la FC). Con la regla de hipoxia, la FC acoplada nunca se veía.
+   - Ahora `derived_inputs_of` lee la regla del propio valor («acoplamiento:<regla>»). Un valor acoplado que no nombra una regla del catálogo no se entrega.
+   - El gemelo (`physiological_state`) usa la misma función: mover la SpO₂ quita la FC acoplada por la hipoxia.
+   - La comprobación se hace contra lo leído antes de quitar nada, así que el resultado ya no depende del orden de las filas.
+4. **Pruebas:**
+   - `tests/test_t6_compositor_reglas.py` (dominio, 16);
+   - `tests/test_t6_acoplamientos_ruta.py` (recorrido de Cerebro y Respiración, 12);
+   - las pruebas de la T4 que usaban el botón «Componer» se actualizaron al flujo nuevo.
+
 ## 2026-11-18 · T5: el menú baja a cinco destinos
 
 Pedido de Luis: «sigue con T5» (visto bueno de la regla 7, que el diseño exige antes de retirar páginas del menú). Diseño firmado, «Navegación nueva (T5)».

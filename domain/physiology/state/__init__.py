@@ -24,12 +24,20 @@ from .clinical_reference_repository import (
     get_clinical_references_for_snapshot,
 )
 from .composer import ComposeResult, compose_neuro_cardiac_snapshot
-from .composed import DERIVED_INPUTS, CarryOrigin, ComposedPatient, get_composed_patient, horizon_of
+from .composed import (
+    DERIVED_INPUTS,
+    CarryOrigin,
+    ComposedPatient,
+    derived_inputs_of,
+    get_composed_patient,
+    horizon_of,
+)
 from .db import init_db, make_engine, make_session_factory
 from .repository import (
     create_patient,
     get_events,
     get_latest_snapshot_id_with_descriptor,
+    get_snapshot_ids_with_descriptor,
     get_latest_state,
     get_patient,
     get_state_by_snapshot_id,
@@ -58,6 +66,7 @@ __all__ = [
     "create_patient",
     "get_events",
     "get_latest_snapshot_id_with_descriptor",
+    "get_snapshot_ids_with_descriptor",
     "get_latest_state",
     "get_patient",
     "get_state_by_snapshot_id",
@@ -71,6 +80,7 @@ __all__ = [
     "CarryOrigin",
     "ComposedPatient",
     "DERIVED_INPUTS",
+    "derived_inputs_of",
     "get_composed_patient",
     "horizon_of",
     "CONFIDENCE_REFERENCE",

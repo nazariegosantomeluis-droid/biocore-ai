@@ -273,6 +273,26 @@ def get_latest_snapshot_id_with_descriptor(
     return session.execute(stmt).scalar_one_or_none()
 
 
+def get_snapshot_ids_with_descriptor(
+    session: Session, patient_id: str, domain: str, descriptor: str, limit: int = 50
+) -> List[str]:
+    """Los ids de los últimos `limit` snapshots del paciente que contienen `(domain, descriptor)`, del más reciente al
+    más viejo (mismo orden por `rowid` que `get_latest_snapshot_id_with_descriptor`). T6 (2026-11-18): el compositor por
+    regla salta los snapshots compuestos (copias) hasta encontrar una medición."""
+    stmt = (
+        select(SnapshotRecord.id)
+        .join(ValueRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+        .where(
+            SnapshotRecord.patient_id == patient_id,
+            ValueRecord.domain == domain,
+            ValueRecord.descriptor == descriptor,
+        )
+        .order_by(text("ups_snapshots.rowid DESC"))
+        .limit(limit)
+    )
+    return list(session.execute(stmt).scalars())
+
+
 def get_value_history(
     session: Session,
     patient_id: str,

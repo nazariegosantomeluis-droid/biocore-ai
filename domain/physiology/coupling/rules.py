@@ -187,6 +187,10 @@ class CouplingRule:
     # la lista global `COUPLING_DISABLED_SCENARIOS` (bridge.py). Ficha 1 de `docs/contenido/fichas_acoplamientos.md`,
     # firmada el 2026-11-18: la hipoxia no se acopla en hypoxia/apnea/copd/sepsis, pero la regla BAR sí puede.
     blocked_scenarios: Tuple[str, ...] = ()
+    # Ventana fisiológica de la regla (decisión 1 firmada, 2026-11-17: «la fisiológica conserva los 120 s de la FC;
+    # cada regla nueva trae la suya en su ficha»): la condición y la señal que modula deben venir de momentos separados
+    # como mucho por esta ventana. `None`: la regla no se compone (T6, 2026-11-18).
+    window_s: Optional[float] = None
 
     def __post_init__(self) -> None:
         if not self.rule_id or not self.rule_id.strip():
