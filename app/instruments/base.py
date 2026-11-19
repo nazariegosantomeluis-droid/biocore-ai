@@ -44,6 +44,11 @@ class InstrumentContext:
     def panel(self):
         return self.controls if self.controls is not None else st.sidebar
 
+    def deco(self, emoji: str) -> str:
+        """El emoji decorativo de la página de siempre; en una estación de la ruta, nada (diseño firmado: sin emoji).
+        El texto que sigue dice lo mismo con palabras."""
+        return "" if self.in_station else f"{emoji} "
+
     @property
     def in_station(self) -> bool:
         return self.mode == MODE_STATION

@@ -84,8 +84,11 @@ def _active_state():
     pid = peek_active_patient_id()
     if pid is None:
         return None, None
+    from app.utils.physiological_state import with_carried_events
+
     with get_active_session_factory()() as session:
-        return pid, get_composed_patient(session, pid)
+        # Revisión final de la T4: con los eventos de lo arrastrado (un guardado parcial no pinta «estable» un órgano).
+        return pid, with_carried_events(session, get_composed_patient(session, pid))
 
 
 def snapshot_count(patient_id: Optional[str]) -> Optional[int]:

@@ -49,7 +49,7 @@ from app.utils.patient_session import (
     set_active_patient_id,
 )
 from app.utils.physiological_state import (
-    get_current_physiological_state, overlay_current_on_composed, persist_current_state,
+    get_current_physiological_state, overlay_current_on_composed, persist_current_state, with_carried_events,
 )
 from domain.physiology.hemodynamics import (
     HEMODYNAMIC_MODEL_ENABLED_SCENARIOS,
@@ -226,16 +226,20 @@ def render_open_in_labs(organism: DigitalTwinOrganism) -> None:
                 st.warning(f"«{label}» abre una página del menú; aquí no hay menú: búscala en el menú lateral.")
                 continue
             source = st.session_state.get(INPUT_SOURCE_KEY) or "sliders de Twin OS"
+            # T4 (detalle de la T1.1): lo sembrado desde el paciente y sin mover no se guarda de nuevo como
+            # simulación; sigue siendo del paciente, con su procedencia.
             with get_active_session_factory()() as session:
                 persist_current_state(
                     session, organism, get_active_patient_id(),
                     source_detail=f"twin_visual:abrir_en_{url_path} ({source})",
+                    exclude=st.session_state.get(TWIN_DEFERRED_KEY, frozenset()),
                 )
             if url_path == "calculadoras":
                 st.session_state[CALC_LOAD_PATIENT_KEY] = True
             st.switch_page(target)
-    st.caption("Antes de abrir, el estado actual se guarda en la historia del paciente (simulación); el destino lo lee "
-               "del UPS, así que ves al mismo paciente.")
+    st.caption("Antes de abrir, el estado del gemelo se guarda en la historia del paciente (simulación), salvo lo que "
+               "viene del paciente y no moviste, que conserva su procedencia. El destino lo lee del UPS, así que ves al "
+               "mismo paciente.")
 
 
 def _card_lines(organism: DigitalTwinOrganism, organ_id: str) -> tuple:
@@ -368,6 +372,18 @@ def _seed_sliders_from_patient() -> tuple:
     return deferred, notes
 
 
+def _patient_has(domain: str, name: str) -> bool:
+    """¿El paciente activo (compuesto) tiene este valor? Solo lee; sin paciente, no."""
+    from app.utils.patient_banner import peek_active_patient_id
+
+    patient_id = peek_active_patient_id()
+    if patient_id is None:
+        return False
+    with get_active_session_factory()() as session:
+        composed = get_composed_patient(session, patient_id)
+    return composed is not None and getattr(composed.state, domain).get(name) is not None
+
+
 def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
     """Lets the shell be explored/demoed live without real hardware attached.
 
@@ -400,7 +416,13 @@ def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
             fatigue = st.slider("Fatiga muscular (EMG)", 0, 100, 20, key="twin_shell_fatigue", disabled=bool(active))
 
         if seed_notes and not active:
-            st.caption(" ".join(seed_notes) + " Si guardas el estado, se guarda como simulación.")
+            st.caption(" ".join(seed_notes) + " Si guardas el estado, lo que moviste se guarda como simulación; lo "
+                                              "que viene del paciente y no moviste conserva su procedencia.")
+        # Revisión final de la T4: el slider de HRV no se siembra (el `hrv` del UPS no dice qué índice es), pero en su
+        # valor de partida (50 ms) no debe pisar al guardar la HRV que el paciente ya tiene (p. ej. la de Variabilidad
+        # cardiaca): mientras no lo muevas, esa HRV sigue siendo la del paciente.
+        if not active and hrv == 50 and _patient_has("cardiovascular", "hrv"):
+            deferred.add(("cardiovascular", "hrv"))
         st.session_state[TWIN_DEFERRED_KEY] = frozenset() if active else frozenset(deferred)
         if active:
             return
@@ -1027,15 +1049,21 @@ def render_synced_digital_twin_body(organism: DigitalTwinOrganism) -> None:
 
     if st.button("💾 Guardar este momento en la historia del paciente", key="twin_shell_body_sync"):
         with session_factory() as session:
-            persist_current_state(session, organism, patient_id, source_detail="twin_visual:checkpoint_manual")
-        st.success("Momento guardado en la trayectoria del paciente.")
+            _, saved = persist_current_state(session, organism, patient_id, source_detail="twin_visual:checkpoint_manual",
+                                             exclude=st.session_state.get(TWIN_DEFERRED_KEY, frozenset()))
+        if saved:
+            st.success("Momento guardado en la trayectoria del paciente. Lo que viene del paciente y no moviste no se "
+                       "vuelve a guardar: conserva su procedencia.")
+        else:
+            st.info("Nada nuevo que guardar: no moviste ningún control y los valores ya son los del paciente.")
 
     # Pieza 2 (2026-10-22): un solo `state` alimenta el cuerpo SVG y el 3D.
     # T1 de la ruta integrada (2026-11-18): ese `state` es el paciente compuesto con el estado en memoria encima
     # (`overlay_current_on_composed`): lo que mueves ahora gana; lo que guardaron los laboratorios aparece con su
     # procedencia.
     with session_factory() as session:
-        composed = get_composed_patient(session, patient_id)
+        # Revisión final de la T4: con los eventos de lo arrastrado (un guardado parcial no pinta «estable» un órgano).
+        composed = with_carried_events(session, get_composed_patient(session, patient_id))
     body_state, body_origins = overlay_current_on_composed(get_current_physiological_state(organism, patient_id),
                                                            composed, st.session_state.get(TWIN_DEFERRED_KEY, frozenset()))
     render_ups_body(body_state, with_3d=True, key="twin_actual", origins=body_origins)

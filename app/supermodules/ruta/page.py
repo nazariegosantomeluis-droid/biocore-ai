@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import streamlit as st
 
-from app.supermodules.ruta import corazon
+from app.supermodules.ruta import common, units
 from app.supermodules.ruta import model as M
 
 FRANJA_KEY = "ruta_franja"
+UNIT_KEY = "ruta_unit"
 
 
 def _vitals_line(vitals) -> str:
@@ -57,7 +58,8 @@ def _render_franja(unit: M.Unit, p: dict) -> None:
     from app.utils.patient_banner import peek_active_patient_id
 
     vitals = read_active_vitals()
-    parts = [icon_html(C.ORGAN_BY_KEY[unit.key].icon_file, css="bc-franja-icon"), "<span>Tu paciente</span>"]
+    parts = [icon_html(C.ORGAN_BY_KEY[unit.organ].icon_file, css="bc-franja-icon"),
+             f"<span>Tu paciente · {unit.title}</span>"]
     # Revisión final de la T3 (Art. I): «Tu paciente» es el de la unidad. Si no hay, o si otra página cambió el
     # paciente activo, la franja lo dice y no pone los signos de otro paciente bajo ese nombre.
     if p["patient_id"] is None:
@@ -69,7 +71,7 @@ def _render_franja(unit: M.Unit, p: dict) -> None:
             d = vitals.values[key]
             parts.append(f"<span>{label} <b>{'—' if d is None else f'{d.value:.0f}'}</b></span>"
                          + _seal(d, vitals.origins.get(key)))
-    saved = st.session_state.pop(corazon.SAVED_NOW_KEY, None)
+    saved = st.session_state.pop(common.SAVED_NOW_KEY, None)
     hr = vitals.values["hr"]
     if saved and hr is not None:
         parts.append(f"<span class='bc-franja-saved'>Guardaste FC {hr.value:.0f} lpm "
@@ -110,7 +112,13 @@ def render_route_page() -> None:
     from app.utils.design_system import render_no_data
     from app.utils.patient_banner import peek_active_patient_id, read_active_vitals
 
-    unit = corazon.UNIT
+    # T4: una unidad a la vez, cada una con su paciente y su avance (no se mezclan). Las que aún no se pueden recorrer
+    # se listan como pendientes, con lo que les falta.
+    unit_key = st.radio("Unidad", [u.key for u in units.UNITS], horizontal=True, key=UNIT_KEY,
+                        format_func=lambda k: units.UNIT_BY_KEY[k].title)
+    for title, missing in units.PENDING_UNITS:
+        st.caption(f"{title} (pendiente): falta {missing}.")
+    unit = units.UNIT_BY_KEY[unit_key]
     p = M.progress(unit.key)
     station = unit.stations[p["station"]]
     last = len(unit.stations) - 1
@@ -131,7 +139,7 @@ def render_route_page() -> None:
             st.button("Ir a la estación 0", key="ruta_go_start", on_click=M.go_to, args=(unit.key, 0))
         else:
             if mismatch:
-                st.warning("El paciente activo ya no es el de esta unidad (otra página cambió de paciente). Las "
+                st.warning("El paciente activo ya no es el de esta unidad (otra unidad o página cambió de paciente). Las "
                            "estaciones que leen al paciente esperan a que vuelvas al de la unidad, para no mezclar "
                            "sus datos.")
                 st.button("Volver al paciente de la unidad", key="ruta_back_to_unit_patient",

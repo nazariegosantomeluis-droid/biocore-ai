@@ -314,3 +314,74 @@ def test_valor_del_paciente_fuera_de_rango_no_lo_tapa_el_slider():
     assert at.slider(key="twin_shell_spo2").value == 98          # el control no llega a 69
     text = _md(at)
     assert "SpO₂: 69%" in text and "SpO₂: Sensor real" in text
+
+
+# ── T4 (detalle de la T1.1): guardar desde el gemelo no vuelve simulación lo que el estudiante no movió ──
+
+def _latest_hr(patient_id):
+    with _shared_factory()() as session:
+        return get_composed_patient(session, patient_id)
+
+
+def test_guardar_este_momento_no_cambia_la_procedencia_de_lo_no_movido():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    _save_hr(patient_id, 95)                                            # medido por la placa: Sensor real
+    at = _twin_app(patient_id)
+    assert at.slider(key="twin_shell_hr").value == 95                   # sembrado y sin mover
+    at.button(key="twin_shell_body_sync").click().run()
+    assert at.exception == [], at.exception
+    composed = _latest_hr(patient_id)
+    hr = composed.state.cardiovascular.get("heart_rate")
+    origin = composed.origins.get(("cardiovascular", "heart_rate"))
+    assert hr.value == 95.0
+    assert (origin.provenance if origin else hr.provenance) == Provenance.SENSOR_REAL
+    assert not composed.state.cardiovascular.get("news2_pulse_points") or \
+        composed.origins.get(("cardiovascular", "news2_pulse_points")) is not None
+
+
+def test_guardar_este_momento_guarda_lo_que_si_se_movio():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0}})
+    at = _twin_app(patient_id)
+    at.slider(key="twin_shell_hr").set_value(120).run()
+    at.button(key="twin_shell_body_sync").click().run()
+    hr = _latest_hr(patient_id).state.cardiovascular.get("heart_rate")
+    assert hr.value == 120.0 and hr.provenance == Provenance.SIMULACION
+
+
+def test_without_inputs_quita_el_derivado_de_una_entrada_quitada(pid):
+    from app.utils.physiological_state import without_inputs
+
+    state = _state(pid, cv=[_d("heart_rate", 95, "bpm"), _d("news2_pulse_points", 1)],
+                   resp=[_d("respiratory_rate", 16, "rpm")])
+    kept = without_inputs(state, frozenset({("cardiovascular", "heart_rate")}))
+    assert kept.cardiovascular.descriptors == {}
+    assert set(kept.respiratory.descriptors) == {"respiratory_rate"}
+
+
+# ── Revisión final de la T4 ──
+
+def test_un_guardado_parcial_no_borra_los_eventos_de_lo_arrastrado(factory, pid):
+    """El paciente compuesto toma los eventos del último snapshot; si ese snapshot solo trae la FC, una SpO₂ de 85 % con
+    3 puntos NEWS2 arrastrada de antes perdía su evento y los pulmones se veían «estables»."""
+    from app.utils.physiological_state import with_carried_events
+
+    organism = DigitalTwinOrganism()
+    organism.update_from_sensors({"ecg": {"heart_rate": 150.0}, "respiratory": {"respiratory_rate": 32.0, "spo2": 85.0}})
+    _save(factory, from_digital_twin_organism(organism, pid, provenance=Provenance.SIMULACION, source_detail="a"))
+    _save(factory, _state(pid, cv=[_d("heart_rate", 72, "bpm")]))         # un guardado de solo FC (p. ej. HRV)
+    with factory() as session:
+        composed = with_carried_events(session, get_composed_patient(session, pid))
+    kinds = {e.event_type for e in composed.state.events}
+    assert EventType.SPO2_NEWS2_3_POINTS in kinds                       # la SpO₂ arrastrada conserva su evento
+    assert EventType.PULSE_NEWS2_3_POINTS not in kinds                  # la FC nueva (72) ya no tiene el de 150
+
+
+def test_guardar_este_momento_no_pisa_la_hrv_del_paciente_con_el_slider_sin_mover():
+    patient_id = _patient_with({"ecg": {"heart_rate": 88.0, "hrv": 23.0}})
+    at = _twin_app(patient_id)
+    assert at.slider(key="twin_shell_hrv").value == 50                   # el slider de HRV no se siembra
+    at.button(key="twin_shell_body_sync").click().run()
+    hrv = _latest_hr(patient_id).state.cardiovascular.get("hrv")
+    assert hrv.value == 23.0                                             # sigue siendo la del paciente
+    # Los demás controles (FR, SpO₂…) no vienen del paciente y sí se guardan; el mensaje no dice que se guardó todo.
+    assert any("no se vuelve a guardar" in s.value for s in at.success)

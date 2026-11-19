@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-11-18 · T4 (primera parte): varias unidades en la Ruta, la Unidad Integración y los detalles menores
+
+Pedido de Luis: «Resuelve todos esos detalles menores, busca la literatura para poder firmarla y empieza T4».
+
+1. **Varias unidades en la Ruta.** Arriba del riel hay un selector de unidad (`ruta_unit`). Cada unidad tiene su paciente y su avance, y no se mezclan: al cambiar de unidad, la franja y las estaciones dicen si el paciente activo es el de esa unidad. Respiración, Cerebro y Músculo aparecen como pendientes, con lo que les falta (`ruta/units.py`). Lo que comparten las unidades vive en `ruta/common.py`, movido de `corazon.py` sin cambiar su comportamiento: la estación 0, la práctica con bancos firmados y el cierre.
+2. **Unidad Integración, el sistema autónomo (decisión 6).** Seis estaciones:
+   - **0 · Tu paciente:** sano, hipertensión o sepsis.
+   - **1 · Concepto:** temas firmados B1–B9.
+   - **2 · Mide:** los instrumentos de HRV en modo estación. La serie RR empieza en la FC y la FR del paciente, y guardar pasa por la compuerta de siempre.
+   - **3 · Practica:** banco H1–H8.
+   - **4 · Practica:** banco G1–G10.
+   - **5 · Cierre:** el mismo paciente y la PA del lazo cerrado de su escenario, con las reglas y los rótulos del Detective. En sepsis lleva «en revisión clínica» y se declina fuera de la fase de shock. La PA se calcula al mostrarla y no se guarda. El Detective va enlazado y pasa por su aviso de entrada.
+3. **Práctica con bancos firmados** (`common.render_bank_practice`). Usa la misma tarjeta que Temas, con la confianza declarada o «sin declarar». Cada pregunta se registra una vez, con su concepto de `CONCEPT_BY_PROMPT`.
+4. **Detalles menores de la T3:**
+   - El cierre cuenta solo lo practicado en las estaciones de la unidad: las preguntas de los bancos, con un registro propio de la unidad (`answered`, que «Empezar de nuevo» vacía); «¿Qué pasa si…?», con `M.track_answers`.
+   - «Empezar de nuevo» reinicia la unidad (`M.reset_unit`) y el selector recuerda el escenario del paciente.
+   - Cuando Mide o HRV guardan, la página se vuelve a dibujar (`common.saved_now`), así que el hilo ya muestra el valor nuevo.
+5. **Detalle de la T1.1, con cambio en `twin_shell/` porque Luis lo pidió:** «Abrir en…» y «Guardar este momento» ya no vuelven a guardar como simulación los valores sembrados desde el paciente que el estudiante no movió (`persist_current_state(..., exclude=…)` y `without_inputs`). Un valor medido conserva su procedencia. Si no se movió nada, no se escribe un snapshot vacío y la pantalla lo dice. El narrador (snapshot bajo demanda) queda igual.
+6. **Sin emoji en las estaciones:** `InstrumentContext.deco()`. La HRV y el panel RSA, montados en una estación, no muestran emoji decorativos; en sus páginas no cambian.
+7. **Fichas de acoplamiento para firmar** (`docs/contenido/fichas_acoplamientos.md`, BORRADOR):
+   - **Hipoxia → taquicardia.** Retirada vagal ante la caída de la SpO₂. Halliwill 2003: +13.5 lpm con SpO₂ ~86 %. Niewinski 2025: pendiente de 0.58 lpm por cada % de caída. Lucy 2000: el mecanismo es la retirada vagal. La ficha propone el ancla en ≤ 91 % (NEWS2), +13 lpm, confianza 0.70, los escenarios que hay que bloquear y una ventana de 120 s, con sus alternativas.
+   - **Contracción isométrica → taquicardia.** Al 30 % de la CVM, +14 lpm en 2 min (Limberg 2014) o +12 a +16 lpm (Incognito 2018). El aumento lo explica el comando central, no el metaborreflejo. La ficha recomienda NO anclar la regla en la «activación» actual del EMG, porque no es un % de la CVM. Deja a Luis elegir entre esperar una calibración de CVM y un cierre de Músculo como simulación declarada.
+
+   Nada de las fichas está activo hasta que Luis firme.
+8. **Revisión final de la T4 (Art. I):**
+   - Un guardado parcial ya no borra los eventos de lo arrastrado: el Inicio y el cuerpo del gemelo leen el paciente compuesto con `with_carried_events` (los eventos del snapshot de origen de cada valor arrastrado). Antes, guardar solo la FC pintaba «estable» un órgano con un evento vigente.
+   - El gemelo ya no guarda la HRV del slider sin mover (50) encima de la del paciente; los mensajes de «Guardar este momento» y «Abrir en…» dicen lo que de verdad se guardó.
+   - Mide (Unidad Integración) con la FC de la sepsis (150 lpm, fuera de 40–140): avisa que la serie no empieza en el paciente y no ofrece guardar, para no escribirle una FC que no es la suya. La serie pegada a mano lo dice y sí guarda.
+   - Las respuestas de los bancos vuelven a contar en el cierre después de «Empezar de nuevo» (antes la sesión no las volvía a registrar y el cierre decía que no había respuestas). La práctica de Corazón usa la misma tarjeta, con claves de la unidad (ya no comparte estado con Temas).
+   - Fichas: SpO₂ en normoxia de Halliwill 98.8 % (pendiente ≈ 1.0 lpm por %), Incognito 2018, los cinco autores de Niewinski, la banda `TRANSCRITO_SIN_VALIDAR`, la mezcla de poblaciones de la opción proporcional, `stress` y `anxiety` en la lista de bloqueo y de dónde saldría la SpO₂ con los escenarios bloqueados.
+
+Pruebas:
+- `tests/test_ruta_integracion.py` (nueva): unidades pendientes, banco con concepto, Mide en la FC del paciente y sin menú lateral, guardar y la franja, PA de sepsis «en revisión clínica» y declinada fuera de fase, PA calculada en sano, dos unidades sin mezclar pacientes, y sin inglés ni emoji en cada estación.
+- Agregadas a `tests/test_ruta_corazon.py` y `tests/test_twin_paciente_compuesto.py`.
+
 ## 2026-11-18 · T3 de la ruta integrada: la Unidad Corazón en la página Ruta
 
 Cuarta tanda del diseño firmado. Pedida por Luis: «Bien, haz T3 y resuelve los detalles menores». Antes, el Inicio mandaba cada nodo de la ruta a una página distinta, con su propio encabezado y sus pestañas. Ahora la Unidad Corazón se recorre en una sola página, con el mismo paciente en cada estación.

@@ -138,10 +138,10 @@ def test_cierre_es_el_mismo_paciente():
 
 def test_practica_registra_con_su_confianza():
     at = _go(_start("healthy"), "practica")
-    radio = at.radio(key="bc_q_fc_0_choice")
+    radio = at.radio(key="ruta_corazon_fc_q_0_choice")
     radio.set_value(radio.options[0]).run()
-    at.select_slider(key="bc_q_fc_0_conf").set_value(70).run()
-    at.button(key="bc_q_fc_0_check").click().run()
+    at.select_slider(key="ruta_corazon_fc_q_0_conf").set_value(70).run()
+    at.button(key="ruta_corazon_fc_q_0_check").click().run()
     log = at.session_state["session_learning_log"]
     assert log and log[-1]["source"] == "quiz" and log[-1]["concept"] == "frecuencia_cardiaca"
     assert log[-1]["confidence"] == 70
@@ -276,3 +276,43 @@ def test_la_estacion_actual_del_riel_se_ve_marcada_no_apagada():
     rule = next(line for line in src.splitlines() if 'st-key-bc_node"] button:disabled' in line)
     assert "PALETTE.TINTA_TITULO" in rule and "PALETTE.RESALTE" in rule
     assert ("TINTA_TITULO", "RESALTE", 4.5) in DS.CONTRAST_PAIRS
+
+
+# ── T4: detalles menores de la T3 ──────────────────────────────────────────────────────────────────────────────────
+def test_cierre_cuenta_solo_lo_practicado_en_la_unidad():
+    at = _start("healthy")
+    at.session_state["session_learning_log"] = [                     # respuestas de otras páginas
+        {"item_id": "x", "source": "quiz", "concept": "frecuencia_cardiaca", "correct": True, "confidence": 50,
+         "ts": "2026-11-18T00:00:00+00:00"}] * 3
+    _go(at, "practica")
+    radio = at.radio(key="ruta_corazon_fc_q_0_choice")
+    radio.set_value(radio.options[0]).run()
+    at.button(key="ruta_corazon_fc_q_0_check").click().run()
+    _go(at, "cierre")
+    assert "1 respuesta" in _texts(at) and "4 respuestas" not in _texts(at)
+
+
+def test_empezar_de_nuevo_reinicia_la_unidad_y_recuerda_el_escenario():
+    at = _go(_start("hypertension"), "mide")
+    at.number_input(key="ruta_corazon_qt").set_value(400.0).run()
+    _go(at, "paciente")
+    assert at.radio(key="ruta_corazon_scenario").value == "hypertension"    # no vuelve a «Sano»
+    at.radio(key="ruta_corazon_scenario").set_value("sepsis").run()
+    at.button(key="ruta_corazon_start").click().run()
+    progress = at.session_state["ruta_progress"]["corazon"]
+    assert progress["visited"] == {0} and progress["scenario"] == "sepsis"
+    assert "ruta_corazon_qt" not in at.session_state
+
+
+def test_el_hilo_muestra_lo_que_mide_acaba_de_guardar():
+    from src.signals.ecg.rsa import RsaParams, generate_rsa_signals
+
+    at = _go(_start("hypertension"), "mide")
+    signal = generate_rsa_signals(RsaParams(hr_base_bpm=115.0, rsa_amplitude_bpm=5.0, respiratory_rate_rpm=15.0),
+                                  30.0, fs=250.0).ecg
+    at.session_state["ruta_corazon_mide___ecg_monitor_mitbih_cache"] = (signal, 250.0,
+                                                                        {"source": "MIT-BIH 100 (PhysioNet)"})
+    at.radio(key="ruta_corazon_mide__ecg_monitor_source").set_value("Base de datos MIT-BIH").run()
+    at.button(key="ruta_corazon_mide__ecg_lab_save_to_ups").click().run()
+    hr = round(_unit_hr(at).value)
+    assert f"Tu paciente ahora: FC {hr} lpm" in _texts(at) and f"Guardaste FC {hr} lpm" in _texts(at)
