@@ -47,8 +47,10 @@ reservado.
 política de combinación firmada, así que la política es NO COMBINAR: si
 más de una regla dispara sobre el mismo descriptor efecto en el mismo
 snapshot, no se escribe ningún valor acoplado para ese efecto (sumar o
-elegir sería inventar fisiología). Hoy no ocurre en el flujo vivo: el
-compositor junta `bar` + `heart_rate`, sin `spo2`.
+elegir sería inventar fisiología). 2026-11-19: Luis firma esa política
+(«apruebo la regla de no combinar»). El compositor por regla de la T6
+(`rule_composer.py`) pasa todas las reglas no bloqueadas, así que también
+rige en la Ruta.
 
 *** LISTA DE ESCENARIOS ***
 `COUPLING_DISABLED_SCENARIOS` -- escritores/escenarios donde el
@@ -162,16 +164,16 @@ class AppliedCoupling:
 
 
 def _combine_proposals_for_same_effect(proposals: List[ProposedCoupling]) -> List[ProposedCoupling]:
-    """Política de combinación multi-regla (ver docstring del módulo). Sin una
-    política firmada, NO se combina: los efectos que reciben una sola propuesta
-    pasan tal cual; un efecto que recibe más de una se descarta entero."""
+    """Política de combinación multi-regla, FIRMADA por Luis el 2026-11-19 («apruebo la regla de no combinar»):
+    NO se combina. Los efectos que reciben una sola propuesta pasan tal cual; un efecto que recibe más de una se
+    descarta entero (sumar o elegir necesitaría otra firma)."""
     targets: dict = {}
     for proposal in proposals:
         key = (proposal.effect.domain, proposal.effect.descriptor)
         targets[key] = targets.get(key, 0) + 1
     dropped = [p.rule.rule_id for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] > 1]
     if dropped:
-        logger.warning("Acoplamiento no combinado (sin política firmada): %s apuntan a la misma señal; no se escribe "
+        logger.warning("Acoplamiento no combinado (política firmada de no combinar): %s apuntan a la misma señal; no se escribe "
                        "ningún valor acoplado", ", ".join(dropped))
     return [p for p in proposals if targets[(p.effect.domain, p.effect.descriptor)] == 1]
 

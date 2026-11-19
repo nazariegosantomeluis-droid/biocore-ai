@@ -149,9 +149,9 @@ def _snapshot_with_hr_and_eeg(session, *, beta: float, alpha: float, hr: float =
 # --- PRUEBA CENTRAL: dos sistemas conversan honestamente ------------------
 
 def test_bar_high_couples_the_heart_rate(session_factory):
-    """BAR = 40/10 = 4.0 > 1.8 -> el corazón se acelera +15, declarado."""
+    """BAR = 25/10 = 2.5 > 1.8 (y bajo el techo de 3.0, T6.1) -> el corazón se acelera +15, declarado."""
     with session_factory() as session:
-        patient_id, snap = _snapshot_with_hr_and_eeg(session, beta=40.0, alpha=10.0, hr=72.0)
+        patient_id, snap = _snapshot_with_hr_and_eeg(session, beta=25.0, alpha=10.0, hr=72.0)   # BAR 2.5: bajo el techo (T6.1)
 
         applied = apply_couplings(session, snap, VALIDATED_RULES, scenario=None)
 
@@ -160,7 +160,7 @@ def test_bar_high_couples_the_heart_rate(session_factory):
         assert ac.rule_id == "AROUSAL_TAQUICARDIA_BAR"
         assert ac.base_value == pytest.approx(72.0)
         assert ac.coupled_value == pytest.approx(72.0 + 15.0)
-        assert ac.observed_value == pytest.approx(4.0)
+        assert ac.observed_value == pytest.approx(2.5)
         assert ac.provenance == Provenance.DERIVADO_ACOPLAMIENTO
         assert ac.confidence == pytest.approx(COUPLING_CONFIDENCE_VALIDADO)  # 0.70
 
@@ -175,7 +175,7 @@ def test_bar_high_couples_the_heart_rate(session_factory):
         assert d.confidence == pytest.approx(0.70)
         assert "AROUSAL_TAQUICARDIA_BAR" in d.source_detail
         assert "Guyton" in d.source_detail and "Schutter" in d.source_detail
-        assert "disparo: bar=4" in d.source_detail
+        assert "disparo: bar=2.5" in d.source_detail
         assert "heart_rate base=72" in d.source_detail
 
 
@@ -215,7 +215,7 @@ def test_stress_scenario_is_blocked_no_double_counting(session_factory):
 
 def test_narrator_context_cites_the_coupled_heart_rate(session_factory):
     with session_factory() as session:
-        patient_id, snap = _snapshot_with_hr_and_eeg(session, beta=40.0, alpha=10.0, hr=72.0)
+        patient_id, snap = _snapshot_with_hr_and_eeg(session, beta=25.0, alpha=10.0, hr=72.0)   # BAR 2.5: bajo el techo (T6.1)
         apply_couplings(session, snap, VALIDATED_RULES, scenario=None)
 
         ctx = build_context(session, patient_id)

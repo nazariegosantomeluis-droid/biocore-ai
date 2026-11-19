@@ -68,7 +68,11 @@ def _save_ecg(session, pid, ts, hr=None):
 
 
 def _save_eeg_bar(session, pid, ts, bar=None):
-    return save_state(session, _state(pid, ts, neuro={"bar": bar or _bar_desc()}))
+    # T6.1: la regla BAR exige un EEG de vigilia; el BAR viaja con sus cuatro bandas (theta y delta bajas).
+    bands = {name: PhysiologicalDescriptor(name, value, "µV²", Provenance.SIMULACION, 0.75, "eeg_lab:prueba")
+             for name, value in (("alpha_power", 10.0), ("beta_power", 25.0), ("theta_power", 0.5),
+                                 ("delta_power", 0.5))}
+    return save_state(session, _state(pid, ts, neuro={"bar": bar or _bar_desc(), **bands}))
 
 
 # --- Parte A: la consulta de lectura por dominio ---------------------------

@@ -1,4 +1,4 @@
-"""«¿Qué pasa si…?» (Practicar → `what-if`): predecir y comprobar contra el motor hemodinámico de lazo cerrado.
+"""«¿Qué pasa si…?» (Ruta › Práctica libre → `what-if`, antes Practicar): predecir y comprobar contra el motor hemodinámico de lazo cerrado.
 
 El alumno elige un caso de una lista CERRADA, predice para cada salida si sube, baja o no cambia, y declara su
 confianza (0–100) sin ver ningún número del motor. Al enviar, el motor de lazo cerrado de BIOCORE

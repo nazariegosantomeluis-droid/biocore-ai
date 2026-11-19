@@ -273,6 +273,72 @@ def get_latest_snapshot_id_with_descriptor(
     return session.execute(stmt).scalar_one_or_none()
 
 
+# Revisión final de la T6 (2026-11-18): una composición escribe COPIAS de dos mediciones en un snapshot nuevo. Una
+# copia no es información nueva: el paciente compuesto y el compositor por regla la reconocen por su `source_detail`
+# y leen el original. Marcas: el compositor por regla (`coupling/rule_composer.py`: «… del snapshot <id> … para la
+# regla <R>») y el neurocardiaco de siempre (`composer.py`: «FC arrastrada del snapshot <id> …»).
+COPY_FOR_RULE_MARK = "para la regla "
+_COPY_LIKE = ("%" + COPY_FOR_RULE_MARK + "%", "FC arrastrada del snapshot %")
+
+
+def is_composer_copy(source_detail: Optional[str]) -> bool:
+    """¿Este valor es la copia que escribió un compositor?"""
+    detail = source_detail or ""
+    return COPY_FOR_RULE_MARK in detail or detail.startswith("FC arrastrada del snapshot ")
+
+
+def not_composer_copy_clause():
+    """Cláusula SQL: la fila de `ups_values` no es una copia de un compositor."""
+    from sqlalchemy import and_, or_
+
+    return or_(ValueRecord.source_detail.is_(None),
+               and_(*[~ValueRecord.source_detail.like(pattern) for pattern in _COPY_LIKE]))
+
+
+def get_latest_measured_value(
+    session: Session, patient_id: str, domain: str, descriptor: str
+) -> Optional[Tuple[str, datetime, PhysiologicalDescriptor]]:
+    """El último valor de `(domain, descriptor)` que es una medición del paciente: ni la copia de un compositor ni un
+    `ARRASTRE_TEMPORAL` (un arrastre repite un valor anterior; su original es la medición). Se filtra por valor, no por
+    snapshot: un guardado del gemelo con una FC fresca y una SpO₂ arrastrada sigue aportando su FC. Sin límite de
+    búsqueda. `(snapshot_id, hora del snapshot, descriptor)` o `None`. Mismo orden por `rowid` que
+    `get_latest_snapshot_id_with_descriptor`."""
+    row = session.execute(
+        select(ValueRecord, SnapshotRecord.timestamp)
+        .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+        .where(
+            SnapshotRecord.patient_id == patient_id,
+            ValueRecord.domain == domain,
+            ValueRecord.descriptor == descriptor,
+            ValueRecord.provenance != Provenance.ARRASTRE_TEMPORAL.value,
+            not_composer_copy_clause(),
+        )
+        .order_by(text("ups_snapshots.rowid DESC"), text("ups_values.rowid DESC"))
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    v, ts = row
+    return v.snapshot_id, _to_aware_utc(ts), PhysiologicalDescriptor(
+        name=v.descriptor, value=v.value, unit=v.unit or "", provenance=Provenance(v.provenance),
+        confidence=v.confidence, source_detail=v.source_detail)
+
+
+def get_composer_copies(session: Session, patient_id: str, rule_id: str) -> List[Tuple[str, str]]:
+    """`(snapshot_id, source_detail)` de las copias que el compositor por regla escribió para `rule_id` (el nombre
+    completo: «HIPOXIA_TAQUICARDIA_2» no es «HIPOXIA_TAQUICARDIA»)."""
+    import re
+
+    pattern = re.compile(re.escape(COPY_FOR_RULE_MARK + rule_id) + r"(?![A-Za-z0-9_])")
+    rows = session.execute(
+        select(ValueRecord.snapshot_id, ValueRecord.source_detail)
+        .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
+        .where(SnapshotRecord.patient_id == patient_id,
+               ValueRecord.source_detail.like("%" + COPY_FOR_RULE_MARK + rule_id + "%"))
+    ).all()
+    return [(sid, detail) for sid, detail in rows if pattern.search(detail or "")]
+
+
 def get_value_history(
     session: Session,
     patient_id: str,

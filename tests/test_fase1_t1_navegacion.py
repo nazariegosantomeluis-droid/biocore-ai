@@ -93,11 +93,12 @@ def test_the_new_pages_render(url):
 def test_home_has_three_doors_with_one_line_each_and_no_key_gate():
     at = _open()
     links = _links(at.main)
-    # Rediseño del 2026-11-17: las tres puertas son las tarjetas Aprender, Practicar y Laboratorios del tablero.
-    assert {"teoria", "cuestionarios", "gemelo"} <= {p for p, _ in links}
+    # Rediseño del 2026-11-17; desde el 2026-11-19 las tres puertas llevan el nombre de su destino de la T5 y lo
+    # enlazan: Biblioteca, Ruta y Paciente.
+    assert {"biblioteca", "ruta", "paciente", "gemelo"} <= {p for p, _ in links}
     text = " ".join(m.value for m in at.main.markdown)
-    for word in ("Aprender", "Practicar", "Explorar"):
-        assert f"### " in text and word in text
+    for word in ("Biblioteca", "Ruta", "Paciente"):
+        assert f"### {word}" in text
     assert not at.text_input, "la clave de IA ya no es la primera pantalla"
     assert ("ajustes", "Ajustes: clave de IA") in links
 

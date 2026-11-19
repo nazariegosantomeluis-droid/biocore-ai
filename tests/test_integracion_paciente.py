@@ -546,7 +546,7 @@ def test_valor_del_ultimo_paso_de_una_trayectoria_dice_su_horizonte():
 
     d = PhysiologicalDescriptor(name="heart_rate", value=88.0, unit="bpm", provenance=Provenance.SIMULACION,
                                 confidence=0.6, source_detail="escenario_rico:hypertension:modo:basal:horizonte:7d")
-    assert vital_provenance_text(d) == "Simulación · horizonte 7d"
+    assert vital_provenance_text(d) == "Simulación · horizonte 7 días"         # revisión final de la T6: en palabras
     plain = PhysiologicalDescriptor(name="heart_rate", value=88.0, unit="bpm", provenance=Provenance.SIMULACION,
                                     confidence=0.6, source_detail="twin_visual:x")
     assert vital_provenance_text(plain) == "Simulación"

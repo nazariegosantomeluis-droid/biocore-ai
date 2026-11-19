@@ -89,6 +89,11 @@ class MotorImageryEvent:
 # fuente dominante de error (Pope 1995 promediaba ~40s). Por debajo de
 # `MIN_CLEAN_EEG_DURATION_S` (2s) el detector declina -- no se fuerza aquí un
 # mínimo que fingiría un baseline que la señal no tiene.
+# Amplitudes relativas del patrón `awake_arousal` (T6.1, Criterio BIOCORE, simulación): elegidas para que su BAR
+# caiga entre el umbral (1.8) y el techo (3.0) de la regla BAR con el ruido por defecto; una prueba lo vigila.
+AWAKE_AROUSAL_ALPHA = 0.4
+AWAKE_AROUSAL_BETA = 0.65
+
 _ENGAGEMENT_BASELINE_MAX_S = 10.0
 _ENGAGEMENT_BASELINE_LEAD_IN_S = 0.5
 
@@ -195,6 +200,12 @@ class EegSignalGenerator:
             base = self._band_signal(time, 10.0, params.amplitude * 0.8)
         elif params.pattern_type == 'beta':
             base = self._band_signal(time, 20.0, params.amplitude * 0.6)
+        elif params.pattern_type == 'awake_arousal':
+            # T6.1 (2026-11-19): vigilia con arousal, SIMULADA. Un alfa reducido y un beta mayor juntos, para que el
+            # cociente beta/alfa caiga en el rango de arousal que describe la fuente de la regla BAR (> 1.8, bajo su
+            # techo de 3.0). Los demás patrones son de una sola banda: su BAR refleja el generador, no un arousal.
+            base = (self._band_signal(time, 10.0, params.amplitude * AWAKE_AROUSAL_ALPHA)
+                    + self._band_signal(time, 20.0, params.amplitude * AWAKE_AROUSAL_BETA))
         elif params.pattern_type == 'theta':
             base = self._band_signal(time, 5.5, params.amplitude * 1.0)
         elif params.pattern_type == 'delta':

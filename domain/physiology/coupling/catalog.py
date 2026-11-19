@@ -58,6 +58,20 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
         operator=ComparisonOperator.GREATER_THAN,
         threshold=1.8,
         unit="ratio (adimensional)",
+        # T6.1 (2026-11-19, decisión de Luis: «pon ese límite con la literatura que encuentres»).
+        upper_limit=3.0,
+        upper_limit_nature="Criterio BIOCORE, heurística",
+        upper_limit_basis=(
+            "Criterio BIOCORE (heurística, no es una cifra de la fuente). Elegido el 2026-11-19 por encargo de Luis "
+            "(«Tu pon ese límite con la literatura que encuentres») y confirmado por Luis el 2026-11-19 («Si, confirmo "
+            "ambos»), con el requisito de un EEG de vigilia. La fuente "
+            "describe BAR basal 0.8-1.2 y arousal > 1.8, sin valores más altos. En un estudio, con una tarea mental la "
+            "fracción de beta subió de 15 a 28 %, cerca del doble (Li 2020, BMC Neurosci 21:20), y el estrés baja el "
+            "alfa de forma moderada (Vanhollebeke 2022, Neurobiol Stress 18:100452, g = 0.6): el doble del tope basal "
+            "da 2.4, y 3.0 deja margen para la caída del alfa. Más arriba, el BAR es más compatible con un alfa casi ausente (sueño, "
+            "una señal sintética de una sola banda) o con actividad muscular en beta (Goncharova 2003, Clin "
+            "Neurophysiol 114:1580-1593) que con arousal."
+        ),
     ),
     effect=CouplingEffect(
         domain="cardiovascular",
@@ -79,6 +93,8 @@ AROUSAL_TAQUICARDIA_BAR = CouplingRule(
         "aplicar sobre escenarios que ya modelan la descarga simpatica (COUPLING_DISABLED_SCENARIOS). "
         "La direccion espejo (relajacion -> ↓FC) es una regla futura con su propia firma."
     ),
+    window_s=120.0,          # decisión 1 firmada (2026-11-17): la ventana fisiológica conserva los 120 s de la FC
+    requires_wake_eeg=True,  # T6.1 (revisión final): en el sueño el BAR no mide arousal (`rules.WAKE_EEG_BASIS`)
 )
 
 
@@ -133,6 +149,7 @@ HIPOXIA_TAQUICARDIA = CouplingRule(
         "es continua). Ventana de 120 s entre la SpO2 y la FC. Firmada por Luis el 2026-11-18 (ficha 1)."
     ),
     blocked_scenarios=("hypoxia", "apnea", "copd", "sepsis"),
+    window_s=120.0,          # ficha 1 firmada: la SpO2 y la FC de la misma ventana de 120 s
 )
 
 

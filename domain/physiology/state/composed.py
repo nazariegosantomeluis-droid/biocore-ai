@@ -30,10 +30,10 @@ from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.orm import Session
 
 from .models import EventRecord, SnapshotRecord, ValueRecord
-from .repository import _event_from_record, _to_aware_utc
+from .repository import _event_from_record, _to_aware_utc, is_composer_copy, not_composer_copy_clause
 from .schema import DomainState, PhysiologicalDescriptor, Provenance, UnifiedPhysiologicalState
 
-__all__ = ["CarryOrigin", "ComposedPatient", "DERIVED_INPUTS", "get_composed_patient", "horizon_of"]
+__all__ = ["CarryOrigin", "ComposedPatient", "DERIVED_INPUTS", "derived_inputs_of", "get_composed_patient", "horizon_of"]
 
 _CV, _RESP, _NEURO = "cardiovascular", "respiratory", "neurological"
 
@@ -55,6 +55,34 @@ DERIVED_INPUTS: Dict[Tuple[str, str], Tuple[Tuple[str, str], ...]] = {
     (_NEURO, "dar"): ((_NEURO, "delta_power"), (_NEURO, "alpha_power")),
     (_NEURO, "tbr"): ((_NEURO, "theta_power"), (_NEURO, "beta_power")),
 }
+
+# T6 (2026-11-18): con dos reglas firmadas, la FC acoplada no siempre sale del BAR. Sus entradas son las de SU regla,
+# que el valor declara en su `source_detail` («acoplamiento:<regla> | …», `coupling/bridge.py`). La entrada fija de
+# arriba queda solo para quien no tiene el valor a mano (`physiological_state`), y es la de la regla BAR.
+_COUPLED_RULE_RE = re.compile(r"acoplamiento:([A-Za-z0-9_]+)")
+
+
+def _coupling_rule_inputs(source_detail: Optional[str]) -> Optional[Tuple[Tuple[str, str], ...]]:
+    """Las entradas de la regla firmada que escribió un valor acoplado, o `None` si el valor no nombra una regla del
+    catálogo (`VALIDATED_RULES`): entonces no se sabe de qué salió."""
+    from ..coupling.catalog import VALIDATED_RULES        # import diferido: coupling importa state
+
+    match = _COUPLED_RULE_RE.search(source_detail or "")
+    rule = next((r for r in VALIDATED_RULES if match and r.rule_id == match.group(1)), None)
+    if rule is None:
+        return None
+    return ((rule.condition.domain, rule.condition.descriptor), (rule.effect.domain, rule.effect.descriptor))
+
+
+def derived_inputs_of(domain: str, name: str,
+                      source_detail: Optional[str] = None) -> Optional[Tuple[Tuple[str, str], ...]]:
+    """Las entradas de un derivado: las de su regla si es un valor acoplado que la nombra, si no las de
+    `DERIVED_INPUTS`. `None`: no es un derivado conocido."""
+    if name.endswith("_acoplado"):
+        inputs = _coupling_rule_inputs(source_detail)
+        if inputs is not None:
+            return inputs
+    return DERIVED_INPUTS.get((domain, name))
 
 # Un paso de una trayectoria de escenario (`rich_engine.run_rich_scenario`) marca su `source_detail` con
 # `escenario_rico:<escenario>:modo:<modo>:horizonte:<tiempo>`. Sus pasos se guardan con segundos de diferencia, así que
@@ -109,6 +137,7 @@ def _latest_values(session: Session, patient_id: str, max_rowid: int) -> list:
         .join(SnapshotRecord, ValueRecord.snapshot_id == SnapshotRecord.id)
         .where(SnapshotRecord.patient_id == patient_id)
         .where(text("ups_snapshots.rowid <= :max_rowid").bindparams(max_rowid=max_rowid))
+        .where(not_composer_copy_clause())             # revisión final de la T6: una copia no es un valor nuevo
         .subquery()
     )
     return session.execute(
@@ -118,6 +147,43 @@ def _latest_values(session: Session, patient_id: str, max_rowid: int) -> list:
         .where(ranked.c.rn == 1)
         .order_by(text("ups_snapshots.rowid DESC"), text("ups_values.rowid DESC"))
     ).all()
+
+
+def _latest_real_snapshot(session: Session, patient_id: str, max_rowid: int):
+    """`(SnapshotRecord, rowid)` del último snapshot del paciente sin copias de un compositor, o `None`."""
+    copies = select(ValueRecord.snapshot_id).where(~not_composer_copy_clause())
+    return session.execute(
+        select(SnapshotRecord, literal_column("ups_snapshots.rowid"))
+        .where(SnapshotRecord.patient_id == patient_id)
+        .where(text("ups_snapshots.rowid <= :max_rowid").bindparams(max_rowid=max_rowid))
+        .where(SnapshotRecord.id.not_in(copies))
+        .order_by(text("ups_snapshots.rowid DESC"))
+        .limit(1)
+    ).first()
+
+
+def _rowid_after(session: Session, snapshot_id: str, rowid: int) -> bool:
+    """¿El snapshot se escribió después del snapshot `rowid`? (un compositor, tras el último momento real)."""
+    found = session.execute(
+        select(literal_column("ups_snapshots.rowid")).select_from(SnapshotRecord).where(SnapshotRecord.id == snapshot_id)
+    ).scalar_one_or_none()
+    return found is not None and found > rowid
+
+
+_COPY_SOURCE_RE = re.compile(r"del snapshot ([0-9A-Za-z-]+)")
+
+
+def _copy_sources(session: Session, snapshot_id: str) -> Dict[Tuple[str, str], str]:
+    """En un snapshot de un compositor: `(dominio, descriptor)` de cada copia → el snapshot de la medición original."""
+    out = {}
+    for domain, name, detail in session.execute(
+        select(ValueRecord.domain, ValueRecord.descriptor, ValueRecord.source_detail)
+        .where(ValueRecord.snapshot_id == snapshot_id)
+    ).all():
+        match = _COPY_SOURCE_RE.search(detail or "") if is_composer_copy(detail) else None
+        if match:
+            out[(domain, name)] = match.group(1)
+    return out
 
 
 def get_composed_patient(
@@ -134,13 +200,20 @@ def get_composed_patient(
     ).first()
     if head is None:
         return None
-    latest, latest_rowid = head
+    _head, latest_rowid = head
+    # Revisión final de la T6: un snapshot de un compositor (copias + el valor acoplado) no es un momento nuevo del
+    # paciente. Los eventos y las edades salen del último snapshot SIN copias; lo que un compositor escribió después
+    # (el valor acoplado) cuenta como actual. Sin esto, la composición escondía los puntos NEWS2 y el aviso de SpO₂.
+    real = _latest_real_snapshot(session, patient_id, latest_rowid)
+    latest, real_rowid = real if real is not None else head
     latest_ts = _to_aware_utc(latest.timestamp)
 
     delivered: Dict[Tuple[str, str], Tuple[PhysiologicalDescriptor, str]] = {}
     origins: Dict[Tuple[str, str], CarryOrigin] = {}
+    raw_detail: Dict[Tuple[str, str], Optional[str]] = {}
     for value, snapshot in _latest_values(session, patient_id, latest_rowid):
         key = (value.domain, value.descriptor)
+        raw_detail[key] = value.source_detail
         descriptor = PhysiologicalDescriptor(
             name=value.descriptor,
             value=value.value,
@@ -149,7 +222,7 @@ def get_composed_patient(
             confidence=value.confidence,
             source_detail=value.source_detail,
         )
-        if snapshot.id != latest.id:
+        if snapshot.id != latest.id and not _rowid_after(session, snapshot.id, real_rowid):
             ts = _to_aware_utc(snapshot.timestamp)
             age_s = abs((latest_ts - ts).total_seconds())
             if max_age_s is not None and age_s > max_age_s:
@@ -163,9 +236,21 @@ def get_composed_patient(
             descriptor = replace(descriptor, provenance=Provenance.ARRASTRE_TEMPORAL, source_detail=detail)
         delivered[key] = (descriptor, snapshot.id)
 
-    for key in [k for k in delivered if k in DERIVED_INPUTS]:
-        own_sid = delivered[key][1]
-        if any(inp not in delivered or delivered[inp][1] != own_sid for inp in DERIVED_INPUTS[key]):
+    # Se comprueba contra lo leído ANTES de quitar nada (T6): el resultado no depende del orden de las filas. Un
+    # derivado viaja si sus entradas son las últimas y vienen de su mismo snapshot, aunque una de ellas no se muestre
+    # (el BAR copiado de una composición viaja sin sus bandas; la FC acoplada que salió de él, sí).
+    read = dict(delivered)
+    for key in list(delivered):
+        if key[1].endswith("_acoplado") and _coupling_rule_inputs(raw_detail.get(key)) is None:
+            drop = True                                            # no nombra una regla del catálogo
+        else:
+            inputs = derived_inputs_of(key[0], key[1], raw_detail.get(key))
+            own_sid = delivered[key][1]
+            # En un snapshot de un compositor, la entrada es la copia de una medición: vale su original.
+            sources = _copy_sources(session, own_sid) if key[1].endswith("_acoplado") else {}
+            drop = bool(inputs) and any(inp not in read or read[inp][1] != sources.get(inp, own_sid)
+                                        for inp in inputs)
+        if drop:
             del delivered[key]
             origins.pop(key, None)
 

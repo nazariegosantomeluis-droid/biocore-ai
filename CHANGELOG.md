@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-11-19 · T6.1: techo de la regla BAR, firmas y nombres de Hoy
+
+Decisiones de Luis (2026-11-19): «[La regla de arousal] necesita un techo explícito […] Tu pon ese límite con la literatura que encuentres, apruebo la regla de no combinar, mi firmo cubre todo y si, cambialo».
+
+1. **Techo de la regla BAR** (Art. I). `CouplingCondition` gana `upper_limit` y su fundamento obligatorio (`upper_limit_basis`); `is_triggered_by` no dispara por encima, así que el techo rige en todo camino que evalúe la regla (motor, puente, compositor neurocardiaco y compositor por regla).
+   - `AROUSAL_TAQUICARDIA_BAR`: BAR > 1.8 y ≤ 3.0. El techo es **Criterio BIOCORE (heurística)**: ninguna fuente da un BAR máximo. Luis confirmó la cifra y el requisito de vigilia el 2026-11-19 («Si, confirmo ambos»). Motivo y fuentes en `docs/contenido/fichas_acoplamientos.md`: Li 2020 (en un estudio, la fracción de beta subió cerca del doble con una tarea), Vanhollebeke 2022 (el estrés baja el alfa de forma moderada, g = 0.6) y Goncharova 2003 (la actividad muscular imita la beta).
+   - **Hallazgo al medirlo:** no solo «Beta (activo)» (BAR ≈ 119) pasaba el umbral. «Theta (sueño ligero)» (2.8–4.1 según el ruido), «Delta (sueño profundo)» (≈ 3.9) y «Crisis (espigas)» (≈ 4.3) también: la regla sumaba +15 lpm «por arousal» a un paciente dormido. El techo solo no bastaba: 1 de cada 5 corridas de «Theta» quedaba bajo 3.0.
+   - **Solo con un EEG de vigilia** (revisión final): la regla BAR exige que el EEG de origen sea de vigilia (`requires_wake_eeg`, `wake_eeg_reason`: si delta o theta superan a alfa y beta, no lo es; Criterio BIOCORE con el glosario IFCN, Kane 2017). Sin las cuatro bandas no se evalúa. Lo aplican el motor, el compositor por regla y el del gemelo.
+   - **El gemelo** (revisión final): con un BAR por encima del techo o un EEG de sueño, «Componer y evaluar» decía «el BAR no supera el umbral». Ahora el compositor neurocardiaco no compone y dice por qué, sin tocar `twin_shell/`.
+   - **Patrón nuevo, simulado:** «Vigilia con arousal (alfa y beta)» en el instrumento de EEG (`awake_arousal` en `src/signals/eeg/eeg_generator.py`: alfa reducido + beta, BAR ≈ 2.4–2.6). Los demás patrones son de una sola banda. La estación de cierre de Cerebro lo sugiere para ver la regla aplicarse, y con «Beta (activo)» dice que el BAR pasa el techo.
+   - La estación muestra el techo, su fundamento y el requisito de vigilia junto a la regla. El resultado dice «pasa el techo de la regla (3.0, Criterio BIOCORE, heurística)» cuando corresponde (`RuleEvaluation.above_limit`, `upper_limit_nature`). La nota del patrón nuevo avisa que con mucho ruido su BAR puede pasar el techo.
+   - Detalles de la revisión final: el texto de la regla ya no anida paréntesis, el BAR se muestra sin «ratio (adimensional)», el camino del órgano en Hoy se llama «Camino del órgano» (había tres «Ruta»), la leyenda del EEG nombra el techo y la vigilia, y los docstrings que decían Aprender, Practicar o Explorar nombran los destinos nuevos.
+2. **Firmas registradas:** la política de no combinar queda firmada (`bridge._combine_proposals_for_same_effect`, la estación y las fichas ya no dicen «sin política firmada»). «Mi firmo cubre todo»: la firma del 2026-11-18 cubre las propuestas de cada ficha.
+3. **Hoy:** las tres tarjetas llevan el nombre de su destino de la T5 y lo enlazan: Biblioteca (antes Aprender), Ruta (antes Practicar) y Paciente (antes Explorar), con su traducción.
+4. **Pruebas:**
+   - nuevo `tests/test_t6_1_techo_bar.py`: umbral y techo, sin techo en la regla de hipoxia, el compositor, el patrón nuevo, la estación con «Beta (activo)» y con «Theta», el requisito de vigilia en el motor y en los dos compositores;
+   - las pruebas que guardaban un EEG con solo alfa y beta ahora guardan las cuatro bandas, como el instrumento;
+   - dos pruebas de `test_coupling_subfase_b.py` pasan de BAR 4.0 a 2.5;
+   - las de la Ruta guardan el EEG con el patrón nuevo;
+   - las de las puertas de Hoy usan los nombres nuevos.
+
+## 2026-11-18 · T6: las reglas firmadas disparan en la Ruta y se declaran
+
+Pedido de Luis: «Repara todo, aunque sea menor, todos los detalles de la tanda y empieza con T6». Diseño firmado, T6: «la estación de cierre de la Unidad Cerebro llama al compositor justo después de guardar el EEG, si hay una FC del paciente dentro de la ventana. La regla dispara en el flujo normal y la estación lo declara: qué regla, con qué cita, con qué confianza» y «Generalizar el compositor a pares de descriptores definidos por las reglas firmadas, en vez de solo bar + heart_rate, cuando exista la segunda regla». Ya existe: `HIPOXIA_TAQUICARDIA` (ficha 1).
+
+1. **Compositor por regla** (`domain/physiology/coupling/rule_composer.py`, `evaluate_rule_for_patient`). Junta la condición de UNA regla (`bar`, `spo2`) y la señal que modula (`heart_rate`) del paciente y evalúa solo esa regla:
+   - **solo mediciones:** nunca la copia de una composición anterior ni la proyección de un escenario (un valor con horizonte);
+   - **ventana de la regla:** cada regla declara la suya (`CouplingRule.window_s`; las dos firmadas: 120 s, decisión 1). Fuera de ella no compone y dice cuál de los dos valores es más viejo;
+   - **mismo guardado:** si las dos entradas están en un snapshot, evalúa ese snapshot; si no, escribe uno nuevo con la más reciente tal cual y la más vieja como `ARRASTRE_TEMPORAL` con su edad;
+   - **escenarios bloqueados** (los globales y los de la regla): no evalúa ni escribe nada; el llamador pasa el escenario del paciente;
+   - no acopla dos veces las mismas dos mediciones (tampoco repite una composición en la que la regla no se cumplió).
+
+   El compositor neurocardiaco de siempre (`compose_neuro_cardiac_snapshot`, el del gemelo) no cambia. Consultas nuevas: `repository.get_latest_measured_value` y `get_composer_copies`.
+2. **La regla dispara en el flujo normal de la Ruta** (`app/supermodules/ruta/coupling_station.py`). Ya no hay botón «Componer»:
+   - **Cerebro** (`AROUSAL_TAQUICARDIA_BAR`): guardar el EEG en «Mide» o la FC en el cierre evalúa la regla con el escenario de la unidad.
+   - **Respiración** (`HIPOXIA_TAQUICARDIA`): igual con la SpO₂ de «Mide» y la FC del cierre; bloqueada en hipoxia, apnea, EPOC y sepsis por su ficha. Sale del riel el pendiente «Evaluar la regla de hipoxia con tu paciente».
+   - El cierre declara la regla, su fuente y su confianza; las dos entradas con su procedencia en palabras (la FC del escenario se rotula «proyección del escenario, no cuenta como medición»), el tiempo entre ambas y la ventana; y el resultado: «se aplicó» (FC base → acoplada, confianza), «se evaluó y no se aplicó», «ya evaluaste…» o por qué no se evaluó. El resultado vive bajo el prefijo de la unidad: «Empezar de nuevo» lo borra.
+3. **La FC acoplada viaja con las entradas de SU regla** (Art. I). El paciente compuesto tenía fijas las entradas de `heart_rate_acoplado` (el BAR y la FC). Con la regla de hipoxia, la FC acoplada nunca se veía.
+   - Ahora `derived_inputs_of` lee la regla del propio valor («acoplamiento:<regla>»). Un valor acoplado que no nombra una regla del catálogo no se entrega.
+   - El gemelo (`physiological_state`) usa la misma función: mover la SpO₂ quita la FC acoplada por la hipoxia.
+   - La comprobación se hace contra lo leído antes de quitar nada, así que el resultado ya no depende del orden de las filas.
+4. **Revisión final (Art. I), cada hallazgo con su prueba en rojo antes:**
+   - **Crítico: la composición escondía los puntos NEWS2 y el aviso de SpO₂.** El snapshot de la regla (copias) pasaba a ser el último del paciente; los puntos NEWS2 de la SpO₂ y del pulso y el evento `SPO2_NEWS2_3_POINTS` se perdían justo cuando la regla de hipoxia declara la hipoxia. Ahora las dos entradas de ese snapshot son copias marcadas («… del snapshot <id> … para la regla <R>», `repository.COPY_FOR_RULE_MARK`, también la marca del compositor neurocardiaco). El paciente compuesto las salta y lee los originales con su edad. Los eventos y las edades salen del último snapshot sin copias, y la FC acoplada se valida contra los snapshots que nombran sus copias.
+   - **Dos reglas sobre la misma FC en un guardado:** evaluar una regla sola saltaba la política firmada de no combinar, y la otra decía «ya evaluaste». Ahora se pasan todas las reglas no bloqueadas y la estación dice que, sin una política firmada, no se escribe ninguna. «Ya evaluada» se busca por el nombre completo de la regla.
+   - **Un EEG nuevo sin BAR** (alfa ≈ 0) ya no se empareja con el BAR del EEG anterior: dice por qué no se evalúa.
+   - **Un arrastre dentro de un guardado del gemelo** ya no esconde los valores frescos de ese guardado: se filtra valor por valor, sin límite de búsqueda.
+   - **Un resultado viejo** no se muestra junto a mediciones guardadas fuera de la unidad: el cierre dice que hay mediciones nuevas.
+   - **Rótulos:** fuera «T6:» de la estación y «DERIVADO_ACOPLAMIENTO» del texto de la regla BAR. Los horizontes de las trayectorias van en palabras en todo el banner («horizonte 7 días», no «7d»). La prueba de «Empezar de nuevo» ahora sí pulsa el botón.
+5. **Pruebas:**
+   - `tests/test_t6_compositor_reglas.py` (dominio, 21);
+   - `tests/test_t6_acoplamientos_ruta.py` (recorrido de Cerebro y Respiración, 16);
+   - las pruebas de la T4 que usaban el botón «Componer» se actualizaron al flujo nuevo.
+
 ## 2026-11-18 · T5: el menú baja a cinco destinos
 
 Pedido de Luis: «sigue con T5» (visto bueno de la regla 7, que el diseño exige antes de retirar páginas del menú). Diseño firmado, «Navegación nueva (T5)».

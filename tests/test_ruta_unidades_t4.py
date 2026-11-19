@@ -127,7 +127,7 @@ def test_respiracion_practica_registra_news2():
 
 
 # ── Unidad Cerebro ─────────────────────────────────────────────────────────────────────────────────────────────────
-def _save_eeg(at, pattern="Beta (activo)"):
+def _save_eeg(at, pattern="Vigilia con arousal (alfa y beta)"):     # T6.1: BAR dentro del rango y del techo
     _go(at, "cerebro", "mide")
     at.selectbox(key="ruta_cerebro_mide__eeg_pattern").set_value(pattern).run()
     _button(at, "ruta_cerebro_mide__eeg_lab_save_to_ups").click().run()
@@ -152,9 +152,10 @@ def test_cerebro_cierre_muestra_la_regla_bar_con_su_fuente_y_su_confianza():
 
 
 def test_cerebro_cierre_sin_eeg_no_compone():
+    """T6: sin botón «Componer»; sin EEG, la estación dice qué falta y no acopla nada."""
     at = _go(_start("cerebro"), "cerebro", "cierre")
-    assert "todavía no guardaste su EEG" in _texts(at)
-    assert at.button(key="ruta_cerebro_compose").disabled
+    assert "BAR de tu paciente" in _texts(at) and "todavía no hay una medición guardada" in _texts(at)
+    assert _composed(at).state.cardiovascular.get("heart_rate_acoplado") is None
 
 
 def test_cerebro_cierre_en_estres_no_evalua_la_regla():
@@ -201,27 +202,28 @@ def _cierre_cerebro_con_fc_medida():
 def test_cerebro_no_compone_la_fc_proyectada_del_escenario():
     """La FC del escenario es la proyección del simulador (horizonte 7 días), no una medición de este momento."""
     at = _go(_save_eeg(_start("cerebro")), "cerebro", "cierre")
-    assert "proyección del escenario" in _texts(at)
-    assert at.button(key="ruta_cerebro_compose").disabled
+    assert "proyección de un escenario" in _texts(at)
+    assert _composed(at).state.cardiovascular.get("heart_rate_acoplado") is None
 
 
 def test_cerebro_compone_con_la_fc_medida_en_la_estacion():
+    """T6: medir la FC basta (la regla se evalúa sola al guardar; ya no hay botón «Componer»)."""
     at = _cierre_cerebro_con_fc_medida()
-    assert not at.button(key="ruta_cerebro_compose").disabled
-    at.button(key="ruta_cerebro_compose").click().run()
-    assert at.exception == [], at.exception
+    assert _button(at, "ruta_cerebro_compose") is None
     coupled = _composed(at).state.cardiovascular.get("heart_rate_acoplado")
     assert coupled is not None and coupled.provenance.name == "DERIVADO_ACOPLAMIENTO"   # «Beta (activo)»: BAR > 1.8
     assert "se aplicó" in _texts(at)
 
 
 def test_cerebro_no_vuelve_a_componer_las_copias():
+    """T6: con una FC nueva, la regla junta el BAR MEDIDO (el del EEG, simulación), nunca la copia de la evaluación
+    anterior (que sería un arrastre); el dominio lo prueba en `test_t6_compositor_reglas.py`."""
     at = _cierre_cerebro_con_fc_medida()
-    at.button(key="ruta_cerebro_compose").click().run()
-    assert at.button(key="ruta_cerebro_compose").disabled and "ya compusiste" in _texts(at)
-    _button(at, "ruta_cerebro_fc__hrv_lab_save_to_ups").click().run()     # una FC nueva no basta: el BAR es la copia
-    assert at.button(key="ruta_cerebro_compose").disabled and "guarda el EEG de nuevo" in _texts(at)
-    assert "se aplicó" not in _texts(at)                                  # el resultado viejo no queda bajo datos nuevos
+    _button(at, "ruta_cerebro_fc__hrv_lab_save_to_ups").click().run()
+    assert at.exception == [], at.exception
+    result = at.session_state["ruta_cerebro_coupling_result"]
+    assert result["condition"].startswith("BAR") and "Simulación" in result["condition"]
+    assert "Arrastre" not in result["condition"]
 
 
 def test_cerebro_estado_con_palabras_y_sin_csv():
@@ -276,7 +278,6 @@ def test_el_guardado_se_confirma_en_la_estacion():
 
 def test_cerebro_dice_el_rango_de_la_fuente_y_que_el_aumento_no_crece_con_el_bar():
     at = _cierre_cerebro_con_fc_medida()
-    at.button(key="ruta_cerebro_compose").click().run()
     text = _texts(at)
     assert "basal 0.8–1.2" in text and "no crece con el BAR" in text
 
@@ -288,9 +289,11 @@ def test_musculo_dice_que_su_regla_esta_firmada_y_espera_la_calibracion():
 
 
 def test_respiracion_cierre_muestra_la_regla_de_hipoxia_firmada_y_por_que_no_se_evalua():
+    """T6: la regla ya se evalúa en la ruta (`test_t6_acoplamientos_ruta.py`); con la FC del escenario, dice por qué
+    no (es una proyección)."""
     at = _go(_start("respiracion"), "respiracion", "cierre")
     text = _texts(at)
-    assert "HIPOXIA_TAQUICARDIA" in text and "Halliwill" in text and "evalúa todavía las reglas" in text
+    assert "HIPOXIA_TAQUICARDIA" in text and "Halliwill" in text and "se evalúa sola" in text
     assert "falta su compositor" not in text           # falso: el escenario ya guarda la SpO₂ y la FC juntas
     at2 = _go(_start("respiracion", "hypoxia"), "respiracion", "cierre")
     assert "no se evalúa en el escenario Hipoxia" in _texts(at2)

@@ -1,4 +1,4 @@
-"""«Tu aprendizaje en esta sesión» (Practicar, 2026-11-17).
+"""«Tu aprendizaje en esta sesión» (Ruta › Práctica libre, antes Practicar; 2026-11-17).
 
 Lee SOLO `app.utils.session_learning.get_session_log()`, el registro de la sesión que escriben los ejercicios
 conectados a ella (contrato de `session_learning.py`, que este módulo no modifica), y muestra:

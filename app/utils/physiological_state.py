@@ -45,7 +45,7 @@ from sqlalchemy.orm import Session
 
 from domain.physiology.state import (
     horizon_of,
-    DERIVED_INPUTS,
+    derived_inputs_of,
     CarryOrigin,
     ComposedPatient,
     DomainState,
@@ -123,13 +123,17 @@ def without_inputs(state: UnifiedPhysiologicalState, exclude: frozenset) -> Unif
         return state
     import dataclasses
 
+    all_domains = state.all_domains()
+
     def keep(domain: str, name: str) -> bool:
         if (domain, name) in exclude:
             return False
-        return not any(i in exclude for i in DERIVED_INPUTS.get((domain, name), ()))
+        descriptor = all_domains[domain].get(name) if domain in all_domains else None
+        inputs = derived_inputs_of(domain, name, None if descriptor is None else descriptor.source_detail)
+        return not any(i in exclude for i in inputs or ())
 
     domains = {domain: dataclasses.replace(ds, descriptors={n: d for n, d in ds.descriptors.items() if keep(domain, n)})
-               for domain, ds in state.all_domains().items()}
+               for domain, ds in all_domains.items()}
     events = [e for e in state.events
               if e.related_descriptor is None or keep(e.domain, e.related_descriptor)]
     return dataclasses.replace(state, events=events, **domains)
@@ -194,10 +198,16 @@ def overlay_current_on_composed(
     deferred = {k for k in defer_to_patient if patient_domains[k[0]].get(k[1]) is not None}
     now_domains = current.all_domains()
 
+    def origin_detail(domain: str, name: str, descriptor) -> Optional[str]:
+        """El `source_detail` original (el de un arrastre se reescribe; su origen guarda el de antes)."""
+        origin = composed.origins.get((domain, name))
+        return origin.source_detail if origin is not None else descriptor.source_detail
+
     def _defers(domain: str, name: str) -> bool:
         if (domain, name) in deferred:
             return True
-        inputs = DERIVED_INPUTS.get((domain, name))
+        descriptor = now_domains[domain].get(name)
+        inputs = derived_inputs_of(domain, name, None if descriptor is None else descriptor.source_detail)
         return bool(inputs) and all(inp in deferred for inp in inputs)
 
     now_keys = {(domain, name) for domain, dom in now_domains.items() for name in dom.descriptors
@@ -213,7 +223,9 @@ def overlay_current_on_composed(
         for name, descriptor in patient_dom.descriptors.items():
             if name in current_descriptors:
                 continue
-            if (domain, name) in DERIVED_INPUTS and any(inp in now_keys for inp in DERIVED_INPUTS[(domain, name)]):
+            # T6: las entradas de una FC acoplada son las de SU regla (la SpO₂ en la de hipoxia), no siempre el BAR.
+            inputs = derived_inputs_of(domain, name, origin_detail(domain, name, descriptor))
+            if inputs and any(inp in now_keys for inp in inputs):
                 continue
             descriptors[name] = descriptor
             origins[(domain, name)] = composed.origins.get(

@@ -1,4 +1,4 @@
-"""Bibliografía (Aprender → Bibliografía; pulido profesional, 2026-11-16).
+"""Bibliografía (Biblioteca → Bibliografía; antes Aprender; pulido profesional, 2026-11-16).
 
 Dos partes:
 1. `SIGNED`: las referencias de `docs/contenido/teoria_citada.md` (firmado por Luis el 2026-11-16) y de

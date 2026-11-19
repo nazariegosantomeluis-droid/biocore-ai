@@ -27,6 +27,9 @@ MIDE_NOTE = ("El patrón respiratorio es una simulación que empieza en la FR y 
              "su FR medida en la señal y la SpO₂ basal del modelo pasan a tu paciente como simulación.")
 NEWS2_NOTE = ("Puntos de cada lectura con la tabla NEWS2 de la plataforma (RCP 2017), la misma del gemelo y de "
               "Calculadoras. Es un componente por lectura, nunca un total NEWS2.")
+FLOW_NOTE = ("La regla se evalúa sola cada vez que guardas la SpO₂ de tu paciente (en «Mide») o su FC (aquí). Solo "
+             "junta una SpO₂ y una FC medidas, nunca la proyección del escenario ni la copia de una evaluación anterior, "
+             "y solo si los separa como mucho la ventana firmada de la regla.")
 DETECTIVE_NOTE = ("El Detective usa sus propios casos del banco (entre ellos hipoxia y apnea), no a tu paciente: pide "
                   "pistas, mira los puntos NEWS2 de cada signo y propone un diagnóstico.")
 
@@ -75,6 +78,8 @@ def station_measure() -> None:
     if out_of_range:
         return
     saved = R.guardar(ctx, run.analysis, run.pattern_display)
+    if saved.saved_snapshot_id:
+        _evaluate(M.progress(UNIT_KEY)["patient_id"])
     common.saved_now(saved.saved_snapshot_id)
 
 
@@ -119,10 +124,9 @@ def render_news2_lines(vitals, scenario: Optional[str] = None) -> None:
     st.caption(NEWS2_NOTE)
 
 
-def render_hypoxia_rule(scenario: Optional[str]) -> None:
-    """La regla firmada HIPOXIA_TAQUICARDIA (ficha 1, 2026-11-18) con su fuente y por qué todavía no se evalúa aquí."""
-    from app.utils.design_system import render_no_data
-    from domain.physiology.coupling import COUPLING_DISABLED_SCENARIOS, HIPOXIA_TAQUICARDIA as RULE
+def render_hypoxia_rule() -> None:
+    """La regla firmada HIPOXIA_TAQUICARDIA (ficha 1, 2026-11-18) con su fuente y su confianza."""
+    from domain.physiology.coupling import HIPOXIA_TAQUICARDIA as RULE
     from domain.physiology.coupling import confidence_for_validation_status
 
     c, e = RULE.condition, RULE.effect
@@ -132,25 +136,29 @@ def render_hypoxia_rule(scenario: Optional[str]) -> None:
     st.caption(f"Fuente: {RULE.source}. El umbral de {c.threshold:g} % es la banda de 3 puntos NEWS2 de la SpO₂ (Criterio "
                f"BIOCORE: la respuesta de la fuente es continua). Confianza "
                f"{confidence_for_validation_status(RULE.validation_status):.2f}: es un cálculo, no una medición.")
-    if scenario in RULE.blocked_scenarios or scenario in COUPLING_DISABLED_SCENARIOS:
-        render_no_data("Acoplamiento", f"no se evalúa en el escenario {common.SCENARIO_LABELS[scenario]}: el simulador "
-                                       "ya modela la FC junto con la caída de la SpO₂ y la regla la contaría dos veces")
-    else:
-        # Revisión final de la T5: el escenario SÍ guarda la SpO₂ y la FC juntas; lo que falta es que ese guardado
-        # (o el del gemelo) evalúe las reglas: hoy solo las evalúan el compositor neurocardiaco y el guardado del EEG.
-        render_no_data("Acoplamiento", "todavía no se evalúa en la ruta: ningún guardado que tenga la SpO₂ y la FC "
-                                       "evalúa todavía las reglas de acoplamiento (hoy solo lo hacen el EEG y el "
-                                       "compositor del EEG con la FC)")
+    st.caption(FLOW_NOTE)
+
+
+def _evaluate(patient_id: Optional[str]) -> None:
+    """T6: tras guardar la SpO₂ (en «Mide») o la FC (en el cierre), la regla se evalúa con el escenario de la unidad
+    (sus bloqueos firmados: hipoxia, apnea, EPOC y sepsis)."""
+    from app.supermodules.ruta import coupling_station as CS
+    from domain.physiology.coupling import HIPOXIA_TAQUICARDIA as RULE
+
+    CS.evaluate_after_save(PREFIX, RULE, M.progress(UNIT_KEY)["scenario"], patient_id)
 
 
 def station_closing() -> None:
+    from app.supermodules.ruta import coupling_station as CS
     from app.utils import navigation as nav
     from app.utils.patient_banner import read_active_vitals
+    from domain.physiology.coupling import HIPOXIA_TAQUICARDIA as RULE
 
     common.render_closing_summary(UNIT_KEY, UNIT_TITLE)
-    scenario = M.progress(UNIT_KEY)["scenario"]
-    render_news2_lines(read_active_vitals(), scenario)
-    render_hypoxia_rule(scenario)
+    p = M.progress(UNIT_KEY)
+    render_news2_lines(read_active_vitals(), p["scenario"])
+    render_hypoxia_rule()
+    CS.render_station(PREFIX, RULE, p["patient_id"], p["scenario"])
     st.markdown("#### Caso de cierre")
     st.caption(DETECTIVE_NOTE)
     nav.link("detective", "Detective fisiológico")
@@ -166,6 +174,4 @@ UNIT = M.Unit(UNIT_KEY, UNIT_TITLE, organ="respiracion", stations=(
     M.Station("cierre", "cierre", "Tu paciente al final", station_closing),
 ), pending=(
     ("La explicación clínica por escenario del Detective", "su texto firmado (hoy dice que está pendiente)"),
-    ("Evaluar la regla de hipoxia con tu paciente", "que los guardados con la SpO₂ y la FC evalúen las reglas de "
-                                                    "acoplamiento (la regla ya está firmada)"),
 ))

@@ -1780,8 +1780,8 @@ def render_patient_pipeline_page() -> None:
 # ==================== NAVEGACIÓN POR INTENCIÓN (fase 1, tanda 1) ====================
 
 def render_home_page() -> None:
-    """Inicio (decisión 2, rediseño Duolingo + Apple del 2026-11-17): las tres puertas (Aprender, Practicar, Clinical
-    Hub) son las tarjetas de la derecha del tablero; arriba, el monitoreo del paciente activo y los órganos; al centro,
+    """Inicio (decisión 2, rediseño Duolingo + Apple del 2026-11-17): las tres puertas (desde el 2026-11-19, Biblioteca,
+    Ruta y Paciente, los destinos de la T5) son las tarjetas de la derecha del tablero; arriba, el monitoreo del paciente activo y los órganos; al centro,
     el gemelo, la ruta del órgano y un registro real. La clave de IA sigue en Ajustes."""
     from app.supermodules.hubs import render_continue_card
     from app.supermodules.ui_home import render_home_dashboard
