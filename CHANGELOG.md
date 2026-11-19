@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-19 · Tanda de heurísticas: lo que se ve tiene fuente, es simulación o no se juzga
+
+Pedido de Luis: «todo lo que aparezca como heurístico se arregle por algo que está citado, busca las citas de fuentes confiables por favor, pero ya no quiero que las cosas heurísticas inunden la plataforma, termina con todas de una vez por todas». Decisiones del mismo día: Biomarcadores sale del menú; Fusión de sensores pierde los canales demo; el índice de riesgo del gemelo se retira con aviso a su dueño; un umbral sin fuente pierde su juicio y queda la medida. Inventario y plan: `docs/evolution/00_BASELINE_AUDIT.md` §4. Art. I: ninguna etiqueta dice «validado» sin su cita, y lo que no tiene fuente deja de juzgar.
+
+1. **Guardia nueva:** `tests/test_heuristicas_citadas.py` recorre las 34 páginas, cada sensor × modo de los sensores en vivo y las fuentes alternas: ningún texto visible dice «heurística», «demo», «demostración» ni `PENDING_VALIDATION`, y «Criterio BIOCORE» solo aparece en los criterios firmados (techo y vigilia de la regla BAR; la capacitancia venosa 2× de la sepsis, declarada en revisión clínica). Dos textos firmados que nombran la palabra se exceptúan por su fragmento exacto y una prueba comprueba que sigan en su documento: el detalle del tema A7 y los Términos. **Cambiarlos pide la firma de Luis.**
+2. **Insignia nueva «Cálculo directo»** (`BADGES.MEASURED`): conteo, promedio o cociente sobre la señal, sin umbral ni juicio. Sustituye a «Criterio BIOCORE» y a «Heurística» donde el valor es la definición misma (FR, ciclo, respiraciones, activación del EMG, banda dominante del EEG…).
+3. **Con fuente nueva (verificada en la fuente el 2026-11-19):**
+   - **Temperatura «estable»:** ±0.1 °C durante 3 min [MARUI2017] (era «menos de 0.1 °C por minuto», sin fuente). `is_stable(x, fs)` dice `None` hasta tener 3 min.
+   - **Retardo Tc de la SpO₂ simulada:** 19.4 s, la mediana de Kwon 2020 (MESA) [KWON2020] (era 15 s, «Valor BIOCORE»). Cambian las huellas de cuatro SpO₂ del generador; se actualizaron.
+   - **Tipo de apnea:** las tres reglas de Berry 2012 [B2012]. La mixta deja de estar pendiente y ahora exige el orden de la regla (esfuerzo ausente al principio, que se reanuda); un esfuerzo que no sigue ninguna queda «sin clasificar».
+   - **Gradiente A–a esperado:** 2.5 + 0.21·edad (Mellemgaard 1966; Kanber 1968; calculadora del Manual MSD), en una tarjeta propia y sin semáforo (era edad/4 + 4, sin fuente, con un «leve» al pasarlo).
+   - **Presión barométrica:** «Validado por fuente» con su cita ISO 2533, que ya tenía.
+   - **EMG:** RMS y frecuencia mediana con [DL1997] (temas A5 y A7 firmados).
+   - **RSA:** el mínimo de 1 min de la banda HF [SG2017] (eran «10 periodos», ≈ 67 s, sin fuente).
+   - **ERD mu:** la fórmula de Pfurtscheller y Lopes da Silva 1999 con su referencia completa.
+4. **Juicio retirado, medida conservada:** el corte de 8 % de RR «regulares» del ECG de 12 derivaciones (sin P discernibles, el criterio de FA queda sin juzgar y muestra el CV); el corte de 10 % del patrón respiratorio «regular»; el 2 % de «sin cambio» de ¿Qué pasa si…? (ahora: los dos valores iguales con los decimales de la tabla); la «Clasificación» banda → estado del EEG con cualquier fuente; el «en evaluación» del clasificador de arritmias (corte 0.80); el índice de fatiga del EMG; la «Calidad de señal / SNR» del ECG de 12 derivaciones, que era pico ÷ desviación estándar y ahora se llama así.
+5. **Simulación con su nombre:** la fuente «Demo» del ECG y del EMG se llama «Simulación»; la FC del trazado de 12 derivaciones, la amplitud y los ciclos del respiratorio y la irregularidad atáxica llevan «Simulación»; el paciente de la sesión ya no se llama «Paciente Demo (Twin Shell)». La placa ECG simulada sigue sin guardar al gemelo (antes lo impedía la palabra «demo» de su etiqueta; ahora una comparación explícita).
+6. **Retiradas (decisiones de Luis):** Biomarcadores (`render_biomarkers_retired_page`; el contenido queda sin montar), los canales demo de Fusión de sensores (la página es la vista de los sensores en vivo) y el índice de riesgo de pesos fijos del gemelo.
+7. **Aviso a quien mantiene `twin_shell/`:** la tanda tocó lo mínimo: `pages.py` ya no llama a `render_ml_risk_panel` (la función sigue ahí) y `baroreflex_panel.py` dice «pendiente de validación» en vez de la palabra de código. Si quieres volver a mostrar el índice de riesgo, necesita pesos con fuente.
+8. **Equipos en vivo:** las tablas de los tutoriales ya no dicen «Heurísticos»: describen las comprobaciones del equipo (saturación, contacto, ruido) y dicen que solo deciden si se calcula, no un juicio clínico. Los umbrales siguen siendo internos de BIOCORE.
+9. **`domain/`:** solo textos de la regla BAR («Criterio BIOCORE de modelo, firmado por Luis» en vez de «…, heurística»), también en `docs/contenido/fichas_acoplamientos.md`.
+10. **Pruebas:** se movieron a propósito las que fijaban las etiquetas viejas (respiratorio, EMG, ECG, EEG, calculadoras, HRV, pasaporte de evidencia, navegación de Fusión de sensores y Biomarcadores, gemelo).
+
 ## 2026-11-19 · Fase 0 de la evolución: auditoría de base (solo documentos)
 
 Pedido de Luis: «empieza a hacer la primera parte de lo que dice el documento nuevo». El documento es «BIOCORE AI: cómo convertirlo en una plataforma biomédica extraordinaria», y su §10 dice: «START WITH PHASE 0 ONLY … produce the four audit documents». Esta tanda no cambia código, ni el UPS, ni `domain/`, ni la base.

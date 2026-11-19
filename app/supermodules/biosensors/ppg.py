@@ -46,7 +46,8 @@ ORIGIN_TABLE = [
     ('R (rojo / infrarrojo)', '(AC/DC del rojo) entre (AC/DC del infrarrojo), latido a latido', 'Cálculo estándar; '
                                                                                                  'sin curva no es SpO₂'),
     ('SpO₂', 'No se calcula', 'No disponible: falta la curva de calibración (Jubran 2015)'),
-    ('Avisos de calidad', 'Umbrales de ingeniería (`PpgQualityHeuristics`)', 'Heurísticos, sin criterio clínico citado'),
+    ('Avisos de calidad', 'Comprobaciones del equipo: sin dedo, luz saturada, sin pulso o intervalos dispersos',
+     'Solo avisan si la señal sirve; no son un juicio clínico'),
 ]
 INTRO = (
     'Con un MAX30102 y una ESP32 puedes ver tu propia onda de pulso: la luz roja e infrarroja que atraviesa el dedo '

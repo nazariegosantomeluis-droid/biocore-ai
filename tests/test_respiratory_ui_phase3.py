@@ -19,7 +19,7 @@ from app.supermodules.respiratory_lab import views
 
 LAB = Path("app/supermodules/respiratory_lab")
 CALC_PAGE = "🧮 Calculadoras Clínicas"
-PROVENANCE = "Simulación — modelo BIOCORE: Tc valor BIOCORE; r y recuperación, Howarth 2026"
+PROVENANCE = "Simulación — modelo BIOCORE: Tc, mediana de Kwon 2020; r y recuperación, Howarth 2026"
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ def test_the_rate_and_its_news2_band_are_two_cards_each_with_its_own_badge_and_s
     at = _app(sf, pid)
     fr = " ".join(m.value for m in at.markdown if "<strong>Frecuencia Respiratoria</strong>" in m.value)
     band = " ".join(m.value for m in at.markdown if "<strong>Banda NEWS2 de la FR</strong>" in m.value)
-    assert "15.0 resp/min" in fr and BADGES.METHOD in fr and "60 / media de los intervalos" in fr and BADGES.CLINICAL not in fr
+    assert "15.0 resp/min" in fr and BADGES.MEASURED in fr and "60 / media de los intervalos" in fr and BADGES.CLINICAL not in fr
     assert "dentro de 12–20 (NEWS2)" in band and BADGES.CLINICAL in band and "Royal College of Physicians" in band
 
 
@@ -109,11 +109,11 @@ def test_central_apnea_is_listed_with_type_declared_borders_and_baseline(temp_up
     sf, pid = temp_ups
     at = _app(sf, pid, "Apnea Central")
     rows = at.dataframe[0].value.to_dict("records")
-    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Criterio BIOCORE)"] == "[Criterio BIOCORE] central" for r in rows)
+    assert [round(r["Inicio (s)"]) for r in rows] == [40, 100] and all(r["Tipo (Berry 2012)"].startswith("central: ") for r in rows)
     assert rows[0]["Borde"] == "completo" and "recortado" in rows[1]["Borde"]       # el 2.º llega al final del registro
     assert "respiraciones previas" in rows[0]["Línea basal"] and "registro corto" in rows[0]["Línea basal"]
     obstructive = _app(sf, pid, "Apnea Obstructiva").dataframe[0].value.to_dict("records")
-    assert all(r["Tipo (Criterio BIOCORE)"] == "[Criterio BIOCORE] obstructiva" for r in obstructive)
+    assert all(r["Tipo (Berry 2012)"].startswith("obstructiva: ") for r in obstructive)
 
 
 def test_cheyne_stokes_warns_that_a_short_record_is_not_evaluable(temp_ups):
@@ -154,13 +154,13 @@ def test_the_acronym_of_the_per_sleep_hour_index_is_banned_in_the_lab(temp_ups):
 
 
 def test_there_is_no_global_validation_badge_and_the_notice_says_what_is_validated_and_what_stays_out(temp_ups):
-    """Fase 4: sustituye al aviso «En corrección». Sin insignia GLOBAL (la mixta sigue pendiente); la confianza va por valor."""
+    """Fase 4: sustituye al aviso «En corrección». Sin insignia GLOBAL; la confianza va por valor."""
     sf, pid = temp_ups
     at = _app(sf, pid)
     assert [md for md in at.main.markdown if "border-left:3px" in md.value] == []     # sin marcador de validación del módulo
     notice = " ".join(i.value for i in at.info)
     assert "Validado por fuente" in notice and "banda NEWS2" in notice and "Berry 2012" in notice
-    assert "Pendiente de validación" in notice and "apnea mixta" in notice
+    assert "Pendiente de validación" not in notice and "mixta" in notice              # Berry 2012 (2026-11-19)
     assert "Sigue fuera" in notice and "hipopneas" in notice and "relación I:E" in notice and "ODI" in notice
     assert "En corrección" not in _text(at) and "no lleva insignia de validado" not in notice
     assert "American Academy of Sleep Medicine" not in _text(at)
@@ -290,7 +290,7 @@ def test_impossible_parameters_show_the_error_at_the_control_and_keep_the_other_
 
 @pytest.mark.parametrize("label,value,control_hint", [
     ("SpO2 Mínimo (%)", 95, "piso de SpO2"),      # piso (95) por debajo de la basal (98): válido
-    ("Retardo circulatorio Tc (s) — Valor BIOCORE", 30.0, "Tc"),
+    ("Retardo circulatorio Tc (s)", 30.0, "Tc"),
 ])
 def test_valid_extreme_spo2_controls_keep_working(temp_ups, label, value, control_hint):
     sf, pid = temp_ups
@@ -308,11 +308,12 @@ def test_a_floor_above_the_baseline_is_reported_at_the_spo2_controls(temp_ups):
     assert "Vista Simulación" in _text(at)
 
 
-def test_the_tc_control_is_labeled_as_a_biocore_value_and_moves_the_response(temp_ups):
+def test_the_tc_control_starts_at_the_kwon_2020_median_and_moves_the_response(temp_ups):
+    """Tanda de heurísticas (2026-11-19): Tc empieza en 19.4 s, la mediana de Kwon 2020 (antes 15 s, «Valor BIOCORE»)."""
     sf, pid = temp_ups
     at = _app(sf, pid, "Apnea Central")
-    tc = next(n for n in at.sidebar.number_input if n.label == "Retardo circulatorio Tc (s) — Valor BIOCORE")
-    assert tc.value == 15.0 and (tc.min, tc.max) == (5.0, 30.0)
+    tc = next(n for n in at.sidebar.number_input if n.label == "Retardo circulatorio Tc (s)")
+    assert tc.value == 19.4 and (tc.min, tc.max) == (5.0, 30.0) and "Kwon 2020" in tc.help
     base = at.get("plotly_chart")[1]
     tc.set_value(5.0).run()
     assert at.get("plotly_chart")[1].proto.spec != base.proto.spec

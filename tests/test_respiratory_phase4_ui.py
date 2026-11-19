@@ -74,16 +74,17 @@ def _fake(cv=None, period=None):
 
 
 @pytest.mark.parametrize("cv,head", [
-    (0.00, "Intervalos entre respiraciones regulares (variación del 0 %)"),
-    (0.05, "Intervalos entre respiraciones regulares (variación del 5 %)"),
-    (0.0999, "Intervalos entre respiraciones regulares (variación del 10 %)"),   # CV < 10 % → regular, aunque el redondeo diga 10
-    (0.10, "Intervalos entre respiraciones variables (variación del 10 %)"),
-    (0.25, "Intervalos entre respiraciones variables (variación del 25 %)"),
+    (0.00, "Variación de los intervalos entre respiraciones: 0 %"),
+    (0.05, "Variación de los intervalos entre respiraciones: 5 %"),
+    (0.10, "Variación de los intervalos entre respiraciones: 10 %"),
+    (0.25, "Variación de los intervalos entre respiraciones: 25 %"),
 ])
-def test_pattern_regular_below_10_percent_variable_from_10_percent(cv, head):
+def test_pattern_shows_the_variation_without_calling_it_regular(cv, head):
+    """Tanda de heurísticas (2026-11-19): el corte de 10 % para «regular» no tenía fuente; se queda la medida."""
     out = views.pattern_description(_fake(cv))
     assert out.startswith(head) and out.endswith("Describe la señal; no es un diagnóstico.")
-    assert "Eventos repetidos" not in out
+    assert "regular" not in out and "variables" not in out and "Eventos repetidos" not in out
+    assert not hasattr(views, "PATTERN_REGULAR_CV")
 
 
 def test_pattern_mentions_repeated_events_and_always_says_it_is_not_a_diagnosis():
@@ -176,24 +177,27 @@ def test_each_value_carries_its_own_badge_and_there_is_no_global_one(temp_ups):
     at = _app(sf, pid, "Apnea Central")
     assert BADGES.CLINICAL in _card(at, "Banda NEWS2 de la FR")                                    # validado por fuente
     assert BADGES.CLINICAL in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)") and "Berry" in _card(at, "Apneas (≥ 10 s, caída ≥ 90 %)")
-    assert BADGES.METHOD in _card(at, "Frecuencia Respiratoria")
-    assert BADGES.METHOD in _card(at, "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)")
-    assert BADGES.METHOD in _card(at, "SpO2 Basal") and "Howarth 2026" in _card(at, "SpO2 Basal")
-    assert any(BADGES.tag(BADGES.METHOD) in c.value and "Tc" in c.value and "Valor BIOCORE" in c.value for c in at.sidebar.caption)
-    assert BADGES.HEURISTIC in _card(at, "Patrón (descripción de la señal)")
-    assert "Insignias por valor" in _text(at) and BADGES.PENDING in _text(at)                       # la leyenda nombra el pendiente
+    # Tanda de heurísticas (2026-11-19): sin «Criterio BIOCORE» ni «Heurística»: cálculo directo, simulación o fuente.
+    assert BADGES.MEASURED in _card(at, "Frecuencia Respiratoria")
+    assert BADGES.MEASURED in _card(at, "Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)")
+    assert BADGES.SIMULATION in _card(at, "SpO2 Basal") and "Howarth 2026" in _card(at, "SpO2 Basal")
+    assert any(BADGES.tag(BADGES.CLINICAL) in c.value and "Kwon 2020" in c.value for c in at.sidebar.caption)
+    assert BADGES.MEASURED in _card(at, "Patrón (descripción de la señal)")
+    assert "Insignias por valor" in _text(at) and BADGES.PENDING not in _text(at)
     assert [m for m in at.main.markdown if "border-left:3px" in m.value] == []          # ni insignia global del módulo
 
 
-def test_the_irregularity_is_shown_as_heuristic_only_for_the_ataxic_pattern(temp_ups):
+def test_the_irregularity_is_shown_as_a_simulation_parameter_only_for_the_ataxic_pattern(temp_ups):
     sf, pid = temp_ups
     ataxic = _app(sf, pid, "Respiración Atáxica")
     card = _card(ataxic, "Irregularidad pedida al generador (CV de duración y profundidad por respiración)")
-    assert "0.20" in card and BADGES.HEURISTIC in card
+    assert "0.20" in card and BADGES.SIMULATION in card
     assert _card(_app(sf, pid), "Irregularidad pedida al generador (CV de duración y profundidad por respiración)") == ""
 
 
-def test_a_mixed_apnea_is_marked_pending_with_its_own_badge():
+def test_a_mixed_apnea_follows_berry_2012_and_the_reverse_order_stays_unclassified():
+    """Tanda de heurísticas (2026-11-19): la mixta es la regla de Berry 2012 (ausente al principio, se reanuda) y deja de
+    estar pendiente; un esfuerzo presente que luego falta no es ninguna de las tres reglas."""
     def _script():
         import numpy as _np
         import streamlit as _st
@@ -207,24 +211,29 @@ def test_a_mixed_apnea_is_marked_pending_with_its_own_badge():
         chest = _np.sin(2 * _np.pi * t / cyc) * 0.5
         gap = (t >= 40) & (t < 60)
         x[gap] = 0.0
-        chest[(t >= 50) & (t < 60)] = 0.0                                 # el esfuerzo cae a la mitad del evento
+        mixed, reverse = chest.copy(), chest.copy()
+        mixed[(t >= 40) & (t < 50)] = 0.0                                 # ausente al principio y se reanuda
+        reverse[(t >= 50) & (t < 60)] = 0.0                               # presente y luego cae
         rng = _np.random.default_rng(0)
-        a = _A(100).analyze_respiration(x + rng.normal(0, 0.02, len(t)), t, _np.full_like(t, 98.0), chest + rng.normal(0, 0.01, len(t)))
-        _v.render_events_table(a)
+        for c in (mixed, reverse):
+            a = _A(100).analyze_respiration(x + rng.normal(0, 0.02, len(t)), t, _np.full_like(t, 98.0), c + rng.normal(0, 0.01, len(t)))
+            _v.render_events_table(a)
 
     at = AppTest.from_function(_script, default_timeout=60).run()
     assert at.exception == []
-    row = at.dataframe[0].value.to_dict("records")[0]
-    assert row["Tipo (Criterio BIOCORE)"] == "[Pendiente de validación] mixta (PENDING_VALIDATION)"
-    assert any("[Pendiente de validación] Mixta: PENDING_VALIDATION" in c.value for c in at.caption)
+    mixed, reverse = (d.value.to_dict("records")[0]["Tipo (Berry 2012)"] for d in at.dataframe)
+    assert mixed.startswith("mixta: ") and "se reanuda" in mixed
+    assert reverse.startswith("sin clasificar: ") and "PENDING" not in mixed + reverse
+    assert any("[Validado por fuente] Tipo por esfuerzo (Berry 2012)" in c.value for c in at.caption)
 
 
 def test_the_status_notice_replaces_the_in_correction_notice_and_names_the_badges(temp_ups):
     sf, pid = temp_ups
     notice = " ".join(i.value for i in _app(sf, pid).info)
-    for token in ("[Validado por fuente]:", "[Criterio BIOCORE] con golden test, metodología propia", "[Heurística]:",
-                  "[Pendiente de validación]:", "Sigue fuera"):
+    for token in ("[Validado por fuente]:", "[Cálculo directo], con golden test:", "[Simulación]:", "Kwon 2020",
+                  "Sigue fuera"):
         assert token in notice, token
+    assert "Criterio BIOCORE" not in notice and "Heurística" not in notice and "Pendiente" not in notice
 
 
 # -------------------------------------------------------------------------------------- Guardar al gemelo

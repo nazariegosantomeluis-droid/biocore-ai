@@ -167,7 +167,7 @@ def test_cerebro_cierre_en_estres_no_evalua_la_regla():
 # ── Unidad Músculo ─────────────────────────────────────────────────────────────────────────────────────────────────
 def test_musculo_mide_guarda_la_activacion_como_simulacion():
     at = _go(_start("musculo", "fatigue"), "musculo", "mide")
-    assert at.radio(key="ruta_musculo_mide__emg_source").options == ["Demo", "CSV"]   # sin sensor en vivo
+    assert at.radio(key="ruta_musculo_mide__emg_source").options == ["Simulación", "CSV"]   # sin sensor en vivo
     _button(at, "ruta_musculo_mide__emg_lab_save_to_ups").click().run()
     assert at.exception == [], at.exception
     activation = _composed(at).state.muscular.get("activation")

@@ -204,6 +204,9 @@ class BADGES:
     METHOD = "Criterio BIOCORE"            # metodología propia declarada como tal
     PENDING = "Pendiente de validación"    # se calcula, el criterio no está validado (PENDING_VALIDATION)
     SIMULATION = "Simulación"              # señal o escenario simulado, no una medición de un paciente
+    # Tanda de heurísticas (2026-11-19): conteos, promedios y cocientes que son la definición del valor, sin umbral ni
+    # juicio (la FR como respiraciones por minuto, cuántas apneas hubo...). No es una «heurística» ni un criterio.
+    MEASURED = "Cálculo directo"
 
     _LABELS = {
         CLINICAL: "fórmula o criterio con cita verificable",
@@ -212,6 +215,7 @@ class BADGES:
         METHOD: "metodología propia o valor BIOCORE, no un estándar clínico",
         PENDING: "se calcula; el criterio no está validado",
         SIMULATION: "no es una medición de un paciente",
+        MEASURED: "conteo, promedio o cociente sobre la señal, sin umbral ni juicio",
     }
 
     @classmethod

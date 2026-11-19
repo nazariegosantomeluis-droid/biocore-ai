@@ -108,6 +108,8 @@ def test_declines_with_too_few_beats_or_too_short():
     signals, peaks_s, _ = _chain(RsaParams(), duration_s=40.0)
     r = detect_rsa(peaks_s, signals.respiration, _FS)
     assert not r.available and f"{MIN_RSA_DURATION_S:.0f}s" in r.reason
+    # Tanda de heurísticas (2026-11-19): el mínimo es el de [SG2017] (HF: 1 min), no «10 periodos» sin fuente.
+    assert MIN_RSA_DURATION_S == 60.0 and "[SG2017]" in r.reason and "HEURISTIC" not in r.reason
     r = detect_rsa(peaks_s[:2], signals.respiration, _FS)
     assert not r.available and "2 latidos" in r.reason
 

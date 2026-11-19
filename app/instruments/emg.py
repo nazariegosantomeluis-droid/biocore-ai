@@ -22,7 +22,7 @@ from app.instruments.base import InstrumentContext, InstrumentResult
 from app.instruments.common import CSV_SAVE_BLOCKER
 from app.utils.design_system import BADGES, render_error_state, render_metric_card
 
-DEMO_SOURCE = 'Demo'
+DEMO_SOURCE = 'Simulación'   # tanda de heurísticas (2026-11-19): antes «Demo»
 CSV_SOURCE = 'CSV'
 
 
@@ -105,8 +105,9 @@ def trazo(ctx: InstrumentContext, sig: EmgSignal):
                     use_container_width=True, key=ctx.k('emg_lab_trace'))
     activation = emg_analysis.activation_pct
     # 2026-11-14 (Art. I): `activation_pct` es media/máximo del EMG rectificado: casi igual en reposo y en contracción.
-    # Pulido profesional: es la definición del cálculo, con su etiqueta de método, y conserva sus advertencias.
-    render_metric_card('Activación muscular', f'{activation:.1f} %', provenance=BADGES.METHOD)
+    # Pulido profesional: es la definición del cálculo, con sus advertencias. Tanda de heurísticas (2026-11-19): un
+    # cociente sin umbral ni juicio es «Cálculo directo», no un «Criterio BIOCORE».
+    render_metric_card('Activación muscular', f'{activation:.1f} %', provenance=BADGES.MEASURED)
     st.caption('Cociente entre el promedio y el pico del EMG rectificado y filtrado (20-450 Hz). Describe la forma de '
                'la señal: no es el porcentaje de la contracción máxima (%MVC). En reposo y en una contracción sostenida '
                'da valores parecidos: no lo uses para decir esfuerzo, fatiga ni riesgo.')
@@ -117,7 +118,7 @@ def trazo(ctx: InstrumentContext, sig: EmgSignal):
     render_metric_card(
         'RMS del EMG (20-450 Hz)',
         None if rms_value is None else (f'{rms_value:.3f} mV' if live is not None else f'{rms_value:.3f} (unidades de la señal)'),
-        provenance=BADGES.METHOD,
+        provenance=BADGES.CLINICAL, citation='RMS: el valor recomendado para la amplitud de una contracción [DL1997] (tema A5)',
         unavailable_reason=None if rms_value is not None else 'señal demasiado corta para filtrar',
     )
     if live is not None:
@@ -150,11 +151,11 @@ def guardar(ctx: InstrumentContext, sig: EmgSignal, emg_analysis) -> InstrumentR
         # Origen=CSV sin archivo: el botón no finge, declara que no hay señal analizable que persistir.
         if ctx.in_station:                 # la estación no ofrece la placa en vivo: no la menciona
             st.info("Sin señal EMG analizable (CSV sin archivo cargado). No hay nada que persistir al gemelo: carga "
-                    "un CSV o cambia el Origen a Demo.")
+                    "un CSV o cambia el Origen a Simulación.")
         else:
             st.info(
                 "Sin señal EMG analizable (CSV sin archivo cargado, o placa en vivo sin transmitir). No hay nada "
-                "que persistir al gemelo -- carga un CSV, conecta la placa en vivo o cambia el Origen a Demo."
+                "que persistir al gemelo -- carga un CSV, conecta la placa en vivo o cambia el Origen a Simulación."
             )
         return InstrumentResult()
 
@@ -175,7 +176,7 @@ def guardar(ctx: InstrumentContext, sig: EmgSignal, emg_analysis) -> InstrumentR
         "analizadas de esta señal al estado fisiológico unificado (UPS) del paciente activo: el gemelo digital las "
         "mostrará con su procedencia la próxima vez que lo abras. Vienen del analizador de EMG (señal filtrada "
         "20-450 Hz), no del control «Fatiga muscular» del gemelo. "
-        f"El índice de fatiga no se escribe (heurístico, sin calibrar: diferido). {twin_note}"
+        f"El índice de fatiga no se escribe ni se muestra: no tiene fuente. {twin_note}"
     )
     blocker = emg_live.save_blocker(live)
     if blocker:

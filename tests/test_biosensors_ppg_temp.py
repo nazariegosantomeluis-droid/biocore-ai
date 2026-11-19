@@ -259,10 +259,25 @@ def test_simulated_temperature_board_warms_up_and_then_reads_stable():
     air = collect(60)
     assert air[-1] == pytest.approx(24.0, abs=0.1) and np.allclose(air / 0.0625, np.round(air / 0.0625))
     board.model.set_on_skin(True)
-    skin = collect(300)
-    assert not is_stable(temp_trend(skin[:120], 1.0))                 # a los 2 min todavía sube
-    assert is_stable(temp_trend(skin, 1.0)) and skin[-1] == pytest.approx(TEMP_SKIN_C, abs=0.1)
+    skin = collect(420)
+    assert is_stable(skin[:120], 1.0) is None                          # menos de 3 min: todavía no se puede decir
+    assert is_stable(skin[:200], 1.0) is False                         # a los 3 min y pico todavía sube
+    assert is_stable(skin, 1.0) is True and skin[-1] == pytest.approx(TEMP_SKIN_C, abs=0.1)
     assert temp_trend(skin[:30], 1.0) is None                          # menos de un minuto: no hay tendencia
+
+
+def test_temperature_stability_is_marui_2017_plus_minus_0_1_c_for_3_min():
+    """«Estable» = ±0.1 °C durante 3 min (Marui et al. 2017, el criterio de su termómetro timpánico); antes era una
+    pendiente < 0.1 °C/min sin fuente (tanda de heurísticas, 2026-11-19)."""
+    from hardware.biosensors.quality import STABLE_BAND_C, STABLE_WINDOW_S
+
+    assert (STABLE_WINDOW_S, STABLE_BAND_C) == (180.0, 0.1)
+    flat = np.full(180, 33.0)
+    assert is_stable(flat, 1.0) is True
+    assert is_stable(flat + np.linspace(0, 0.2, 180), 1.0) is True     # justo ±0.1 °C alrededor del centro
+    assert is_stable(flat + np.linspace(0, 0.25, 180), 1.0) is False
+    assert is_stable(flat[:179], 1.0) is None                          # sin 3 min de lecturas no hay respuesta
+    assert is_stable(np.r_[np.full(10, TEMP_POWER_ON_C), flat], 1.0) is True   # el 85 °C de encendido no cuenta
 
 
 def test_temperature_power_on_value_is_flagged_and_left_out():
@@ -320,8 +335,9 @@ def _click(at, label, where='sidebar'):
 def _open_view(sensor_title, mode='Medir'):
     at = AppTest.from_function(_page)
     at.run(timeout=60)
-    # Pulido profesional (2026-11-16): «Sensores en vivo» es una pestaña de Multisensor (se dibuja siempre).
-    assert 'Sensores en vivo' in [t.label for t in at.tabs]
+    # Tanda de heurísticas (2026-11-19): sin los canales demo, Fusión de sensores ES la vista de los sensores en vivo
+    # (antes, una pestaña).
+    assert any(r.label == 'Sensor' for r in at.radio)
     at.radio(key='msl_live_sensor').set_value(sensor_title).run(timeout=60)
     at.radio(key='msl_live_mode').set_value(mode).run(timeout=60)
     return at

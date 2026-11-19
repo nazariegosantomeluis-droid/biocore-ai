@@ -44,7 +44,7 @@ RSA_CITATION: str = (
 )
 
 RSA_SCOPE_NOTE: str = (
-    "demostración del fenómeno sobre ECG sintético: la respiración modula la FC dentro de un mismo "
+    "el fenómeno sobre un ECG simulado: la respiración modula la FC dentro de un mismo "
     "generador; no se combinan registros de laboratorios distintos ni es un índice de tono vagal de un "
     "paciente."
 )
@@ -56,9 +56,9 @@ HF_BAND_HZ: Tuple[float, float] = (0.15, 0.40)
 RR_INTERP_FS_HZ: float = 4.0
 _RR_WELCH_NPERSEG: int = 256
 
-# Criterio BIOCORE (HEURISTIC), sin fuente: la ventana debe durar al menos 10 periodos de
-# la frecuencia más baja de la banda -- 10/0.15 Hz ≈ 67 s para HF.
-MIN_RSA_DURATION_S: float = 10.0 / HF_BAND_HZ[0]
+# Tanda de heurísticas (2026-11-19): «la banda HF se registra convencionalmente durante un mínimo de 1 min» [SG2017].
+# Antes: 10 periodos de la frecuencia más baja de la banda (≈ 67 s), Criterio BIOCORE sin fuente.
+MIN_RSA_DURATION_S: float = 60.0
 
 # Latidos por ciclo respiratorio mínimos: la serie RR muestrea la respiración
 # a la frecuencia cardíaca (Nyquist = FC/2). Medido (2026-10-19, 60 combinaciones
@@ -205,7 +205,7 @@ def detect_rsa(
     if duration_s < MIN_RSA_DURATION_S:
         return declined(
             f"{duration_s:.0f}s de latidos -- la banda HF necesita al menos {MIN_RSA_DURATION_S:.0f}s "
-            "(Criterio BIOCORE (HEURISTIC): al menos 10 periodos de la frecuencia más baja de la banda)",
+            "(la banda HF se registra durante un mínimo de 1 min [SG2017])",
             beat_times_s=beat_times, beat_hr_bpm=beat_hr,
         )
 

@@ -2107,7 +2107,9 @@ def main() -> None:
         render_baroreflex_panel({s.value: label for s, label in RICH_SCENARIO_LABELS.items()})
     render_clinical_narrator(organism)
     render_causal_reasoning(organism)
-    render_ml_risk_panel(organism)
+    # Tanda de heurísticas (2026-11-19, decisión de Luis: «Retirarlo, aviso al dueño»): el índice de riesgo de pesos fijos
+    # sin cita ya no se monta. `render_ml_risk_panel` queda en el código; aviso para quien mantiene twin_shell en el
+    # CHANGELOG.
     render_ecg_classifier_panel(organism)
     render_risk_assessment(organism)
     render_clinical_export(organism)

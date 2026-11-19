@@ -249,7 +249,9 @@ def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):
 
 def _emg_data_origin(source: str, live) -> 'DataOrigin':
     """De dónde vienen los datos del EMG Muscle Lab, para el narrador (`privacy.py`)."""
-    if source == 'Demo':
+    from app.instruments.emg import DEMO_SOURCE
+
+    if source == DEMO_SOURCE:
         return DataOrigin.SIMULADO
     if live is None:                                  # CSV, o la fuente en vivo sin señal
         return DataOrigin.DESCONOCIDO
@@ -331,6 +333,9 @@ from app.utils.design_system import (  # noqa: E402
 _HRV_VALIDATION_DETAIL = (
     "Métricas del dominio del tiempo (SDNN, RMSSD) y bandas de frecuencia definidas según [SG2017]."
 )
+MULTISENSOR_NOTE = ("El pulso por luz y la temperatura de la placa de sensores, en vivo o con su simulador de "
+                   "práctica, con sus tutoriales. Los canales generados que había aquí se retiraron el 2026-11-19: "
+                   "su FC y su SpO₂ no tenían fuente.")
 _MULTISENSOR_VALIDATION_DETAIL = (
     # Tanda 1 de la fase 1 (2026-11-15, decisión 8): la firma anterior describía el «Health Score» (índice
     # compuesto sin cita, retirado). Lo que queda es la detección heurística de FC y SpO₂ sobre canales demo.
@@ -344,9 +349,11 @@ _BIOMARKERS_VALIDATION_DETAIL = (
     "analíticamente, sin calibración de dispositivo médico."
 )
 _EMG_VALIDATION_DETAIL = (
-    "Activación RMS fisiológica; el índice de fatiga muscular (fatigue_index) opera bajo umbrales "
-    "sintéticos fijos."
+    "RMS y frecuencia mediana: los índices que recomienda [DL1997] (temas A5 y A7). La «activación» es un cociente de "
+    "la forma de la señal, no %MVC. El índice de fatiga no se muestra: no tiene fuente."
 )
+# Tanda de heurísticas (2026-11-19): la frecuencia mediana pasa de «Heurística» a su tema firmado A7.
+MEDIAN_FREQUENCY_CITATION = "Frecuencia mediana: el índice preferido para seguir la fatiga [DL1997] (tema A7)"
 
 
 def render_ecg_lab_page() -> None:
@@ -552,6 +559,23 @@ def _biomarkers_ghost_history() -> None:  # pragma: no cover -- SIN MONTAR, a pr
             "queda latente en `biomarkers.py`, sin llamarse desde la UI, por si algún día hay "
             "instrumentación real de PA/PPG-PTT."
         )
+
+
+BIOMARKERS_RETIRED = (
+    "Retirado el 2026-11-19 (decisión de Luis): sus índices (PLV neurocardíaco, disposición para el aprendizaje, índice "
+    "de recuperación) se calculaban sobre presets sin paciente y con pesos sin fuente. Vuelve cuando cada índice tenga "
+    "su cita. Lo que sí tiene fuente sigue en Variabilidad cardiaca (SDNN, RMSSD, razón LF/HF) y en EEG.")
+
+
+def render_biomarkers_retired_page() -> None:
+    """La dirección `biomarcadores` sigue abriendo (T5: ninguna dirección vieja se rompe) y dice por qué se retiró. El
+    contenido de antes (`render_biomarkers_page`) queda en el código SIN MONTAR, como `_biomarkers_ghost_history`."""
+    from app.utils import navigation as nav
+
+    st.title("Biomarcadores")
+    render_no_data("Biomarcadores", BIOMARKERS_RETIRED)
+    nav.link("hrv", "Variabilidad cardiaca")
+    nav.link("eeg", "EEG")
 
 
 def render_biomarkers_page() -> None:
@@ -890,7 +914,7 @@ def _render_emg_lab(sig, emg_live) -> None:
     source, live = sig.source, sig.live
     if sig.signal is None:
         # Origen=CSV sin archivo, o sensor en vivo sin placa transmitiendo (la fuente ya dijo por qué).
-        render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Demo.")
+        render_empty_state("Carga un archivo CSV de EMG, conecta la placa en vivo o cambia el Origen a Simulación.")
         emg_instrument.guardar(PAGE, sig, None)  # declara "sin señal", no finge guardar
         return
 
@@ -902,15 +926,16 @@ def _render_emg_lab(sig, emg_live) -> None:
     # ── 2. Plegados ──
     with st.expander(LAB_SECTION_HOW, expanded=False):
         median_freq = emg_analysis.median_frequency_hz
-        # HEURISTIC: cálculo real sobre señal filtrada, sin cita/umbral clínico propio en este repo.
-        render_metric_card('Frecuencia mediana', f'{median_freq:.1f} Hz', provenance=BADGES.HEURISTIC)
+        # Tanda de heurísticas (2026-11-19): la frecuencia mediana es el índice que [DL1997] prefiere (tema A7 firmado).
+        render_metric_card('Frecuencia mediana', f'{median_freq:.1f} Hz', provenance=BADGES.CLINICAL,
+                           citation=MEDIAN_FREQUENCY_CITATION)
         st.markdown('**¿Qué significa la frecuencia mediana?**')                # tema A7 firmado
         render_theory_topic(SIGNED_EMG_A7, inside_expander=True)
         if st.button('Exportar EMG para investigación'):
             honesty_cards = [
                 resolve_metric_card(
                     'Frecuencia mediana', f'{median_freq:.1f} Hz',
-                    provenance=BADGES.HEURISTIC,
+                    provenance=BADGES.CLINICAL, citation=MEDIAN_FREQUENCY_CITATION,
                 ),
             ]
             p = export_lab_report(
@@ -937,16 +962,10 @@ def _render_emg_lab(sig, emg_live) -> None:
         render_findings_narrator('EMG Muscle Lab', [
             ('activation_pct', f'{emg_analysis.activation_pct:.1f}%', 'Cociente entre el promedio y el pico del EMG rectificado (señal filtrada 20-450 Hz); no es %MVC.'),
             ('median_frequency_hz', f'{emg_analysis.median_frequency_hz:.1f} Hz', 'Frecuencia mediana del espectro de potencia EMG — se desplaza hacia abajo con la fatiga.'),
-            # Fase 0 (2026-11-13, Art. I): con la señal demo (ruido blanco, espectro plano, MDF ≈ fs/4) el índice queda
-            # clavado en 0 -- no mide fatiga, así que no se muestra como número; con CSV o hardware sí (HEURISTIC).
-            # 2026-11-14: la placa simulada tampoco modela la fatiga (su espectro es fijo): el índice sería otra constante.
-            ('fatigue_index',
-             (f'{emg_analysis.fatigue_index:.0f}/100' if source != 'Demo' else 'no disponible con la señal demo')
-             if not (live is not None and live.provenance != 'SENSOR_REAL') else 'no disponible con la placa simulada',
-             'Índice de fatiga derivado del corrimiento de la frecuencia mediana respecto a un basal de 120 Hz (heurístico). '
-             'La señal demo y la placa simulada tienen un espectro fijo: el índice sería una constante, no una medición.'),
+            # Tanda de heurísticas (2026-11-19): el índice de fatiga (corrimiento de la frecuencia mediana respecto a un
+            # basal de 120 Hz, sin fuente) ya no va al narrador: se queda la medida, la frecuencia mediana.
             ('signal_source', live.label if live is not None else source,
-             'Origen de la señal: demo sintética, CSV cargado, o placa en vivo (real o simulada).'),
+             'Origen de la señal: simulación, CSV cargado, o placa en vivo (real o simulada).'),
         ], origin=_emg_data_origin(source, live))
 
 
@@ -1042,11 +1061,8 @@ def render_arrhythmia_model_card(results_path=None) -> None:
         render_no_data('las métricas del clasificador', f'no se encontró {path.as_posix()}')
         return
     ev, ds = data['evaluacion_entre_pacientes'], data['datos']
-    if data['estado'] == 'en evaluacion':
-        low = ', '.join(data['clases_con_sensibilidad_baja'])
-        st.caption(f"{BADGES.tag(BADGES.PENDING)} En evaluación: sensibilidad menor que "
-                   f"{data['umbral_sensibilidad_baja']:.2f} en la(s) clase(s) {low} "
-                   f"({data['umbral_sensibilidad_baja_origen']}).")
+    # Tanda de heurísticas (2026-11-19): el juicio «en evaluación» con el corte de 0.80 (Criterio BIOCORE, sin cita) ya
+    # no se muestra; se queda la medida: la sensibilidad de cada clase en la tabla de abajo.
     st.markdown(f"**Cómo se midió.** Modelo `{data['modelo']['version']}` ({data['fecha']}): "
                 f"{data['modelo']['codigo']}. Separación {ds['separacion']} [{ds['cita_separacion']}]. "
                 f"{len(ds['registros_entrenamiento'])} registros de entrenamiento y "
@@ -1299,51 +1315,17 @@ def _build_multisensor_record(channels: dict, BiosignalChannel, MultisensoralRec
 
 
 def render_multisensor_page() -> None:
-    # Consolidación Visual Tanda 1 (2026-09-20): segundo extremo de la
-    # prueba de la jerarquía de confianza -- Multisensor combina índices
-    # fisiológicos con una fórmula heurística de ingeniería
-    # (`MultisensoralRecord.health_score()`), sin validación contra
-    # literatura o cohorte clínica (a diferencia del detector TKEO de ECG
-    # Lab). `validation="HEURISTIC"` usa un marco NEUTRAL, no una alarma
-    # -- ser heurístico no es un peligro, es un nivel de confianza distinto.
-    # Tanda Final (2026-09-22): tier renombrado a "HEURISTIC" (antes
-    # "heuristico") y texto actualizado al verbatim de la firma del
-    # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
-    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Explorar
-    render_module_header(
-        "Fusión multisensor", icon="🔗",
-        validation="HEURISTIC",
-        validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
-    )
-    _, _, _, _, _ = safe_import_ecg_modules()
-    _, src_ok = safe_import_src_modules()
-    BiosignalChannel, MultisensoralRecord, multisensor_ok = safe_import_multisensor()
+    """Fusión de sensores: el pulso por luz (MAX30102) y la temperatura (DS18B20) en vivo, con sus tutoriales
+    (`app/supermodules/biosensors/live_view.py`).
 
-    demo_channels = {
-        # Fase 5B (2026-08-30): DynamicECGGenerator (McSharry 2003) --
-        # reemplaza a generate_demo_ecg_signal(), ver CHANGELOG.md.
-        'ECG': DynamicECGGenerator(fs=250).generate(duration=20, hr=72),
-        'PPG': generate_demo_ppg_signal(250, 20),
-        'SpO2': generate_demo_spo2_signal(250, 20),
-        'Respiration': generate_demo_respiration_signal(250, 20),
-    }
+    2026-11-19 (decisión de Luis: «Quitar los canales demo»): los canales demo (FC y SpO₂ detectadas sobre señales
+    generadas, rotuladas heurística) ya no se montan. `_render_multisensor_demo` queda en el código SIN MONTAR."""
+    from app.supermodules.biosensors.live_view import render_live_sensors_view
 
-    # NOTA (2026-07-03): "Gemelo Digital" se eliminó de este laboratorio — el
-    # gemelo real ya existe en Digital Twin OS; esta pestaña era un "Perfusion
-    # Proxy" (promedio crudo de PPG), desconectado de ese gemelo real.
-    # «Sensores en vivo» (2026-11-16): pulso por luz y temperatura con la placa ESP32, y sus tutoriales
-    # (`app/supermodules/biosensors/live_view.py`). No usa `demo_channels`.
-    # Pulido profesional (2026-11-16, Art. I): sin el selector «Capa de Exploración Cognitiva». «Sensores en vivo» queda
-    # en su pestaña; los canales demo en una sola página: los trazos (antes Educativa) y los valores (antes Clínica)
-    # arriba; «Cómo se calcula» (antes Investigación), «Simular» (antes Simulación), «Teoría» y «Narración con IA
-    # (opcional)» (antes IA), plegados.
-    from app.supermodules.biosensors.live_view import VIEW as LIVE_SENSORS_VIEW, render_live_sensors_view
-
-    tab_demo, tab_live = st.tabs(["Canales demo", LIVE_SENSORS_VIEW])
-    with tab_live:
-        render_live_sensors_view()
-    with tab_demo:
-        _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecord)
+    render_active_patient_banner()   # I2 (2026-11-17): el mismo paciente en todas las páginas de Paciente
+    render_module_header("Fusión de sensores", icon="🔗")
+    st.caption(MULTISENSOR_NOTE)
+    render_live_sensors_view()
 
 
 def _render_multisensor_demo(demo_channels, BiosignalChannel, MultisensoralRecord) -> None:
@@ -1510,7 +1492,7 @@ def render_hrv_page() -> None:
             render_findings_narrator('HRV Analysis', findings, origin=(
                 DataOrigin.SIMULADO if source == rsa_panel.RSA_SOURCE_LABEL else DataOrigin.DESCONOCIDO))
         with st.expander('🧪 Simulación de variabilidad', expanded=False):
-            st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (demostración, no un paciente).')
+            st.write('Ajusta la variabilidad y mira una serie RR simulada con esa desviación (simulación, no un paciente).')
             var = st.slider('Variabilidad (DE %)', 0.0, 10.0, 3.0)
             sim_rr = mean_nn + np.random.normal(0, mean_nn * var/100.0, size=len(rr_ms))
             st.line_chart(sim_rr)
@@ -2007,7 +1989,7 @@ def _page_specs() -> list:
         ("Paciente", "eeg", "EEG", None, render_eeg_neuro_lab_page),
         ("Paciente", "emg", "EMG", None, render_emg_page),
         ("Paciente", "hrv", "Variabilidad cardiaca", None, render_hrv_page),
-        ("Paciente", "biomarcadores", "Biomarcadores", None, render_biomarkers_page),
+        ("Paciente", "biomarcadores", "Biomarcadores", None, render_biomarkers_retired_page),
         ("Paciente", "calculadoras", "Calculadoras clínicas", None, render_calculators_page),
         ("Paciente", "pacientes", "Pacientes", None, render_patient_pipeline_page),
         ("Paciente", "comparar", "Comparar pacientes", None, render_compare_patients_page),

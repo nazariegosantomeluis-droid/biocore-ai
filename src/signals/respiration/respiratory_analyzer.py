@@ -11,9 +11,9 @@ Reescritura del detector contra los golden tests. Cumple los criterios firmados 
 - D2 Apnea (Berry 2012, AASM): caída >= 90 % de la excursión pico respecto a la línea basal previa durante
   >= 10 s. Basal según Berry/Chicago: media de las respiraciones estables de los 120 s previos, o media de las
   3 mayores si el patrón es inestable; en registros cortos, la respiración disponible antes del evento,
-  DECLARADA en cada evento. Central/obstructiva: "esfuerzo ausente = caída >= 90 % del esfuerzo respecto a
-  su basal" (Criterio BIOCORE, nunca un umbral absoluto). Mixta: PENDING_VALIDATION (definición del manual
-  AASM sin verificar): se calcula y se marca pendiente.
+  DECLARADA en cada evento. Tipo por esfuerzo (tanda de heurísticas, 2026-11-19): las tres reglas de Berry 2012
+  (`TYPE_LABEL`); "esfuerzo ausente" = la misma caída >= 90 %, aplicada al esfuerzo respecto a su basal. La mixta
+  exige el orden (ausente al principio, se reanuda después); sin ese orden, "sin clasificar".
 - D3 Hipopnea: no se detecta ni se muestra.
 - D4 Conteo de apneas, tiempo total de apnea y tasa equivalente por hora de REGISTRO (extrapolada, sin valor
   diagnóstico). Sin categoría de severidad y sin la sigla del índice por hora de sueño.
@@ -39,6 +39,10 @@ from scipy.ndimage import uniform_filter1d, maximum_filter1d
 
 # --- Criterios firmados (no se reinterpretan) ---------------------------------------------------------------
 APNEA_DROP_FRACTION = 0.90          # Berry 2012: caída >= 90 % de la excursión pico
+# Tipo por esfuerzo (tanda de heurísticas, 2026-11-19): las tres reglas de Berry 2012 (AASM). «Ausente» usa la misma
+# caída >= 90 % de la regla de apnea, aplicada al esfuerzo; «en todo el evento» admite 10 % del tramo (bordes).
+TYPE_LABEL = ("Berry 2012 (AASM): obstructiva = esfuerzo en todo el evento; central = esfuerzo ausente en todo el "
+              "evento; mixta = ausente al principio y se reanuda después")
 APNEA_MIN_DURATION_S = 10.0         # Berry 2012: >= 10 s
 BASELINE_WINDOW_S = 120.0           # Berry 2012 / consenso de Chicago: 2 min previos
 MIN_BREATHS_FOR_RATE = 3            # D1
@@ -53,8 +57,8 @@ HEURISTICS = {
     "onset_fraction_of_crest": (0.10, "el inicio de la inspiración es el punto donde el flujo sube al 10 % de la cresta de ESA respiración (relativo a su profundidad); sirve para medir intervalos entre inspiraciones y no entre crestas (cresta a cresta atenúa la variabilidad: 3 s/5 s dan 3.5/4.5 s)"),
     "min_breath_separation_s": (1.0, "separación mínima entre inspiraciones (limita la FR medible a 60/min, por encima de todo lo que genera el lab)"),
     "baseline_stability_cv": (0.30, "CV máximo de las amplitudes para llamar 'estable' al patrón (Chicago distingue dos regímenes sin dar el corte)"),
-    "effort_present_fraction": (0.90, "fracción del evento con esfuerzo presente para llamarlo obstructivo (Criterio BIOCORE)"),
-    "effort_absent_fraction": (0.10, "fracción máxima con esfuerzo presente para llamarlo central (Criterio BIOCORE)"),
+    "effort_present_fraction": (0.90, "tolerancia de «esfuerzo en todo el evento» de Berry 2012: presente en >= 90 % del tramo (bordes)"),
+    "effort_absent_fraction": (0.10, "tolerancia de «esfuerzo ausente en todo el evento» de Berry 2012: presente en <= 10 % del tramo"),
     "effort_window_cycles": (0.6, "ventana del esfuerzo = 0.6 ciclos (>= medio ciclo garantiza ver una cresta de |seno|)"),
     "effort_min_to_noise": (8.0, "el esfuerzo basal debe superar 8 x su ruido suavizado; si no, el tipo es 'sin esfuerzo medible'"),
     "edge_baseline_relative_error": (0.02, "incertidumbre relativa de la basal con que el detector fija el umbral del 10 %: p95 = 1.96 % (mediana 0.5 %, máx 3.6 %) del error |basal detectada - basal de la construcción| en 138 eventos (atáxica 0.30/0.40 y Cheyne-Stokes, FR 8-30); medición reproducible en tests/test_respiratory_phase41.py"),
@@ -63,7 +67,7 @@ HEURISTICS = {
 }
 
 
-DURATION_CRITERION_LABEL = "Criterio BIOCORE: operacionalización de Berry a nivel de muestra"
+DURATION_CRITERION_LABEL = "la regla de Berry 2012 aplicada muestra a muestra"   # antes «Criterio BIOCORE: …» (2026-11-19)
 
 
 def round_half_up(x: float) -> int:
@@ -333,9 +337,9 @@ class RespiratoryAnalyzer:
         return float(np.mean(amps))
 
     def _classify(self, ev, lo, hi, breaths, effort, a_idx):
-        """Tipo por esfuerzo (Criterio BIOCORE). Mixta: PENDING_VALIDATION."""
+        """Tipo por esfuerzo: las tres reglas de Berry 2012 (`TYPE_LABEL`), con la mixta en su orden."""
         if effort is None:
-            return {"type": "unknown", "type_detail": "sin canal de esfuerzo", "type_label": "Criterio BIOCORE", "mixed_pending": False}
+            return {"type": "unknown", "type_detail": "sin canal de esfuerzo", "type_label": TYPE_LABEL, "mixed_pending": False}
         fs = self.sampling_rate
         # el esfuerzo se suaviza como el flujo en los bordes de un evento (0.1 s): con 0.25 s su cresta queda ~9 %
         # por debajo de la del flujo y el mismo 10 % de la basal se cruza antes en un canal que en el otro
@@ -350,7 +354,7 @@ class RespiratoryAnalyzer:
         # menor que la del flujo y un evento sin esfuerzo se leía como 'obstructivo'.
         e_base = self._effort_baseline(eff, breaths, a_idx, cycle)
         if e_base < HEURISTICS["effort_min_to_noise"][0] * noise:
-            return {"type": "unknown", "type_detail": "esfuerzo basal no medible", "type_label": "Criterio BIOCORE", "mixed_pending": False}
+            return {"type": "unknown", "type_detail": "esfuerzo basal no medible", "type_label": TYPE_LABEL, "mixed_pending": False}
         w = max(int(HEURISTICS["effort_window_cycles"][0] * cycle * fs), int(1.0 * fs))
         env = maximum_filter1d(eff, w)
         # el filtro de máximos mira w/2 a cada lado y la media móvil del esfuerzo filtra el borde del evento hacia
@@ -358,15 +362,29 @@ class RespiratoryAnalyzer:
         pad = int(smooth_s * fs)
         a_i, b_i = lo + w // 2 + pad, hi + 1 - w // 2 - pad
         seg = env[a_i:b_i] if b_i > a_i else env[lo:hi + 1]
-        present = float(np.mean(seg >= (1.0 - APNEA_DROP_FRACTION) * e_base))
+        mask = seg >= (1.0 - APNEA_DROP_FRACTION) * e_base
+        present = float(np.mean(mask))
+        detail = f"esfuerzo presente en {present:.0%} del evento"
         if present >= HEURISTICS["effort_present_fraction"][0]:
             kind = "obstructive"
         elif present <= HEURISTICS["effort_absent_fraction"][0]:
             kind = "central"
         else:
-            kind = "mixed"
-        return {"type": kind, "type_detail": f"esfuerzo presente en {present:.0%} del evento", "type_label": "Criterio BIOCORE",
-                "mixed_pending": kind == "mixed"}
+            # Tanda de heurísticas (2026-11-19): la regla de [B2012] para la mixta pide ORDEN: esfuerzo ausente en la
+            # parte inicial y que se reanuda en la segunda. Antes bastaba con un esfuerzo parcial (PENDING_VALIDATION).
+            # Con la misma tolerancia de 10 % que la central y la obstructiva (los bordes del tramo): antes del punto en
+            # que se reanuda, esfuerzo presente en <= 10 %; después, en >= 90 %.
+            starts = np.flatnonzero(~mask[:-1] & mask[1:]) + 1          # donde el esfuerzo vuelve
+            resume = next((int(k) for k in starts
+                           if float(np.mean(mask[:k])) <= HEURISTICS["effort_absent_fraction"][0]
+                           and float(np.mean(mask[k:])) >= HEURISTICS["effort_present_fraction"][0]), None)
+            if resume is not None:
+                kind = "mixed"
+                detail += f"; ausente al principio y se reanuda a los {resume / fs:.1f} s del tramo"
+            else:
+                kind = "unknown"
+                detail += "; no sigue el orden de la mixta (ausente al principio y luego se reanuda): sin clasificar"
+        return {"type": kind, "type_detail": detail, "type_label": TYPE_LABEL, "mixed_pending": False}
 
     # ------------------------------------------------------------------ SpO2
     def _analyze_spo2(self, spo2: np.ndarray, time: np.ndarray):

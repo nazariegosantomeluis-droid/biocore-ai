@@ -47,8 +47,10 @@ ORIGIN_TABLE = [
      'Validado contra registros MIT-BIH; con la señal de esta placa no se ha validado'),
     ('Ondas Q, R y S (práctica)', 'Delineador de QRS de BIOCORE (`delineate_qrs`, Sub-Fase 2.5)',
      'Especificación validada; su uso en vivo está en revisión clínica'),
-    ('Ondas P y T (práctica)', 'Heurística del módulo de la placa', 'No validada'),
-    ('Ventanas descartadas', 'Umbrales de calidad (`QualityHeuristics`)', 'Heurísticos, sin criterio clínico citado'),
+    ('Ondas P y T (práctica)', 'Búsqueda del módulo de la placa alrededor de cada QRS', 'Sin validar: es para practicar, '
+                                                                                      'no una medición'),
+    ('Ventanas descartadas', 'Comprobaciones del equipo: convertidor saturado, electrodo suelto (LO+/LO−) o línea plana',
+     'Solo deciden si la ventana se analiza; no son un juicio clínico'),
     ('Amplitud en mV', 'Cuentas del ADC con una ganancia supuesta de 1100', 'Aproximada, sin calibrar'),
 ]
 

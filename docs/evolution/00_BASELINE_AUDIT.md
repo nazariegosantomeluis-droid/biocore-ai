@@ -104,6 +104,8 @@ Pedido de Luis (2026-11-19): «todo lo que aparezca como heurístico se arregle 
 - **Índice de riesgo del gemelo:** se retira, con aviso a quien lleva `twin_shell/`.
 - **Umbral sin fuente:** «quitar el juicio, dejar la medida».
 
+> **Estado (2026-11-19, rama `heuristicas-citadas`):** ejecutado. Lo que se hizo con cada fila está en el CHANGELOG («Tanda de heurísticas»). Diferencias con esta tabla: la compliancia C del gemelo y la capacitancia venosa 2× de la sepsis siguen pendientes de la firma de Luis (no se encontró una fuente que dé esas cifras para este modelo); los umbrales de calidad de los equipos en vivo siguen siendo internos, sin la palabra en pantalla.
+
 **Tratamientos:**
 
 | Tratamiento | Qué significa |

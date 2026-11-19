@@ -216,7 +216,7 @@ PATTERNS = TheoryTopic(
     # Cheyne-Stokes pasó a su tema firmado (`SIGNED_CHEYNE_STOKES`, tema 7). La atáxica se queda como descripción de
     # la simulación, sin fisiopatología (decisión de Luis en el tema 7).
     detail="- **Atáxica (descripción de la simulación):** el generador sortea la duración y la profundidad de cada "
-           "respiración (irregularidad 0.20, HEURISTIC); no hay afirmación clínica sobre su causa",
+           "respiración (irregularidad 0.20, un parámetro de la simulación); no hay afirmación clínica sobre su causa",
     source=BERRY_2012,
 )
 
@@ -227,11 +227,12 @@ APNEA_BY_EFFORT = TheoryTopic(
     mechanism="**Obstructiva, mecanismo (Epstein 2009):** los signos, síntomas y consecuencias son resultado directo "
               "del colapso repetitivo de la vía aérea superior",
     detail="Todas cumplen la misma regla de apnea (caída ≥ 90 % de la excursión del flujo durante ≥ 10 s).\n\n"
-           "- **Central (Criterio BIOCORE):** esfuerzo ausente (caída ≥ 90 % del esfuerzo respecto a su basal)\n"
-           "- **Obstructiva (Criterio BIOCORE):** esfuerzo presente; Berry 2012 señala que el movimiento paradójico "
+           "- **Central (Berry 2012):** esfuerzo ausente en todo el evento (caída ≥ 90 % del esfuerzo respecto a su "
+           "basal)\n"
+           "- **Obstructiva (Berry 2012):** esfuerzo presente en todo el evento; Berry 2012 señala que el movimiento "
+           "paradójico "
            "del tórax y el abdomen se observa a menudo durante una apnea u hipopnea obstructiva\n"
-           "- **Mixta:** [Pendiente de validación] (PENDING_VALIDATION; se calcula y se marca; la definición del manual "
-           "no está verificada)\n"
+           "- **Mixta (Berry 2012):** esfuerzo ausente al principio del evento, que se reanuda en la segunda parte\n"
            "- **Obesidad:** Epstein 2009 incluye la obesidad (IMC > 35) entre los pacientes de alto riesgo que deben "
            "evaluarse para apnea obstructiva del sueño",
     source=f"{BERRY_2012} · {EDUCATION_CITATION}",

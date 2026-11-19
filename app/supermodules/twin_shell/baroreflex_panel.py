@@ -56,9 +56,9 @@ ITERATION_NOTE = (
 )
 
 COMPLIANCE_PENDING_NOTE = (
-    "**Compliancia C pendiente de validación** (`PHYSIOLOGICAL_PARAMETERS_PENDING_VALIDATION`): la PA "
+    "**Compliancia C pendiente de validación:** la PA "
     "sistólica/diastólica mostrada depende de la compliancia arterial C del módulo 1, aún sin firma del "
-    "experto, y hereda ese PENDING. La PAM, la Rd y el gasto de la traza no dependen de C (verificado: "
+    "experto, y hereda ese pendiente. La PAM, la Rd y el gasto de la traza no dependen de C (verificado: "
     "con C a la mitad o al doble, PAM y Rd idénticas)."
 )
 
@@ -212,7 +212,7 @@ def render_baroreflex_panel(scenario_labels: Dict[str, str]) -> None:
     with col_pa:
         render_metric_card(
             "PA final", f"{loop.final_systolic_bp:.0f}/{loop.final_diastolic_bp:.0f} mmHg",
-            citation=f"PAM {loop.final_map:.1f} · S/D hereda el PENDING de la compliancia"
+            citation=f"PAM {loop.final_map:.1f} · S/D hereda el pendiente de validación de la compliancia"
             if PHYSIOLOGICAL_PARAMETERS_PENDING_VALIDATION else f"PAM {loop.final_map:.1f}",
         )
 

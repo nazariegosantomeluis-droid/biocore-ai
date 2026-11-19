@@ -46,6 +46,7 @@ from typing import Dict, Tuple
 import numpy as np
 
 VALIDATION_STATUS = "PENDING_VALIDATION"
+VALIDATION_LABEL = "Pendiente de validación"   # lo que se ve; la etiqueta de código no (2026-11-19)
 
 # `ups_hr_event`: cuándo el evento por FC del UPS acompaña a este tipo, dado su rango.
 EVENT_ALWAYS = "siempre"
@@ -151,5 +152,5 @@ def declare_instance(key: str, seed: int, slots: Tuple[int, ...]) -> str:
     )
     return (
         f"Rango declarado de {t.label}: FC {rango} lpm, {t.regularity_label}. "
-        f"Esta instancia (semilla {seed}): {', '.join(str(v) for v in valores)} lpm. {cierre} [{VALIDATION_STATUS}]"
+        f"Esta instancia (semilla {seed}): {', '.join(str(v) for v in valores)} lpm. {cierre} [{VALIDATION_LABEL}]"
     )

@@ -169,7 +169,7 @@ def test_respiratory_lab_header_shows_no_confidence_marker_but_the_status_notice
     at.run(timeout=30)
     markers = [md.value for md in at.main.markdown if "border-left:3px" in md.value]
     assert markers == [], f"no debe quedar marcador de validación: {markers}"
-    assert any("Validado por fuente" in i.value and "Pendiente de validación" in i.value and "Sigue fuera" in i.value
+    assert any("Validado por fuente" in i.value and "Cálculo directo" in i.value and "Sigue fuera" in i.value
                for i in at.info)
 
 

@@ -53,15 +53,17 @@ DERIVATIVE_SMOOTH_MS = 8.0     # media móvil antes de derivar (baja el ruido de
 P_MIN_MV = 0.04                # una P menor no se distingue del ruido del latido mediano
 P_ONSET_FRACTION = 0.05        # inicio de P: donde baja al 5 % de su pico
 P_CONSISTENT_FRACTION = 0.8    # P «constante»: en ≥ 80 % de los latidos, mismo signo y ≥ 50 % de la altura mediana
-RR_REGULAR_CV = 0.08           # RR con coeficiente de variación < 8 %: regular (heurística)
+# Tanda de heurísticas (2026-11-19): se retiró RR_REGULAR_CV (CV < 8 % = «regular», sin fuente). El CV se mide y se
+# muestra; si los RR tienen patrón lo juzga quien lee el trazado.
 Q_WAVE_MIN_MV = 0.05           # una deflexión inicial negativa ≥ 0.05 mV cuenta como onda q
 LOBE_MIN_MV = 0.02             # amplitud mínima para contar un lóbulo positivo o negativo del QRS
 BROAD_R_FRACTION = 0.6         # «R ancha»: la parte positiva ocupa ≥ 60 % del QRS
 DELTA_SLOW_MS = 30.0           # «onda delta»: ≥ 30 ms desde el inicio del QRS hasta la subida rápida
 MORPH_SMOOTH_MS = 8.0          # media móvil antes de leer morfología, amplitudes y el ST (el ruido partía los lóbulos)
+# Tanda de heurísticas (2026-11-19): sin «Criterio BIOCORE»; cada criterio de la tabla lleva su propia fuente.
 METHOD_NOTE = (
-    "Medición automática de BIOCORE sobre el latido mediano (umbrales técnicos propios, probados contra la "
-    "verdad del generador sintético); puede diferir de la medición experta."
+    "Medición automática sobre el latido mediano, comprobada contra la verdad del generador sintético; puede diferir "
+    "de la medición experta. Cada criterio dice su fuente."
 )
 
 # --- Umbrales de los criterios citados -----------------------------------------------------------------
@@ -340,7 +342,7 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
     rr = np.diff(peaks) / fs
     hr = 60.0 / float(np.mean(rr))
     rr_cv = float(np.std(rr) / np.mean(rr))
-    regular = rr_cv < RR_REGULAR_CV
+    regular = None                                       # sin corte con fuente: no se juzga (tanda de heurísticas)
 
     beat, on, off, vel = _build_beat(present, _align(present, peaks, fs), fs)
     if beat.n < 2:
@@ -461,16 +463,19 @@ def analyze_twelve_lead(leads: Mapping[str, np.ndarray], fs: Optional[float] = N
             brady_detail += " Está por debajo de 60, el corte de la convención docente, pero no de 50."
         criteria.append(Criterion("sinus_bradycardia", "Bradicardia sinusal (< 50 lpm)", hr < 50, brady_detail,
                                   KUSUMOTO_2018 + " (tabla 3)"))
-    af_met = (not regular) and p_wave == "ausente"
+    # La FA pide P ausentes Y RR sin patrón: con P se descarta; sin P, el patrón de los RR lo juzga quien lee.
+    af_met = None if p_wave == "ausente" else False
+    af_detail = f"Onda P: {p_wave}. Coeficiente de variación de los RR: {rr_cv * 100:.0f} %."
+    if af_met is None:
+        af_detail += (" Sin P discernibles: si los RR no siguen ningún patrón, el trazado es compatible con FA. Mira "
+                      "la tira de ritmo; BIOCORE no tiene un corte con fuente para decirlo solo.")
     criteria.append(Criterion(
-        "af", "Compatible con fibrilación auricular: sin P discernibles y RR sin patrón", af_met,
-        f"RR {'irregulares' if not regular else 'regulares'} (coeficiente de variación {rr_cv * 100:.0f} %; "
-        f"irregular si ≥ {RR_REGULAR_CV * 100:.0f} %, heurística BIOCORE); onda P: {p_wave}.",
+        "af", "Compatible con fibrilación auricular: sin P discernibles y RR sin patrón", af_met, af_detail,
         VAN_GELDER_2024 + " (sección 3.1)",
     ))
-    if regular and p_wave in ("no sinusal", "ausente"):
+    if p_wave in ("no sinusal", "ausente"):
         criteria.append(Criterion(
-            "rhythm_unidentified", "Ritmo regular sin P sinusal", None,
+            "rhythm_unidentified", "Ritmo sin P sinusal", None,
             "El analizador no identifica este ritmo (puede ser flutter, taquicardia auricular, de la unión u otro): "
             "mira la actividad auricular en II, III, aVF y V1. El flutter típico da ondas F negativas «en sierra» "
             "en II, III y aVF.", PAGE_2015 + " (tabla 3: flutter típico)",

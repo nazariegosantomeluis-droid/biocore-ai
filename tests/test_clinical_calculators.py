@@ -247,7 +247,10 @@ def test_alveolar_gas_canonical_sea_level_values():
     assert c.alveolar_po2(0.21, 40, 760) == pytest.approx(99.73, abs=0.01)
     assert c.alveolar_po2(1.0, 40, 760) == pytest.approx(663.0)          # 713 − 50
     assert c.aa_gradient(0.21, 90, 40, 760) == pytest.approx(9.73, abs=0.01)
-    assert c.expected_aa_gradient(40) == pytest.approx(14.0)             # regla edad/4 + 4
+    # Tanda de heurísticas (2026-11-19): 2.5 + 0.21·edad (Mellemgaard 1966; Kanber 1968; calculadora del Manual MSD),
+    # en vez de la regla sin fuente edad/4 + 4.
+    assert c.expected_aa_gradient(40) == pytest.approx(10.9)
+    assert "Mellemgaard" in c.EXPECTED_AA_CITATION and "Kanber" in c.EXPECTED_AA_CITATION
     cdmx = c.barometric_pressure_mmhg(c.CITY_ALTITUDES_M["Ciudad de México"])
     assert 525.9 < cdmx < 596.3  # entre los valores ISA de 3000 y 2000 m
 
@@ -384,7 +387,7 @@ def test_page_shows_every_citation():
     assert not at.exception, at.exception
     text = _text(at)
     citations = {n: getattr(c, n) for n in dir(c) if n.endswith("_CITATION")}
-    assert len(citations) == 21  # 20 + OSA_SEVERITY_CITATION (arco respiratorio, 2026-11-07)
+    assert len(citations) == 22  # 20 + OSA_SEVERITY_CITATION (2026-11-07) + EXPECTED_AA_CITATION (2026-11-19)
     missing = [n for n, v in citations.items() if v not in text]
     assert not missing, missing
 

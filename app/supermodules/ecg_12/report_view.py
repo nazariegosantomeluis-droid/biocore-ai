@@ -48,7 +48,7 @@ def finding_title(c) -> str:
 
 
 def render_twelve_lead_report(report: TwelveLeadReport, truth: Optional[TwelveLeadTruth] = None) -> None:
-    st.caption(BADGES.tag(BADGES.METHOD) + " " + METHOD_NOTE + " No es un diagnóstico.")
+    st.caption(METHOD_NOTE + " No es un diagnóstico.")
     if report.n_beats == 0:
         st.warning("No se pudo analizar este registro: " + " ".join(report.unavailable))
         return
@@ -57,12 +57,11 @@ def render_twelve_lead_report(report: TwelveLeadReport, truth: Optional[TwelveLe
     summary = ", ".join(finding_title(c) for c in found) if found else "ninguno de los criterios evaluados se cumple"
     st.markdown(f"> **Hallazgos automáticos:** {summary}.")
 
-    st.markdown(f"**Mediciones** {BADGES.tag(BADGES.METHOD)} (latido mediano de {report.n_beats} latidos)")
-    rhythm = "regulares" if report.regular else "irregulares"
+    st.markdown(f"**Mediciones** (latido mediano de {report.n_beats} latidos)")
     axis = "no disponible" if report.axis is None else f"{report.axis.axis_degrees:.0f}°"
     rows = [
         ("Frecuencia cardiaca", f"{report.heart_rate_bpm:.0f} lpm"),
-        ("Intervalos RR", f"{rhythm} (coeficiente de variación {report.rr_cv * 100:.0f} %)"),
+        ("Intervalos RR", f"coeficiente de variación {report.rr_cv * 100:.0f} %"),
         ("Onda P", P_TEXT.get(report.p_wave, report.p_wave)),
         ("PR", _ms(report.pr_ms)),
         ("QRS", _ms(report.qrs_ms)),

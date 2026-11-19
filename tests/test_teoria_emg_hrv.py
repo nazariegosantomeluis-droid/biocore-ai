@@ -32,6 +32,20 @@ def _open(url, **state):
     return at
 
 
+def _biomarkers_content():
+    """Biomarcadores salió del menú el 2026-11-19 (decisión de Luis); su contenido sigue en el código, sin montar, y
+    estas guardias lo siguen vigilando por si vuelve."""
+    def _script():
+        import app.main as m
+
+        m.render_biomarkers_page()
+
+    at = AppTest.from_function(_script, default_timeout=240)
+    at.run()
+    assert at.exception == [], at.exception
+    return at
+
+
 def _texts(at):
     from test_fase1_t2_pulido import visible_texts
 
@@ -106,14 +120,14 @@ LF_HF_CLAIM = re.compile(r"balance|dominancia|proxy", re.IGNORECASE)
 
 
 def test_lf_hf_is_labeled_and_never_read_as_balance_on_the_hrv_and_biomarker_pages():
-    for url in ("hrv", "biomarcadores"):
-        texts = [t for t in _texts(_open(url)) if "LF/HF" in t]
+    for url, at in (("hrv", _open("hrv")), ("biomarcadores", _biomarkers_content())):
+        texts = [t for t in _texts(at) if "LF/HF" in t]
         assert texts, url
         for t in texts:
             assert not LF_HF_CLAIM.search(t), (url, t[:160])
     hrv = " ".join(_texts(_open("hrv")))
     assert "razón LF/HF (interpretación discutida) [B2013]" in hrv
-    bio = " ".join(_texts(_open("biomarcadores")))
+    bio = " ".join(_texts(_biomarkers_content()))
     assert "Razón LF/HF (interpretación discutida)" in bio and "Índice de Estrés" not in bio
     assert "Índice de estrés — No disponible: se calculaba solo con la razón LF/HF" in bio
 
@@ -152,7 +166,7 @@ def test_hrv_has_no_posture_drug_exercise_attribution_nor_unsourced_normal_value
     joined = " ".join(_texts(_open("hrv")))
     for bad in ("enfermedad crónica", "tono vagal eleva", "postura", "fármaco", "ejercicio"):
         assert bad not in joined.lower(), bad
-    bio = " ".join(_texts(_open("biomarcadores")))
+    bio = " ".join(_texts(_biomarkers_content()))
     assert "rango fisiológico correcto" not in bio
 
 

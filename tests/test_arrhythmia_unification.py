@@ -104,7 +104,7 @@ def test_other_seeds_give_other_instances_inside_the_same_range_except_for_a_sin
 def test_the_declaration_shows_range_seed_and_value_and_is_only_for_arrhythmias():
     text = declare_instance("afib", 5, (0, 5, 30, 120, 1440, 10080))
     assert "100-160" in text and "irregularmente irregular" in text and "semilla 5" in text
-    assert "PENDING_VALIDATION" in text
+    assert "Pendiente de validación" in text and "PENDING_VALIDATION" not in text   # 2026-11-19
     assert "no varía con la semilla" in declare_instance("aflutter", 5, (0,))
     engine = SimulationEngine(seed=5)
     assert engine.instance_declaration(SimulationScenario.ARRHYTHMIA_AFIB) == text

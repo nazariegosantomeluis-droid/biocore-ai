@@ -45,7 +45,7 @@ RESPIRATORY_PATTERNS = {
 RR_RANGE = (6, 40)
 SPO2_BASAL_RANGE = (70, 100)
 SPO2_FLOOR_DEFAULT = 85            # el piso de siempre; con una basal ≤ 85 % empieza 5 puntos por debajo de la basal
-# (Criterio BIOCORE: solo hace posibles los parámetros, el generador exige piso < basal; no es un dato clínico). Con una
+# (parámetro de la simulación: el generador exige piso < basal; no es un dato clínico). Con una
 # basal de 70–89 % el modelo aplica las mismas tasas de desaturación y recuperación (Howarth 2026, cohorte SHHS), que no
 # se midieron desde una basal tan baja.
 
@@ -206,8 +206,8 @@ def patron(ctx: InstrumentContext) -> Optional[RespRun]:
             max_value=95,
             value=SPO2_FLOOR_DEFAULT if _spo2_start > SPO2_FLOOR_DEFAULT else int(_spo2_start) - 5,
             step=1,
-            help="Piso de la SpO₂ durante un evento (nunca baja de aquí). Con una basal de 85 % o menos empieza 5 "
-                 "puntos debajo de ella (Criterio BIOCORE: solo hace posibles los parámetros).",
+            help="Piso de la SpO₂ durante un evento (nunca baja de aquí), un parámetro de la simulación. Con una basal "
+                 "de 85 % o menos empieza 5 puntos debajo de ella: el generador pide que el piso quede por debajo.",
             key=k("resp_spo2_min"),
         )
 
@@ -219,16 +219,16 @@ def patron(ctx: InstrumentContext) -> Optional[RespRun]:
                       "recuperación (Howarth 2026), que no se midieron desde una basal tan baja.")
 
     circulation_delay = panel.number_input(
-        "Retardo circulatorio Tc (s) — Valor BIOCORE",
+        "Retardo circulatorio Tc (s)",
         min_value=5.0,
         max_value=30.0,
-        value=15.0,
-        step=1.0,
-        help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Valor BIOCORE: la fuente (Hsia 2026) solo da el "
-             "límite normal < 20 s. Rango 5–30 s.",
+        value=19.4,
+        step=0.1,
+        help="Tiempo pulmón-dedo: el nadir llega al FIN del evento + Tc. Empieza en 19.4 s, la mediana de Kwon 2020 "
+             "(598 estudios de sueño, MESA); Hsia 2026 da el límite normal < 20 s. Rango 5–30 s.",
         key=k("resp_tc"),
     )
-    panel.caption(f"{BADGES.tag(BADGES.METHOD)} Tc: {views.TC_LABEL}")
+    panel.caption(f"{BADGES.tag(BADGES.CLINICAL)} Tc: {views.TC_LABEL}")
     slot_spo2 = panel.empty()
 
     duration = panel.slider(
@@ -284,17 +284,18 @@ def valores(ctx: InstrumentContext, run: RespRun) -> None:
         if analysis.cycle_duration_s is None:
             render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "sin FR disponible")
         else:
-            render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
+            render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.MEASURED)
 
     with col3:
         if analysis.apnea_count is None:
             render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
         else:
-            render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}", provenance=BADGES.METHOD)
+            render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}", provenance=BADGES.CLINICAL,
+                               citation=views.APNEA_CITATION)
 
     with col4:
         render_metric_card(
-            "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE,
+            "SpO2 Mínimo", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.SIMULATION, citation=views.SPO2_PROVENANCE,
         )
 
 
@@ -375,21 +376,21 @@ def senales(ctx: InstrumentContext, run: RespRun) -> None:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        render_metric_card("Respiraciones detectadas", f"{len(analysis.breaths)}", provenance=BADGES.METHOD)
+        render_metric_card("Respiraciones detectadas", f"{len(analysis.breaths)}", provenance=BADGES.MEASURED)
 
     with col2:
         if analysis.cycle_duration_s is None:
             render_metric_card("Duración del ciclo", None, unavailable_reason=analysis.signal_status_detail or "menos de 3 respiraciones")
         else:
             render_metric_card("Duración del ciclo (media de los intervalos entre inspiraciones)",
-                               f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
+                               f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.MEASURED)
 
     with col3:
         if analysis.rr_variability is None:
             render_metric_card("Variabilidad de los intervalos", None, unavailable_reason="menos de 3 respiraciones")
         else:
             render_metric_card("Variabilidad de los intervalos (desviación estándar, descriptiva)",
-                               f"{analysis.rr_variability:.2f} s", provenance=BADGES.METHOD)
+                               f"{analysis.rr_variability:.2f} s", provenance=BADGES.MEASURED)
 
     with col4:
         views.render_band_card(analysis)
@@ -481,27 +482,27 @@ def resumen(ctx: InstrumentContext, run: RespRun) -> None:
     st.markdown(f"### {ctx.deco('📋')}Resumen Clínico")
 
     # Fase 3-4 (Art. I): el resumen muestra solo valores con golden test, cada uno con su insignia. Hipopneas, I:E y ODI
-    # siguen fuera (ver el aviso de la pestaña Análisis Avanzado); el patrón y las notas son HEURISTIC y no diagnostican.
+    # siguen fuera (ver el aviso de la pestaña Análisis Avanzado); el patrón y las notas describen y no diagnostican.
     col1, col2, col3 = st.columns(3)
     with col1:
         views.render_rate_cards(analysis)
         if analysis.cycle_duration_s is not None:
-            render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.METHOD)
+            render_metric_card("Duración del ciclo", f"{analysis.cycle_duration_s:.2f} s", provenance=BADGES.MEASURED)
 
     with col2:
         if analysis.apnea_count is None:
             render_metric_card("Apneas (≥ 10 s)", None, unavailable_reason="no evaluable: sin señal respiratoria")
         else:
             render_metric_card("Apneas (≥ 10 s)", f"{analysis.apnea_count}  ·  tiempo total {analysis.apnea_total_time_s:.1f} s",
-                               provenance=BADGES.METHOD)
+                               provenance=BADGES.CLINICAL, citation=views.APNEA_CITATION)
             render_metric_card("Tasa equivalente por hora de registro (extrapolada, sin valor diagnóstico)",
-                               f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.METHOD)
+                               f"{analysis.equivalent_rate_per_hour:.0f} /h", provenance=BADGES.MEASURED)
 
     with col3:
-        render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
-        render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.METHOD, citation=views.SPO2_PROVENANCE)
+        render_metric_card("SpO2 basal", f"{analysis.baseline_spo2:.1f}%", provenance=BADGES.SIMULATION, citation=views.SPO2_PROVENANCE)
+        render_metric_card("SpO2 mínima", f"{analysis.minimum_spo2:.1f}%", provenance=BADGES.SIMULATION, citation=views.SPO2_PROVENANCE)
 
-    st.markdown(f"**Patrón** {BADGES.tag(BADGES.HEURISTIC)}: {views.pattern_description(analysis)}")
+    st.markdown(f"**Patrón** {BADGES.tag(BADGES.MEASURED)}: {views.pattern_description(analysis)}")
     views.render_clinical_notes(analysis, run.circulation_delay)
     st.caption("Hipopneas, relación I:E y ODI no se muestran (sin criterio firmado o sin golden test).")
 

@@ -186,7 +186,8 @@ def test_twin_os_labels_say_what_they_are(temp_ups):
     assert at.exception == []
     labels = " | ".join(e.label for e in at.expander)
     assert "ML real" not in labels
-    assert "Índice de riesgo heurístico (pesos fijos, sin entrenamiento)" in labels
+    # Tanda de heurísticas (2026-11-19): Luis retiró el índice de riesgo de pesos fijos (sin cita).
+    assert "Índice de riesgo" not in labels and "heurístico" not in labels
 
 
 def test_shap_lime_narratives_no_longer_claim_a_perturbation_or_a_model():

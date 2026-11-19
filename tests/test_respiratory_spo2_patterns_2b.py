@@ -18,7 +18,7 @@ from src.signals.respiration import RespiratoryPattern, RespiratorySignalGenerat
 from src.signals.respiration.respiratory_generator import ImpossibleParameters
 
 FS = 100
-TC, R_DES, R_RES = 15.0, 0.30, 0.70
+TC, R_DES, R_RES = 19.4, 0.30, 0.70   # Tc: mediana de Kwon 2020 (antes 15 s, 2026-11-19)
 
 
 class _NullRng:
@@ -64,8 +64,8 @@ def _single_event(T=20.0, **kw):
 
 def test_e25_nadir_arrives_at_the_end_of_the_event_plus_tc(no_noise):
     t, s, ev = _single_event()
-    assert t[int(np.argmin(s))] == pytest.approx(ev["start_s"] + ev["duration_s"] + TC, abs=1.0)  # 40 + 20 + 15 = 75
-    assert ev["spo2_nadir_time_s"] == pytest.approx(75.0)
+    assert t[int(np.argmin(s))] == pytest.approx(ev["start_s"] + ev["duration_s"] + TC, abs=1.0)  # 40 + 20 + 19.4 = 79.4
+    assert ev["spo2_nadir_time_s"] == pytest.approx(79.4)
 
 
 @pytest.mark.parametrize("tc", [5.0, 15.0, 30.0])

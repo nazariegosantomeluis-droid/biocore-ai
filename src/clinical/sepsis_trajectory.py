@@ -52,6 +52,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 VALIDATION_STATUS = "PENDING_VALIDATION"
+VALIDATION_LABEL = "Pendiente de validación"   # lo que se ve; la etiqueta de código no (2026-11-19)
 
 SHOCK_ONSET_MIN: float = 360.0
 
@@ -151,7 +152,7 @@ def declare_trajectory() -> str:
         )
     return (
         "**Trayectoria canónica de sepsis** (una sola, sin variabilidad entre instancias; "
-        f"[{VALIDATION_STATUS}]: FC > 90 y FR ≥ 22 al inicio tienen cita —SIRS, qSOFA—; las magnitudes de shock no).\n\n"
+        f"[{VALIDATION_LABEL}]: FC > 90 y FR ≥ 22 al inicio tienen cita —SIRS, qSOFA—; las magnitudes de shock no).\n\n"
         + "\n".join(filas)
         + "\n\nPresión arterial: el modelo hemodinámico solo modela la fase de **shock**; en las fases "
         "temprana y de progresión la PA se declina (no se muestra): " + PA_DECLINATION_REASON

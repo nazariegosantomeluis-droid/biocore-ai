@@ -43,7 +43,8 @@ ORIGIN_TABLE = [
                                                                                           'validado con placas reales'),
     ('«Activación muscular» del laboratorio', 'Cociente entre el promedio y el pico del EMG rectificado',
      'No es %MVC: no mide cuánto contraes'),
-    ('Avisos de calidad', 'Umbrales de ingeniería (`EmgQualityHeuristics`)', 'Heurísticos, sin criterio clínico citado'),
+    ('Avisos de calidad', 'Comprobaciones del equipo: señal pegada al límite, plana o con zumbido de la red',
+     'Solo avisan si la señal sirve; no son un juicio clínico'),
 ]
 INTRO = (
     'Con un MyoWare 2.0 y una ESP32 puedes ver tu propio EMG de superficie en el Laboratorio de EMG: la señal, su RMS y su '

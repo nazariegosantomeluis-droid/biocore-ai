@@ -210,9 +210,9 @@ PPG = BioSensor(
                                                         'vuelve a buscar cada 2 s.'),
         ('«…hay otro sensor (PART_ID …), no un MAX30102»', 'Es otro chip en la misma dirección, por ejemplo un '
                                                            'MAX30100: este firmware solo sirve para el MAX30102.'),
-        ('«No hay un dedo sobre el sensor…» con el dedo puesto', 'Tapa las dos luces con la yema. El umbral (50 000 '
-                                                                 'cuentas de infrarrojo) es una heurística: '
-                                                                 '`PpgQualityHeuristics`.'),
+        ('«No hay un dedo sobre el sensor…» con el dedo puesto', 'Tapa las dos luces con la yema. Con menos de 50 000 '
+                                                                 'cuentas de infrarrojo de fondo la app no calcula: '
+                                                                 'es un umbral de la placa, no un criterio clínico.'),
         ('«La luz satura el sensor…»', 'Tapa la luz ambiente; si sigue, baja `LED` en el firmware (cada paso es de '
                                        '0.2 mA).'),
     ),

@@ -39,6 +39,7 @@ import numpy as np
 from src.signals.ecg.arrhythmia_types import SINUS_NORMAL_RANGE_BPM
 
 VALIDATION_STATUS = "PENDING_VALIDATION"
+VALIDATION_LABEL = "Pendiente de validación"   # lo que se ve; la etiqueta de código no (2026-11-19)
 REFERENCE_SEED = 0
 
 # nombre del campo de `SimulationTimestep` -> (nominal, mínimo, máximo)
@@ -87,5 +88,5 @@ def declare_instance(seed: int = REFERENCE_SEED) -> str:
         f"Rangos declarados de Sano (en reposo): {', '.join(rangos)}; la FC va contenida en el ritmo sinusal "
         f"normal ({SINUS_NORMAL_RANGE_BPM[0]:.0f}-{SINUS_NORMAL_RANGE_BPM[1]:.0f} lpm). Esta instancia "
         f"(semilla {seed}, {quien}): {', '.join(valores)}. Es una sola persona: no cambia entre horizontes. "
-        f"Otra semilla da otra persona dentro de los mismos rangos. [{VALIDATION_STATUS}]"
+        f"Otra semilla da otra persona dentro de los mismos rangos. [{VALIDATION_LABEL}]"
     )

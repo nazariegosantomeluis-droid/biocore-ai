@@ -54,9 +54,8 @@ def test_the_panel_shows_exactly_the_numbers_of_results_json():
               RESULTS["fuga_por_latido"]["exactitud"], RESULTS["fuga_por_latido"]["f1_macro"]):
         assert _fmt(v) in text
     assert "No apto para diagnóstico" in text
-    if RESULTS["estado"] == "en evaluacion":
-        assert "En evaluación" in text
-        assert all(c in text for c in RESULTS["clases_con_sensibilidad_baja"])
+    # Tanda de heurísticas (2026-11-19): sin el juicio del corte de 0.80 (sin cita); la sensibilidad queda en la tabla.
+    assert "En evaluación" not in text and "Criterio BIOCORE" not in text
     assert len(at.get("image")) == 2
 
 
