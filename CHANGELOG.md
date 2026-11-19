@@ -31,6 +31,11 @@ Pedido de Luis: «sigue con T5» (visto bueno de la regla 7, que el diseño exig
      - la fuente de la regla de hipoxia incluye el DOI de Lucy 2000;
      - el piso de la SpO₂ se declara Criterio BIOCORE;
      - el puente registra en el log las reglas que no combina.
+6. **Detalles de la tanda** (pedido de Luis: «repara todo, aunque sea menor»):
+   - El puente también registra en el log las reglas que no evalúa porque su escenario las bloquea. Una prueba exige que cada escenario bloqueado exista en el simulador.
+   - Con una SpO₂ basal por debajo de 90 %, el instrumento de Respiración avisa que las tasas de desaturación y recuperación (Howarth 2026) no se midieron desde una basal tan baja. El control del piso dice por qué empieza 5 puntos debajo de la basal.
+   - Hay una prueba para una SpO₂ por debajo de 70 % en la estación «Mide»: no se ofrece guardar.
+   - Un enlace fuera de la app dice en qué destino del menú está la página.
 
 ## 2026-11-18 · T4.1: fichas de acoplamiento firmadas y detalles de la Ruta
 

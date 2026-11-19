@@ -89,3 +89,19 @@ def test_dos_reglas_sobre_la_misma_senal_no_escriben_ninguna(session_factory):
         assert state.neurological.get("bar").value > 1.8          # las dos condiciones se cumplen
         assert apply_couplings(session, snap, VALIDATED_RULES, scenario=None) == []
         assert get_state_by_snapshot_id(session, snap).cardiovascular.get("heart_rate_acoplado") is None
+
+
+def test_los_escenarios_bloqueados_por_regla_existen_en_el_simulador():
+    """Revisión de la T5: un nombre mal escrito en `blocked_scenarios` dejaría la regla activa sin decirlo."""
+    from app.engines.simulation_engine import SimulationScenario
+
+    names = {s.value for s in SimulationScenario}
+    for rule in VALIDATED_RULES:
+        assert set(rule.blocked_scenarios) <= names, (rule.rule_id, set(rule.blocked_scenarios) - names)
+
+
+def test_un_bloqueo_por_regla_queda_en_el_log(session_factory, caplog):
+    snap = _snapshot(session_factory, {"ecg": {"heart_rate": 70.0}, "respiratory": {"spo2": 85.0}})
+    with session_factory() as session, caplog.at_level("INFO", logger="domain.physiology.coupling.bridge"):
+        apply_couplings(session, snap, VALIDATED_RULES, scenario="hypoxia")
+    assert "HIPOXIA_TAQUICARDIA" in caplog.text and "hypoxia" in caplog.text

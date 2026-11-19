@@ -294,3 +294,26 @@ def test_respiracion_cierre_muestra_la_regla_de_hipoxia_firmada_y_por_que_no_se_
     assert "falta su compositor" not in text           # falso: el escenario ya guarda la SpO₂ y la FC juntas
     at2 = _go(_start("respiracion", "hypoxia"), "respiracion", "cierre")
     assert "no se evalúa en el escenario Hipoxia" in _texts(at2)
+
+
+def test_respiracion_mide_con_spo2_por_debajo_de_70_no_ofrece_guardar():
+    """Revisión de la T5: ninguna prueba de estación cubría una SpO₂ por debajo del nuevo control (70–100 %)."""
+    from app.engines.digital_twin_organism import DigitalTwinOrganism
+    from app.utils.patient_session import get_shared_ups_engine
+    from domain.physiology.state import Provenance, from_digital_twin_organism, make_session_factory, save_state
+
+    at = _start("respiracion")
+    o = DigitalTwinOrganism()
+    o.update_from_sensors({"respiratory": {"respiratory_rate": 22.0, "spo2": 65.0}})
+    with make_session_factory(get_shared_ups_engine())() as session:
+        save_state(session, from_digital_twin_organism(o, at.session_state[PATIENT_KEY], Provenance.SIMULACION, 0.8))
+    at = _go(at, "respiracion", "mide")
+    assert "fuera del rango de la simulación" in _texts(at)
+    assert _button(at, "ruta_respiracion_mide__respiratory_lab_save_to_ups") is None
+
+
+def test_respiracion_avisa_que_las_tasas_de_desaturacion_no_se_midieron_desde_una_basal_baja():
+    at = _go(_start("respiracion", "hypoxia"), "respiracion", "mide")
+    assert "no se midieron desde una basal" in _texts(at)
+    at2 = _go(_start("respiracion"), "respiracion", "mide")
+    assert "no se midieron desde una basal" not in _texts(at2)

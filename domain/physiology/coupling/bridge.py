@@ -244,6 +244,11 @@ def apply_couplings(
         raise ValueError(f"snapshot {snapshot_id!r} no existe -- nada que acoplar")
 
     if scenario is not None:
+        rules = list(rules)
+        blocked = [r.rule_id for r in rules if scenario in r.blocked_scenarios]
+        if blocked:
+            logger.info("Reglas bloqueadas por regla en el escenario %r (ya modela su efecto): %s", scenario,
+                        ", ".join(blocked))
         rules = [r for r in rules if scenario not in r.blocked_scenarios]
     proposals = _combine_proposals_for_same_effect(evaluate(state, rules))
 

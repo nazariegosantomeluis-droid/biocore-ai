@@ -120,7 +120,7 @@ def test_a_lab_run_outside_the_menu_says_where_the_page_is_instead_of_failing():
 
     at = AppTest.from_function(_script)
     at.run()
-    assert at.exception == [] and "en el menú lateral" in at.caption[0].value
+    assert at.exception == [] and "menú lateral" in at.caption[0].value       # T5: «en el destino «…» del menú lateral»
 
 
 def test_streamlit_minimum_is_the_installed_one_and_playwright_logs_are_ignored():

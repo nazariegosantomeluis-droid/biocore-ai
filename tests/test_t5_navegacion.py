@@ -150,3 +150,14 @@ def test_el_boton_de_hoy_abre_la_ruta_en_esa_unidad():
     hoy.button(key="bc_continue").click().run()
     assert hoy.exception == [], hoy.exception
     assert hoy.radio(key="ruta_mode").value == "unidades" and hoy.radio(key="ruta_unit").value == "cerebro"
+
+
+def test_un_enlace_fuera_de_la_app_dice_en_que_destino_esta():
+    def _script():
+        from app.utils import navigation as nav
+        nav.SECTION_OF["calculadoras"] = "Paciente"
+        nav.link("calculadoras", "Calculadora")
+
+    at = AppTest.from_function(_script)
+    at.run()
+    assert "en el destino «Paciente» del menú lateral" in at.caption[0].value

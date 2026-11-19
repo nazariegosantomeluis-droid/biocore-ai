@@ -34,6 +34,6 @@ def link(url_path: str, label: str, icon: Optional[str] = None) -> None:
     target = page(url_path)
     if target is None:
         where = SECTION_OF.get(url_path)
-        st.caption(f"{label}: en el menú lateral" + (f", destino «{where}»." if where else "."))
+        st.caption(f"{label}: " + (f"en el destino «{where}» del menú lateral." if where else "en el menú lateral."))
         return
     st.page_link(target, label=label, icon=icon)

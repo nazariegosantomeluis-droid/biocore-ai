@@ -206,12 +206,17 @@ def patron(ctx: InstrumentContext) -> Optional[RespRun]:
             max_value=95,
             value=SPO2_FLOOR_DEFAULT if _spo2_start > SPO2_FLOOR_DEFAULT else int(_spo2_start) - 5,
             step=1,
-            help="Piso de la SpO₂ durante un evento (nunca baja de aquí)",
+            help="Piso de la SpO₂ durante un evento (nunca baja de aquí). Con una basal de 85 % o menos empieza 5 "
+                 "puntos debajo de ella (Criterio BIOCORE: solo hace posibles los parámetros).",
             key=k("resp_spo2_min"),
         )
 
     if _spo2_note:
         panel.caption(_spo2_note)
+    if baseline_spo2 < 90:
+        # T4.1/T5: el control baja a 70 %, pero las tasas del modelo (Howarth 2026) se midieron en otra población.
+        panel.caption("Con una SpO₂ basal por debajo de 90 % el modelo usa las mismas tasas de desaturación y "
+                      "recuperación (Howarth 2026), que no se midieron desde una basal tan baja.")
 
     circulation_delay = panel.number_input(
         "Retardo circulatorio Tc (s) — Valor BIOCORE",
