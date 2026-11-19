@@ -108,7 +108,7 @@ def test_the_children_claim_is_gone_everywhere(lab_texts):
     blob = " ".join(lab_texts).lower()
     for gone in ("más común en niños", "mas comun en niños", "niños", "pediátric"):
         assert gone not in blob, gone
-    for path in LAB.glob("*.py"):
+    for path in [*LAB.glob("*.py"), Path("app/instruments/respiracion.py")]:
         assert "más común en niños" not in path.read_text(encoding="utf-8"), path
 
 

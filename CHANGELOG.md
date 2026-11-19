@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-11-18 · T4 (segunda parte): las unidades Respiración, Cerebro y Músculo
+
+Pedido de Luis: «haz lo que tengas que hacer para que ya todo quede bien, incluido cerebro, músculo y respiración y también detalles menores».
+
+1. **Tres laboratorios convertidos en instrumentos** (`app/instruments/respiracion.py`, `eeg.py`, `emg.py`). El código se movió tal cual: ningún cálculo, cita ni compuerta cambió. Las páginas de Respiración, EEG y EMG ahora son la composición de esos instrumentos con `PAGE`, con los mismos controles y las mismas claves. En una estación de la Ruta:
+   - no se ofrecen el EEG ni el EMG en vivo (piden consentimiento y un equipo, como la placa ECG), ni un CSV de EEG, ni los dos patrones de EEG con evento inyectado, ni el informe EEG exportable;
+   - las clasificaciones DAR, TBR y χ dicen «Clasificación:» en vez de su emoji de color (mismo nivel, misma etiqueta, mismo borde).
+
+   El guardado de Respiración devuelve el snapshot que escribió, como los demás. El generador de la demo del EMG vive en el instrumento y `app/main.py` lo reexporta.
+2. **Unidad Respiración.**
+   - **Escenarios:** sano, hipoxia, apnea o EPOC.
+   - **Conceptos:** NEWS2 (tema 6 firmado), cómo se mide la respiración, patrones, Cheyne-Stokes, Biot y apnea por esfuerzo.
+   - **Mide:** el instrumento de Respiración empieza en la FR y la SpO₂ basal del paciente.
+   - **Practica:** banco N1–N9.
+   - **Cierre:** los puntos NEWS2 de cada signo del paciente con la tabla de la plataforma (un componente por lectura, nunca un total) y el Detective.
+   - **Pendiente:** la explicación clínica por escenario del Detective.
+3. **Unidad Cerebro.**
+   - **Escenarios:** sano, estrés o ansiedad.
+   - **Concepto:** bandas del EEG (IFCN 2017).
+   - **Observa:** el registro real CAP n16.
+   - **Mide:** el instrumento de EEG.
+   - **Practica:** banco EEG. Cuenta en el cierre de la unidad, no en el panel de la sesión, porque el EEG no es uno de sus conceptos.
+   - **Cierre «Arousal y frecuencia cardiaca»:** la regla firmada `AROUSAL_TAQUICARDIA_BAR`, con su fuente y su confianza (la del puente, 0.70). La estación muestra el BAR y la FC del paciente y el tiempo entre ambos, y permite medir la FC ahí con el instrumento de HRV. Después, «Componer» llama a `compose_neuro_cardiac_snapshot`: dice si la regla se aplicó o, si no compuso, por qué. En estrés y ansiedad no se evalúa: el simulador ya modela la descarga simpática (`COUPLING_DISABLED_SCENARIOS`).
+   - **Hallazgo, sin tocar `domain/`:** tras componer, el banner y el gemelo dejan de mostrar el BAR. El compositor lo copia sin sus entradas, y el paciente compuesto no muestra un derivado sin ellas. La estación lo dice.
+   - **Pendiente:** más teoría firmada de EEG.
+4. **Unidad Músculo.**
+   - **Escenarios:** sano o fatiga (decisión 3).
+   - **Conceptos:** temas A1–A5 y A6–A9.
+   - **Mide:** el instrumento de EMG (demo o CSV; el CSV no se guarda).
+   - **Practica:** banco E1–E10.
+   - **Cierre:** el músculo del paciente con su procedencia. La respuesta de la FC a la contracción aparece como «sin dato», con el motivo: la ficha músculo → autonómico no está firmada y la «activación» no es un % de la contracción máxima.
+5. **Detalles menores (Art. I):**
+   - La franja ya no dice «Guardaste FC» cuando una estación guardó la respiración, el EEG o el EMG: lee el snapshot y dice lo que se guardó (`page._saved_text`).
+   - Una estación «Mide» cuyo instrumento no puede empezar en el valor del paciente lo dice y no ofrece guardar (`common.out_of_control_range`). Ejemplos: la SpO₂ de 80 % de la hipoxia no cabe en el control de 90–100 %; la FC de 150 de la sepsis, en Integración.
+   - El texto del guardado de HRV decía «reales» con procedencia de simulación, «Unified Physiological State» en inglés y un botón «Sincronizar» que ya no existe. Lo mismo en Respiración, EEG y EMG: ahora dicen «estado fisiológico unificado (UPS) del paciente activo» y «este laboratorio».
+   - Un horizonte de sepsis desconocido ya no lanza `KeyError` en el cierre de Integración: la fase no se identifica y la PA se declina.
+   - Prueba de que ningún prefijo de unidad es el comienzo de otro (si lo fuera, «Empezar de nuevo» borraría el estado de la otra unidad).
+   - Las pendientes de Integración (la firma de la PA de la sepsis) y de cada unidad se ven en su riel.
+
+6. **Revisión final (Art. I):**
+   - **Crítico, Unidad Cerebro:** el compositor de `domain/` toma el último BAR y la última FC tal como estén. Por eso «Componer» hacía dos cosas mal:
+     - componía la FC proyectada del escenario (horizonte 7 días) como si fuera de hace un segundo;
+     - al pulsarlo otra vez, componía sus propias copias: la FC arrastrada quedaba con «edad 0 s» y una FC vieja podía pasar la ventana de 120 s.
+
+     Ahora la estación solo compone un BAR y una FC medidos en la unidad, que no sean copias de una composición anterior (`cerebro.compose_blocker`). Si no se puede, dice por qué y qué hacer: cuál de los dos es más viejo y en qué orden guardarlos. El resultado de una composición se borra al guardar un EEG o una FC nuevos.
+   - El EEG en una estación ofrece solo la señal sintética. Un CSV se guardaba al paciente como simulación sin saber de quién viene; la página del laboratorio lo sigue ofreciendo.
+   - En la EPOC, la SpO₂ del cierre de Respiración no se puntúa con la escala 1. La estación cita la línea del tema 6 firmado sobre la escala 2 y dice que la plataforma no la modela.
+   - Las estaciones 0 de Cerebro y Músculo dicen que el simulador no genera EEG ni EMG: el escenario fija la FC, la FR y la SpO₂.
+   - La procedencia del cierre de Cerebro va con palabras («simulación», «validada por su fuente»), no con el nombre interno.
+   - Sin emoji en el enlace a la calculadora de la estación de Respiración.
+   - El mensaje del EMG sin señal ya no menciona la placa en vivo en una estación.
+
+Pruebas: `tests/test_ruta_unidades_t4.py` (nueva):
+- recorrido de cada unidad estación por estación, sin emoji, sin inglés y sin controles en el menú lateral;
+- Mide empieza en el paciente, guarda como simulación y la franja dice lo que guardó;
+- la SpO₂ fuera del control no se guarda;
+- los puntos NEWS2 del cierre;
+- la regla BAR con y sin firma de escenario;
+- el músculo sin la respuesta de la FC;
+- cada banco con su concepto.
+
+Además, en `tests/test_instruments.py`, los tres instrumentos montados dos veces. Las pruebas que leían el código de `page_content.py` o `app/main.py` leen también el instrumento adonde se movió.
+
 ## 2026-11-18 · T4 (primera parte): varias unidades en la Ruta, la Unidad Integración y los detalles menores
 
 Pedido de Luis: «Resuelve todos esos detalles menores, busca la literatura para poder firmarla y empieza T4».

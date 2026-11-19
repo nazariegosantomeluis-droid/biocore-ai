@@ -212,10 +212,11 @@ def guardar(ctx: InstrumentContext, series: RRSeries, sdnn: float, mean_nn: floa
     source = series.source
     st.markdown(f"#### {ctx.deco('🔗')}Guardar estado al gemelo")
     st.caption(
-        "Escribe `heart_rate`/`hrv` reales (calculados de la serie RR de arriba -- `hrv` mapeado "
-        "desde SDNN) al Unified Physiological State, bajo el mismo paciente que renderiza Digital "
-        "Twin OS -- su corazón reaccionará a estos valores la próxima vez que abras esa página o "
-        "pulses \"Sincronizar\" ahí. Procedencia: simulación (serie RR de demo/manual, no un sensor real)."
+        # Revisión final de la T4 (Art. I): decía «reales» con procedencia simulación, «Unified Physiological State»
+        # en inglés y un botón «Sincronizar» que el gemelo ya no tiene.
+        "Escribe la FC y la «hrv» (la SDNN) calculadas de la serie RR de arriba al estado fisiológico unificado (UPS) "
+        "del paciente activo: el gemelo digital las mostrará con su procedencia la próxima vez que lo abras. "
+        "Procedencia: simulación (serie RR simulada o pegada a mano, no un sensor real)."
     )
     if not st.button(f"{ctx.deco('💾')}Guardar estado al gemelo", key=ctx.k("hrv_lab_save_to_ups")):
         return InstrumentResult()
@@ -246,6 +247,6 @@ def guardar(ctx: InstrumentContext, series: RRSeries, sdnn: float, mean_nn: floa
     st.caption(
         f"cardiovascular: {len(state.cardiovascular.descriptors)} descriptores · "
         f"respiratory: {len(state.respiratory.descriptors)} descriptores "
-        f"(vacío esperado -- este lab no envía dato respiratorio)"
+        f"(vacío esperado -- este laboratorio no envía dato respiratorio)"
     )
     return InstrumentResult(saved_snapshot_id=snapshot_id)

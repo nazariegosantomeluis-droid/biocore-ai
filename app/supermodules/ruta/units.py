@@ -1,20 +1,15 @@
-"""Las unidades de la Ruta, en el orden del diseño firmado (T4, 2026-11-18).
+"""Las unidades de la Ruta, en el orden del diseño firmado (T4, 2026-11-18): Corazón, Respiración, Cerebro, Músculo e
+Integración.
 
-Una unidad sin sus instrumentos o sin su contenido firmado no se dibuja: queda listada como pendiente, con lo que le
-falta (diseño, «Una estación sin contenido firmado no existe»).
+Una estación sin contenido firmado no se dibuja: queda en la lista de pendientes de su unidad (`Unit.pending`), con lo
+que le falta (diseño, «Una estación sin contenido firmado no existe»). Una unidad entera sin sus instrumentos tampoco:
+iría en `PENDING_UNITS`, que hoy está vacía.
 """
 
-from app.supermodules.ruta import corazon, integracion
+from app.supermodules.ruta import cerebro, corazon, integracion, musculo, respiracion
 
-UNITS = (corazon.UNIT, integracion.UNIT)
+UNITS = (corazon.UNIT, respiracion.UNIT, cerebro.UNIT, musculo.UNIT, integracion.UNIT)
 UNIT_BY_KEY = {u.key: u for u in UNITS}
 
-# (título, lo que le falta), en el orden del diseño: Corazón, Respiración, Cerebro, Músculo, Integración.
-PENDING_UNITS = (
-    ("Unidad Respiración", "convertir el laboratorio de Respiración en instrumento (hoy dibuja sus controles en el "
-                           "menú lateral); la explicación clínica por escenario del Detective sigue sin firma"),
-    ("Unidad Cerebro", "convertir el EEG en instrumento; el cierre (arousal → taquicardia con la regla BAR firmada) "
-                       "llama al compositor después de guardar el EEG"),
-    ("Unidad Músculo", "convertir el EMG en instrumento; el cierre espera la firma de la ficha músculo → autonómico "
-                       "(docs/contenido/fichas_acoplamientos.md)"),
-)
+# (título, lo que le falta) de una unidad que todavía no se puede recorrer.
+PENDING_UNITS: tuple = ()

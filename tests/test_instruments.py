@@ -324,3 +324,61 @@ def test_what_if_en_estacion_no_comparte_estado_con_la_pagina():
     assert len(at.session_state["session_learning_log"]) == 3                # una vez por intento, 3 salidas
     at.run()
     assert len(at.session_state["session_learning_log"]) == 3
+
+
+# ── T4 (segunda parte): Respiración, EEG y EMG como instrumentos ──────────────────────────────────────────────────
+def _two_respiration():
+    from app.instruments import respiracion as R
+    from app.instruments.base import station_context
+
+    for prefix in ("r1", "r2"):
+        ctx = station_context(prefix)
+        run = R.patron(ctx)
+        R.valores(ctx, run)
+        R.senales(ctx, run)
+        R.guardar(ctx, run.analysis, run.pattern_display)
+
+
+def _two_eeg():
+    from app.instruments import eeg as E
+    from app.instruments.base import station_context
+
+    for prefix in ("c1", "c2"):
+        ctx = station_context(prefix)
+        series = E.fuente(ctx)
+        E.senales(ctx, series)
+        E.guardar(ctx, series, E.metricas(ctx, series))
+
+
+def _two_emg():
+    from app.instruments import emg as E
+    from app.instruments.base import station_context
+
+    for prefix in ("m1", "m2"):
+        ctx = station_context(prefix)
+        sig = E.fuente(ctx)
+        E.guardar(ctx, sig, E.trazo(ctx, sig))
+
+
+def _run_twice(script):
+    at = AppTest.from_function(script, default_timeout=120).run()
+    assert not at.exception, at.exception
+    assert not at.sidebar.selectbox and not at.sidebar.slider and not at.sidebar.number_input and not at.sidebar.radio
+    return at
+
+
+def test_respiracion_se_monta_dos_veces_sin_choque():
+    at = _run_twice(_two_respiration)
+    assert sorted(b.key for b in at.button) == ["r1__respiratory_lab_save_to_ups", "r2__respiratory_lab_save_to_ups"]
+
+
+def test_eeg_se_monta_dos_veces_sin_choque_y_sin_fuente_en_vivo():
+    at = _run_twice(_two_eeg)
+    assert sorted(b.key for b in at.button) == ["c1__eeg_lab_save_to_ups", "c2__eeg_lab_save_to_ups"]
+    assert at.radio(key="c1__eeg_source").options == ["Generar EEG sintético"]      # ni en vivo ni CSV en la ruta
+
+
+def test_emg_se_monta_dos_veces_sin_choque_y_sin_sensor_en_vivo():
+    at = _run_twice(_two_emg)
+    assert sorted(b.key for b in at.button) == ["m1__emg_lab_save_to_ups", "m2__emg_lab_save_to_ups"]
+    assert at.radio(key="m1__emg_source").options == ["Demo", "CSV"]

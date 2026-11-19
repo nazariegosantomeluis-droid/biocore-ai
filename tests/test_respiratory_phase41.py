@@ -211,7 +211,7 @@ def test_unsourced_spo2_thresholds_are_gone_from_the_ui(temp_ups, pattern):
 def test_the_analysis_no_longer_carries_the_time_below_threshold_fields():
     _, a = _run("apnea_central", 15, 120)
     assert not hasattr(a, "time_below_90") and not hasattr(a, "time_below_85")
-    for path in Path("app/supermodules/respiratory_lab").glob("*.py"):
+    for path in [*Path("app/supermodules/respiratory_lab").glob("*.py"), Path("app/instruments/respiracion.py")]:
         src = path.read_text(encoding="utf-8")
         assert "time_below" not in src, path
 

@@ -88,12 +88,15 @@ def test_banco_registra_una_vez_con_su_concepto():
         [{k: r[k] for k in ("item_id", "concept", "correct", "confidence")} for r in log]
 
 
-def test_unidades_pendientes_dicen_que_les_falta():
+def test_las_cinco_unidades_se_pueden_recorrer():
+    """T4 (segunda parte): Respiración, Cerebro y Músculo ya tienen sus instrumentos; ninguna unidad queda pendiente.
+    Lo que le falta a una estación se dice dentro de su unidad (`Unit.pending`)."""
     at = _open()
-    assert at.radio(key="ruta_unit").options == ["Unidad Corazón", "Unidad Integración"]
-    text = _texts(at)
-    for unit in ("Respiración", "Cerebro", "Músculo"):
-        assert f"Unidad {unit} (pendiente)" in text
+    assert at.radio(key="ruta_unit").options == ["Unidad Corazón", "Unidad Respiración", "Unidad Cerebro",
+                                                 "Unidad Músculo", "Unidad Integración"]
+    assert "(pendiente)" not in _texts(at)
+    _unit(at, "integracion")
+    assert "Pendiente: La PA de la sepsis" in _texts(at)
 
 
 # ── Task 3: Unidad Integración ─────────────────────────────────────────────────────────────────────────────────────

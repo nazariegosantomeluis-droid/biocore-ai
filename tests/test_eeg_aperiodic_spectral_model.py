@@ -219,6 +219,8 @@ def test_spectral_model_import_surface_matches_arco_2d_wiring():
     allowed_importers = {
         (repo_root / "domain" / "physiology" / "state" / "builder.py").resolve(),
         (repo_root / "app" / "supermodules" / "eeg_neuro_lab" / "page_content.py").resolve(),
+        # T4 (2026-11-18): el guardado y las métricas se movieron tal cual al instrumento de EEG.
+        (repo_root / "app" / "instruments" / "eeg.py").resolve(),
         (repo_root / "app" / "supermodules" / "twin_shell" / "ups_body_visual.py").resolve(),
     }
 

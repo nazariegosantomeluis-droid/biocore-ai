@@ -12,8 +12,11 @@ import streamlit as st
 
 from app.supermodules.ruta import model as M
 
-# Escenarios del simulador para la estación 0 (diseño: «sano, hipertensión o sepsis»; los tres con lazo cerrado).
+# Escenarios del simulador para la estación 0 de Corazón e Integración (diseño: «sano, hipertensión o sepsis»; los tres
+# con lazo cerrado). Cada unidad elige los suyos de `SCENARIO_LABELS` (T4): todos son escenarios de `SimulationScenario`.
 SCENARIOS = {"healthy": "Sano", "hypertension": "Hipertensión", "sepsis": "Sepsis"}
+SCENARIO_LABELS = {**SCENARIOS, "hypoxia": "Hipoxia", "apnea": "Apnea", "copd": "EPOC", "stress": "Estrés",
+                   "anxiety": "Ansiedad", "fatigue": "Fatiga"}
 SCENARIO_SEED = 0          # la instancia de «sano» se declara con su semilla, como en el gemelo
 SAVED_NOW_KEY = "ruta_saved_now"
 
@@ -32,7 +35,7 @@ def create_unit_patient(unit_key: str, unit_title: str, prefix: str, scenario_ke
     from domain.physiology.scenarios.rich_engine import run_rich_scenario
     from domain.physiology.state import create_patient, horizon_of
 
-    name = f"{unit_title} · {SCENARIOS[scenario_key]}"
+    name = f"{unit_title} · {SCENARIO_LABELS[scenario_key]}"
     rows = []
     with get_active_session_factory()() as session:
         patient_id = create_patient(session, display_name=name)
@@ -60,22 +63,24 @@ def create_unit_patient(unit_key: str, unit_title: str, prefix: str, scenario_ke
         start={"hr": last.get("FC (lpm)"), "rr": last.get("FR (rpm)"), "spo2": last.get("SpO₂ (%)")})
 
 
-def render_patient_station(unit_key: str, unit_title: str, prefix: str) -> None:
+def render_patient_station(unit_key: str, unit_title: str, prefix: str, scenarios: Sequence[str] = tuple(SCENARIOS),
+                           note: Optional[str] = None) -> None:
+    """`note`: lo que el escenario NO fija de esta unidad (p. ej. el simulador no genera EEG ni EMG)."""
     from app.engines.simulation_engine import SimulationEngine, SimulationScenario
     from src.clinical import sepsis_trajectory
 
     p = M.progress(unit_key)
     if p["patient_id"]:
-        st.markdown(f"**Tu paciente:** {unit_title} · {SCENARIOS[p['scenario']]} (`{p['patient_id'][:8]}`), "
+        st.markdown(f"**Tu paciente:** {unit_title} · {SCENARIO_LABELS[p['scenario']]} (`{p['patient_id'][:8]}`), "
                     "simulación del escenario.")
         st.dataframe(p["trajectory"], hide_index=True, width="stretch")
         st.caption("Valores que calculó el simulador en cada horizonte; el último es el estado de tu paciente.")
     st.markdown("Elige el escenario del simulador con el que empieza tu paciente.")
-    options = list(SCENARIOS)
+    options = list(scenarios)
     # El selector no se dibuja en las demás estaciones y Streamlit olvida su valor: vuelve al escenario del paciente.
     current = options.index(p["scenario"]) if p["scenario"] in options else 0
-    choice = st.radio("Escenario del simulador", options, index=current, format_func=SCENARIOS.get, horizontal=True,
-                      key=f"{prefix}scenario")
+    choice = st.radio("Escenario del simulador", options, index=current, format_func=SCENARIO_LABELS.get,
+                      horizontal=True, key=f"{prefix}scenario")
     if choice == "healthy":
         st.info(SimulationEngine(seed=SCENARIO_SEED).instance_declaration(SimulationScenario.HEALTHY))
     elif choice == "sepsis":
@@ -83,6 +88,8 @@ def render_patient_station(unit_key: str, unit_title: str, prefix: str) -> None:
     else:
         st.caption("Trayectoria del simulador de escenarios (SimulationEngine): simulación.")
     st.caption(START_NOTE)
+    if note:
+        st.caption(note)
     label = "Empezar con este paciente" if not p["patient_id"] else "Empezar de nuevo con este escenario"
     if st.button(label, key=f"{prefix}start", type="primary"):
         with st.spinner("Calculando los 6 horizontes del escenario…"):
@@ -96,6 +103,24 @@ def saved_now(snapshot_id: Optional[str]) -> None:
     if snapshot_id:
         st.session_state[SAVED_NOW_KEY] = snapshot_id
         st.rerun()
+
+
+def out_of_control_range(vitals, ranges) -> list:
+    """Qué valor del paciente no cabe en los controles de un instrumento (entonces el instrumento no empieza en él y
+    la estación no ofrece guardar: no se le escribe al paciente un valor que no es el suyo). `ranges`: tuplas
+    `(clave de VITALS, rótulo, unidad, (mínimo, máximo))`. Revisión final de la T4."""
+    problems = []
+    for key, label, unit, (lo, hi) in ranges:
+        d = vitals.values[key]
+        if d is not None and not lo <= round(d.value) <= hi:
+            problems.append(f"La {label} de tu paciente ({d.value:.0f} {unit}) está fuera del rango de la simulación "
+                            f"({lo}–{hi} {unit})")
+    return problems
+
+
+def render_out_of_range(problems: list) -> None:
+    st.warning("; ".join(problems) + ". La simulación empieza en otro valor, así que esta estación no ofrece guardar: "
+               "no se le escribe a tu paciente un valor que no es el suyo.")
 
 
 # ───────────────────────────── práctica con un banco firmado ─────────────────────────────
@@ -155,7 +180,7 @@ def render_closing_summary(unit_key: str, unit_title: str) -> None:
 
     p = M.progress(unit_key)
     vitals = read_active_vitals()
-    st.markdown(f"#### Tu paciente al final · {unit_title} · {SCENARIOS[p['scenario']]} (`{p['patient_id'][:8]}`)")
+    st.markdown(f"#### Tu paciente al final · {unit_title} · {SCENARIO_LABELS[p['scenario']]} (`{p['patient_id'][:8]}`)")
     now, start = [], []
     for key, label, *_rest in VITALS:
         d = vitals.values[key]
