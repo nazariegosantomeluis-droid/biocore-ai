@@ -60,6 +60,17 @@ La aplicación se abre en el navegador. Los datos de señal se generan por escen
 
 ---
 
+## Autores
+
+En orden alfabético por apellido:
+
+- José Miguel Fausto Tapia
+- Saúl Hernández Campech
+- Cristopher Lara Martinez
+- Luis Nazariego Santome
+
+---
+
 ## Licencia
 
 Este proyecto se distribuye bajo una licencia de fuente disponible, no comercial. El código es visible para revisión, estudio y evaluación, pero su uso comercial requiere acuerdo con el titular. Ver [`LICENSE`](LICENSE) para los términos completos. Los componentes de terceros (ecuaciones, datos, librerías) conservan sus licencias y sus citas: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
